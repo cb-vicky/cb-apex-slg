@@ -2,6 +2,16 @@ import { cn } from "@/lib/utils";
 import { ChevronRight } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
+const DISABLED_NAV_PATHS = new Set([
+  "/credit-notes",
+  "/inbox",
+  "/product-catalog",
+  "/entitlements",
+  "/approvals",
+  "/usages",
+  "/revenuestory",
+]);
+
 const navItems = [
   { label: "Customers", path: "/customers" },
   { label: "Quotes", path: "/quotes" },
@@ -42,16 +52,21 @@ export function Sidebar() {
 
       <nav className="flex flex-1 flex-col gap-0.5 px-2">
         {navItems.map((item) => {
-          const active = isActive(item.path);
+          const disabled = DISABLED_NAV_PATHS.has(item.path);
+          const active = !disabled && isActive(item.path);
           return (
             <button
               key={item.label}
+              type="button"
+              disabled={disabled}
               onClick={() => navigate(item.path)}
               className={cn(
                 "rounded-md px-2 py-1 text-left text-[13px] transition-colors",
-                active
-                  ? "font-medium text-cb-orange"
-                  : "text-text-secondary hover:text-text-primary",
+                disabled
+                  ? "cursor-not-allowed text-text-muted opacity-60"
+                  : active
+                    ? "font-medium text-cb-orange"
+                    : "text-text-secondary hover:text-text-primary",
               )}
             >
               {item.label}
