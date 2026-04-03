@@ -1,0 +1,154 @@
+import { cn } from "@/lib/utils";
+import type { ReactNode } from "react";
+
+// ---------------------------------------------------------------------------
+// Status Badge
+// ---------------------------------------------------------------------------
+const statusColors: Record<string, string> = {
+  active: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  paid: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  healthy: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  enforced: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  applied: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  synced: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  matched: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  posted: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  ready: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  updated: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  resolved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  issued: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  delivered: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  pending: "bg-amber-50 text-amber-700 border-amber-200",
+  "pending approval": "bg-amber-50 text-amber-700 border-amber-200",
+  "pending review": "bg-amber-50 text-amber-700 border-amber-200",
+  "pending rerun": "bg-amber-50 text-amber-700 border-amber-200",
+  "review required": "bg-amber-50 text-amber-700 border-amber-200",
+  "in progress": "bg-amber-50 text-amber-700 border-amber-200",
+  partial: "bg-amber-50 text-amber-700 border-amber-200",
+  "on hold": "bg-amber-50 text-amber-700 border-amber-200",
+  "po required": "bg-amber-50 text-amber-700 border-amber-200",
+  "medium risk": "bg-amber-50 text-amber-700 border-amber-200",
+  "reminder sent": "bg-blue-50 text-blue-700 border-blue-200",
+  "overdue notice": "bg-blue-50 text-blue-700 border-blue-200",
+  "re-exported": "bg-blue-50 text-blue-700 border-blue-200",
+  trialing: "bg-blue-50 text-blue-700 border-blue-200",
+  overdue: "bg-red-50 text-red-700 border-red-200",
+  rejected: "bg-red-50 text-red-700 border-red-200",
+  blocked: "bg-red-50 text-red-700 border-red-200",
+  failed: "bg-red-50 text-red-700 border-red-200",
+  unapplied: "bg-red-50 text-red-700 border-red-200",
+  reversed: "bg-red-50 text-red-700 border-red-200",
+  "no response": "bg-red-50 text-red-700 border-red-200",
+  "high risk": "bg-red-50 text-red-700 border-red-200",
+  cancelled: "bg-gray-100 text-gray-500 border-gray-200",
+  "low risk": "bg-gray-100 text-gray-500 border-gray-200",
+};
+
+export function StatusBadge({ status, className }: { status: string; className?: string }) {
+  const key = status.toLowerCase();
+  const colors = statusColors[key] ?? "bg-gray-100 text-gray-600 border-gray-200";
+  return (
+    <span className={cn("inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium leading-4", colors, className)}>
+      {status}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Risk Badge
+// ---------------------------------------------------------------------------
+export function RiskBadge({ label }: { label: string }) {
+  const lc = label.toLowerCase();
+  const isHigh = lc.includes("overdue") || lc.includes("mismatch") || lc.includes("high burn");
+  const isWarn = lc.includes("renewal");
+  const color = isHigh
+    ? "bg-red-50 text-red-700 border-red-200"
+    : isWarn
+      ? "bg-amber-50 text-amber-700 border-amber-200"
+      : "bg-gray-50 text-gray-600 border-gray-200";
+  return (
+    <span className={cn("inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium leading-4 whitespace-nowrap", color)}>
+      {label}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Metric Pill
+// ---------------------------------------------------------------------------
+export function MetricPill({ label, value, variant }: { label: string; value: string; variant?: "default" | "danger" | "warning" | "success" }) {
+  const variantClasses = {
+    default: "text-text-primary",
+    danger: "text-red-600",
+    warning: "text-amber-600",
+    success: "text-emerald-600",
+  };
+  return (
+    <div className="flex flex-col items-end gap-0.5">
+      <span className="text-[10px] uppercase tracking-wider text-text-muted">{label}</span>
+      <span className={cn("text-sm font-semibold tabular-nums", variantClasses[variant ?? "default"])}>{value}</span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SectionCard
+// ---------------------------------------------------------------------------
+export function SectionCard({ title, children, className, actions }: { title: string; children: ReactNode; className?: string; actions?: ReactNode }) {
+  return (
+    <div className={cn("rounded-lg border border-border-default bg-white", className)}>
+      <div className="flex items-center justify-between border-b border-border-subtle px-4 py-2.5">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-secondary">{title}</h3>
+        {actions}
+      </div>
+      <div className="px-4 py-3">{children}</div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// KeyValue Row
+// ---------------------------------------------------------------------------
+export function KV({ label, value, className }: { label: string; value: ReactNode; className?: string }) {
+  return (
+    <div className={cn("flex items-baseline justify-between gap-4 py-1.5 text-[13px]", className)}>
+      <span className="shrink-0 text-text-secondary">{label}</span>
+      <span className="text-right font-medium text-text-primary">{typeof value === "string" ? value : value}</span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Compact Entity Chip
+// ---------------------------------------------------------------------------
+export function EntityChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-1.5 rounded-md border border-border-default bg-surface-muted px-2 py-1">
+      <span className="text-[10px] uppercase tracking-wider text-text-muted">{label}</span>
+      <span className="text-[12px] font-medium text-text-primary">{value}</span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Timeline Row
+// ---------------------------------------------------------------------------
+export function TimelineRow({ date, action, actor, detail, isLast }: { date: string; action: string; actor: string; detail?: string; isLast?: boolean }) {
+  return (
+    <div className="flex gap-3">
+      <div className="flex flex-col items-center">
+        <div className="mt-1.5 h-2 w-2 rounded-full bg-border-default" />
+        {!isLast && <div className="w-px flex-1 bg-border-default" />}
+      </div>
+      <div className="pb-4">
+        <p className="text-[13px] font-medium text-text-primary">{action}</p>
+        <p className="text-[12px] text-text-secondary">
+          {actor} &middot; {date}
+        </p>
+        {detail && <p className="mt-0.5 text-[12px] text-text-muted">{detail}</p>}
+      </div>
+    </div>
+  );
+}
