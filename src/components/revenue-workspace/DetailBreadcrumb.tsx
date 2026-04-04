@@ -88,8 +88,8 @@ export function DetailBreadcrumb({ from, customerName, activeStage, recordId, ac
   }
 
   return (
-    <div className="flex items-center gap-3 border-b border-[#F0F1F3] pb-3">
-      <nav className="flex min-w-0 flex-1 items-center gap-1 text-[12px] text-text-muted">
+    <div className="flex h-9 min-h-9 items-center gap-3">
+      <nav className="flex min-h-0 min-w-0 flex-1 items-center gap-1 overflow-x-auto whitespace-nowrap text-[12px] leading-none text-text-muted [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {crumbs.map((crumb, idx) => {
           const isLast = idx === crumbs.length - 1;
           return (
@@ -113,7 +113,7 @@ export function DetailBreadcrumb({ from, customerName, activeStage, recordId, ac
       </nav>
 
       {actions && (
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex max-h-7 shrink-0 items-center gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {actions}
         </div>
       )}

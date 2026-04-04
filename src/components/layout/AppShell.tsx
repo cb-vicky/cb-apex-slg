@@ -10,8 +10,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <SearchBar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        <main className="flex-1 overflow-auto bg-[#F0F1F3] pt-0 pr-0 pb-0 pl-3">
-          <div className="h-full w-full rounded-tl-[24px] bg-white shadow-sm">
+        <main className="flex-1 overflow-hidden bg-[#F0F1F3] pt-0 pr-0 pb-0 pl-3">
+          <div className="flex h-full w-full flex-col rounded-tl-[24px] bg-white overflow-auto">
             {children}
           </div>
         </main>

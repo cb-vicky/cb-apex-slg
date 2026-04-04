@@ -1,4 +1,5 @@
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { useScrolled } from "@/hooks/useScrolled";
 import { customers, quotes, contracts, invoices } from "@/data/mock-data";
 import { supportTickets } from "@/data/support-data";
 import { currency, shortDate } from "@/lib/utils";
@@ -158,6 +159,7 @@ export function CustomersIndex() {
   const navigate = useNavigate();
   const groupFilter = searchParams.get("group");
   const groups = buildGroups();
+  const { ref: scrollRef, isScrolled } = useScrolled();
 
   const metrics: MetricCard[] = [
     { label: "Active customers", value: customers.length },
@@ -177,8 +179,8 @@ export function CustomersIndex() {
     const gm = groupMeta.find((g) => g.slug === groupFilter);
     const rows = groups[groupFilter] ?? [];
     return (
-      <div className="flex h-full w-full flex-col overflow-auto">
-        <div className="flex flex-col gap-3 pt-3 pb-5 pl-6 pr-[12px]">
+      <div className="flex flex-1 w-full flex-col">
+        <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] pl-6 pr-[12px] pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
           <PageHeader
             title="Customers"
             backLabel="Back to overview"
@@ -186,6 +188,8 @@ export function CustomersIndex() {
             filterLabel={gm?.label}
             createLabel="Create"
           />
+        </div>
+        <div className="flex flex-col gap-3 pl-6 pr-[12px] pt-3 pb-5">
           <MetricStrip metrics={metrics} />
           <ListTable columns={listColumns}>
             {customers
@@ -215,9 +219,11 @@ export function CustomersIndex() {
 
   // Grouped landing
   return (
-    <div className="flex h-full w-full flex-col overflow-auto">
-      <div className="flex flex-col gap-3 pt-3 pb-5 pl-6 pr-[12px]">
+    <div className="flex flex-1 w-full flex-col">
+      <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] pl-6 pr-[12px] pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
         <PageHeader title="Customers" createLabel="Create" />
+      </div>
+      <div className="flex flex-col gap-3 pl-6 pr-[12px] pt-3 pb-5">
         <MetricStrip metrics={metrics} />
         {groupMeta.map((gm) => {
           const rows = groups[gm.key] ?? [];

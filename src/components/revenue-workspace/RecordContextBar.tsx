@@ -9,8 +9,11 @@ import type { RevenueArrangement } from "@/data/revrec-data";
 
 function ActionButton({ icon: Icon, label }: { icon: typeof Edit; label: string }) {
   return (
-    <button className="inline-flex items-center gap-1.5 rounded-md border border-border-default bg-white px-2.5 py-1 text-[12px] font-medium text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary">
-      <Icon size={13} />
+    <button
+      type="button"
+      className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border-default bg-white px-2 text-[11px] font-medium leading-none text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary"
+    >
+      <Icon size={12} className="shrink-0" />
       {label}
     </button>
   );

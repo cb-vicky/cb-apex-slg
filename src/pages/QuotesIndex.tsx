@@ -1,4 +1,5 @@
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { useScrolled } from "@/hooks/useScrolled";
 import { quotes, customers } from "@/data/mock-data";
 import { currency, shortDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/primitives";
@@ -97,6 +98,7 @@ export function QuotesIndex() {
   const navigate = useNavigate();
   const groupFilter = searchParams.get("group");
   const groups = buildGroups();
+  const { ref: scrollRef, isScrolled } = useScrolled();
 
   const pending = quotes.filter((q) => q.approval.status === "pending").length;
   const expiringSoon = groups["expiring-soon"].length;
@@ -119,8 +121,8 @@ export function QuotesIndex() {
     const rows = groups[groupFilter] ?? [];
     const filtered = quotes.filter((q) => rows.some((r) => r.quoteId === q.id));
     return (
-      <div className="flex h-full w-full flex-col overflow-auto">
-        <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
+      <div className="flex flex-1 w-full flex-col">
+        <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
           <PageHeader
             title="Quotes"
             backLabel="Back to overview"
@@ -128,6 +130,8 @@ export function QuotesIndex() {
             filterLabel={gm?.label}
             createLabel="Create"
           />
+        </div>
+        <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
           <MetricStrip metrics={metrics} />
           <ListTable columns={listColumns}>
             {filtered.map((q) => {
@@ -153,9 +157,11 @@ export function QuotesIndex() {
   }
 
   return (
-    <div className="flex h-full w-full flex-col overflow-auto">
-      <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
+    <div className="flex flex-1 w-full flex-col">
+      <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
         <PageHeader title="Quotes" createLabel="Create" />
+      </div>
+      <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
         <MetricStrip metrics={metrics} />
         {groupMeta.map((gm) => {
           const rows = groups[gm.key] ?? [];

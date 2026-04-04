@@ -20,7 +20,7 @@ export function WorkbenchHome() {
   const milestones = config.milestones;
 
   return (
-    <div className="h-full w-full overflow-auto">
+    <div className="flex-1 w-full overflow-auto">
       <div className="px-8 py-7">
         {/* Two-column layout: 8-col scrollable content + 4-col sticky rail */}
         <div className="grid grid-cols-12 gap-6">

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useScrolled } from "@/hooks/useScrolled";
 import type { Customer, Quote, Contract, Invoice, Task } from "@/data/mock-data";
 import { getInvoices, getQuoteLineage } from "@/data/mock-data";
 import { getInvoiceEnrichment, getCollectionCasesForCustomer, getCustomerArSummary } from "@/data/billing-data";
@@ -29,6 +30,7 @@ interface Props {
 export function CustomerRevenueWorkspace({ customer, quote, contract, tasks, initialStage, from, activeRecordId }: Props) {
   const [activeStage, setActiveStage] = useState<Stage>(initialStage);
   const [activeQuote, setActiveQuote] = useState<Quote>(quote);
+  const { ref: breadcrumbRef, isScrolled } = useScrolled();
   const quoteVersions = getQuoteLineage(activeQuote.lineageId);
 
   useEffect(() => {
@@ -74,24 +76,31 @@ export function CustomerRevenueWorkspace({ customer, quote, contract, tasks, ini
   }
 
   return (
-    <div className="flex h-full w-full flex-col overflow-auto rounded-tl-[24px]">
-      <div className="flex flex-col gap-4 rounded-tl-[24px] border border-[rgba(225,226,230,1)] px-6 py-5 shadow-[-1px_4px_24px_0px_rgba(0,0,0,0.15)]">
-        {from && (
-          <DetailBreadcrumb
-            from={from}
-            customerName={customer.name}
-            activeStage={activeStage}
-            recordId={currentRecordId}
-            actions={activeStage !== "customer" ? (
-              <RecordContextActions
-                activeStage={activeStage}
-                invoice={selectedInvoice}
-                primaryCollectionCase={primaryCase}
-                revenueArrangement={revenueArrangement}
-              />
-            ) : undefined}
-          />
-        )}
+    <div className="flex flex-1 flex-col rounded-tl-[24px] border border-[rgba(225,226,230,1)]">
+      {from && (
+        <div
+          ref={breadcrumbRef}
+          className={`sticky top-0 z-10 flex w-full items-center border-b border-[#F0F1F3] bg-white px-6 py-2.5 rounded-tl-[24px] transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}
+        >
+          <div className="w-full min-w-0">
+            <DetailBreadcrumb
+              from={from}
+              customerName={customer.name}
+              activeStage={activeStage}
+              recordId={currentRecordId}
+              actions={activeStage !== "customer" ? (
+                <RecordContextActions
+                  activeStage={activeStage}
+                  invoice={selectedInvoice}
+                  primaryCollectionCase={primaryCase}
+                  revenueArrangement={revenueArrangement}
+                />
+              ) : undefined}
+            />
+          </div>
+        </div>
+      )}
+      <div className={`flex flex-col gap-4 px-6 pb-5 ${from ? "pt-4" : "pt-5"}`}>
         <CustomerWorkspaceHeader customer={customer} />
         <RevenueJourneyRail
           activeStage={activeStage}
