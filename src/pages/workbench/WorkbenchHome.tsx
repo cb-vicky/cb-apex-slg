@@ -1,11 +1,9 @@
-import { useState } from "react";
-import { cn } from "@/lib/utils";
 import {
-  type Role,
   adminConfig,
   operatorConfig,
   operatorRailCards,
 } from "@/data/gettingStarted";
+import { useWorkbenchRole } from "@/context/WorkbenchRoleContext";
 import { GettingStartedHeader } from "@/components/getting-started/GettingStartedHeader";
 import { SummaryStrip } from "@/components/getting-started/SummaryStrip";
 import { EnvironmentBanner } from "@/components/getting-started/EnvironmentBanner";
@@ -14,20 +12,12 @@ import { OperatorRail } from "@/components/getting-started/OperatorRail";
 import { FooterCallout } from "@/components/getting-started/FooterCallout";
 
 export function WorkbenchHome() {
-  const [role, setRole] = useState<Role>("admin");
+  const { role } = useWorkbenchRole();
   const config = role === "admin" ? adminConfig : operatorConfig;
 
   return (
     <div className="h-full w-full overflow-auto">
       <div className="flex flex-col gap-6 px-8 py-7">
-        {/* Role switcher (prototype only) */}
-        <div className="flex items-center justify-end">
-          <div className="inline-flex rounded-lg border border-border-default bg-surface-muted p-0.5">
-            <RoleTab label="Billing Manager" active={role === "admin"} onClick={() => setRole("admin")} />
-            <RoleTab label="Billing Operator" active={role === "operator"} onClick={() => setRole("operator")} />
-          </div>
-        </div>
-
         {/* 1. Hero row */}
         <GettingStartedHeader role={role} config={config} />
 
@@ -81,24 +71,5 @@ function OperatorLayout() {
         <OperatorRail cards={operatorRailCards} />
       </div>
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Role switcher tab
-// ---------------------------------------------------------------------------
-function RoleTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "rounded-md px-3 py-1 text-[12px] font-medium transition-colors",
-        active
-          ? "bg-white text-text-primary shadow-sm"
-          : "text-text-secondary hover:text-text-primary"
-      )}
-    >
-      {label}
-    </button>
   );
 }
