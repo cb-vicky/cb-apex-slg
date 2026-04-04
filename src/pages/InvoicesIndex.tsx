@@ -117,7 +117,7 @@ export function InvoicesIndex() {
     const filtered = invoices.filter((inv) => rows.some((r) => r.invoiceId === inv.id));
     return (
       <div className="flex h-full w-full flex-col overflow-auto">
-        <div className="flex flex-col gap-5 px-6 py-5">
+        <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
           <PageHeader title="Invoices" backLabel="Back to overview" backPath="/invoices" filterLabel={gm?.label} />
           <MetricStrip metrics={metrics} />
           <ListTable columns={listColumns}>
@@ -144,7 +144,7 @@ export function InvoicesIndex() {
 
   return (
     <div className="flex h-full w-full flex-col overflow-auto">
-      <div className="flex flex-col gap-5 px-6 py-5">
+      <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
         <PageHeader title="Invoices" />
         <MetricStrip metrics={metrics} />
         {groupMeta.map((gm) => {

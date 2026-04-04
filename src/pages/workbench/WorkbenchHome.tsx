@@ -37,7 +37,7 @@ export function WorkbenchHome() {
           </div>
 
           {/* Right: sticky info rail */}
-          <div className="col-span-4">
+          <div className="col-span-4 pt-0">
             <OperatorRail cards={railCards} />
           </div>
         </div>

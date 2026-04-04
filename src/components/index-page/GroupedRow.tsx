@@ -23,7 +23,7 @@ export function GroupedRow({ onClick, children, className }: Props) {
 
 export function RowCell({ children, className, width }: { children: ReactNode; className?: string; width?: string }) {
   return (
-    <span className={cn("truncate", className)} style={width ? { width, minWidth: width, maxWidth: width } : undefined}>
+    <span className={cn("min-w-0 overflow-visible whitespace-nowrap", className)} style={width ? { width, minWidth: width, maxWidth: width } : undefined}>
       {children}
     </span>
   );

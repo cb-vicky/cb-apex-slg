@@ -17,7 +17,7 @@ export function MetricStrip({ metrics }: { metrics: MetricCard[] }) {
       {metrics.map((m) => (
         <div
           key={m.label}
-          className="flex flex-1 flex-col gap-1 rounded-lg border border-border-default bg-surface-muted px-4 py-3"
+          className="flex flex-1 flex-col gap-1 border-r border-border-default bg-white px-4 py-2"
         >
           <span className="text-[11px] uppercase tracking-wider text-text-muted">{m.label}</span>
           <span className={`text-lg font-semibold tabular-nums ${variantClasses[m.variant ?? "default"]}`}>

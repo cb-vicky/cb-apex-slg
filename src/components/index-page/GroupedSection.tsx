@@ -16,19 +16,20 @@ export function GroupedSection({ title, count, viewAllPath, children }: Props) {
 
   return (
     <div className="rounded-lg border border-border-default bg-white">
-      <div className="flex items-center justify-between border-b border-border-subtle px-4 py-2.5">
-        <div className="flex items-center gap-2">
-          <h3 className="text-[13px] font-semibold text-text-primary">{title}</h3>
-          <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[11px] font-medium text-text-secondary tabular-nums">
-            {count}
-          </span>
-        </div>
+      <div
+        className="flex h-[30px] shrink-0 items-center justify-between border-b border-border-subtle px-4"
+        style={{ backgroundColor: "#F7F7F8" }}
+      >
+        <h3 className="text-[11px] font-semibold leading-none text-[#62676D] tabular-nums">
+          {title} ({count})
+        </h3>
         <button
+          type="button"
           onClick={() => navigate(viewAllPath)}
-          className="inline-flex items-center gap-0.5 text-[12px] font-medium text-cb-orange transition-colors hover:text-cb-orange/80"
+          className="inline-flex items-center gap-0.5 text-[11px] font-medium leading-none text-cb-orange transition-colors hover:text-cb-orange/80"
         >
           View all
-          <ChevronRight size={14} />
+          <ChevronRight size={12} strokeWidth={2} />
         </button>
       </div>
       <div className="divide-y divide-border-subtle">{children}</div>

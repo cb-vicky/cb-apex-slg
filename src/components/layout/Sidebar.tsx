@@ -37,8 +37,8 @@ export function Sidebar() {
   const workbenchActive = location.pathname === "/" || location.pathname === "/workbench";
 
   return (
-    <aside className="flex w-[140px] shrink-0 flex-col bg-[#F0F1F3] pt-3">
-      <nav className="flex flex-1 flex-col gap-0.5 px-2">
+    <aside className="flex w-[150px] shrink-0 flex-col bg-[#F0F1F3] pt-3">
+      <nav className="flex flex-1 flex-col gap-0 px-2">
         <button
           onClick={() => navigate("/")}
           className={cn(

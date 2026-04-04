@@ -120,7 +120,7 @@ export function QuotesIndex() {
     const filtered = quotes.filter((q) => rows.some((r) => r.quoteId === q.id));
     return (
       <div className="flex h-full w-full flex-col overflow-auto">
-        <div className="flex flex-col gap-5 px-6 py-5">
+        <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
           <PageHeader
             title="Quotes"
             backLabel="Back to overview"
@@ -154,7 +154,7 @@ export function QuotesIndex() {
 
   return (
     <div className="flex h-full w-full flex-col overflow-auto">
-      <div className="flex flex-col gap-5 px-6 py-5">
+      <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
         <PageHeader title="Quotes" createLabel="Create" />
         <MetricStrip metrics={metrics} />
         {groupMeta.map((gm) => {

@@ -16,11 +16,11 @@ interface Props {
 export function ListTable({ columns, children }: Props) {
   return (
     <div className="rounded-lg border border-border-default bg-white">
-      <div className="flex items-center gap-4 border-b border-border-subtle bg-surface-muted px-4 py-2">
+      <div className="flex h-[30px] shrink-0 items-center gap-4 border-b border-border-subtle bg-surface-muted px-4">
         {columns.map((col) => (
           <span
             key={col.key}
-            className={cn("text-[11px] font-semibold uppercase tracking-wider text-text-muted truncate", col.className)}
+            className={cn("truncate text-[11px] font-semibold uppercase leading-none tracking-wider text-text-muted", col.className)}
             style={col.width ? { width: col.width, minWidth: col.width, maxWidth: col.width } : { flex: 1 }}
           >
             {col.label}
@@ -46,7 +46,7 @@ export function ListRow({ onClick, children }: { onClick: () => void; children: 
 export function ListCell({ children, className, width }: { children: ReactNode; className?: string; width?: string }) {
   return (
     <span
-      className={cn("truncate text-[13px]", className)}
+      className={cn("min-w-0 overflow-visible whitespace-nowrap text-[13px]", className)}
       style={width ? { width, minWidth: width, maxWidth: width } : { flex: 1 }}
     >
       {children}

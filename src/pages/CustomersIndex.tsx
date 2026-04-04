@@ -178,7 +178,7 @@ export function CustomersIndex() {
     const rows = groups[groupFilter] ?? [];
     return (
       <div className="flex h-full w-full flex-col overflow-auto">
-        <div className="flex flex-col gap-5 py-5 pl-6 pr-[12px]">
+        <div className="flex flex-col gap-3 pt-3 pb-5 pl-6 pr-[12px]">
           <PageHeader
             title="Customers"
             backLabel="Back to overview"
@@ -216,7 +216,7 @@ export function CustomersIndex() {
   // Grouped landing
   return (
     <div className="flex h-full w-full flex-col overflow-auto">
-      <div className="flex flex-col gap-5 py-5 pl-6 pr-[12px]">
+      <div className="flex flex-col gap-3 pt-3 pb-5 pl-6 pr-[12px]">
         <PageHeader title="Customers" createLabel="Create" />
         <MetricStrip metrics={metrics} />
         {groupMeta.map((gm) => {

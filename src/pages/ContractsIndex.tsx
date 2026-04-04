@@ -124,7 +124,7 @@ export function ContractsIndex() {
     const filtered = contracts.filter((c) => rows.some((r) => r.contractId === c.id));
     return (
       <div className="flex h-full w-full flex-col overflow-auto">
-        <div className="flex flex-col gap-5 px-6 py-5">
+        <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
           <PageHeader
             title="Contracts"
             backLabel="Back to overview"
@@ -157,7 +157,7 @@ export function ContractsIndex() {
 
   return (
     <div className="flex h-full w-full flex-col overflow-auto">
-      <div className="flex flex-col gap-5 px-6 py-5">
+      <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
         <PageHeader title="Contracts" createLabel="Upload" />
         <MetricStrip metrics={metrics} />
         {groupMeta.map((gm) => {

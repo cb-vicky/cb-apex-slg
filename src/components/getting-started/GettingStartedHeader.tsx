@@ -19,19 +19,7 @@ export function GettingStartedHeader({ role, config }: Props) {
       </div>
 
       {/* Right: badges + CTAs */}
-      <div className="flex shrink-0 flex-col items-end gap-3">
-        {/* Badges */}
-        <div className="flex items-center gap-2">
-          <span className="rounded-md border border-border-default bg-surface-muted px-2 py-0.5 text-[11px] font-medium text-text-secondary">
-            {role === "admin" ? "Billing Manager" : "Billing Operator"}
-          </span>
-          <span className="rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
-            Test Site
-          </span>
-          <span className="rounded-md border border-border-default bg-surface-muted px-2 py-0.5 text-[11px] font-medium text-text-secondary">
-            Echo Corp Germany
-          </span>
-        </div>
+      <div className="flex shrink-0 flex-col items-end justify-end gap-3 self-stretch">
         {/* CTAs */}
         <div className="flex items-center gap-2">
           <button className="rounded-lg bg-cb-orange px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#e5582e]">
