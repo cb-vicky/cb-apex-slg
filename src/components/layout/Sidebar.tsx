@@ -1,5 +1,4 @@
 import { cn } from "@/lib/utils";
-import { ChevronRight } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 const DISABLED_NAV_PATHS = new Set([
@@ -39,20 +38,18 @@ export function Sidebar() {
 
   return (
     <aside className="flex w-[140px] shrink-0 flex-col bg-[#F0F1F3] pt-3">
-      <button
-        onClick={() => navigate("/")}
-        className={cn(
-          "mx-2 mb-2 flex items-center gap-1 rounded-md px-2 py-1.5 text-[13px] font-semibold transition-colors",
-          workbenchActive
-            ? "text-cb-orange hover:text-cb-orange active:text-cb-orange"
-            : "text-[#012A38] hover:text-cb-orange active:text-cb-orange",
-        )}
-      >
-        My Workbench
-        <ChevronRight size={14} strokeWidth={2.2} />
-      </button>
-
       <nav className="flex flex-1 flex-col gap-0.5 px-2">
+        <button
+          onClick={() => navigate("/")}
+          className={cn(
+            "rounded-md px-2 py-1 text-left text-[13px] font-medium transition-colors",
+            workbenchActive
+              ? "text-cb-orange hover:text-cb-orange active:text-cb-orange"
+              : "text-[#012A38] hover:text-cb-orange active:text-cb-orange",
+          )}
+        >
+          My Workbench
+        </button>
         {navItems.map((item) => {
           const disabled = DISABLED_NAV_PATHS.has(item.path);
           const active = !disabled && isActive(item.path);
