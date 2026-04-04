@@ -3,12 +3,12 @@ import cbLogoWhite from "@/assets/cb-logo-white.svg";
 
 export function TopNav() {
   return (
-    <header className="flex h-[36px] shrink-0 items-center justify-between bg-[#012A38] px-[12px]">
+    <header className="relative z-10 flex h-[36px] shrink-0 items-center justify-between overflow-visible bg-[#012A38] px-[12px]">
       {/* Left */}
-      <div className="flex items-center gap-[8px]">
-        {/* Logo */}
-        <div className="flex h-6 w-6 items-center justify-center rounded bg-cb-orange">
-          <img src={cbLogoWhite} alt="Chargebee" className="h-3 w-3 shrink-0" width={12} height={12} />
+      <div className="flex h-full items-center gap-[8px]">
+        {/* Logo — tab shape: rounded top, flush bottom */}
+        <div className="flex h-[28px] w-[24px] shrink-0 items-center justify-center self-end rounded-t-md rounded-b-none bg-cb-orange">
+          <img src={cbLogoWhite} alt="Chargebee" className="h-[13px] w-[13px] shrink-0 text-[16px]" width={13} height={13} />
         </div>
 
         {/* Site selector */}
