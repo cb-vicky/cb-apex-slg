@@ -121,7 +121,13 @@ export function QuotesIndex() {
     return (
       <div className="flex h-full w-full flex-col overflow-auto">
         <div className="flex flex-col gap-5 px-6 py-5">
-          <PageHeader title="Quotes" backLabel="Back to overview" backPath="/quotes" filterLabel={gm?.label} />
+          <PageHeader
+            title="Quotes"
+            backLabel="Back to overview"
+            backPath="/quotes"
+            filterLabel={gm?.label}
+            createLabel="Create"
+          />
           <MetricStrip metrics={metrics} />
           <ListTable columns={listColumns}>
             {filtered.map((q) => {
@@ -149,7 +155,7 @@ export function QuotesIndex() {
   return (
     <div className="flex h-full w-full flex-col overflow-auto">
       <div className="flex flex-col gap-5 px-6 py-5">
-        <PageHeader title="Quotes" />
+        <PageHeader title="Quotes" createLabel="Create" />
         <MetricStrip metrics={metrics} />
         {groupMeta.map((gm) => {
           const rows = groups[gm.key] ?? [];

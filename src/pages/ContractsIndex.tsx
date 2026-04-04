@@ -125,7 +125,13 @@ export function ContractsIndex() {
     return (
       <div className="flex h-full w-full flex-col overflow-auto">
         <div className="flex flex-col gap-5 px-6 py-5">
-          <PageHeader title="Contracts" backLabel="Back to overview" backPath="/contracts" filterLabel={gm?.label} />
+          <PageHeader
+            title="Contracts"
+            backLabel="Back to overview"
+            backPath="/contracts"
+            filterLabel={gm?.label}
+            createLabel="Upload"
+          />
           <MetricStrip metrics={metrics} />
           <ListTable columns={listColumns}>
             {filtered.map((c) => {
@@ -152,7 +158,7 @@ export function ContractsIndex() {
   return (
     <div className="flex h-full w-full flex-col overflow-auto">
       <div className="flex flex-col gap-5 px-6 py-5">
-        <PageHeader title="Contracts" />
+        <PageHeader title="Contracts" createLabel="Upload" />
         <MetricStrip metrics={metrics} />
         {groupMeta.map((gm) => {
           const rows = groups[gm.key] ?? [];

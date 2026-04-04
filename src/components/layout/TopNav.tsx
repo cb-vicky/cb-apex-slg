@@ -1,13 +1,14 @@
 import { Bell, ChevronDown, Code2, HelpCircle, Lightbulb, Settings, Star } from "lucide-react";
+import cbLogoWhite from "@/assets/cb-logo-white.svg";
 
 export function TopNav() {
   return (
-    <header className="flex h-11 shrink-0 items-center justify-between bg-[#1a1d21] px-3">
+    <header className="flex h-[36px] shrink-0 items-center justify-between bg-[#012A38] px-[12px]">
       {/* Left */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-[8px]">
         {/* Logo */}
         <div className="flex h-6 w-6 items-center justify-center rounded bg-cb-orange">
-          <span className="text-[10px] font-bold leading-none text-white">CB</span>
+          <img src={cbLogoWhite} alt="Chargebee" className="h-3 w-3 shrink-0" width={12} height={12} />
         </div>
 
         {/* Site selector */}
@@ -27,7 +28,7 @@ export function TopNav() {
       </div>
 
       {/* Right */}
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-[2px]">
         <NavIconButton><Bell size={15} /></NavIconButton>
         <button className="flex items-center gap-1.5 rounded px-2 py-1 text-[12px] text-gray-300 hover:bg-white/10">
           <Settings size={13} />

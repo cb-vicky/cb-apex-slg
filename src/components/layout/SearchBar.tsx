@@ -1,4 +1,3 @@
-import { Search } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useWorkbenchRole } from "@/context/WorkbenchRoleContext";
@@ -9,13 +8,13 @@ export function SearchBar() {
   const { role, setRole } = useWorkbenchRole();
 
   return (
-    <div className="flex h-10 shrink-0 items-center bg-[#F0F1F3] px-4">
+    <div className="flex h-[32px] shrink-0 items-center bg-[#F0F1F3] px-4">
       <div className="flex w-full min-w-0 items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-2 text-[13px] text-text-muted">
-          <Search size={14} className="shrink-0" />
           <span>Search anything...</span>
-          <kbd className="ml-1 shrink-0 rounded bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium text-text-muted">
-            ⌘K
+          <kbd className="inline-flex shrink-0 items-center gap-0.5 rounded bg-surface-muted px-1.5 py-0.5 font-medium text-text-muted">
+            <span className="text-[14px] leading-none">⌘</span>
+            <span className="text-[10px] leading-none">K</span>
           </kbd>
         </div>
         {showRoleSwitcher ? (

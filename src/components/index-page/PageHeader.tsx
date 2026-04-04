@@ -6,14 +6,23 @@ interface Props {
   backLabel?: string;
   backPath?: string;
   filterLabel?: string;
+  createLabel?: string;
+  onCreateClick?: () => void;
 }
 
-export function PageHeader({ title, backLabel, backPath, filterLabel }: Props) {
+export function PageHeader({
+  title,
+  backLabel,
+  backPath,
+  filterLabel,
+  createLabel,
+  onCreateClick = () => {},
+}: Props) {
   const navigate = useNavigate();
 
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-3">
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex min-w-0 items-center gap-3">
         {backLabel && backPath && (
           <button
             onClick={() => navigate(backPath)}
@@ -30,6 +39,15 @@ export function PageHeader({ title, backLabel, backPath, filterLabel }: Props) {
           </span>
         )}
       </div>
+      {createLabel ? (
+        <button
+          type="button"
+          onClick={onCreateClick}
+          className="shrink-0 rounded-md bg-blue-600 px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-blue-500"
+        >
+          {createLabel}
+        </button>
+      ) : null}
     </div>
   );
 }
