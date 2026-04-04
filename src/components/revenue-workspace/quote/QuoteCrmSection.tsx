@@ -7,7 +7,7 @@ export function QuoteCrmSection({ quote }: { quote: Quote }) {
   return (
     <SectionCard title="CRM & Collaboration">
       <div className="grid grid-cols-2 gap-x-8">
-        <div className="divide-y divide-border-subtle">
+        <div className="min-w-0 divide-y divide-border-subtle">
           <KV label="Source CRM" value={quote.source} />
           <KV
             label="Opportunity"
@@ -20,7 +20,7 @@ export function QuoteCrmSection({ quote }: { quote: Quote }) {
           <KV label="Sync status" value={<StatusBadge status={quote.crmSyncStatus} />} />
           <KV label="Last synced amount" value={currency(quote.lastSyncedAmount)} />
         </div>
-        <div className="divide-y divide-border-subtle">
+        <div className="min-w-0 divide-y divide-border-subtle">
           <KV label="Customer viewed" value={quote.customerViewedAt ? shortDate(quote.customerViewedAt) : "Not yet"} />
           <KV label="Customer accepted" value={quote.customerAcceptedAt ? shortDate(quote.customerAcceptedAt) : "Not yet"} />
           <div className="py-1.5">

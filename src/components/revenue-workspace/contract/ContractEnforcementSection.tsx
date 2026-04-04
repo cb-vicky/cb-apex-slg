@@ -8,14 +8,14 @@ export function ContractEnforcementSection({ enforcement }: { enforcement: Contr
   return (
     <SectionCard title="Enforcement & Activation" className={hasIssues ? "border-red-200" : ""}>
       <div className="grid grid-cols-2 gap-x-8">
-        <div className="divide-y divide-border-subtle">
+        <div className="min-w-0 divide-y divide-border-subtle">
           <KV label="Source" value={enforcement.sourceType} />
           <KV label="Sale order" value={<StatusBadge status={enforcement.saleOrderStatus} />} />
           <KV label="Enforcement" value={<StatusBadge status={enforcement.enforcementStatus} />} />
           <KV label="Provisioning" value={<StatusBadge status={enforcement.provisioningStatus} />} />
           <KV label="Entitlements" value={enforcement.entitlementStatus} />
         </div>
-        <div className="flex flex-col gap-3 pt-1">
+        <div className="flex min-w-0 flex-col gap-3 pt-1">
           {enforcement.missingFields.length > 0 && (
             <div>
               <span className="text-[11px] uppercase tracking-wider text-text-muted">Missing Fields</span>

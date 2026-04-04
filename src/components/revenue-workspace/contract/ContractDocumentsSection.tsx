@@ -7,7 +7,7 @@ export function ContractDocumentsSection({ contract }: { contract: Contract }) {
   return (
     <SectionCard title="Documents & Audit">
       <div className="grid grid-cols-2 gap-x-8">
-        <div className="divide-y divide-border-subtle">
+        <div className="min-w-0 divide-y divide-border-subtle">
           <KV
             label="Signed document"
             value={
@@ -20,7 +20,7 @@ export function ContractDocumentsSection({ contract }: { contract: Contract }) {
           <KV label="Extraction confidence" value={`${contract.extractionConfidence}%`} />
           <KV label="Quote match confidence" value={`${contract.quoteMatchConfidence}%`} />
         </div>
-        <div className="pt-1">
+        <div className="min-w-0 pt-1">
           <span className="text-[11px] uppercase tracking-wider text-text-muted">Important Clauses</span>
           <ul className="mt-1.5 space-y-1">
             {contract.importantClauses.map((clause) => (

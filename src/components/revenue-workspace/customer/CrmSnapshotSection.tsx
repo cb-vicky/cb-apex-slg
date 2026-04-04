@@ -10,8 +10,8 @@ interface Props {
 export function CrmSnapshotSection({ customer }: Props) {
   return (
     <SectionCard title="CRM / Integration Snapshot">
-      <div className="grid grid-cols-2 gap-x-8 divide-x divide-border-subtle">
-        <div>
+      <div className="grid grid-cols-2 gap-x-8">
+        <div className="min-w-0">
           <KV label="CRM Account ID" value={
             <span className="inline-flex items-center gap-1">
               {customer.crmAccountId}
@@ -21,7 +21,7 @@ export function CrmSnapshotSection({ customer }: Props) {
           <KV label="CRM sync status" value={<StatusBadge status={customer.crmSyncStatus} />} />
           <KV label="Last synced" value={shortDate(customer.crmLastSyncedAt)} />
         </div>
-        <div className="pl-8">
+        <div className="min-w-0 border-l border-border-subtle pl-8">
           <KV label="Account Executive" value={customer.ae} />
           <KV label="CSM" value={customer.csm} />
           <KV label="Billing Owner" value={customer.billingOwner} />

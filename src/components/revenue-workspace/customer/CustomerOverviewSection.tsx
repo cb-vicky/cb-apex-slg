@@ -13,8 +13,8 @@ export function CustomerOverviewSection({ customer }: Props) {
 
   return (
     <SectionCard title="Customer Overview">
-      <div className="grid grid-cols-2 gap-x-8 gap-y-0 divide-x divide-border-subtle">
-        <div>
+      <div className="grid grid-cols-2 gap-x-8 gap-y-0">
+        <div className="min-w-0">
           <KV label="Company" value={customer.name} />
           <KV label="Domain" value={customer.domain} />
           <KV label="Industry" value={customer.industry} />
@@ -22,7 +22,7 @@ export function CustomerOverviewSection({ customer }: Props) {
           <KV label="Region" value={customer.region} />
           <KV label="Customer since" value={shortDate(customer.createdAt)} />
         </div>
-        <div className="pl-8">
+        <div className="min-w-0 border-l border-border-subtle pl-8">
           <KV label="ARR" value={currency(customer.arr)} />
           <KV label="TCV" value={currency(customer.tcv)} />
           <KV label="Open AR" value={currency(customer.openAr)} />

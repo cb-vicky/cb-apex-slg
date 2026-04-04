@@ -113,9 +113,9 @@ export function SectionCard({ title, children, className, actions }: { title: st
 // ---------------------------------------------------------------------------
 export function KV({ label, value, className }: { label: string; value: ReactNode; className?: string }) {
   return (
-    <div className={cn("flex items-baseline justify-between gap-4 py-1.5 text-[13px]", className)}>
+    <div className={cn("flex min-w-0 items-baseline justify-between gap-4 py-1.5 text-[13px]", className)}>
       <span className="shrink-0 text-text-secondary">{label}</span>
-      <span className="text-right font-medium text-text-primary">{typeof value === "string" ? value : value}</span>
+      <span className="min-w-0 break-words text-right font-medium text-text-primary">{typeof value === "string" ? value : value}</span>
     </div>
   );
 }
