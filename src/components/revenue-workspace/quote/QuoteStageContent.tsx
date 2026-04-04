@@ -10,7 +10,7 @@ import { QuoteTimelineSection } from "./QuoteTimelineSection";
 export function QuoteStageContent({ quote }: { quote: Quote }) {
   return (
     <div className="flex flex-col gap-4">
-      <QuoteApprovalsSection approval={quote.approval} />
+      <QuoteApprovalsSection approval={quote.approval} comments={quote.comments} />
       <QuoteOverviewSection quote={quote} />
       <QuotePricingSection products={quote.products} />
       <QuoteTermsSection terms={quote.commercialTerms} />

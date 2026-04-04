@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import type { Stage } from "./RevenueJourneyRail";
 
 interface BreadcrumbInfo {
@@ -68,7 +68,7 @@ export function DetailBreadcrumb({ from, customerName, activeStage, recordId, ac
 
   if (!from) return null;
 
-  const { module, group, backPath, backLabel } = parseFrom(from);
+  const { module, group } = parseFrom(from);
   const moduleName = moduleLabels[module] ?? module;
 
   const crumbs: { label: string; path?: string }[] = [];
@@ -89,14 +89,6 @@ export function DetailBreadcrumb({ from, customerName, activeStage, recordId, ac
 
   return (
     <div className="flex items-center gap-3 border-b border-[#F0F1F3] pb-3">
-      <button
-        onClick={() => navigate(backPath)}
-        className="inline-flex items-center gap-1.5 rounded-md border border-border-default bg-white px-2.5 py-1 text-[12px] font-medium text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary"
-      >
-        <ArrowLeft size={13} />
-        {backLabel}
-      </button>
-
       <nav className="flex min-w-0 flex-1 items-center gap-1 text-[12px] text-text-muted">
         {crumbs.map((crumb, idx) => {
           const isLast = idx === crumbs.length - 1;

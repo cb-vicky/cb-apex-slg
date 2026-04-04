@@ -1,7 +1,8 @@
+import { useEffect, useRef, useState } from "react";
 import type { Quote, Contract, Invoice } from "@/data/mock-data";
 import { StatusBadge } from "@/components/ui/primitives";
 import { currency, shortDate } from "@/lib/utils";
-import { ChevronRight, CreditCard, Download, Edit, ExternalLink, Eye, FileCheck, FileMinus, GitCompare, HandCoins, Pause, Play, Receipt, RefreshCw, RotateCcw, Send, Shield, UserCheck } from "lucide-react";
+import { ChevronDown, ChevronRight, CreditCard, Download, Edit, ExternalLink, Eye, FileCheck, FileMinus, GitCompare, HandCoins, Pause, Play, Receipt, RefreshCw, RotateCcw, Send, Shield, UserCheck } from "lucide-react";
 import type { Stage } from "./RevenueJourneyRail";
 import type { InvoiceEnrichment, CollectionCase } from "@/data/billing-data";
 import type { RevenueArrangement } from "@/data/revrec-data";
@@ -15,13 +16,87 @@ function ActionButton({ icon: Icon, label }: { icon: typeof Edit; label: string 
   );
 }
 
-function QuoteContextBar({ quote }: { quote: Quote }) {
+function QuoteContextBar({
+  quote,
+  quoteVersions,
+  onQuoteVersionChange,
+}: {
+  quote: Quote;
+  quoteVersions: Quote[];
+  onQuoteVersionChange: (nextQuote: Quote) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
+
   return (
     <div className="flex items-center gap-5 rounded-lg border border-border-default bg-surface-muted px-4 py-2.5 text-[13px]">
-      <div className="flex items-center gap-2">
-        <span className="font-semibold text-text-primary">{quote.id}</span>
-        <span className="text-text-muted">v{quote.version}</span>
-        <StatusBadge status={quote.status} />
+      <div className="relative" ref={menuRef}>
+        <button
+          type="button"
+          onClick={() => setIsOpen((open) => !open)}
+          className="inline-flex items-center gap-2 rounded-md border border-border-default bg-white px-2.5 py-1.5 transition-colors hover:bg-surface-muted"
+        >
+          <span className="font-semibold text-text-primary">{quote.id}</span>
+          <span className="text-text-muted">v{quote.version}</span>
+          <StatusBadge status={quote.status} />
+          <ChevronDown size={14} className="text-text-muted" />
+        </button>
+
+        {isOpen && (
+          <div className="absolute left-0 top-[calc(100%+6px)] z-20 w-[420px] rounded-lg border border-border-default bg-white p-2 shadow-lg">
+            <div className="mb-1 px-2 py-1 text-[11px] uppercase tracking-wider text-text-muted">
+              Quote versions
+            </div>
+            <div className="max-h-72 space-y-1 overflow-y-auto">
+              {quoteVersions.map((versionQuote) => {
+                const isSelected = versionQuote.id === quote.id;
+                return (
+                  <button
+                    key={versionQuote.id}
+                    type="button"
+                    onClick={() => {
+                      onQuoteVersionChange(versionQuote);
+                      setIsOpen(false);
+                    }}
+                    className={`w-full rounded-md border px-2.5 py-2 text-left transition-colors ${
+                      isSelected
+                        ? "border-cb-orange/30 bg-cb-orange/5"
+                        : "border-transparent hover:border-border-default hover:bg-surface-muted"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-text-primary">{versionQuote.id}</span>
+                      <span className="text-text-muted">v{versionQuote.version}</span>
+                      <StatusBadge status={versionQuote.status} />
+                    </div>
+                    <p className="mt-1 text-[12px] leading-relaxed text-text-secondary">{versionQuote.versionSummary}</p>
+                    {versionQuote.status === "Rejected" && versionQuote.rejectionReason && (
+                      <p className="mt-1 text-[11px] text-rose-600">
+                        Rejection reason: {versionQuote.rejectionReason}
+                      </p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
       <span className="text-text-muted">|</span>
       <span className="whitespace-nowrap text-text-secondary">Source: <span className="font-medium text-text-primary">{quote.source}</span></span>
@@ -185,6 +260,8 @@ function RevRecActions() {
 interface Props {
   activeStage: Stage;
   quote: Quote;
+  quoteVersions: Quote[];
+  onQuoteVersionChange: (nextQuote: Quote) => void;
   contract: Contract;
   invoice?: Invoice;
   invoiceEnrichment?: InvoiceEnrichment;
@@ -193,10 +270,27 @@ interface Props {
   revenueArrangement?: RevenueArrangement;
 }
 
-export function RecordContextBar({ activeStage, quote, contract, invoice, invoiceEnrichment, primaryCollectionCase, totalOpenAr, revenueArrangement }: Props) {
+export function RecordContextBar({
+  activeStage,
+  quote,
+  quoteVersions,
+  onQuoteVersionChange,
+  contract,
+  invoice,
+  invoiceEnrichment,
+  primaryCollectionCase,
+  totalOpenAr,
+  revenueArrangement,
+}: Props) {
   switch (activeStage) {
     case "quote":
-      return <QuoteContextBar quote={quote} />;
+      return (
+        <QuoteContextBar
+          quote={quote}
+          quoteVersions={quoteVersions}
+          onQuoteVersionChange={onQuoteVersionChange}
+        />
+      );
     case "contract":
       return <ContractContextBar contract={contract} />;
     case "invoicing":

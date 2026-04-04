@@ -78,10 +78,21 @@ export interface TimelineEvent {
   detail?: string;
 }
 
+export interface QuoteComment {
+  id: string;
+  author: string;
+  role: string;
+  date: string;
+  text: string;
+}
+
 export interface Quote {
   id: string;
   customerId: string;
+  lineageId: string;
   version: number;
+  versionSummary: string;
+  rejectionReason?: string;
   source: string;
   status: string;
   quoteType: string;
@@ -101,6 +112,7 @@ export interface Quote {
   customerViewedAt: string | null;
   customerAcceptedAt: string | null;
   timeline: TimelineEvent[];
+  comments: QuoteComment[];
   owner: string;
 }
 
@@ -394,7 +406,9 @@ export const quotes: Quote[] = [
   {
     id: "QT-2026-0042",
     customerId: "cust_echo_001",
+    lineageId: "lineage_echo_renewal_2026",
     version: 3,
+    versionSummary: "Renewal expansion to 400 seats with AI prepaid block and non-standard Net 45 terms.",
     source: "Salesforce",
     status: "Pending Approval",
     quoteType: "Renewal",
@@ -454,12 +468,131 @@ export const quotes: Quote[] = [
       { date: "2026-03-25", action: "Customer viewed", actor: "Echo Corp", detail: "CFO Mira Patel opened document" },
       { date: "2026-03-28", action: "Submitted for approval", actor: "Jordan Kim", detail: "Routed to VP Revenue" },
     ],
+    comments: [
+      { id: "q-0042-c1", author: "Jordan Kim", role: "Account Executive", date: "2026-03-28", text: "Customer is willing to commit for 24 months if we keep the 18% blended discount and include premium support." },
+      { id: "q-0042-c2", author: "Priya Mehta", role: "Deal Desk Manager", date: "2026-03-29", text: "Pricing is within strategic renewal guardrails. Need VP Revenue approval because TCV exceeds $500k." },
+      { id: "q-0042-c3", author: "Sarah Chen", role: "VP Revenue", date: "2026-03-30", text: "Please confirm finance sign-off on Net 45 terms before final approval." },
+      { id: "q-0042-c4", author: "Alex Nguyen", role: "Billing Operations", date: "2026-03-31", text: "Billing setup supports annual upfront plus monthly overage. No implementation blockers." },
+    ],
+    owner: "Jordan Kim",
+  },
+  {
+    id: "QT-2026-0042-v2",
+    customerId: "cust_echo_001",
+    lineageId: "lineage_echo_renewal_2026",
+    version: 2,
+    versionSummary: "Renewal with 350 seats and 15% discount; rejected due to missing AI credit block requested by customer.",
+    rejectionReason: "Rejected by customer: needed explicit AI prepaid credits and clearer overage terms.",
+    source: "Salesforce",
+    status: "Rejected",
+    quoteType: "Renewal",
+    amount: 468000,
+    arr: 234000,
+    tcv: 468000,
+    discountPct: 15,
+    expiryDate: "2026-04-18",
+    approval: {
+      status: "rejected",
+      triggeredRules: ["Customer requested AI credit structure update"],
+      currentApprover: "Sarah Chen, VP Revenue",
+      comments: "Superseded after customer feedback on AI credits and overage clarity.",
+      pendingSince: "",
+    },
+    products: [
+      { sku: "APEX-PLATFORM", name: "Apex Platform – Enterprise", type: "recurring", quantity: 350, unitPrice: 45, discount: 15, netAmount: 13388, billingModel: "Per seat / month", minimumCommit: 105000 },
+      { sku: "APEX-AI-OVERAGE", name: "AI Agent Credits – Overage", type: "usage", quantity: 0, unitPrice: 0.02, discount: 0, netAmount: 0, billingModel: "Per credit consumed", overageRate: 0.02 },
+      { sku: "APEX-IMPL", name: "Implementation & Onboarding", type: "one-time", quantity: 1, unitPrice: 30000, discount: 0, netAmount: 30000, billingModel: "One-time" },
+    ],
+    commercialTerms: {
+      contractTerm: "24 months",
+      billingFrequency: "Annual upfront",
+      paymentTerms: "Net 30",
+      startDate: "2026-05-01",
+      endDate: "2028-04-30",
+      autoRenew: true,
+      trialPeriod: "None",
+      coTermTarget: "Align to existing Apex Platform contract end date",
+      aiUsageDrawdown: "Metered overage at $0.020/credit billed monthly in arrears",
+      prepaidCreditLogic: "No prepaid block included in this version",
+    },
+    relatedContractId: "CON-2024-0189",
+    crmOpportunityLink: "https://salesforce.example.com/opp/006Dn000004xK3Z",
+    crmSyncStatus: "Synced",
+    lastSyncedAmount: 468000,
+    sendHistory: [{ date: "2026-03-18", method: "Email", status: "Delivered" }],
+    customerViewedAt: "2026-03-19T12:20:00Z",
+    customerAcceptedAt: null,
+    timeline: [
+      { date: "2026-03-15", action: "Quote created", actor: "Jordan Kim" },
+      { date: "2026-03-18", action: "Sent to customer", actor: "Jordan Kim" },
+      { date: "2026-03-21", action: "Rejected by customer", actor: "Echo Corp", detail: "Requested prepaid AI credits and revised terms" },
+    ],
+    comments: [
+      { id: "q-0042v2-c1", author: "Mira Patel", role: "Customer CFO", date: "2026-03-21", text: "Please add prepaid AI credits and more predictable overage treatment." },
+      { id: "q-0042v2-c2", author: "Jordan Kim", role: "Account Executive", date: "2026-03-21", text: "Customer requested structural changes, creating a new version." },
+    ],
+    owner: "Jordan Kim",
+  },
+  {
+    id: "QT-2026-0042-v1",
+    customerId: "cust_echo_001",
+    lineageId: "lineage_echo_renewal_2026",
+    version: 1,
+    versionSummary: "Initial renewal draft at 300 seats, rejected internally due to weak expansion package.",
+    rejectionReason: "Rejected by internal approver: package did not include implementation and support uplift for expansion.",
+    source: "Salesforce",
+    status: "Rejected",
+    quoteType: "Renewal",
+    amount: 398400,
+    arr: 199200,
+    tcv: 398400,
+    discountPct: 12,
+    expiryDate: "2026-04-10",
+    approval: {
+      status: "rejected",
+      triggeredRules: ["Expansion package incomplete for customer growth plan"],
+      currentApprover: "Priya Mehta, Deal Desk",
+      comments: "Rejected in internal review before customer send.",
+      pendingSince: "",
+    },
+    products: [
+      { sku: "APEX-PLATFORM", name: "Apex Platform – Enterprise", type: "recurring", quantity: 300, unitPrice: 45, discount: 12, netAmount: 11880, billingModel: "Per seat / month", minimumCommit: 96000 },
+      { sku: "APEX-AI-OVERAGE", name: "AI Agent Credits – Overage", type: "usage", quantity: 0, unitPrice: 0.022, discount: 0, netAmount: 0, billingModel: "Per credit consumed", overageRate: 0.022 },
+    ],
+    commercialTerms: {
+      contractTerm: "24 months",
+      billingFrequency: "Annual upfront",
+      paymentTerms: "Net 30",
+      startDate: "2026-05-01",
+      endDate: "2028-04-30",
+      autoRenew: true,
+      trialPeriod: "None",
+      coTermTarget: "Align to existing Apex Platform contract end date",
+      aiUsageDrawdown: "Metered at $0.022/credit",
+      prepaidCreditLogic: "No prepaid block included in this version",
+    },
+    relatedContractId: "CON-2024-0189",
+    crmOpportunityLink: "https://salesforce.example.com/opp/006Dn000004xK3Z",
+    crmSyncStatus: "Synced",
+    lastSyncedAmount: 398400,
+    sendHistory: [],
+    customerViewedAt: null,
+    customerAcceptedAt: null,
+    timeline: [
+      { date: "2026-03-15", action: "Quote created", actor: "Jordan Kim" },
+      { date: "2026-03-16", action: "Rejected in internal review", actor: "Priya Mehta", detail: "Expansion package needs implementation + support uplift" },
+    ],
+    comments: [
+      { id: "q-0042v1-c1", author: "Priya Mehta", role: "Deal Desk Manager", date: "2026-03-16", text: "Please include implementation and support components before submission." },
+    ],
     owner: "Jordan Kim",
   },
   {
     id: "QT-2026-0038",
     customerId: "cust_lumina_002",
+    lineageId: "lineage_lumina_renewal_2026",
     version: 1,
+    versionSummary: "Signed renewal with 10% discount and prepaid AI credits; customer already accepted via DocuSign.",
     source: "In-app",
     status: "Accepted",
     quoteType: "Renewal",
@@ -486,12 +619,19 @@ export const quotes: Quote[] = [
       { date: "2026-03-28", action: "Approved", actor: "Sarah Chen" },
       { date: "2026-04-01", action: "Accepted by customer", actor: "Lumina AI" },
     ],
+    comments: [
+      { id: "q-0038-c1", author: "Marcus Lee", role: "Account Executive", date: "2026-03-28", text: "Renewal terms accepted on call, sending for signature." },
+      { id: "q-0038-c2", author: "Sarah Chen", role: "VP Revenue", date: "2026-03-28", text: "Approved. Keep implementation scope unchanged from last term." },
+      { id: "q-0038-c3", author: "Nina Rao", role: "Sales Operations", date: "2026-04-01", text: "DocuSign completed and CRM marked as Closed Won." },
+    ],
     owner: "Marcus Lee",
   },
   {
     id: "QT-2026-0041",
     customerId: "cust_pioneer_004",
+    lineageId: "lineage_pioneer_newbiz_2026",
     version: 2,
+    versionSummary: "Revised new-business quote with 22% discount to displace incumbent; pending VP Revenue approval.",
     source: "Salesforce",
     status: "Pending Approval",
     quoteType: "New Business",
@@ -518,12 +658,108 @@ export const quotes: Quote[] = [
       { date: "2026-03-28", action: "Sent to customer", actor: "Jordan Kim" },
       { date: "2026-04-01", action: "Submitted for approval", actor: "Jordan Kim" },
     ],
+    comments: [
+      { id: "q-0041-c1", author: "Jordan Kim", role: "Account Executive", date: "2026-04-01", text: "Competitive displacement. 22% discount to win from incumbent." },
+      { id: "q-0041-c2", author: "Priya Mehta", role: "Deal Desk Manager", date: "2026-04-01", text: "Need formal note on implementation ramp and expansion assumptions." },
+      { id: "q-0041-c3", author: "Sarah Chen", role: "VP Revenue", date: "2026-04-02", text: "Awaiting final finance review because discount is above 20%." },
+      { id: "q-0041-c4", author: "Alex Nguyen", role: "Billing Operations", date: "2026-04-02", text: "Billing setup supports annual upfront for platform and prepaid credits." },
+    ],
+    owner: "Jordan Kim",
+  },
+  {
+    id: "QT-2026-0041-v1",
+    customerId: "cust_pioneer_004",
+    lineageId: "lineage_pioneer_newbiz_2026",
+    version: 1,
+    versionSummary: "First commercial draft rejected internally because discount support narrative was insufficient.",
+    rejectionReason: "Rejected by VP Sales: discount rationale was not strong enough for approval threshold.",
+    source: "Salesforce",
+    status: "Rejected",
+    quoteType: "New Business",
+    amount: 174000,
+    arr: 87000,
+    tcv: 174000,
+    discountPct: 20,
+    expiryDate: "2026-04-05",
+    approval: {
+      status: "rejected",
+      triggeredRules: ["Discount exceeds 20% threshold"],
+      currentApprover: "Sarah Chen, VP Revenue",
+      comments: "Rejected. Provide competitor displacement evidence and implementation timeline.",
+      pendingSince: "",
+    },
+    products: [
+      { sku: "APEX-PLATFORM", name: "Apex Platform – Growth", type: "recurring", quantity: 75, unitPrice: 40, discount: 20, netAmount: 2400, billingModel: "Per seat / month" },
+      { sku: "APEX-AI-CREDITS", name: "AI Agent Credits – Starter Block", type: "one-time", quantity: 1, unitPrice: 25000, discount: 0, netAmount: 25000, billingModel: "Prepaid drawdown", prepaidCredits: 25000 },
+    ],
+    commercialTerms: { contractTerm: "24 months", billingFrequency: "Annual upfront", paymentTerms: "Net 30", startDate: "2026-05-01", endDate: "2028-04-30", autoRenew: true, trialPeriod: "30-day implementation", coTermTarget: "N/A", aiUsageDrawdown: "Metered at $0.025/credit", prepaidCreditLogic: "25k credits, 24mo validity" },
+    relatedContractId: "",
+    crmOpportunityLink: "https://salesforce.example.com/opp/006Dn000006zM5B",
+    crmSyncStatus: "Synced",
+    lastSyncedAmount: 174000,
+    sendHistory: [],
+    customerViewedAt: null,
+    customerAcceptedAt: null,
+    timeline: [
+      { date: "2026-03-24", action: "Quote created", actor: "Jordan Kim" },
+      { date: "2026-03-25", action: "Rejected in approval review", actor: "Sarah Chen", detail: "Need stronger deal justification" },
+    ],
+    comments: [
+      { id: "q-0041v1-c1", author: "Sarah Chen", role: "VP Revenue", date: "2026-03-25", text: "Rejected this version. Please include incumbent displacement details and risk mitigation." },
+      { id: "q-0041v1-c2", author: "Jordan Kim", role: "Account Executive", date: "2026-03-25", text: "Will revise with customer-specific win plan and implementation timeline." },
+    ],
+    owner: "Jordan Kim",
+  },
+  {
+    id: "QT-2026-0040",
+    customerId: "cust_pioneer_004",
+    lineageId: "lineage_pioneer_newbiz_2026",
+    version: 0,
+    versionSummary: "Original customer-facing draft rejected by the customer for missing AI credit flexibility.",
+    rejectionReason: "Rejected by customer: requested AI credit block and clearer onboarding commitments.",
+    source: "In-app",
+    status: "Rejected",
+    quoteType: "New Business",
+    amount: 162000,
+    arr: 81000,
+    tcv: 162000,
+    discountPct: 18,
+    expiryDate: "2026-03-30",
+    approval: {
+      status: "rejected",
+      triggeredRules: ["Customer feedback on commercial structure"],
+      currentApprover: "Priya Mehta, Deal Desk",
+      comments: "Customer rejected. Build new version with AI credits and stronger implementation package.",
+      pendingSince: "",
+    },
+    products: [
+      { sku: "APEX-PLATFORM", name: "Apex Platform – Growth", type: "recurring", quantity: 75, unitPrice: 40, discount: 18, netAmount: 2460, billingModel: "Per seat / month" },
+    ],
+    commercialTerms: { contractTerm: "24 months", billingFrequency: "Annual upfront", paymentTerms: "Net 30", startDate: "2026-05-01", endDate: "2028-04-30", autoRenew: true, trialPeriod: "None", coTermTarget: "N/A", aiUsageDrawdown: "No prepaid credits included", prepaidCreditLogic: "N/A" },
+    relatedContractId: "",
+    crmOpportunityLink: "https://salesforce.example.com/opp/006Dn000006zM5B",
+    crmSyncStatus: "Mismatch",
+    lastSyncedAmount: 162000,
+    sendHistory: [{ date: "2026-03-20", method: "Email", status: "Delivered" }],
+    customerViewedAt: "2026-03-21T11:05:00Z",
+    customerAcceptedAt: null,
+    timeline: [
+      { date: "2026-03-18", action: "Quote created", actor: "Jordan Kim" },
+      { date: "2026-03-20", action: "Sent to customer", actor: "Jordan Kim" },
+      { date: "2026-03-21", action: "Rejected by customer", actor: "Pioneer Systems", detail: "Requested AI credit flexibility and onboarding support" },
+    ],
+    comments: [
+      { id: "q-0040-c1", author: "Pioneer Procurement", role: "Customer", date: "2026-03-21", text: "We need prepaid AI credits and explicit onboarding scope before moving forward." },
+      { id: "q-0040-c2", author: "Jordan Kim", role: "Account Executive", date: "2026-03-21", text: "Acknowledged. Creating a revised version for re-review." },
+    ],
     owner: "Jordan Kim",
   },
   {
     id: "QT-2026-0043",
     customerId: "cust_northlane_003",
+    lineageId: "lineage_northlane_amend_2026",
     version: 1,
+    versionSummary: "Draft amendment for 50-seat expansion, co-termed to existing contract.",
     source: "In-app",
     status: "Draft",
     quoteType: "Amendment",
@@ -547,12 +783,17 @@ export const quotes: Quote[] = [
     timeline: [
       { date: "2026-04-02", action: "Amendment quote created", actor: "Sophia Brandt", detail: "50 seat expansion for Northlane Labs" },
     ],
+    comments: [
+      { id: "q-0043-c1", author: "Sophia Brandt", role: "Account Manager", date: "2026-04-02", text: "Draft created for seat expansion; awaiting customer confirmation on go-live date." },
+    ],
     owner: "Sophia Brandt",
   },
   {
     id: "QT-2026-0044",
     customerId: "cust_verdant_005",
+    lineageId: "lineage_verdant_topup_2026",
     version: 1,
+    versionSummary: "Urgent AI credit top-up quote, approved within policy and sent via DocuSign.",
     source: "Salesforce",
     status: "Sent",
     quoteType: "Credit Top-up",
@@ -577,12 +818,18 @@ export const quotes: Quote[] = [
       { date: "2026-04-01", action: "Quote created", actor: "Marcus Lee", detail: "Urgent credit top-up – burn-down critical" },
       { date: "2026-04-02", action: "Sent via DocuSign", actor: "Marcus Lee" },
     ],
+    comments: [
+      { id: "q-0044-c1", author: "Marcus Lee", role: "Account Executive", date: "2026-04-01", text: "Customer requested immediate top-up to avoid service throttling." },
+      { id: "q-0044-c2", author: "Finance Ops", role: "Finance", date: "2026-04-01", text: "Auto-approved under top-up policy threshold." },
+    ],
     owner: "Marcus Lee",
   },
   {
     id: "QT-2026-0045",
     customerId: "cust_echo_001",
+    lineageId: "lineage_echo_amend_2026",
     version: 1,
+    versionSummary: "Draft amendment for additional 100 seats aligned to the active Echo renewal timeline.",
     source: "Salesforce",
     status: "Draft",
     quoteType: "Amendment",
@@ -605,6 +852,9 @@ export const quotes: Quote[] = [
     customerAcceptedAt: null,
     timeline: [
       { date: "2026-04-02", action: "Quote created", actor: "Jordan Kim", detail: "Seat expansion amendment" },
+    ],
+    comments: [
+      { id: "q-0045-c1", author: "Jordan Kim", role: "Account Executive", date: "2026-04-02", text: "Expansion draft prepared; waiting on customer budget confirmation." },
     ],
     owner: "Jordan Kim",
   },
@@ -1041,6 +1291,12 @@ export function getQuote(id?: string): Quote {
 
 export function getQuotesForCustomer(customerId: string): Quote[] {
   return quotes.filter((q) => q.customerId === customerId);
+}
+
+export function getQuoteLineage(lineageId: string): Quote[] {
+  return quotes
+    .filter((q) => q.lineageId === lineageId)
+    .sort((a, b) => b.version - a.version);
 }
 
 export function getContract(id?: string): Contract {

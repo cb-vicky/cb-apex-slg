@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Customer, Quote, Contract, Invoice, Task } from "@/data/mock-data";
-import { getInvoices } from "@/data/mock-data";
+import { getInvoices, getQuoteLineage } from "@/data/mock-data";
 import { getInvoiceEnrichment, getCollectionCasesForCustomer, getCustomerArSummary } from "@/data/billing-data";
 import { getRevenueArrangement } from "@/data/revrec-data";
 import { deriveAllStageStatuses } from "./derive-stage-data";
@@ -28,8 +28,14 @@ interface Props {
 
 export function CustomerRevenueWorkspace({ customer, quote, contract, tasks, initialStage, from, activeRecordId }: Props) {
   const [activeStage, setActiveStage] = useState<Stage>(initialStage);
+  const [activeQuote, setActiveQuote] = useState<Quote>(quote);
+  const quoteVersions = getQuoteLineage(activeQuote.lineageId);
 
-  const stageStatuses = deriveAllStageStatuses(customer, quote, contract);
+  useEffect(() => {
+    setActiveQuote(quote);
+  }, [quote]);
+
+  const stageStatuses = deriveAllStageStatuses(customer, activeQuote, contract);
 
   const customerInvoices = getInvoices(customer.id);
   const selectedInvoice: Invoice | undefined = activeRecordId
@@ -42,7 +48,7 @@ export function CustomerRevenueWorkspace({ customer, quote, contract, tasks, ini
   const arSummary = getCustomerArSummary(customer.id);
   const revenueArrangement = getRevenueArrangement(contract.id);
 
-  const currentRecordId = activeStage === "quote" ? quote.id
+  const currentRecordId = activeStage === "quote" ? activeQuote.id
     : activeStage === "contract" ? contract.id
     : activeStage === "invoicing" && selectedInvoice ? selectedInvoice.id
     : activeStage === "revrec" && revenueArrangement ? revenueArrangement.id
@@ -53,7 +59,7 @@ export function CustomerRevenueWorkspace({ customer, quote, contract, tasks, ini
       case "customer":
         return <CustomerStageContent customer={customer} />;
       case "quote":
-        return <QuoteStageContent quote={quote} />;
+        return <QuoteStageContent quote={activeQuote} />;
       case "contract":
         return <ContractStageContent contract={contract} />;
       case "invoicing":
@@ -95,7 +101,9 @@ export function CustomerRevenueWorkspace({ customer, quote, contract, tasks, ini
         {activeStage !== "customer" && (
           <RecordContextBar
             activeStage={activeStage}
-            quote={quote}
+            quote={activeQuote}
+            quoteVersions={quoteVersions}
+            onQuoteVersionChange={setActiveQuote}
             contract={contract}
             invoice={selectedInvoice}
             invoiceEnrichment={invoiceEnrichment}
@@ -110,7 +118,7 @@ export function CustomerRevenueWorkspace({ customer, quote, contract, tasks, ini
             activeStage={activeStage}
             tasks={tasks}
             customer={customer}
-            quote={quote}
+            quote={activeQuote}
             contract={contract}
             invoice={selectedInvoice}
             revenueArrangement={revenueArrangement}
