@@ -15,7 +15,7 @@ export function SearchBar() {
         <div className="flex items-center justify-center gap-2 text-[13px] text-text-muted">
           <Search size={14} className="shrink-0 opacity-80" strokeWidth={2.2} aria-hidden />
           <span>Search anything...</span>
-          <kbd className="inline-flex shrink-0 items-center gap-0.5 rounded bg-surface-muted px-1.5 py-0.5 font-medium text-text-muted">
+          <kbd className="inline-flex shrink-0 items-center gap-0.5 rounded bg-white px-1.5 py-0.5 font-medium text-gray-400">
             <span className="text-[14px] leading-none">⌘</span>
             <span className="text-[10px] leading-none">K</span>
           </kbd>

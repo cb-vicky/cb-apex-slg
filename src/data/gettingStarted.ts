@@ -260,6 +260,42 @@ export const operatorConfig: RoleConfig = {
 };
 
 // ---------------------------------------------------------------------------
+// Admin (Billing Manager) right rail cards
+// ---------------------------------------------------------------------------
+
+export const adminRailCards: OperatorRailCard[] = [
+  {
+    title: "Your role",
+    body: "As a Billing Manager, you're responsible for configuring Chargebee APEX end-to-end — setting up entities, building the product catalog, enabling contract enforcement, and validating the full quote-to-cash flow before your team goes live.",
+  },
+  {
+    title: "What you'll learn",
+    items: [
+      "Configure entity, currency, and finance defaults",
+      "Build products, plans, and pricing",
+      "Set up CRM sync and approval routing",
+      "Enable contract ingestion and enforcement",
+      "Validate the end-to-end billing flow",
+    ],
+  },
+  {
+    title: "Recommended next",
+    links: [
+      {
+        title: "Invite your Billing Operator",
+        subtext:
+          "Once your entity is configured, add an operator so they can start reviewing invoices and recording payments.",
+      },
+      {
+        title: "Review your go-live checklist",
+        subtext:
+          "Verify all required milestones are complete and your Test Site is ready before switching to Live Site.",
+      },
+    ],
+  },
+];
+
+// ---------------------------------------------------------------------------
 // Operator right rail cards
 // ---------------------------------------------------------------------------
 

@@ -1,5 +1,6 @@
 import {
   adminConfig,
+  adminRailCards,
   operatorConfig,
   operatorRailCards,
 } from "@/data/gettingStarted";
@@ -14,61 +15,37 @@ import { FooterCallout } from "@/components/getting-started/FooterCallout";
 export function WorkbenchHome() {
   const { role } = useWorkbenchRole();
   const config = role === "admin" ? adminConfig : operatorConfig;
+  const railCards = role === "admin" ? adminRailCards : operatorRailCards;
+  const milestoneTitle = role === "admin" ? "Required before go-live" : "Start here";
+  const milestones = config.milestones;
 
   return (
     <div className="h-full w-full overflow-auto">
-      <div className="flex flex-col gap-6 px-8 py-7">
-        {/* 1. Hero row */}
-        <GettingStartedHeader role={role} config={config} />
+      <div className="px-8 py-7">
+        {/* Two-column layout: 8-col scrollable content + 4-col sticky rail */}
+        <div className="grid grid-cols-12 gap-6">
+          {/* Left: all scrollable page content */}
+          <div className="col-span-8 flex flex-col gap-6">
+            <GettingStartedHeader role={role} config={config} />
+            <SummaryStrip config={config} />
+            <EnvironmentBanner />
+            <MilestoneGrid
+              title={milestoneTitle}
+              milestones={milestones}
+              columns={1}
+            />
+          </div>
 
-        {/* 2. Progress / summary strip */}
-        <SummaryStrip config={config} />
+          {/* Right: sticky info rail */}
+          <div className="col-span-4">
+            <OperatorRail cards={railCards} />
+          </div>
+        </div>
 
-        {/* 3. Environment banner */}
-        <EnvironmentBanner />
-
-        {/* 4. Main milestone content */}
-        {role === "admin" ? (
-          <AdminLayout />
-        ) : (
-          <OperatorLayout />
-        )}
-
-        {/* 5. Footer callout */}
-        <FooterCallout config={config.footerCallout} />
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Admin: full-width 2-column grid
-// ---------------------------------------------------------------------------
-function AdminLayout() {
-  return (
-    <MilestoneGrid
-      title="Required before go-live"
-      milestones={adminConfig.milestones}
-      columns={2}
-    />
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Operator: 8-col left + 4-col right rail
-// ---------------------------------------------------------------------------
-function OperatorLayout() {
-  return (
-    <div className="grid grid-cols-12 gap-6">
-      <div className="col-span-8">
-        <MilestoneGrid
-          title="Start here"
-          milestones={operatorConfig.milestones}
-          columns={1}
-        />
-      </div>
-      <div className="col-span-4">
-        <OperatorRail cards={operatorRailCards} />
+        {/* Footer: full-width below the grid */}
+        <div className="mt-6">
+          <FooterCallout config={config.footerCallout} />
+        </div>
       </div>
     </div>
   );

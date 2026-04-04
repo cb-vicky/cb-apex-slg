@@ -69,7 +69,7 @@ export function CustomerRevenueWorkspace({ customer, quote, contract, tasks, ini
 
   return (
     <div className="flex h-full w-full flex-col overflow-auto">
-      <div className="flex flex-col gap-4 px-6 py-5">
+      <div className="flex flex-col gap-4 rounded-tl-[24px] border border-[rgba(225,226,230,1)] px-6 py-5 shadow-[-1px_4px_24px_0px_rgba(0,0,0,0.15)]">
         {from && (
           <DetailBreadcrumb
             from={from}
