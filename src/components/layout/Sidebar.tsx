@@ -38,12 +38,14 @@ export function Sidebar() {
   const workbenchActive = location.pathname === "/" || location.pathname === "/workbench";
 
   return (
-    <aside className="flex w-[160px] shrink-0 flex-col bg-[#F0F1F3] pt-3">
+    <aside className="flex w-[140px] shrink-0 flex-col bg-[#F0F1F3] pt-3">
       <button
         onClick={() => navigate("/")}
         className={cn(
           "mx-2 mb-2 flex items-center gap-1 rounded-md px-2 py-1.5 text-[13px] font-semibold transition-colors",
-          workbenchActive ? "text-cb-orange" : "text-text-primary hover:text-cb-orange",
+          workbenchActive
+            ? "text-cb-orange hover:text-cb-orange active:text-cb-orange"
+            : "text-[#012A38] hover:text-cb-orange active:text-cb-orange",
         )}
       >
         My Workbench
@@ -65,8 +67,8 @@ export function Sidebar() {
                 disabled
                   ? "cursor-not-allowed text-text-muted opacity-60"
                   : active
-                    ? "font-medium text-cb-orange"
-                    : "text-text-secondary hover:text-text-primary",
+                    ? "font-medium text-cb-orange hover:text-cb-orange active:text-cb-orange"
+                    : "text-[#012A38] hover:text-cb-orange active:text-cb-orange",
               )}
             >
               {item.label}

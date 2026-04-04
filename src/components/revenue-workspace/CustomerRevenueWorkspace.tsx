@@ -6,7 +6,7 @@ import { getRevenueArrangement } from "@/data/revrec-data";
 import { deriveAllStageStatuses } from "./derive-stage-data";
 import { CustomerWorkspaceHeader } from "./CustomerWorkspaceHeader";
 import { RevenueJourneyRail, type Stage } from "./RevenueJourneyRail";
-import { RecordContextBar } from "./RecordContextBar";
+import { RecordContextBar, RecordContextActions } from "./RecordContextBar";
 import { QuoteStageContent } from "./quote/QuoteStageContent";
 import { ContractStageContent } from "./contract/ContractStageContent";
 import { CustomerStageContent } from "./customer/CustomerStageContent";
@@ -68,7 +68,7 @@ export function CustomerRevenueWorkspace({ customer, quote, contract, tasks, ini
   }
 
   return (
-    <div className="flex h-full w-full flex-col overflow-auto">
+    <div className="flex h-full w-full flex-col overflow-auto rounded-tl-[24px]">
       <div className="flex flex-col gap-4 rounded-tl-[24px] border border-[rgba(225,226,230,1)] px-6 py-5 shadow-[-1px_4px_24px_0px_rgba(0,0,0,0.15)]">
         {from && (
           <DetailBreadcrumb
@@ -76,6 +76,14 @@ export function CustomerRevenueWorkspace({ customer, quote, contract, tasks, ini
             customerName={customer.name}
             activeStage={activeStage}
             recordId={currentRecordId}
+            actions={activeStage !== "customer" ? (
+              <RecordContextActions
+                activeStage={activeStage}
+                invoice={selectedInvoice}
+                primaryCollectionCase={primaryCase}
+                revenueArrangement={revenueArrangement}
+              />
+            ) : undefined}
           />
         )}
         <CustomerWorkspaceHeader customer={customer} />

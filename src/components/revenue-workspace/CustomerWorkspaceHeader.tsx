@@ -15,7 +15,7 @@ export function CustomerWorkspaceHeader({ customer }: Props) {
   return (
     <div className="flex flex-col gap-3">
       {/* Title row */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-end justify-between gap-4">
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-3">
             <h1 className="text-lg font-semibold text-text-primary">{customer.name}</h1>
