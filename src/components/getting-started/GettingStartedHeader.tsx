@@ -5,7 +5,7 @@ interface Props {
   config: RoleConfig;
 }
 
-export function GettingStartedHeader({ role, config }: Props) {
+export function GettingStartedHeader({ config }: Props) {
   return (
     <div className="flex items-start justify-between gap-6">
       {/* Left: title + subtitle */}
