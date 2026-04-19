@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import {
   adminConfig,
   adminRailCards,
@@ -13,7 +14,7 @@ import { OperatorRail } from "@/components/getting-started/OperatorRail";
 import { FooterCallout } from "@/components/getting-started/FooterCallout";
 
 export function WorkbenchHome() {
-  const { role } = useWorkbenchRole();
+  const { role, setRole } = useWorkbenchRole();
   const config = role === "admin" ? adminConfig : operatorConfig;
   const railCards = role === "admin" ? adminRailCards : operatorRailCards;
   const milestoneTitle = role === "admin" ? "Required before go-live" : "Start here";
@@ -22,6 +23,14 @@ export function WorkbenchHome() {
   return (
     <div className="flex-1 w-full overflow-auto">
       <div className="px-8 py-7">
+        {/* Role switcher — top-right of the page */}
+        <div className="mb-5 flex justify-end">
+          <div className="inline-flex shrink-0 rounded-lg bg-surface-muted p-0.5">
+            <RoleTab label="Billing Manager" active={role === "admin"} onClick={() => setRole("admin")} />
+            <RoleTab label="Billing Operator" active={role === "operator"} onClick={() => setRole("operator")} />
+          </div>
+        </div>
+
         {/* Two-column layout: 8-col scrollable content + 4-col sticky rail */}
         <div className="grid grid-cols-12 gap-6">
           {/* Left: all scrollable page content */}
@@ -48,5 +57,20 @@ export function WorkbenchHome() {
         </div>
       </div>
     </div>
+  );
+}
+
+function RoleTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-md px-3 py-1 text-[12px] font-medium transition-colors",
+        active ? "bg-white text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary",
+      )}
+    >
+      {label}
+    </button>
   );
 }

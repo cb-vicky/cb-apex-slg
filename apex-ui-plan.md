@@ -1993,3 +1993,626 @@ SEVERITY ICONS (AI insights):
   Warning  → amber triangle
   Info     → blue lightbulb
   Success  → green checkmark
+
+===================================================
+
+===================================================
+SECTION II — CONTRACT INGESTION AND INVOICE APPROVAL
+===================================================
+
+--------------------------------------------------
+36. CONTRACT INGESTION ENTRY PATHS
+--------------------------------------------------
+
+Contracts can enter the system in two conceptual ways:
+
+A. UPLOADED SIGNED CONTRACT (fully implemented in this pass)
+   - User clicks the Upload button in the Contracts module header
+   - An upload modal opens with a real upload affordance and an inline
+     "Use sample document" path for prototype demonstration
+   - The document is analysed (AI-assisted extraction simulation)
+   - User is taken to the Contracts > Ingest Contract verification page
+   - Fields are validated, mapped, and operationalised before enforcement
+
+B. INTEGRATION SYNC FROM EXTERNAL SYSTEM (stubbed / future-ready)
+   - Contracts can be synced from Salesforce, DocuSign, or other CLM tools
+   - This path is referenced in the architecture but NOT implemented in this pass
+   - A placeholder route or mention may exist in the navigation or docs only
+
+PRODUCT GOAL:
+Convert a signed commercial document into an operational billing contract
+inside Chargebee APEX. The key steps are:
+  1. Extract fields from the document
+  2. Validate extracted data against existing system records
+  3. Map contract to existing customer, quote, and product objects
+  4. Resolve any blocking mismatches (customer not found, product mismatch)
+  5. Create the contract and generate a pending invoice ready for review
+
+--------------------------------------------------
+37. UPLOADED CONTRACT ANALYSIS FLOW
+--------------------------------------------------
+
+Triggered from: Contracts module > Upload button (top-right of page header)
+
+UPLOAD MODAL STATES:
+
+State 1 – Upload Entry
+  - Modal title: "Upload Signed Contract"
+  - Upload area (drag-and-drop style, non-functional in prototype)
+  - "Or use a sample document" section with two distinct links:
+      ▸ Sample Document 1 – Echo Corp renewal (happy path)
+      ▸ Sample Document 2 – Zenith Analytics new business (exception path)
+  - Cancel button
+
+State 2 – Analysis Loading (shown after sample selection)
+  - Progress bar (animated, runs over ~3 seconds)
+  - Sequential AI extraction messages:
+      • "Reading document structure..."
+      • "Extracting customer name and legal entity..."
+      • "Detecting contract term and pricing..."
+      • "Matching quote from system..."
+      • "Validating product catalog mapping..."
+      • "Checking billing readiness..."
+  - Messages cycle as progress bar fills
+  - On completion: navigate to /contracts/ingest?sample=1 (or sample=2)
+
+PROTOTYPE NOTE:
+The actual file upload UI element is non-functional. Only the sample
+document paths drive the prototype flow.
+
+--------------------------------------------------
+38. CONTRACTS > INGEST CONTRACT VERIFICATION WORKSPACE
+--------------------------------------------------
+
+ROUTE: /contracts/ingest?sample=1 (or sample=2)
+
+BREADCRUMB: Contracts > Ingest Contract
+
+LAYOUT: Two-column workspace
+
+LEFT COLUMN (380px, collapsible):
+  - Document viewer header with collapse toggle button
+  - Rendered HTML contract document (structured like a real MSA/Order Form)
+  - Document is scrollable within its container
+  - When collapsed: column shrinks to 0, right panel expands to full width
+
+RIGHT COLUMN (flex-1, scrollable with page):
+  Sections:
+  1. Document Metadata (doc name, extraction confidence, extracted date)
+  2. Customer Mapping (matched or unmatched customer)
+  3. Quote Match (linked quote or no match)
+  4. Contract Terms (dates, term length, billing frequency, payment terms)
+  5. Products / Plan Mapping (line items with catalog match status)
+  6. Financial Summary (TCV, ARR, min commit, prepaid credits, overage)
+  7. Validation & Readiness Checks (pass / warn / fail per check)
+  8. Finish / Actions bar at the bottom
+
+The right panel is not just a field review — it is the operationalisation
+step where extracted data becomes a billing-ready contract object.
+
+--------------------------------------------------
+39. HAPPY PATH: LINK UPLOADED CONTRACT TO EXISTING QUOTE
+--------------------------------------------------
+
+SAMPLE DOCUMENT 1 — Echo Corp renewal contract
+
+EXTRACTED DATA:
+  - Company: Echo Corp Inc. → matched to cust_echo_001
+  - Quote match: QT-2026-0042 (94% confidence match shown)
+  - Products: all SKUs match catalog
+  - Term: 24 months, $261,800 ARR, $523,600 TCV
+  - Payment: Net 45, Annual upfront
+  - Start date: May 1, 2026
+
+VALIDATION RESULTS: all checks pass (green)
+
+UX FLOW:
+  - "Quote Match Found" callout with QT-2026-0042 details
+  - User can click "Link to this Quote" to confirm the association
+  - Once linked, the check turns green
+  - "Finish" button becomes active
+  - Clicking Finish shows the Post-Ingestion Completion State
+
+CREATED OBJECTS (logged on Finish):
+  Contract: CON-2026-0190 — Created
+  Linked to Quote: QT-2026-0042 — Linked
+  Customer: Echo Corp (cust_echo_001) — Reused
+  Products: APEX-PLATFORM, APEX-AI-CREDITS, APEX-AI-OVERAGE, APEX-SUPPORT — Reused
+  Invoice: INV-INGEST-001 — Created (Pending Review)
+
+--------------------------------------------------
+40. EXCEPTION PATH: MISSING CUSTOMER / PRODUCT MAPPING RESOLUTION
+--------------------------------------------------
+
+SAMPLE DOCUMENT 2 — Zenith Analytics new business contract
+
+EXTRACTED DATA:
+  - Company: Zenith Analytics Inc. → NOT FOUND in system
+  - Product: APEX-ANALYTICS-PRO (200 seats) → NOT in product catalog
+  - Term: 12 months, $155,000 TCV
+  - Payment: Net 30, Annual upfront
+
+BLOCKING ISSUES (shown as red callouts):
+  1. Customer not found: "Zenith Analytics Inc." does not match any existing
+     customer record. Action required before contract can be ingested.
+  2. Product mismatch: SKU "APEX-ANALYTICS-PRO" is not in the product catalog.
+     Map to an existing product or create a new plan.
+
+INLINE RESOLUTION UX:
+
+Issue 1 — Create new customer:
+  A "Create Customer" inline expansion reveals a mini-form:
+    - Company name (pre-filled from extraction)
+    - Billing legal entity
+    - AE / CSM / Billing owner
+    - Region / industry
+  Clicking "Create" adds the customer to session state.
+  The issue callout changes to green: "Customer created: Zenith Analytics"
+
+Issue 2 — Create product plan:
+  A "Create Plan" inline expansion reveals a mini-form:
+    - Plan name (pre-filled)
+    - SKU
+    - Unit price / billing model
+  Clicking "Create Plan" adds the product to session state.
+  The issue callout changes to green: "Plan created: APEX-ANALYTICS-PRO"
+
+Once both issues are resolved, all validation checks pass and
+the Finish button becomes active.
+
+CREATED OBJECTS (logged on Finish):
+  Customer: Zenith Analytics (cust_zenith_006) — Created
+  Product Plan: APEX-ANALYTICS-PRO — Created
+  Contract: CON-INGEST-002 — Created
+  Invoice: INV-INGEST-002 — Created (Pending Review)
+
+SESSION PERSISTENCE NOTE:
+Newly created objects (customer, product) are held in React context.
+They are available for the duration of the session. On browser refresh,
+the prototype resets to its original state.
+
+--------------------------------------------------
+41. POST-INGESTION COMPLETION STATE
+--------------------------------------------------
+
+After clicking "Finish" on the ingest verification page, the right panel
+transitions into a completion state. The document viewer remains visible.
+
+COMPLETION STATE CONTENTS:
+
+  ✓ Success header: "Contract Ingested Successfully"
+
+  Created / Linked Objects log:
+    [icon] Contract CON-2026-0190 — Created
+    [icon] Quote QT-2026-0042 — Linked
+    [icon] Customer Echo Corp — Reused
+    [icon] Invoice INV-INGEST-001 — Created · Pending Review
+
+  Status indicators:
+    Contract status: Active
+    Invoice status: Pending Review — Awaiting approval before sending
+
+  Primary CTA: "Review Invoice →" (navigates to invoice detail)
+  Secondary CTA: "Back to Contracts" (navigates to /contracts)
+
+For the exception path, the log also shows newly created objects
+(customer, product plan) with "Created" badges.
+
+--------------------------------------------------
+42. PENDING INVOICE REVIEW AND APPROVAL SUBMISSION
+--------------------------------------------------
+
+INVOICE DETAIL PAGE (existing, not replaced):
+
+The invoice created from ingestion lands in the existing
+CustomerRevenueWorkspace with initialStage="invoicing".
+
+INVOICE STATE:
+  Status: Pending Review
+  A banner appears at the top of the invoicing stage content:
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ ⏳  This invoice is pending review before it can be sent.  │
+  │     [Send for Approval]                        [Dismiss]   │
+  └─────────────────────────────────────────────────────────────┘
+
+SEND FOR APPROVAL FLOW:
+  - Clicking "Send for Approval" creates an ApprovalRequest in session state
+  - Banner updates to show: "✓ Submitted for approval — View in Approvals"
+  - The Approvals module now shows this invoice as pending
+  - The invoice status does not change yet (still Pending Review)
+    until an approver takes action
+
+POST-APPROVAL STATES:
+  Approved:
+    - Invoice status → "Approved"
+    - StatusBadge renders green
+  Rejected:
+    - Invoice status → "Cancelled"
+    - StatusBadge renders gray
+
+--------------------------------------------------
+43. APPROVALS MODULE AND INVOICE APPROVAL WORKSPACE
+--------------------------------------------------
+
+LEFT NAV:
+  "Approvals" nav item is enabled (was previously disabled/stubbed)
+  Route: /approvals
+
+APPROVALS INDEX PAGE:
+  Route: /approvals
+  Template: same ListTable + MetricStrip + GroupedSection pattern as other modules
+
+  Metric strip:
+    - Total pending
+    - Invoices pending
+    - Total amount pending
+    - Overdue approvals
+
+  List columns:
+    Approval ID | Invoice | Customer | Amount | Submitted By | Submitted On | Status
+
+  Only invoice approvals are shown in this pass.
+  Clicking a row navigates to /approvals/invoices/:invoiceId
+
+APPROVAL DETAIL PAGE:
+  Route: /approvals/invoices/:invoiceId
+  Breadcrumb: Approvals > Invoices > {invoiceId}
+  Layout: Two-column
+
+  LEFT COLUMN (flex-1):
+    Styled HTML invoice preview (rendered as a realistic invoice document)
+    Invoice header: provider name, address
+    Bill-to section: customer name, contact
+    Line items table: description, qty, unit price, amount
+    Subtotal / tax / total
+    Payment terms / due date
+    Footer
+
+  RIGHT COLUMN (340px):
+    Section: Invoice Metadata (status, submitted by, submitted on, approver)
+    Section: Previous Invoice (last invoice for this customer, for comparison)
+    Section: Subscription / Contract Summary (contract ID, term, TCV, ARR)
+    Section: Related Links (contract, quote, customer workspace)
+    ─────────────────────
+    Section: Comments & Collaboration
+      Comment input with @-tagging support
+      Tagged users list: Jordan Kim, Priya Mehta, Alex Nguyen,
+                         Marcus Lee, Rachel Torres, Lena Schulz
+      Comment thread rendering
+    ─────────────────────
+    Section: Decision Actions
+      [Approve Invoice]   → success state + toast + navigate to invoice
+      [Reject / Cancel]   → inline reason input → confirm rejection
+
+ON APPROVE:
+  1. ApprovalRequest.status → "Approved"
+  2. Invoice status override → "Approved"
+  3. Toast: "Email sent to the customer"
+  4. After short delay, navigate to /invoices/:invoiceId?from=approvals
+
+ON REJECT:
+  1. ApprovalRequest.status → "Rejected"
+  2. Invoice status override → "Cancelled"
+  3. Navigate back to /approvals (no toast, inline confirmation shown)
+
+--------------------------------------------------
+44. COMMENTS AND COLLABORATION
+--------------------------------------------------
+
+Comments exist on the Approval Detail page only (not on Invoice Detail).
+
+COMMENT INPUT:
+  - Textarea with placeholder: "Add a comment or note... Use @ to tag someone"
+  - Submit button: "Add Comment"
+  - When user types @, a dropdown appears with taggable team members
+  - Clicking a name inserts "@Name" into the text
+  - @Name references are highlighted in rendered comments
+
+COMMENT THREAD:
+  - Each comment shows: author avatar (initials), name, role, timestamp, text
+  - @Name mentions are highlighted in blue within comment text
+  - Comments are stored in session state (part of the ApprovalRequest object)
+  - Pre-seeded with 2 existing comments in the mock data for realism
+
+TAGGABLE USERS:
+  Jordan Kim (AE), Priya Mehta (CSM), Alex Nguyen (Billing Ops),
+  Marcus Lee (AE), Rachel Torres (CSM), Lena Schulz (Billing Ops)
+
+--------------------------------------------------
+45. MOCK DATA AND TYPE EXTENSIONS
+--------------------------------------------------
+
+NEW TYPES (in src/data/ingest-data.ts):
+
+  SampleDoc            — two sample document definitions
+  ExtractedContract    — all fields extracted from a document
+  ExtractedProduct     — per-line product extracted from doc
+  ExtractedTerms       — commercial terms extracted from doc
+  IngestIssue          — blocking or warning issue on an extracted contract
+  IngestResult         — the created/linked object log after Finish
+  CreatedObject        — one logged object outcome (created/linked/reused)
+  ApprovalRequest      — a pending invoice approval record
+  ApprovalComment      — a single comment on an approval
+
+CONTEXT STATE (src/context/IngestContext.tsx):
+
+  selectedSample         — which sample was chosen (sample1 | sample2 | null)
+  sessionCustomers       — customers created during the session
+  sessionProductSkus     — product SKUs created during the session
+  ingestResult           — the result of the last completed ingest
+  approvalRequests       — list of all approval requests in session
+  submittedInvoiceIds    — set of invoice IDs submitted for approval
+  invoiceStatusOverrides — map of invoiceId → overridden status string
+
+ADDITIONS TO src/data/mock-data.ts:
+
+  Customer:
+    cust_zenith_006 — Zenith Analytics Inc., new customer for exception path
+
+  Invoice (2 new):
+    INV-INGEST-001 — Echo Corp, Pending Review, $261,800 (annual renewal)
+    INV-INGEST-002 — Zenith Analytics, Pending Review, $155,000 (new business)
+
+  Invoice type:
+    No type changes required. Invoice.status "Pending Review" already exists.
+
+REUSED (no changes needed):
+  Customer, Quote, Contract, Invoice, Task types — all reused as-is
+  StatusBadge — "Cancelled" already in color map
+  ListTable, ListRow, ListCell — used verbatim in ApprovalsIndex
+  MetricStrip, GroupedSection — used in ApprovalsIndex
+  SectionCard, KV, TimelineRow — used in ApprovalDetailPage
+
+--------------------------------------------------
+46. ROUTING AND NAVIGATION
+--------------------------------------------------
+
+NEW ROUTES (added to App.tsx, in order):
+
+  /contracts/ingest        → IngestContractPage
+  /approvals               → ApprovalsIndex
+  /approvals/invoices/:invoiceId → ApprovalDetailPage
+
+ROUTE ORDER NOTE:
+  /contracts/ingest must be declared BEFORE /contracts/:contractId
+  to prevent "ingest" being matched as a contract ID param.
+
+NAVIGATION CHAIN (full end-to-end):
+
+  1. Contracts index → click "Upload"
+  2. Upload modal opens
+  3. Click "Sample Document 1" (or 2)
+  4. Loading / analysis animation (~3s)
+  5. Navigate to /contracts/ingest?sample=1
+  6. Review extracted fields, link quote (happy) or resolve issues (exception)
+  7. Click "Finish"
+  8. Completion state shown on same page
+  9. Click "Review Invoice" → navigate to /invoices/INV-INGEST-001
+  10. Invoice Detail page (CustomerRevenueWorkspace, invoicing stage)
+  11. "Pending Review" banner appears with "Send for Approval" CTA
+  12. Click "Send for Approval"
+  13. Banner updates to "Submitted for approval"
+  14. Navigate to /approvals (or user navigates via left nav)
+  15. Approvals Index shows the pending invoice approval
+  16. Click approval row → /approvals/invoices/INV-INGEST-001
+  17. Approval Detail page: review invoice HTML, context, comments
+  18. Click "Approve Invoice"
+  19. Toast: "Email sent to the customer"
+  20. Navigate to /invoices/INV-INGEST-001?from=approvals
+  21. Invoice Detail page shows status "Approved"
+
+REJECT ALTERNATIVE (from step 18):
+  18b. Click "Reject / Cancel"
+  18c. Enter rejection reason
+  18d. Confirm rejection
+  18e. Navigate to /approvals
+  20b. Invoice status shows "Cancelled" if user returns to it
+
+--------------------------------------------------
+47. ACCEPTANCE CRITERIA
+--------------------------------------------------
+
+[ ] Existing repo behavior remains 100% intact
+[ ] Upload button in ContractsIndex opens the upload modal
+[ ] Upload modal has two sample document links
+[ ] Clicking a sample link shows the loading/analysis animation
+[ ] Loading messages cycle through extraction steps
+[ ] After loading, user lands on /contracts/ingest?sample=N
+[ ] Ingest page has a 2-column layout (document viewer + verification panel)
+[ ] Document viewer shows a realistic rendered contract HTML document
+[ ] Document viewer can be collapsed/expanded via toggle button
+[ ] Happy path (sample 1): customer match found, quote linkage prompt shown
+[ ] Happy path: linking a quote confirms the association and clears the check
+[ ] Happy path: all validation checks pass, Finish button is active
+[ ] Exception path (sample 2): two blocking issues shown (customer + product)
+[ ] Exception path: inline "Create Customer" form resolves the customer issue
+[ ] Exception path: inline "Create Plan" form resolves the product issue
+[ ] Exception path: once both resolved, Finish button becomes active
+[ ] Clicking Finish shows the completion state with object log
+[ ] "Review Invoice" CTA navigates to the correct invoice in Pending Review state
+[ ] Invoice Detail page shows a "Pending Review" banner with "Send for Approval"
+[ ] Clicking "Send for Approval" creates an ApprovalRequest and updates the banner
+[ ] Approvals left nav item is enabled and navigable
+[ ] ApprovalsIndex uses the existing list page template
+[ ] ApprovalsIndex shows the submitted approval as a pending row
+[ ] Clicking the approval row navigates to the Approval Detail page
+[ ] Approval Detail page has 2-column layout (invoice preview + context)
+[ ] Left column renders a styled HTML invoice document
+[ ] Right column shows previous invoice, contract summary, related links
+[ ] Comment input supports @-tagging with a dropdown of team members
+[ ] Comments are rendered in a thread with author, role, timestamp
+[ ] "Approve Invoice" button triggers toast and navigates to Invoice Detail
+[ ] Toast reads: "Email sent to the customer"
+[ ] Invoice Detail page shows "Approved" status after approval
+[ ] "Reject / Cancel" shows inline reason form and sets status to Cancelled
+[ ] Session-created customers/products exist for session duration only
+[ ] Browser refresh resets all session state to original prototype state
+[ ] TypeScript build passes without errors (tsc -b passes)
+
+--------------------------------------------------
+48. OPEN QUESTIONS / ASSUMPTIONS
+--------------------------------------------------
+
+ASSUMPTIONS:
+
+1. The Upload button in ContractsIndex (createLabel="Upload") is the existing
+   entry point. No new button is added; the existing one is wired.
+
+2. The contract document viewer renders styled HTML — not an actual PDF.
+   A realistic HTML representation of a contract is sufficient for the prototype.
+
+3. Session state (IngestContext) uses React useState only. No localStorage
+   or sessionStorage. Refresh resets all prototype state to base mock data.
+
+4. "Send for Approval" is shown on any invoice with status "Pending Review".
+   This covers both statically defined invoices and ingest-created ones.
+
+5. The Approvals module only shows invoice approvals in this pass.
+   Quote approvals (which already exist as approval.status in QuoteApprovalInfo)
+   are NOT migrated into this module in this pass.
+
+6. The approval approver is always hardcoded to "Sarah Chen, VP Revenue"
+   in prototype mock data. Dynamic approval routing is out of scope.
+
+7. Invoice status overrides (Approved / Cancelled) live in React context.
+   Navigating directly to an invoice via URL (without going through the flow)
+   will show the original static status. This is acceptable prototype behaviour.
+
+8. The ingest page is a standalone route (/contracts/ingest), NOT inside the
+   CustomerRevenueWorkspace shell. It has its own breadcrumb and layout.
+
+OPEN QUESTIONS:
+
+Q1. Should the Approvals module eventually support Quote approvals too,
+    unifying the quote.approval.status flow with this new module?
+
+Q2. Should "Send for Approval" set a minimum comment/reason requirement
+    before submission in a future iteration?
+
+Q3. In the exception path, should the newly created customer appear
+    immediately in the Customers Index list, or only after a confirmatory step?
+
+Q4. Should contract documents be downloadable (PDF export) from the
+    document viewer in a future iteration?
+
+Q5. Should the approval detail page support multi-approver chains
+    (sequential or parallel) in future iterations?
+
+===================================================
+
+--------------------------------------------------
+SECTION: CUSTOMER WORKSPACE CLEANUP (Apr 2026)
+--------------------------------------------------
+
+1. TAB GATING – LIFECYCLE STAGE DISABLING
+------------------------------------------
+
+The Revenue Journey Rail now enforces downstream stage access based on
+whether the required data exists for a customer. This prevents users
+from navigating to empty or misleading stages before the lifecycle has
+progressed.
+
+Gating rule (implemented in CustomerRevenueWorkspace):
+
+  Customer  → always enabled
+  Quote     → always enabled (shows empty state if no quotes)
+  Contract  → enabled only if customer has ≥ 1 contract
+  Invoicing → enabled only if customer has ≥ 1 contract
+  Payment   → enabled only if customer has ≥ 1 invoice
+  RevRec    → enabled only if customer has ≥ 1 contract
+
+Disabled tabs render at 40% opacity with "Not available" sub-text and
+cursor-not-allowed. Clicking them has no effect.
+
+Important nuance: existing contracts are NOT blocked when a renewal
+quote is pending approval. The gating only applies when NO contract
+exists at all (e.g. a new-business prospect). An active prior contract
+keeps all downstream stages accessible, which is the correct operational
+behavior for billing and finance ops users.
+
+2. PROTOTYPE USE-CASE MATRIX
+------------------------------
+
+Each customer now showcases a distinct stage of the revenue lifecycle:
+
+Customer            Quote State             Contract             Invoicing
+--------------------------------------------------------------------------
+Echo Corp           Renewal pending         Active (prior term)  Overdue + held
+                    approval (v3 of 3)      CON-2024-0189        2 invoices
+                    + Draft amendment
+
+Lumina AI           Accepted (v1)           Active               Pending review
+                    QT-2026-0038            CON-2024-0201        INV-2026-0041
+
+Northlane Labs      Draft amendment (v1)    Active w/ enforce-   Overdue
+                    QT-2026-0043            ment issues          INV-2026-0040
+                                            CON-2025-0022
+
+Pioneer Systems     Pending approval (v2    NONE → Contract,     NONE
+                    of 3) QT-2026-0041      Invoicing, Payment,
+                                            RevRec DISABLED
+
+Verdant Health      Sent / awaiting (v1)    Active               Pending review
+                    QT-2026-0044 (top-up)   CON-2025-0034        (missing PO)
+
+Zenith Analytics    NONE → Quote tab        Active (ingested)    Pending review
+                    shows empty state       CON-INGEST-002       INV-INGEST-002
+
+Bug fixed: Pioneer Systems and Zenith Analytics previously inherited
+Echo Corp's data as a fallback due to a missing null guard in
+CustomerDetailPage. Both now correctly pass null quote/contract when
+no data exists, triggering the appropriate empty/disabled states.
+
+3. LIST-THEN-DETAIL PATTERN
+------------------------------
+
+For Quote, Contract, and Invoicing tabs, landing on a tab now shows a
+compact record list before any specific record is opened. This supports
+customers with multiple records per stage (e.g. multiple invoice
+cycles, multiple quote versions across deals).
+
+Flow:
+  1. User clicks a tab (Quote / Contract / Invoicing)
+  2. A compact table renders listing all records for that customer
+  3. User clicks a row → the full detail view opens (same content as before)
+  4. A "← All" back button appears to the left of the RecordContextBar
+     switcher/ID, returning the user to the list
+
+Exception (deep links): When arriving via a URL with a specific record
+ID (e.g. ?tab=contract&contractId=CON-2024-0189), the workspace opens
+directly in detail mode, skipping the list. The back button is still
+available to navigate back to the list from there.
+
+Quote list specifics:
+  - Grouped by lineage (one row per deal, not per version)
+  - Latest version is the primary row
+  - Clicking the chevron icon expands older versions as sub-rows
+  - Clicking any row (latest or older version) opens that specific version
+    in the detail view; the existing version switcher is still available
+
+Contract list: flat table — ID, source quote, effective/end dates, TCV,
+enforcement status, contract status.
+
+Invoice list: flat table sorted by date descending — ID, date, due date,
+contract, amount, status. Hold reason shown inline if present.
+
+4. DATA CHANGES
+----------------
+
+Added contract CON-INGEST-002 for Zenith Analytics:
+  - Status: Active
+  - Source: Ingested PDF (no linked quote)
+  - Enforcement: Partial (SKU mapping pending)
+  - Provisioning: Pending
+  - Invoice: INV-INGEST-002 ($155,000 Pending Review)
+  - Extraction confidence: 91%
+
+Fixed INV-INGEST-002 line items (previously summed to $164,400 against
+a $155,000 invoice total):
+  - Apex Analytics Pro – 200 seats × $60/seat: $144,000
+  - Premium Support (Annual): $11,000
+  - Total: $155,000 ✓
+
+===================================================
+

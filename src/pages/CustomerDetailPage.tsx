@@ -18,12 +18,15 @@ export function CustomerDetailPage() {
   const customerContracts = getContractsForCustomer(customer.id);
   const tasks = getTasks(customer.id);
 
+  // Resolve quote — null when customer has no quotes (e.g. Zenith Analytics)
   const quote = quoteId
     ? getQuote(quoteId)
-    : customerQuotes[0] ?? getQuote();
+    : customerQuotes[0] ?? null;
+
+  // Resolve contract — null when customer has no contracts yet (e.g. Pioneer Systems)
   const contractRecord = contractId
     ? getContract(contractId)
-    : customerContracts[0] ?? getContract();
+    : customerContracts[0] ?? null;
 
   const activeRecordId = quoteId ?? contractId ?? invoiceId ?? undefined;
 
