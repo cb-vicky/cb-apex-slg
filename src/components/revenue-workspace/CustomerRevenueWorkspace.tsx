@@ -11,7 +11,11 @@ import { CustomerStageContent } from "./customer/CustomerStageContent";
 import { InvoicingStageContent } from "./invoicing/InvoicingStageContent";
 import { PaymentStageContent } from "./payment/PaymentStageContent";
 import { RevRecStageContent } from "./revrec/RevRecStageContent";
-import { InsightRail } from "./InsightRail";
+import {
+  InsightRail,
+  DEFAULT_INSIGHT_RAIL_SECTIONS,
+  type InsightRailSectionKey,
+} from "./InsightRail";
 import { QuoteListView } from "./quote/QuoteListView";
 import { ContractListView } from "./contract/ContractListView";
 import { InvoiceListView } from "./invoicing/InvoiceListView";
@@ -61,6 +65,13 @@ export function CustomerRevenueWorkspace({
       : undefined;
 
   const [activeInvoice, setActiveInvoice] = useState<Invoice | undefined>(initialInvoice);
+
+  // Insight rail section expand/collapse — persists while switching lifecycle tabs (same workspace mount).
+  const [railSections, setRailSections] = useState(() => ({ ...DEFAULT_INSIGHT_RAIL_SECTIONS }));
+
+  function toggleRailSection(key: InsightRailSectionKey) {
+    setRailSections((s) => ({ ...s, [key]: !s[key] }));
+  }
 
   useEffect(() => {
     setActiveQuote(quote);
@@ -196,13 +207,10 @@ export function CustomerRevenueWorkspace({
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
           <div>{renderContent()}</div>
           <InsightRail
-            activeStage={activeStage}
             tasks={tasks}
             customer={customer}
-            quote={activeQuote}
-            contract={effectiveContract}
-            invoice={activeInvoice}
-            revenueArrangement={revenueArrangement}
+            sections={railSections}
+            onSectionToggle={toggleRailSection}
           />
         </div>
       </div>

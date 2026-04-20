@@ -1,0 +1,18 @@
+---
+description: Visual primitives, badges, shared UI components
+globs: src/components/ui/**,src/components/revenue-workspace/primitives/**
+alwaysApply: false
+---
+
+# Design System
+
+When editing shared UI primitives, badges, or visual components:
+
+- **`docs/02-design-system.md`** — visual tone, full status badge catalog (green/amber/blue/red/gray), line-type badges, obligation-type badges, risk badges, severity color tokens, component inventory
+
+## Key rules
+
+1. Use shadcn cards sparingly — subtle border, white/tinted surface, modest rounding, compact spacing.
+2. Enterprise tone: dense-but-readable, neutral surfaces, small orange accents for active states only.
+3. Status badges use the shared color map in `StatusBadge`. Any new status should extend the catalog, not invent new colors.
+4. Icons only when useful. No random illustrations, no marketing-style visuals.

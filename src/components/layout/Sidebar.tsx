@@ -91,14 +91,14 @@ export function Sidebar() {
                     disabled
                       ? "cursor-not-allowed text-text-muted opacity-55"
                       : active
-                      ? "bg-cb-orange font-semibold text-white"
+                      ? "bg-[rgba(1,42,56,1)] font-semibold text-white"
                       : "font-medium text-[#012A38] hover:bg-white/60 hover:text-cb-orange",
                   )}
                 >
                   {/* Always-rendered active accent — opacity swap keeps the
                       element in the tree so there's no layout/paint flicker
                       as the router re-renders on navigation. Light peach tint
-                      on the solid orange pill reads as a subtle highlight. */}
+                      on the active pill reads as a subtle highlight. */}
                   <span
                     aria-hidden
                     className={cn(
@@ -108,7 +108,7 @@ export function Sidebar() {
                   />
                   {/* Generic chevron anchor — inherits text color via
                       currentColor. Faint by default; fully opaque on active
-                      so the white chevron pops against the orange pill. */}
+                      so the chevron pops against the active background. */}
                   <ChevronRight
                     size={11}
                     strokeWidth={2.25}

@@ -101,6 +101,7 @@ export function CustomerContextBar({
   return (
     <div
       ref={barRef}
+      data-insight-rail-anchor=""
       className={cn(
         "sticky top-0 z-20 overflow-hidden rounded-tl-[24px] rounded-bl-[24px] bg-white",
         "border border-border-default",

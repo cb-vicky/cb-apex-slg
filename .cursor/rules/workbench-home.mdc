@@ -1,0 +1,19 @@
+---
+description: Workbench Home / Getting Started page
+globs: src/pages/workbench/**,src/components/getting-started/**
+alwaysApply: false
+---
+
+# Workbench Home
+
+When editing the Getting Started / Workbench Home page:
+
+- **`docs/10-workbench-home.md`** — layout (hero, summary strip, environment banner, milestone content, footer callout), admin vs operator milestones, visual spec, status pill colors
+- **`docs/02-design-system.md`** — overall design tone
+
+## Key rules
+
+1. Two personas: **Billing Manager (Admin)** and **Billing Operator**. Role switcher in-page via `WorkbenchRoleContext`.
+2. Admin = full-width 8-milestone grid. Operator = 8-col checklist (6 milestones) + 4-col sticky side panel.
+3. Status pills: green = Complete, amber = In progress, gray = Not started, red = Blocked.
+4. Fits inside the existing white content frame — no outer wrapper card.

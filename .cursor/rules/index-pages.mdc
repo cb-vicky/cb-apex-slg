@@ -1,0 +1,22 @@
+---
+description: Grouped priority landing + filtered list index pages
+globs: src/pages/CustomersIndex.tsx,src/pages/QuotesIndex.tsx,src/pages/ContractsIndex.tsx,src/pages/InvoicesIndex.tsx,src/pages/ApprovalsIndex.tsx,src/components/index-page/**
+alwaysApply: false
+---
+
+# Index Pages
+
+When editing a module index page or its primitives, read:
+
+- **`docs/05-index-pages.md`** — shared anatomy, per-module metric strips, group definitions, column specs, click flows
+- **`docs/06-routing.md`** — how row clicks deep-link into the customer shell (`/customers/:customerId?tab=…&<id>=…`)
+- **`docs/02-design-system.md`** — badge catalog, spacing
+- **`docs/08-mock-data.md`** — seed records available to populate groups
+
+## Key rules
+
+1. Default landing = **grouped priority page**, not a flat table.
+2. Groups show top 5 rows sorted by: urgency → value → date.
+3. Same component handles both grouped and filtered list modes, toggled by `?group=…` query param.
+4. Every row click navigates to the customer shell with the right tab + record ID.
+5. Sidebar items point to **index routes**, not hardcoded record IDs.
