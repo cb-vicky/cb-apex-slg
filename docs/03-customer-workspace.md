@@ -89,14 +89,37 @@ Component layout: `InsightRail` on the right at ~320px. Main content column flex
 
 Desktop: `grid grid-cols-[minmax(0,1fr)_320px] gap-6`. Tablet/smaller desktop: right rail collapses below main content.
 
-**Right rail always shows** (shared across tabs):
-- Open tasks
-- Customer health (dynamically derived — see `docs/07-dynamic-status.md`)
+**The insight rail is consistent across ALL tabs** — identical structure and data. It is purely customer-scoped (not stage-scoped). This makes the rail a stable "customer anchor" you can rely on regardless of which lifecycle stage is active.
 
-**Tab-specific right rail content:**
-- Next best actions
-- AI insights
-- Linked records
+#### Three sections (in order)
+
+Expand/collapse is **controlled in `CustomerRevenueWorkspace`** (`railSections` state) so choices **persist when switching lifecycle tabs** (Overview → Quotes → Contracts, etc.) for the same customer. Defaults: **all three expanded**.
+
+1. **Open Tasks** — all open tasks for this customer, spanning across all stages. Count is shown next to the title. Each row: priority dot aligned with the title line, meta line below (assignee · due). Rows are separated by hairline dividers; hover background only (no card chrome). Rows are `<button>` elements (navigation TBD).
+
+2. **Account Details** — flat key / value rows (no sub-headings). Order: health metrics first (NPS, Support tickets 30d, Open escalations when > 0, Churn risk — see `docs/07-dynamic-status.md`), then segment / industry / region / customer since, then commercial + billing + CB entity, then AE / CSM / billing owner. Hairline dividers separate those blocks.
+
+3. **Linked Records** — **external-system references only**, aggregated across the customer. Same list pattern as Open Tasks (dividers, hover, no per-row icons). Rows with a URL show a muted **arrow-up-right** on the right to indicate opening in a new tab; rows without a URL (e.g. CRM account ID only) have no arrow.
+   - CRM Account (`customer.crmAccountId` + sync status)
+   - CRM Opportunities (one per deal lineage, dedup'd by latest version — from `quote.crmOpportunityLink`)
+   - Signed Contract Documents (from `contract.signedDocumentUrl` — shown with extraction confidence sublabel)
+
+   Internal records (invoices, credit notes, support tickets, payments) are intentionally **not** in this list — they belong in main content or in per-stage tooling.
+
+#### What the rail does NOT show
+
+- **Next Best Actions** and **AI Insights** are no longer in the rail. They're shown in **main stage content** instead. This keeps the rail calm, consistent, and 100% customer-scoped.
+
+**On the Customer (Account 360) tab specifically:** the main column leads with a **Next best action** card plus a separate **AI Insights** control (collapsed until the user runs **Generate**). Both are implemented in `CustomerNbaAiRow.tsx` and composed by `CustomerStageContent.tsx`. See `docs/04-lifecycle-tabs.md` — Customer tab — for visual treatment (border animation, collapsed/expanded AI Insights), CTAs, and derivation (`getPrimaryCustomerAction`, `getCustomerInsightsEnriched`). Other lifecycle tabs continue to surface stage-specific NBAs/insights next to their record content as described in doc 04.
+
+#### Scroll / overflow behavior (desktop only, `xl:` ≥ 1280px)
+
+- Rail is `position: sticky` and sits right below the context bar with a 16px gap.
+- **When at least one section is expanded:** the scrollable body has a **max-height** = `100vh − (contextBarBottom + 16px) − 32px` (32px bottom margin preserved). The rail **hugs its content** until that cap; only then does internal scrolling kick in (no tall empty card when content is short). When content overflows and the user is not yet at the bottom, a floating **"View more"** chip appears at the bottom, above a subtle white → transparent gradient. Clicking the chip scrolls down ~70% of the visible rail body. Chip and gradient hide once scrolled to the bottom.
+- **When all three sections are collapsed:** the card **does not** use that fixed viewport height — it shrinks to only the three section headers (natural height). No internal scroll, no **View more** chip, no gradient. Sticky positioning + `top` offset still apply so the compact rail stays aligned.
+- Below `xl:` the rail flows naturally below the main content: regular page scroll, no sticky, no fixed height, no overflow hint.
+
+Implementation: `useRailMetrics()` inside `InsightRail.tsx` measures the context bar (`[data-insight-rail-anchor]`) height on mount and resize. **`maxHeight`** (not fixed `height`) is applied to the scroll container only when `metrics` exists **and** not every section is collapsed (`fixedHeightMode`).
 
 ## List-then-detail pattern (Quote, Contract, Invoicing)
 

@@ -32,6 +32,8 @@ Same component toggles between grouped and list mode based on the `?group` query
 /customers/:customerId?tab=revrec                      — RevRec tab
 ```
 
+Optional **hash** on the same shell (e.g. `/customers/cust_…?tab=customer#support-comms-anchor`) scrolls to in-tab anchors — used by Account 360 deep links such as “View tickets” when escalations are the primary action.
+
 ### Resource alias routes (backward compatibility)
 
 These render through the same shell, **not** redirect. They resolve the customer from the resource record and pass the correct initial tab + selected record.

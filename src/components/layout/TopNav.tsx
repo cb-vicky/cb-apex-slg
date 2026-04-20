@@ -3,7 +3,7 @@ import cbLogoWhite from "@/assets/cb-logo-white.svg";
 
 export function TopNav() {
   return (
-    <header className="relative z-10 flex h-[36px] shrink-0 items-center justify-between overflow-visible bg-[#012A38] px-[12px]">
+    <header className="relative z-10 flex h-[36px] shrink-0 items-center justify-between overflow-visible bg-[#012A38] px-[12px] text-[rgba(17,24,39,1)]">
       {/* Left */}
       <div className="flex h-full items-center gap-[8px]">
         {/* Logo — tab shape: rounded top, flush bottom */}

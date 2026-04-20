@@ -1,274 +1,134 @@
-import { useState } from "react";
-import type { Task, Customer, Quote, Contract, Invoice } from "@/data/mock-data";
-import type { Stage } from "./RevenueJourneyRail";
-import type { RevenueArrangement } from "@/data/revrec-data";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { Task, Customer } from "@/data/mock-data";
+import { getQuotesForCustomer, getContractsForCustomer } from "@/data/mock-data";
 import { cn, shortDate } from "@/lib/utils";
 import {
-  AlertTriangle,
-  ArrowRight,
-  Brain,
-  Building2,
-  CheckCircle2,
+  ArrowUpRight,
   ChevronDown,
-  Clock,
   FileText,
   IdCard,
-  Lightbulb,
   ListChecks,
-  Shield,
-  User,
-  Zap,
 } from "lucide-react";
 import {
-  type InsightItem,
-  type LinkedRecord,
-  type NextAction,
+  type ExternalLinkedRecord,
   type CustomerHealthData,
-  getCustomerInsights,
-  getQuoteInsights,
-  getContractInsights,
-  getInvoicingInsights,
-  getPaymentInsights,
-  getRevRecInsights,
-  getQuoteLinkedRecords,
-  getContractLinkedRecords,
-  getInvoicingLinkedRecords,
-  getPaymentLinkedRecords,
-  getRevRecLinkedRecords,
-  getQuoteActions,
-  getContractActions,
-  getInvoicingActions,
-  getPaymentActions,
-  getRevRecActions,
   deriveCustomerHealth,
+  getCustomerExternalLinkedRecords,
 } from "./derive-stage-data";
-import { getInvoices } from "@/data/mock-data";
-import { getQuotesForCustomer } from "@/data/mock-data";
 
 // ---------------------------------------------------------------------------
-// Sub-components
+// Section open state (lifted to parent — persists across lifecycle tab switches)
 // ---------------------------------------------------------------------------
 
-function RailSection({ title, icon: Icon, children, defaultOpen = false }: { title: string; icon: typeof Brain; children: React.ReactNode; defaultOpen?: boolean }) {
-  const [open, setOpen] = useState(defaultOpen);
+export type InsightRailSectionKey = "accountDetails" | "openTasks" | "linkedRecords";
+
+export type InsightRailSections = Record<InsightRailSectionKey, boolean>;
+
+export const DEFAULT_INSIGHT_RAIL_SECTIONS: InsightRailSections = {
+  accountDetails: true,
+  openTasks: true,
+  linkedRecords: true,
+};
+
+// ---------------------------------------------------------------------------
+// Shared collapsible section wrapper (controlled)
+// ---------------------------------------------------------------------------
+
+function RailSection({
+  title,
+  icon: Icon,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  icon: typeof ListChecks;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <div className="border-b border-border-default last:border-b-0">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={onToggle}
         className="flex w-full items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-surface-muted/60"
       >
         <Icon size={13} className="shrink-0 text-text-secondary" />
-        <h4 className="flex-1 text-[11px] font-semibold uppercase tracking-wider text-text-primary">{title}</h4>
+        <h4 className="flex-1 text-[11px] font-semibold uppercase tracking-wider text-text-primary">
+          {title}
+        </h4>
         <ChevronDown
           size={13}
-          className={cn("shrink-0 text-text-muted transition-transform duration-200", open && "rotate-180")}
+          className={cn(
+            "shrink-0 text-text-muted transition-transform duration-200",
+            open && "rotate-180",
+          )}
         />
       </button>
-      {open && <div className="px-3 pb-3">{children}</div>}
+      {open && <div className="px-3 pb-3 pt-3">{children}</div>}
     </div>
   );
 }
 
-const severityIcon = {
-  warning: <AlertTriangle size={13} className="shrink-0 text-amber-500" />,
-  info: <Lightbulb size={13} className="shrink-0 text-blue-500" />,
-  success: <CheckCircle2 size={13} className="shrink-0 text-emerald-500" />,
-};
-
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
-
-interface Props {
-  activeStage: Stage;
-  tasks: Task[];
-  customer: Customer;
-  quote: Quote | null;
-  contract: Contract | null;
-  invoice?: Invoice;
-  revenueArrangement?: RevenueArrangement;
-}
-
-export function InsightRail({ activeStage, tasks, customer, quote, contract, invoice, revenueArrangement }: Props) {
-  const isCustomerStage = activeStage === "customer";
-  const customerInvoices = getInvoices(customer.id);
-  const customerQuotes = getQuotesForCustomer(customer.id);
-
-  const insights: InsightItem[] = (() => {
-    switch (activeStage) {
-      case "customer": return getCustomerInsights(customer);
-      case "quote": return quote ? getQuoteInsights(quote, contract) : [{ severity: "info", text: "No quote found for this customer." }];
-      case "contract": return getContractInsights(contract, customerInvoices);
-      case "invoicing": return invoice && contract ? getInvoicingInsights(invoice, contract) : [];
-      case "payment": return getPaymentInsights(customer.id);
-      case "revrec": return getRevRecInsights(revenueArrangement);
-      default: return [];
-    }
-  })();
-
-  const linked: LinkedRecord[] = (() => {
-    switch (activeStage) {
-      case "quote": return getQuoteLinkedRecords(quote);
-      case "contract": return getContractLinkedRecords(contract, customerQuotes, customerInvoices);
-      case "invoicing": return invoice ? getInvoicingLinkedRecords(invoice, customer.id) : [];
-      case "payment": return getPaymentLinkedRecords(customer.id);
-      case "revrec": return getRevRecLinkedRecords(revenueArrangement);
-      default: return [];
-    }
-  })();
-
-  const actions: NextAction[] = (() => {
-    switch (activeStage) {
-      case "quote": return getQuoteActions(quote);
-      case "contract": return getContractActions(contract, customerInvoices);
-      case "invoicing": return invoice ? getInvoicingActions(invoice) : [];
-      case "payment": return getPaymentActions(customer.id);
-      case "revrec": return getRevRecActions(revenueArrangement);
-      default: return [];
-    }
-  })();
-
-  const health: CustomerHealthData = deriveCustomerHealth(customer);
-
+function DetailRow({ label, value, valueClassName }: { label: string; value: React.ReactNode; valueClassName?: string }) {
   return (
-    <aside className="w-[320px] shrink-0">
-      <div className="overflow-hidden rounded-lg border border-border-default bg-white">
-      {/* Account details — Overview tab only, collapsed by default */}
-      {isCustomerStage && <AccountDetailsSection customer={customer} />}
-
-      {/* Next best actions */}
-      {actions.length > 0 && (
-        <RailSection title="Next Best Action" icon={Zap}>
-          <div className="space-y-2">
-            {actions.map((action) => (
-              <button key={action.label} className="flex w-full items-start gap-2 rounded-md border border-border-default px-2.5 py-2 text-left transition-colors hover:bg-surface-muted">
-                <ArrowRight size={13} className="mt-0.5 shrink-0 text-cb-orange" />
-                <div>
-                  <p className="text-[13px] font-medium text-text-primary">{action.label}</p>
-                  <p className="text-[12px] text-text-secondary">{action.description}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </RailSection>
-      )}
-
-
-      {/* AI Insights */}
-      <RailSection title={isCustomerStage ? "Account Insights" : "AI Insights"} icon={Brain}>
-        <div className="space-y-2">
-          {insights.map((insight, idx) => (
-            <div key={idx} className="flex items-start gap-2 text-[13px] text-text-primary">
-              {severityIcon[insight.severity]}
-              <span>{insight.text}</span>
-            </div>
-          ))}
-        </div>
-      </RailSection>
-
-      {/* Linked Records */}
-      {linked.length > 0 && (
-        <RailSection title="Linked Records" icon={FileText}>
-          <div className="space-y-1.5">
-            {linked.map((record) => (
-              <div key={record.id} className="flex items-center gap-2 text-[13px]">
-                <FileText size={13} className="text-text-muted" />
-                <span className="text-text-secondary">{record.label}:</span>
-                <span className="font-medium text-blue-600">{record.id}</span>
-              </div>
-            ))}
-          </div>
-        </RailSection>
-      )}
-
-      {/* Open Tasks */}
-      <RailSection title="Open Tasks" icon={ListChecks}>
-        <div className="space-y-2">
-          {tasks.filter((t) => t.status === "Open").map((task) => (
-            <div key={task.id} className="flex items-start gap-2 rounded-md border border-border-default px-2.5 py-2">
-              <div className={cn(
-                "mt-0.5 h-2 w-2 shrink-0 rounded-full",
-                task.priority === "High" ? "bg-red-400" : "bg-amber-400",
-              )} />
-              <div>
-                <p className="text-[13px] font-medium text-text-primary">{task.title}</p>
-                <p className="text-[12px] text-text-secondary">
-                  {task.assignee} &middot; Due {shortDate(task.dueDate)}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </RailSection>
-
-      {/* Customer Health */}
-      <RailSection title={isCustomerStage ? "Account Health" : "Customer Health"} icon={isCustomerStage ? Shield : Clock}>
-        <div className="space-y-1 text-[13px]">
-          <div className="flex items-center justify-between">
-            <span className="text-text-secondary">NPS</span>
-            <span className="font-medium text-text-primary">{health.nps}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-text-secondary">Support tickets (30d)</span>
-            <span className="font-medium text-text-primary">{health.supportTickets30d}</span>
-          </div>
-          {health.openEscalations > 0 && (
-            <div className="flex items-center justify-between">
-              <span className="text-text-secondary">Open escalations</span>
-              <span className="font-medium text-red-600">{health.openEscalations}</span>
-            </div>
-          )}
-          <div className="flex items-center justify-between">
-            <span className="text-text-secondary">Product adoption</span>
-            <span className={cn("font-medium", health.adoptionColor)}>{health.productAdoption}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-text-secondary">Churn risk</span>
-            <span className={cn("font-medium", health.churnColor)}>{health.churnRisk}</span>
-          </div>
-        </div>
-      </RailSection>
-      </div>
-    </aside>
+    <div className="flex items-center justify-between gap-3 text-[13px]">
+      <span className="text-text-secondary">{label}</span>
+      <span className={cn("truncate text-right font-medium text-text-primary", valueClassName)}>{value}</span>
+    </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Account Details — Overview tab only. Collapsed by default.
+// Sections
 // ---------------------------------------------------------------------------
-function AccountDetailsSection({ customer }: { customer: Customer }) {
+
+function AccountDetailsSection({
+  customer,
+  health,
+  open,
+  onToggle,
+}: {
+  customer: Customer;
+  health: CustomerHealthData;
+  open: boolean;
+  onToggle: () => void;
+}) {
   return (
-    <RailSection title="Account Details" icon={IdCard}>
-      <div className="space-y-3 text-[13px]">
-        {/* Identity */}
+    <RailSection title="Account Details" icon={IdCard} open={open} onToggle={onToggle}>
+      <div className="text-[13px]">
         <div className="space-y-1.5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">Identity</p>
+          <DetailRow label="NPS" value={health.nps} />
+          <DetailRow label="Support tickets (30d)" value={health.supportTickets30d} />
+          {health.openEscalations > 0 && (
+            <DetailRow
+              label="Open escalations"
+              value={health.openEscalations}
+              valueClassName="text-red-600"
+            />
+          )}
+          <DetailRow
+            label="Churn risk"
+            value={health.churnRisk}
+            valueClassName={health.churnColor}
+          />
+        </div>
+
+        <div className="mt-2.5 space-y-1.5 border-t border-border-subtle pt-2.5">
           <DetailRow label="Segment" value={`${customer.segment} · ${customer.tier}`} />
           <DetailRow label="Industry" value={customer.industry} />
           <DetailRow label="Region" value={customer.region} />
           <DetailRow label="Customer since" value={shortDate(customer.createdAt)} />
         </div>
 
-        {/* Entities */}
-        <div className="space-y-1.5 border-t border-border-subtle pt-2.5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
-            <span className="inline-flex items-center gap-1">
-              <Building2 size={11} /> Entities
-            </span>
-          </p>
+        <div className="mt-2.5 space-y-1.5 border-t border-border-subtle pt-2.5">
           <DetailRow label="Account" value={customer.commercialAccount} />
           <DetailRow label="Billing Entity" value={customer.billingLegalEntity} />
           <DetailRow label="CB Entity" value={customer.chargebeeEntity} />
         </div>
 
-        {/* Ownership */}
-        <div className="space-y-1.5 border-t border-border-subtle pt-2.5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
-            <span className="inline-flex items-center gap-1">
-              <User size={11} /> Ownership
-            </span>
-          </p>
+        <div className="mt-2.5 space-y-1.5 border-t border-border-subtle pt-2.5">
           <DetailRow label="AE" value={customer.ae} />
           <DetailRow label="CSM" value={customer.csm} />
           <DetailRow label="Billing Owner" value={customer.billingOwner} />
@@ -278,11 +138,332 @@ function AccountDetailsSection({ customer }: { customer: Customer }) {
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function OpenTasksSection({
+  tasks,
+  open,
+  onToggle,
+}: {
+  tasks: Task[];
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const openTasks = tasks.filter((t) => t.status === "Open");
   return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-text-secondary">{label}</span>
-      <span className="truncate text-right font-medium text-text-primary">{value}</span>
+    <RailSection
+      title={`Open Tasks${openTasks.length > 0 ? ` · ${openTasks.length}` : ""}`}
+      icon={ListChecks}
+      open={open}
+      onToggle={onToggle}
+    >
+      {openTasks.length === 0 ? (
+        <p className="text-[12px] text-text-muted">No open tasks.</p>
+      ) : (
+        <div className="divide-y divide-border-subtle">
+          {openTasks.map((task) => (
+            <button
+              key={task.id}
+              type="button"
+              className="group w-full py-2.5 text-left first:pt-0 last:pb-0 transition-colors hover:bg-surface-muted/50 -mx-1 rounded px-1"
+            >
+              {/* Priority: neutral dot; priority color only on row hover */}
+              <div className="flex items-center gap-2">
+                <span
+                  className={cn(
+                    "h-2 w-2 shrink-0 rounded-full bg-gray-200 transition-colors",
+                    task.priority === "High" ? "group-hover:bg-red-400" : "group-hover:bg-amber-400",
+                  )}
+                  aria-hidden
+                />
+                <span className="min-w-0 truncate text-[13px] font-medium leading-snug text-text-primary">
+                  {task.title}
+                </span>
+              </div>
+              {/* Meta aligned with title text (same inset as dot + gap) */}
+              <div className="mt-0.5 flex gap-2">
+                <span className="inline-block w-2 shrink-0" aria-hidden />
+                <span className="text-[12px] leading-snug text-text-secondary">
+                  {task.assignee} &middot; Due {shortDate(task.dueDate)}
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </RailSection>
+  );
+}
+
+function LinkedRecordsSection({
+  records,
+  open,
+  onToggle,
+}: {
+  records: ExternalLinkedRecord[];
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <RailSection
+      title={`Linked Records${records.length > 0 ? ` · ${records.length}` : ""}`}
+      icon={FileText}
+      open={open}
+      onToggle={onToggle}
+    >
+      {records.length === 0 ? (
+        <p className="text-[12px] text-text-muted">No external records linked.</p>
+      ) : (
+        <div className="divide-y divide-border-subtle">
+          {records.map((r, idx) => (
+            <LinkedRecordRow key={`${r.kind}-${r.value}-${idx}`} record={r} />
+          ))}
+        </div>
+      )}
+    </RailSection>
+  );
+}
+
+function LinkedRecordRow({ record }: { record: ExternalLinkedRecord }) {
+  const rowPad = "w-full py-2.5 text-left first:pt-0 last:pb-0 -mx-1 rounded px-1";
+
+  const inner = (
+    <>
+      <div className="min-w-0 flex-1">
+        <p className="text-[12px] leading-snug text-text-secondary">{record.label}</p>
+        <p className="mt-0.5 truncate text-[13px] font-medium leading-snug text-blue-600">
+          {record.value}
+        </p>
+        {record.sublabel && (
+          <p className="mt-0.5 truncate text-[11px] leading-snug text-text-muted">{record.sublabel}</p>
+        )}
+      </div>
+      {record.href && (
+        <ArrowUpRight
+          size={14}
+          strokeWidth={2}
+          className="mt-0.5 shrink-0 text-text-muted opacity-80"
+          aria-hidden
+        />
+      )}
+    </>
+  );
+
+  if (record.href) {
+    return (
+      <a
+        href={record.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cn("flex items-start gap-2 transition-colors hover:bg-surface-muted/50", rowPad)}
+      >
+        {inner}
+      </a>
+    );
+  }
+
+  return (
+    <div className={cn("flex items-start gap-2", rowPad)}>
+      {inner}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sticky fixed-height behavior (desktop only)
+// ---------------------------------------------------------------------------
+
+const DESKTOP_MQ = "(min-width: 1280px)";
+const RAIL_GAP = 16;        // space between context bar and rail
+const BOTTOM_MARGIN = 32;   // requested bottom margin
+
+type RailMetrics = {
+  stickyTop: number;          // offset inside scroll parent for `position: sticky`
+  maxHeight: string;          // CSS value for the rail's fixed height
+} | null;
+
+function useRailMetrics(): RailMetrics {
+  const [metrics, setMetrics] = useState<RailMetrics>(null);
+
+  useLayoutEffect(() => {
+    function measure() {
+      if (typeof window === "undefined") return;
+      const isDesktop = window.matchMedia(DESKTOP_MQ).matches;
+      const anchor = document.querySelector<HTMLElement>("[data-insight-rail-anchor]");
+
+      if (!isDesktop || !anchor) {
+        setMetrics(null);
+        return;
+      }
+
+      const barHeight = anchor.offsetHeight;
+      const rect = anchor.getBoundingClientRect();
+      // When the context bar is `sticky top-0` its top in the viewport equals
+      // the scroll parent's viewport top. So the rail's viewport top, once stuck,
+      // is rect.top + barHeight + RAIL_GAP. That yields a fixed height that
+      // stays correct regardless of scroll position.
+      const railTopInViewport = rect.top + barHeight + RAIL_GAP;
+      const maxHeightPx = Math.max(240, window.innerHeight - railTopInViewport - BOTTOM_MARGIN);
+
+      setMetrics({
+        stickyTop: barHeight + RAIL_GAP,
+        maxHeight: `${Math.round(maxHeightPx)}px`,
+      });
+    }
+
+    measure();
+    const mq = window.matchMedia(DESKTOP_MQ);
+    mq.addEventListener("change", measure);
+    window.addEventListener("resize", measure);
+    return () => {
+      mq.removeEventListener("change", measure);
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+
+  return metrics;
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
+
+interface Props {
+  tasks: Task[];
+  customer: Customer;
+  sections: InsightRailSections;
+  onSectionToggle: (key: InsightRailSectionKey) => void;
+}
+
+export function InsightRail({ tasks, customer, sections, onSectionToggle }: Props) {
+  const metrics = useRailMetrics();
+
+  const customerQuotes = getQuotesForCustomer(customer.id);
+  const customerContracts = getContractsForCustomer(customer.id);
+  const health = deriveCustomerHealth(customer);
+  const linked = getCustomerExternalLinkedRecords(customer, customerQuotes, customerContracts);
+
+  const allCollapsed =
+    !sections.accountDetails && !sections.openTasks && !sections.linkedRecords;
+
+  /** Fixed viewport height + internal scroll only when at least one section is expanded (desktop). */
+  const fixedHeightMode = Boolean(metrics && !allCollapsed);
+
+  // Internal scroll + overflow hint affordance (only when fixed-height mode)
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [hint, setHint] = useState({ hasOverflow: false, atBottom: false });
+
+  const updateHint = useCallback(() => {
+    if (!fixedHeightMode) {
+      setHint((prev) => (prev.hasOverflow || prev.atBottom ? { hasOverflow: false, atBottom: false } : prev));
+      return;
+    }
+    const el = scrollRef.current;
+    if (!el) return;
+    const hasOverflow = el.scrollHeight > el.clientHeight + 1;
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 4;
+    setHint((prev) =>
+      prev.hasOverflow === hasOverflow && prev.atBottom === atBottom
+        ? prev
+        : { hasOverflow, atBottom },
+    );
+  }, [fixedHeightMode]);
+
+  useLayoutEffect(() => {
+    updateHint();
+  }, [
+    updateHint,
+    fixedHeightMode,
+    sections.accountDetails,
+    sections.openTasks,
+    sections.linkedRecords,
+    tasks,
+    customer.id,
+    health.nps,
+    linked.length,
+  ]);
+
+  useEffect(() => {
+    if (!fixedHeightMode) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", updateHint, { passive: true });
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateHint) : null;
+    ro?.observe(el);
+    return () => {
+      el.removeEventListener("scroll", updateHint);
+      ro?.disconnect();
+    };
+  }, [fixedHeightMode, updateHint]);
+
+  function scrollDown() {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ top: Math.round(el.clientHeight * 0.7), behavior: "smooth" });
+  }
+
+  const showHint = fixedHeightMode && hint.hasOverflow && !hint.atBottom;
+
+  return (
+    <aside
+      className="w-[320px] shrink-0 xl:sticky"
+      style={
+        metrics
+          ? {
+              top: `${metrics.stickyTop}px`,
+              alignSelf: "start",
+            }
+          : undefined
+      }
+    >
+      <div className="relative overflow-hidden rounded-lg border border-border-default bg-white">
+        <div
+          ref={scrollRef}
+          style={
+            fixedHeightMode && metrics ? { maxHeight: metrics.maxHeight } : undefined
+          }
+          className={cn(fixedHeightMode ? "overflow-y-auto" : "overflow-y-visible")}
+        >
+          <OpenTasksSection
+            tasks={tasks}
+            open={sections.openTasks}
+            onToggle={() => onSectionToggle("openTasks")}
+          />
+          <AccountDetailsSection
+            customer={customer}
+            health={health}
+            open={sections.accountDetails}
+            onToggle={() => onSectionToggle("accountDetails")}
+          />
+          <LinkedRecordsSection
+            records={linked}
+            open={sections.linkedRecords}
+            onToggle={() => onSectionToggle("linkedRecords")}
+          />
+        </div>
+
+        {/* Overflow hint: bottom white gradient + floating "View more" chip.
+            Only in fixed-height mode, when content overflows and not at bottom. */}
+        {showHint && (
+          <>
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white via-white/90 to-transparent"
+            />
+            <button
+              type="button"
+              onClick={scrollDown}
+              className={cn(
+                "absolute bottom-3 left-1/2 -translate-x-1/2",
+                "inline-flex items-center gap-1 rounded-full border border-border-default bg-white",
+                "px-2.5 py-1 text-[11px] font-medium text-text-secondary",
+                "shadow-[0_2px_8px_rgba(17,24,39,0.08)] transition-colors hover:bg-surface-muted/70",
+              )}
+            >
+              View more
+              <ChevronDown size={12} />
+            </button>
+          </>
+        )}
+      </div>
+    </aside>
   );
 }

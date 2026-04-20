@@ -85,6 +85,10 @@ Used across tab statuses, insights, and callouts:
 | red | `text-red-600` | overdue, blocked, critical |
 | blue | `text-blue-600` | informational, draft, neutral |
 
+## Theme tokens (`index.css` `@theme`)
+
+Prototype CSS variables include Chargebee orange (`--color-cb-orange`) and neutral surfaces/borders. For **secondary emphasis** on Account 360 (e.g. **AI Insights → Generate**), use **`--color-mature-blue`** (`#111827`) — a near-black blue that stays calmer than brand orange next to the Next best action card.
+
 ## Reusable component inventory
 
 Components live under `src/components/revenue-workspace/`, `src/components/index-page/`, `src/components/ui/`.

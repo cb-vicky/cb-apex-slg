@@ -78,17 +78,25 @@ Each tab in the lifecycle journey rail shows a dynamic status label and color be
 
 ## AI insights derivation
 
-All AI insights shown in the right insight rail are dynamically generated from mock data. Each stage has a dedicated derivation function in `derive-stage-data.ts`.
+AI insight **strings** are generated dynamically from mock data in `derive-stage-data.ts`. They are **not** shown in the right insight rail on the Customer tab — that rail is tasks + account details + linked records only. On **Account 360**, enriched insights (with optional CTAs) power the **AI Insights** generate/expand UI in `CustomerNbaAiRow.tsx`.
 
-### Customer insights (`getCustomerInsights`)
+### Customer insights — compact (`getCustomerInsights`)
 
-- **Sources:** `customer.prepaidCreditTotal`, `.prepaidCreditBalance`, `.openAr`, `.riskBadges`, `.nextRenewalDate`, `.crmSyncStatus`
-- **Examples:**
-  - warning: "Prepaid credit 74% consumed — $31,400 remaining"
-  - warning: "$24,300 in open accounts receivable"
-  - info: "Contract renewal in 73 days — start planning"
-  - info: "CRM sync is stale"
-  - success (fallback): "Account in healthy state"
+Returns `{ severity, text }[]` for lightweight consumers. Implemented as a **map** of `getCustomerInsightsEnriched` so it stays aligned with the Account 360 UI.
+
+- **Sources (underlying):** `customer.prepaidCreditTotal`, `.prepaidCreditBalance`, `.openAr`, `.riskBadges`, `.nextRenewalDate`, `.crmSyncStatus`; plus `getInvoices`, `getContractsForCustomer`, `getTasks` for enriched-only behavior.
+
+### Customer insights — enriched (`getCustomerInsightsEnriched`)
+
+Used by the Account 360 **AI Insights** list after the user clicks **Generate**.
+
+- **Returns:** `EnrichedCustomerInsight[]` — each item has `id`, `severity`, `text`, `ctas[]` (`label` + `to` route), `showAddToWorkbench`, `workbenchPreviewTitle`.
+- **CTAs:** Only attached when they make sense (e.g. open invoice, payment workspace, contract, customer tab). Omitted when there is no sensible deep link. In the **UI**, link CTAs render **left → right** in array order on the **right** side of the row; the **rightmost** link is the last entry in `ctas` (when multiple links exist, put the primary destination last). **Add to workbench** / “Added” renders **to the left** of the blue link group when present.
+- **Add to workbench:** `showAddToWorkbench` is true when there is a suggested follow-up title **and** no open task for this customer already looks like the same work (substring / phrase overlap on `getTasks(customer.id)`).
+- **Examples (same narrative as compact insights):**
+  - warning: prepaid burn, open AR, overdue signal, entity mismatch
+  - info: renewal window, CRM stale
+  - success (fallback): healthy account
 
 ### Quote insights (`getQuoteInsights`)
 
@@ -145,11 +153,18 @@ All AI insights shown in the right insight rail are dynamically generated from m
 
 ## Next-best-actions derivation
 
-Next best actions in the right rail are generated dynamically.
+Next-best-action lists for **Quote / Contract / Invoicing / Payment / RevRec** are generated dynamically. On **Account 360**, the UI emphasizes a **single** primary action instead of a rail list.
 
-### Customer tab
+### Customer tab — primary action (`getPrimaryCustomerAction`)
 
-No actions (customer tab is informational).
+- **Purpose:** One prioritized “do this next” for the account — the **hero** CTA on the Customer tab (`CustomerNbaAiRow`). The NBA **card chrome** (white fill, grey CSS border, inset animated orange stroke) is presentation-only; behavior is fully determined by this function + routes.
+- **Priority order (first match wins):** overdue invoice(s) → open AR (when no overdue row in scope) → stale CRM sync → renewal within 90 days (requires a contract for deep link) → prepaid burn >70% (requires contract) → escalated support tickets → fallback “calm” action (e.g. browse quotes).
+- **Returns:** `PrimaryCustomerAction` — `kind`, `label`, `description`, `learnMoreBody`, `executeTo` (path + query + optional `#support-comms-anchor`), `executeLabel`, `learnMoreLabel`.
+- **Related:** `getCustomerActions(customer)` still returns the **full prioritized list** for any code that needs every candidate; the tab UI uses **one** row from the equivalent priority stack via `getPrimaryCustomerAction`.
+
+### Customer tab — legacy list (`getCustomerActions`)
+
+Same business rules as historically documented, but exposed as an **array** of `{ label, description }`. Prefer `getPrimaryCustomerAction` for Account 360 UX.
 
 ### Quote tab (`getQuoteActions`)
 
@@ -200,15 +215,31 @@ No actions (customer tab is informational).
 
 ## Linked records derivation
 
-Linked records are derived from actual data relationships.
+Two derivations exist:
 
-| Tab | Linked records |
+### Customer-level external linked records (used by the Insight Rail)
+
+Used by the shared insight rail across all tabs. External-system references only — internal records (invoices, credit notes, tickets) are deliberately excluded so the rail stays customer-scoped and calm.
+
+**Source:** `getCustomerExternalLinkedRecords(customer, customerQuotes, customerContracts)`
+
+- **CRM Account** — from `customer.crmAccountId` (with `crmSyncStatus` sublabel when available)
+- **CRM Opportunities** — one per deal lineage, deduped to latest version (from `quote.crmOpportunityLink`, links out to Salesforce/HubSpot)
+- **Signed Contract Documents** — from `contract.signedDocumentUrl` (with extraction-confidence sublabel when available)
+
+Each record has `kind` (`"crm-account" | "crm-opportunity" | "contract-document"`), `label`, `value`, optional `href` (opens in new tab), and optional `sublabel`.
+
+### Per-stage internal linked records (NOT currently rendered — reserved for stage content)
+
+These remain available in `derive-stage-data.ts` for use inside each tab's main content area when needed (e.g. showing "source contract" next to an invoice record). They are NOT rendered in the rail anymore.
+
+| Function | Returns |
 |---|---|
-| Quote | Related contract (`relatedContractId`), CRM opportunity (parsed from URL) |
-| Contract | Source quote, pending customer quotes for this contract, overdue invoices |
-| Invoicing | Source contract, credit notes for this invoice, collection cases |
-| Payment | Overdue invoices, held invoices, credit notes, open support tickets |
-| RevRec | Source contract, pending amendments, blocked journal entries |
+| `getQuoteLinkedRecords(quote)` | Related contract, CRM opportunity |
+| `getContractLinkedRecords(contract, quotes, invoices)` | Source quote, pending customer quotes, overdue invoices |
+| `getInvoicingLinkedRecords(invoice, customerId)` | Source contract, credit notes, collection cases |
+| `getPaymentLinkedRecords(customerId)` | Overdue invoices, held invoices, credit notes, open support tickets |
+| `getRevRecLinkedRecords(arrangement)` | Source contract, pending amendments, blocked journal entries |
 
 ---
 
@@ -238,14 +269,6 @@ Count of support tickets with `lastUpdatedAt` within last 30 days. Source: `getT
 ### Open escalations
 
 Count of tickets with `status === "Escalated"`. Only shown if count > 0.
-
-### Product adoption
-
-Derived from prepaid credit consumption percentage.
-
-- > 50% consumed → **High** (green)
-- > 20% consumed → **Medium** (amber)
-- ≤ 20% consumed → **Low** (red)
 
 ### Churn risk
 

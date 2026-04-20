@@ -9,7 +9,7 @@ alwaysApply: false
 When editing the customer-centric workspace shell or any lifecycle-tab content, read these for context:
 
 - **`docs/03-customer-workspace.md`** — shell anatomy (customer header, journey rail, record context bar, insight rail, tab gating, list-then-detail pattern, cross-tab linking)
-- **`docs/04-lifecycle-tabs.md`** — per-tab specs for Customer / Quote / Contract / Invoicing / Payment / RevRec (sections, context bar fields, actions, right-rail content, SLG edge cases)
+- **`docs/04-lifecycle-tabs.md`** — per-tab specs for Customer / Quote / Contract / Invoicing / Payment / RevRec (sections, context bar fields, Account 360 anchor + lifecycle content, insight rail scope, SLG edge cases)
 - **`docs/07-dynamic-status.md`** — how tab statuses, AI insights, next-best-actions, and customer health are derived from mock data
 - **`docs/02-design-system.md`** — badge catalog, severity colors, spacing
 - **`docs/11-workspace-cleanup-and-gating.md`** — tab gating rules, list-then-detail, use-case matrix

@@ -1,5 +1,5 @@
 import type { Customer, Quote, Contract, Invoice } from "@/data/mock-data";
-import { getInvoices } from "@/data/mock-data";
+import { getContractsForCustomer, getInvoices, getTasks } from "@/data/mock-data";
 import {
   getCollectionCasesForCustomer,
   getCreditNotesForCustomer,
@@ -300,22 +300,283 @@ export interface InsightItem {
   text: string;
 }
 
-export function getCustomerInsights(customer: Customer): InsightItem[] {
-  const items: InsightItem[] = [];
+export interface InsightCTA {
+  label: string;
+  to: string;
+}
+
+export interface EnrichedCustomerInsight {
+  id: string;
+  severity: InsightItem["severity"];
+  text: string;
+  ctas: InsightCTA[];
+  /** When true, show a subtle “Add to workbench” — only if no open task already covers this theme */
+  showAddToWorkbench: boolean;
+  workbenchPreviewTitle: string;
+}
+
+function customerWorkspacePath(customerId: string): string {
+  return `/customers/${customerId}`;
+}
+
+function openTasksCoverPhrases(customerId: string, phrases: string[]): boolean {
+  const open = getTasks(customerId).filter((t) => t.status === "Open");
+  return open.some((task) => {
+    const t = task.title.toLowerCase();
+    return phrases.some((p) => t.includes(p.toLowerCase()));
+  });
+}
+
+export function getCustomerInsightsEnriched(customer: Customer): EnrichedCustomerInsight[] {
+  const base = customerWorkspacePath(customer.id);
+  const invoices = getInvoices(customer.id);
+  const contracts = getContractsForCustomer(customer.id);
+  const overdueList = invoices.filter((i) => i.status === "Overdue");
+  const firstOverdue = [...overdueList].sort(
+    (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
+  )[0];
+  const sortedContracts = [...contracts].sort(
+    (a, b) => new Date(a.renewalDate).getTime() - new Date(b.renewalDate).getTime(),
+  );
+  const prepaidContract = contracts.find((c) => c.prepaidCreditTotal > 0) ?? contracts[0];
+
+  const items: EnrichedCustomerInsight[] = [];
+
   if (customer.prepaidCreditTotal > 0) {
     const pct = Math.round(((customer.prepaidCreditTotal - customer.prepaidCreditBalance) / customer.prepaidCreditTotal) * 100);
-    if (pct > 70) items.push({ severity: "warning", text: `Prepaid credit ${pct}% consumed — ${currency(customer.prepaidCreditBalance)} remaining` });
+    if (pct > 70) {
+      const text = `Prepaid credit ${pct}% consumed — ${currency(customer.prepaidCreditBalance)} remaining`;
+      const ctas: InsightCTA[] =
+        prepaidContract
+          ? [{ label: "View contract", to: `${base}?tab=contract&contractId=${prepaidContract.id}` }]
+          : [];
+      items.push({
+        id: "ins-prepaid-burn",
+        severity: "warning",
+        text,
+        ctas,
+        showAddToWorkbench: ctas.length > 0 && !openTasksCoverPhrases(customer.id, ["prepaid", "burn"]),
+        workbenchPreviewTitle: "Review prepaid credit burn with finance & CSM",
+      });
+    }
   }
-  if (customer.openAr > 0) items.push({ severity: "warning", text: `${currency(customer.openAr)} in open accounts receivable` });
-  if (customer.riskBadges.some((b) => b.toLowerCase().includes("overdue"))) items.push({ severity: "warning", text: "Customer has overdue invoices requiring attention" });
-  if (customer.riskBadges.some((b) => b.toLowerCase().includes("mismatch"))) items.push({ severity: "info", text: "Legal entity mismatch detected between billing and CRM" });
+
+  if (customer.openAr > 0) {
+    const ctas: InsightCTA[] = [{ label: "Payment workspace", to: `${base}?tab=payment` }];
+    items.push({
+      id: "ins-open-ar",
+      severity: "warning",
+      text: `${currency(customer.openAr)} in open accounts receivable`,
+      ctas,
+      showAddToWorkbench: !openTasksCoverPhrases(customer.id, ["receivable", "open ar", "collect"]),
+      workbenchPreviewTitle: `Follow up on ${currency(customer.openAr)} open AR`,
+    });
+  }
+
+  if (customer.riskBadges.some((b) => b.toLowerCase().includes("overdue"))) {
+    const ctas: InsightCTA[] =
+      firstOverdue
+        ? [{ label: "Open invoice", to: `${base}?tab=invoicing&invoiceId=${firstOverdue.id}` }]
+        : [{ label: "Invoicing", to: `${base}?tab=invoicing` }];
+    items.push({
+      id: "ins-overdue-signal",
+      severity: "warning",
+      text: "Customer has overdue invoices requiring attention",
+      ctas,
+      showAddToWorkbench: !openTasksCoverPhrases(customer.id, ["overdue"]),
+      workbenchPreviewTitle: "Coordinate collections on overdue invoices",
+    });
+  }
+
+  if (customer.riskBadges.some((b) => b.toLowerCase().includes("mismatch"))) {
+    items.push({
+      id: "ins-entity-mismatch",
+      severity: "info",
+      text: "Legal entity mismatch detected between billing and CRM",
+      ctas: [{ label: "Commercial snapshot", to: `${base}?tab=customer` }],
+      showAddToWorkbench: !openTasksCoverPhrases(customer.id, ["mismatch", "legal entity", "entity"]),
+      workbenchPreviewTitle: "Resolve legal entity mismatch (billing vs CRM)",
+    });
+  }
+
   if (customer.nextRenewalDate) {
     const days = Math.round((new Date(customer.nextRenewalDate).getTime() - Date.now()) / 86400000);
-    if (days < 90 && days > 0) items.push({ severity: "info", text: `Contract renewal in ${days} days — start planning` });
+    if (days < 90 && days > 0) {
+      const rc = sortedContracts[0];
+      const ctas: InsightCTA[] =
+        rc ? [{ label: "Renewal contract", to: `${base}?tab=contract&contractId=${rc.id}` }] : [];
+      items.push({
+        id: "ins-renewal-window",
+        severity: "info",
+        text: `Contract renewal in ${days} days — start planning`,
+        ctas,
+        showAddToWorkbench: ctas.length > 0 && !openTasksCoverPhrases(customer.id, ["renewal"]),
+        workbenchPreviewTitle: "Prepare renewal proposal and stakeholder review",
+      });
+    }
   }
-  if (customer.crmSyncStatus === "Stale") items.push({ severity: "info", text: "CRM sync is stale — last update was over 2 weeks ago" });
-  if (items.length === 0) items.push({ severity: "success", text: "Account in healthy state — no immediate action required" });
+
+  if (customer.crmSyncStatus === "Stale") {
+    items.push({
+      id: "ins-crm-stale",
+      severity: "info",
+      text: "CRM sync is stale — last update was over 2 weeks ago",
+      ctas: [],
+      showAddToWorkbench: !openTasksCoverPhrases(customer.id, ["crm", "sync"]),
+      workbenchPreviewTitle: "Refresh CRM sync and validate account mapping",
+    });
+  }
+
+  if (items.length === 0) {
+    items.push({
+      id: "ins-healthy",
+      severity: "success",
+      text: "Account in healthy state — no immediate action required",
+      ctas: [],
+      showAddToWorkbench: false,
+      workbenchPreviewTitle: "",
+    });
+  }
+
   return items;
+}
+
+export function getCustomerInsights(customer: Customer): InsightItem[] {
+  return getCustomerInsightsEnriched(customer).map(({ severity, text }) => ({ severity, text }));
+}
+
+export type PrimaryCustomerActionKind =
+  | "overdue"
+  | "open_ar"
+  | "crm_stale"
+  | "renewal"
+  | "prepaid_burn"
+  | "support_escalated"
+  | "none";
+
+export interface PrimaryCustomerAction {
+  kind: PrimaryCustomerActionKind;
+  label: string;
+  description: string;
+  learnMoreBody: string;
+  executeTo: string;
+  executeLabel: string;
+  learnMoreLabel: string;
+}
+
+export function getPrimaryCustomerAction(customer: Customer): PrimaryCustomerAction {
+  const base = customerWorkspacePath(customer.id);
+  const invoices = getInvoices(customer.id);
+  const contracts = getContractsForCustomer(customer.id);
+  const overdue = invoices.filter((i) => i.status === "Overdue");
+  const overdueSorted = [...overdue].sort(
+    (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
+  );
+  const firstOverdue = overdueSorted[0];
+  const sortedContracts = [...contracts].sort(
+    (a, b) => new Date(a.renewalDate).getTime() - new Date(b.renewalDate).getTime(),
+  );
+  const renewalContract = sortedContracts[0];
+  const prepaidContract = contracts.find((c) => c.prepaidCreditTotal > 0) ?? contracts[0];
+
+  if (overdue.length > 0 && firstOverdue) {
+    const total = overdue.reduce((s, i) => s + i.amount, 0);
+    return {
+      kind: "overdue",
+      label: overdue.length === 1 ? "Resolve overdue invoice" : "Resolve overdue invoices",
+      description: `${overdue.length} past due — ${currency(total)} total. Start with the oldest due date to limit aging and renewal risk.`,
+      learnMoreBody:
+        "Overdue balances affect cash, DSO, and renewal leverage. Prioritize the oldest invoice, confirm dispute vs. neglect, align with collections on next steps, and document promised pay dates in the payment workspace.",
+      executeTo: `${base}?tab=invoicing&invoiceId=${firstOverdue.id}`,
+      executeLabel: "Review invoice",
+      learnMoreLabel: "Why this matters",
+    };
+  }
+
+  if (customer.openAr > 0 && overdue.length === 0) {
+    return {
+      kind: "open_ar",
+      label: "Collect open AR",
+      description: `${currency(customer.openAr)} is outstanding with no overdue invoices in this view — keep aging tight before the next bill cycle.`,
+      learnMoreBody:
+        "Open AR that is not yet overdue still needs allocation, cash application, and customer confirmation. Use the payment workspace to match unapplied cash, verify PO coverage, and clear holds so invoices stay on track.",
+      executeTo: `${base}?tab=payment`,
+      executeLabel: "Payment workspace",
+      learnMoreLabel: "How collections uses this",
+    };
+  }
+
+  if (customer.crmSyncStatus === "Stale") {
+    return {
+      kind: "crm_stale",
+      label: "Refresh CRM alignment",
+      description: "Account data may be stale — downstream quotes and renewal context could be misaligned.",
+      learnMoreBody:
+        "A stale CRM sync means AE/CSM context, ship-to/bill-to, and opportunity stage may not match billing. Reconcile the commercial account record before major quotes or amendments.",
+      executeTo: `${base}?tab=customer`,
+      learnMoreLabel: "What to verify",
+      executeLabel: "View account",
+    };
+  }
+
+  const renewTs = customer.nextRenewalDate?.trim() ? new Date(customer.nextRenewalDate).getTime() : NaN;
+  if (Number.isFinite(renewTs) && renewalContract) {
+    const days = Math.round((renewTs - Date.now()) / 86400000);
+    if (days > 0 && days < 90) {
+      return {
+        kind: "renewal",
+        label: "Drive renewal planning",
+        description: `Renewal in ${days} days (${shortDate(customer.nextRenewalDate)}) — align commercial, finance, and legal early.`,
+        learnMoreBody:
+          "Starting 90 days out gives time for pricing, usage true-up, co-termination targets, and security/legal review without forcing a rushed signature.",
+        executeTo: `${base}?tab=contract&contractId=${renewalContract.id}`,
+        executeLabel: "Open contract",
+        learnMoreLabel: "Renewal playbook",
+      };
+    }
+  }
+
+  if (customer.prepaidCreditTotal > 0 && prepaidContract) {
+    const pct = Math.round(((customer.prepaidCreditTotal - customer.prepaidCreditBalance) / customer.prepaidCreditTotal) * 100);
+    if (pct > 70) {
+      return {
+        kind: "prepaid_burn",
+        label: "Get ahead of credit burn-down",
+        description: `${pct}% of prepaid credits consumed — ${currency(customer.prepaidCreditBalance)} remaining.`,
+        learnMoreBody:
+          "High burn on prepaid credits can drive surprise overages or mid-term true-ups. Review usage vs. forecast with the customer and consider a top-up or contract amendment before limits hit.",
+        executeTo: `${base}?tab=contract&contractId=${prepaidContract.id}`,
+        executeLabel: "View usage context",
+        learnMoreLabel: "Finance & CS angle",
+      };
+    }
+  }
+
+  const tickets = getTicketsForCustomer(customer.id);
+  const escalated = tickets.filter((t) => t.status === "Escalated");
+  if (escalated.length > 0) {
+    return {
+      kind: "support_escalated",
+      label: "Unblock escalated support",
+      description: `${escalated.length} ticket${escalated.length > 1 ? "s" : ""} escalated — billing and renewal work often waits on these.`,
+      learnMoreBody:
+        "Escalations usually tie to disputes, data fixes, or executive attention. Read the latest thread, align with support on owner and SLA, then tie resolution back to open AR or contract terms as needed.",
+      executeTo: `${base}?tab=customer#support-comms-anchor`,
+      executeLabel: "View tickets",
+      learnMoreLabel: "Triage tips",
+    };
+  }
+
+  return {
+    kind: "none",
+    label: "No urgent action on this account",
+    description: "Posture looks stable — use lifecycle tabs when you are ready to go deeper.",
+    learnMoreBody:
+      "When nothing is red, focus on proactive hygiene: confirm the next renewal thread, scan for upcoming invoice holds, and keep CRM and billing owners aligned on any mid-term changes.",
+    executeTo: `${base}?tab=quote`,
+    executeLabel: "Browse quotes",
+    learnMoreLabel: "Stay proactive",
+  };
 }
 
 export function getQuoteInsights(quote: Quote, contract: Contract | null): InsightItem[] {
@@ -544,6 +805,59 @@ export interface NextAction {
   description: string;
 }
 
+export function getCustomerActions(customer: Customer): NextAction[] {
+  const actions: NextAction[] = [];
+  const invoices = getInvoices(customer.id);
+  const overdue = invoices.filter((i) => i.status === "Overdue");
+  if (overdue.length > 0) {
+    const total = overdue.reduce((s, i) => s + i.amount, 0);
+    actions.push({
+      label: overdue.length === 1 ? "Resolve overdue invoice" : "Resolve overdue invoices",
+      description: `${overdue.length} past due — ${currency(total)} total`,
+    });
+  }
+  if (customer.openAr > 0 && overdue.length === 0) {
+    actions.push({ label: "Review open AR", description: `${currency(customer.openAr)} outstanding` });
+  }
+  if (customer.crmSyncStatus === "Stale") {
+    actions.push({ label: "Refresh CRM sync", description: "Account data may be stale for downstream alignment" });
+  }
+  const renewTs = customer.nextRenewalDate?.trim() ? new Date(customer.nextRenewalDate).getTime() : NaN;
+  if (Number.isFinite(renewTs)) {
+    const days = Math.round((renewTs - Date.now()) / 86400000);
+    if (days > 0 && days < 90) {
+      actions.push({
+        label: "Start renewal planning",
+        description: `Renewal in ${days} days (${shortDate(customer.nextRenewalDate)})`,
+      });
+    }
+  }
+  if (customer.prepaidCreditTotal > 0) {
+    const pct = Math.round(((customer.prepaidCreditTotal - customer.prepaidCreditBalance) / customer.prepaidCreditTotal) * 100);
+    if (pct > 70) {
+      actions.push({
+        label: "Review prepaid credit burn",
+        description: `${pct}% consumed — ${currency(customer.prepaidCreditBalance)} remaining`,
+      });
+    }
+  }
+  const tickets = getTicketsForCustomer(customer.id);
+  const escalated = tickets.filter((t) => t.status === "Escalated");
+  if (escalated.length > 0) {
+    actions.push({
+      label: "Address escalated support",
+      description: `${escalated.length} ticket${escalated.length > 1 ? "s" : ""} escalated`,
+    });
+  }
+  if (actions.length === 0) {
+    actions.push({
+      label: "No immediate actions",
+      description: "Account posture looks stable — monitor lifecycle tabs for updates.",
+    });
+  }
+  return actions;
+}
+
 export function getQuoteActions(quote: Quote | null): NextAction[] {
   if (!quote) return [];
   const actions: NextAction[] = [];
@@ -660,8 +974,6 @@ export interface CustomerHealthData {
   nps: number;
   supportTickets30d: number;
   openEscalations: number;
-  productAdoption: "High" | "Medium" | "Low";
-  adoptionColor: string;
   churnRisk: "High" | "Medium" | "Low";
   churnColor: string;
 }
@@ -681,19 +993,89 @@ export function deriveCustomerHealth(customer: Customer): CustomerHealthData {
   const churnRisk: "High" | "Medium" | "Low" = riskScore >= 4 ? "High" : riskScore >= 2 ? "Medium" : "Low";
   const churnColor = churnRisk === "High" ? "text-red-600" : churnRisk === "Medium" ? "text-amber-600" : "text-emerald-600";
 
-  const creditPct = customer.prepaidCreditTotal > 0 ? ((customer.prepaidCreditTotal - customer.prepaidCreditBalance) / customer.prepaidCreditTotal) : 0;
-  const productAdoption: "High" | "Medium" | "Low" = creditPct > 0.5 ? "High" : creditPct > 0.2 ? "Medium" : "Low";
-  const adoptionColor = productAdoption === "High" ? "text-emerald-600" : productAdoption === "Medium" ? "text-amber-600" : "text-red-600";
-
   const nps = riskScore >= 4 ? 32 : riskScore >= 2 ? 52 : 72;
 
   return {
     nps,
     supportTickets30d: recent.length,
     openEscalations: escalations.length,
-    productAdoption,
-    adoptionColor,
     churnRisk,
     churnColor,
   };
+}
+
+// ---------------------------------------------------------------------------
+// CUSTOMER-LEVEL EXTERNAL LINKED RECORDS
+// Cross-tab aggregation — external system references only
+// (CRM accounts/opportunities, signed contract documents, etc.)
+// Internal records (invoices, credit notes, tickets) live elsewhere.
+// ---------------------------------------------------------------------------
+
+export type ExternalRecordKind = "crm-account" | "crm-opportunity" | "contract-document";
+
+export interface ExternalLinkedRecord {
+  kind: ExternalRecordKind;
+  label: string;        // e.g. "CRM Account", "CRM Opportunity (QT-…)"
+  value: string;        // e.g. "001Dn000008xA4Z" or "006Dn000004xK3Z"
+  href?: string;        // clickable external URL when available
+  sublabel?: string;    // optional small secondary line
+}
+
+export function getCustomerExternalLinkedRecords(
+  customer: Customer,
+  quotes: Quote[],
+  contracts: Contract[],
+): ExternalLinkedRecord[] {
+  const records: ExternalLinkedRecord[] = [];
+
+  // CRM account (one per customer)
+  if (customer.crmAccountId) {
+    records.push({
+      kind: "crm-account",
+      label: "CRM Account",
+      value: customer.crmAccountId,
+      sublabel: customer.crmSyncStatus ? `Sync: ${customer.crmSyncStatus}` : undefined,
+    });
+  }
+
+  // CRM opportunities — dedupe by lineageId, take latest version per deal
+  const latestByLineage = new Map<string, Quote>();
+  for (const q of quotes) {
+    if (!q.crmOpportunityLink) continue;
+    const existing = latestByLineage.get(q.lineageId);
+    if (!existing || q.version > existing.version) latestByLineage.set(q.lineageId, q);
+  }
+  for (const q of latestByLineage.values()) {
+    const oppId = q.crmOpportunityLink.split("/").pop() ?? q.crmOpportunityLink;
+    records.push({
+      kind: "crm-opportunity",
+      label: `CRM Opportunity · ${q.id}`,
+      value: oppId,
+      href: q.crmOpportunityLink,
+    });
+  }
+
+  // Signed contract documents
+  for (const c of contracts) {
+    if (!c.signedDocumentUrl) continue;
+    records.push({
+      kind: "contract-document",
+      label: `Signed Contract · ${c.id}`,
+      value: filenameFromUrl(c.signedDocumentUrl) ?? "Contract PDF",
+      href: c.signedDocumentUrl,
+      sublabel: c.extractionConfidence ? `Extraction ${Math.round(c.extractionConfidence)}%` : undefined,
+    });
+  }
+
+  return records;
+}
+
+function filenameFromUrl(url: string): string | null {
+  try {
+    const path = new URL(url, "https://example.com").pathname;
+    const last = path.split("/").filter(Boolean).pop();
+    return last ?? null;
+  } catch {
+    return url.split("/").pop() ?? null;
+  }
 }

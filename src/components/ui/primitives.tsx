@@ -96,14 +96,26 @@ export function MetricPill({ label, value, variant }: { label: string; value: st
 // ---------------------------------------------------------------------------
 // SectionCard
 // ---------------------------------------------------------------------------
-export function SectionCard({ title, children, className, actions }: { title: string; children: ReactNode; className?: string; actions?: ReactNode }) {
+export function SectionCard({
+  title,
+  children,
+  className,
+  actions,
+  bodyClassName,
+}: {
+  title: string;
+  children: ReactNode;
+  className?: string;
+  actions?: ReactNode;
+  bodyClassName?: string;
+}) {
   return (
     <div className={cn("overflow-hidden rounded-lg border border-border-default bg-white", className)}>
       <div className="flex items-center justify-between border-b border-border-subtle bg-[#F7F7F8] px-4 py-2.5">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-text-primary">{title}</h3>
         {actions}
       </div>
-      <div className="px-4 py-3">{children}</div>
+      <div className={cn("px-4 py-3", bodyClassName)}>{children}</div>
     </div>
   );
 }

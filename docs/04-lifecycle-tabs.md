@@ -4,67 +4,70 @@ Detail specs for each tab inside the `CustomerRevenueWorkspace`. Read alongside 
 
 Tab order: **Customer → Quote → Contract → Invoicing → Payment → RevRec**.
 
+> **Note on the right insight rail:** the rail is consistent across all tabs (Account Details / Open Tasks / Linked Records). It does **not** vary per tab. See `docs/03-customer-workspace.md` for its full anatomy.
+>
+> **Next Best Actions** and **AI Insights** (previously in the rail) now belong inside each tab's main content area. On **Account 360**, they appear as the **lead anchor** of the page; on Quote / Contract / Invoicing / etc., they sit next to the record they refer to. Derivation lives in `derive-stage-data.ts` — e.g. `getQuoteInsights`, `getQuoteActions` for the Quote tab, `getPrimaryCustomerAction` / `getCustomerInsightsEnriched` on Account 360.
+
 ---
 
 ## Customer tab (Account 360)
 
-**Purpose:** Account-level intelligence view. Billing/finance/RevOps-oriented customer snapshot. NOT a generic CRM profile.
+**Purpose:** Account-level operating view for Billing, Finance Ops, and RevOps — prioritized actions first, then snapshot, support/comms, lifecycle strips, and activity. Not a generic CRM profile; CRM owners and linked records live in the **insight rail**.
 
-**Record context bar:** Hidden, or simplified customer-level bar (e.g., "Edit customer", "View in CRM", "Open support").
+**Record context bar:** Hidden (customer is the record).
 
-Component: `CustomerStageContent`.
+Component: `CustomerStageContent` composes the sections below.
 
-### Sections
+### 1. Next best action + AI Insights (`CustomerNbaAiRow`)
 
-**A. Customer Overview** (`CustomerOverviewSection`)
-- Company name, domain, industry, segment, region
-- ARR, TCV, total spend
-- Prepaid credit balance and burn-down percentage
-- Open AR, renewal timing
-- Account health / risk flags (reuse existing `riskBadges`)
+This is the **primary anchor** of the tab.
 
-**B. Commercial & Billing Setup** (`BillingSetupSection`)
-- Billing legal entity, sold-to, bill-to
-- Payment terms, tax region, PO requirements
-- Currency, payment method summary
-- Active contracts count, open quotes count
+**Next best action (single action, not a list)**  
+- One prioritized action from `getPrimaryCustomerAction(customer)` — same business priority as the legacy multi-list `getCustomerActions` (overdue invoices → open AR → stale CRM → renewal window → prepaid burn → escalated support → calm fallback).  
+- **Card:** white surface, **no** orange drop shadow; a single **CSS border** (`border-border-default`) defines the quiet outer edge. An **animated orange border** (two phased “comet” strokes on an SVG path **inset** from that edge) runs **above** the white fill: tail → head gradient aligned to motion (`userSpaceOnUse` linear gradients updated from path length each frame). **Timing:** one full sweep (~18s), then **~10s rest** (frozen), then repeat.  
+- **Content:** title, description, secondary control to expand **long-form “learn more”** copy (`learnMoreBody`), and a **high-attention primary CTA** (`Link` to `executeTo` — e.g. invoicing + `invoiceId`, payment tab, contract tab, customer tab + `#support-comms-anchor`, or quotes).  
+- Intended for “land here → execute → done.”
 
-**C. CRM / Integration Snapshot** (`CrmSnapshotSection`)
-- Salesforce / HubSpot account sync info
-- Account owner (AE), CSM, billing owner
-- Opportunity links
-- CRM sync health (last sync, status)
-- Provisioning / entitlement sync state
+**AI Insights (separate card)**  
+- **Collapsed by default:** plain white card with border; **Generate** uses **mature blue** (`--color-mature-blue`, `#111827` in `index.css` @theme) so it does not compete with the NBA orange CTA. Loading uses the button state only (no full-card shimmer).  
+- **Generate** runs a short loading state, then **expands** into a list.  
+- **Expanded list** — rows from `getCustomerInsightsEnriched(customer)`: severity dot (grey, color on row hover) + **insight text left-aligned**; **CTAs right-aligned** — **primary** blue link CTAs (`ctas[]`) with the **last** link at the **far right** when multiple; **secondary** “Add to workbench” / “Added to workbench” sits **to the left** of those links when shown. Deep links use `label` + `to`. **Add to workbench** appears when a suggested follow-up is not already covered by an open task (phrase overlap on `getTasks(customer.id)`). Success-only rows may have no CTAs.  
+- Header row: **AI Insights** title + **Regenerate** + **Collapse** (unchanged).  
+- **Collapse** / **Regenerate** replay the flow without leaving the tab.
 
-**D. Support & Communications** (`SupportCommsSection`)
-- Open support tickets (count + top 3 summaries)
-- Escalated tickets
-- Billing-related issue themes
-- Last support interaction
-- Email communication summaries (recent 3)
-- Customer sentiment / renewal risk signals
+Compact string-only insights for other uses still come from `getCustomerInsights(customer)` (mapped from the enriched list).
 
-**E. Lifecycle Summary** (`LifecycleSummarySection`)
-- Active quotes (list with status)
-- Active contracts (list with enforcement status)
-- Pending invoice reviews
-- Overdue invoices
-- Recent amendments
-- Renewal task status
-- Promise-to-pay commitments
+### 2. Commercial snapshot (`CustomerMetricsSection`)
 
-**F. Timeline / Recent Activity** (`CustomerTimelineSection`)
-- Unified timeline across all modules for this customer
-- Combines quote timeline + contract timeline + invoice events + support events
-- Sorted reverse chronological
-- Last 15–20 events
+Single **Commercial snapshot** card: key/value rows for ARR, TCV, Open AR, prepaid credits, next renewal, currency, tax region, payment method, PO required, active contracts, open quotes — **only when the value is non-zero / present** (no empty placeholder rows for “create X” until that flow exists).
 
-### Right rail
+### 3. Support & Communications (`SupportCommsSection`)
 
-- Account health summary (dynamic — see `docs/07-dynamic-status.md`)
-- AI insights specific to customer posture (burn-down, renewal risk, billing gaps)
-- Key contacts
-- Open tasks for this customer
+- **Support tickets** and **email communications** as separate `SectionCard`s.  
+- List rows use **dividers** (not per-row cards); **gray priority/sentiment dot** with true color on **row hover** (same interaction model as Open Tasks in the rail). No message/mail icons in the row chrome.  
+- Email rows exclude body/snippet text; subject + meta + sentiment label only.  
+- Wrapper `id="support-comms-anchor"` for deep links (e.g. primary action “View tickets”).
+
+### 4. Lifecycle — Quotes, Contracts, Invoices (`LifecycleSummarySection`)
+
+Three **stacked** sections (full width, not a 3-column grid). No table headers; each line uses compact inline labels (e.g. quote id, `TCV: …`, `STATUS:` + badge; contracts: `RENEWAL: …`, `STATUS:` + badge; invoices: `CONTRACT: …`, `AMOUNT: …`, `DUE: …`, `STATUS:` + badge). **Invoices** lists **actual** customer invoices that are **Pending Review** or **Overdue** (from `getInvoices(customerId)`), not aggregate counts only. Empty copy when none.
+
+### 5. Recent Activity (`CustomerTimelineSection`)
+
+- No outer card — heading **Recent Activity** + timeline list.  
+- First **N** events, then **View more** to expand.  
+- Extra top margin separates this block from the cards above.
+
+### Context & insights (summary)
+
+| Concern | Derivation |
+|--------|------------|
+| Single next action | `getPrimaryCustomerAction(customer)` |
+| AI insight lines + CTAs + workbench hint | `getCustomerInsightsEnriched(customer)` |
+| Legacy multi-action list (if needed elsewhere) | `getCustomerActions(customer)` |
+| Compact insight strings | `getCustomerInsights(customer)` |
+
+Account metadata, health, tasks, and external linked records remain in the **insight rail** (`Open Tasks`, `Account Details`, `Linked Records`).
 
 ---
 
@@ -101,13 +104,14 @@ Current active contract, related amendment quotes, expected contract to be creat
 **7. Activity / Audit Timeline** (`QuoteTimelineSection`)
 Created, edited, approval submitted, approved/rejected, sent, viewed, accepted, matched to contract.
 
-### Right rail
+### Context & insights (main content)
 
-- Next best action
-- AI insights — e.g. "Discount exceeds policy by 8%", "Payment terms differ from prior contract", "Current burn-down suggests customer may need higher prepaid commitment", "Billing entity missing", "Contract term differs from CRM opportunity"
-- Linked records
-- Open tasks
-- Customer health context
+Render contextually inside the stage content — typically near the Approvals and Policy Checks section or alongside the Overview summary.
+
+- **Next best action** — e.g. "Follow up on approval" (with approver + date), "Complete and send quote", "Review discount level". Derivation: `getQuoteActions(quote)`.
+- **AI insights** — e.g. "Discount exceeds policy by 8%", "Payment terms differ from prior contract", "Prepaid credits suggest customer may need higher commitment", "Approval pending for 6 days with Sarah Chen", "Contract term differs from CRM opportunity". Derivation: `getQuoteInsights(quote, contract)`.
+
+Linked records and open tasks are in the insight rail — no need to duplicate here.
 
 ---
 
@@ -149,13 +153,14 @@ Compact comparison callout: payment terms changed, discount changed, effective d
 
 Timeline: `ContractTimelineSection`.
 
-### Right rail
+### Context & insights (main content)
 
-- Operational blockers
-- AI checks — e.g. "Signed contract differs from approved quote on payment terms", "Invoice should have been generated already", "Product mapping incomplete for one SKU", "Minimum commit will exhaust in 41 days at current burn", "Renewal task should be created in 16 days"
-- Linked quote and invoices
-- Renewal task
-- Open issues for billing / AR / support
+Render contextually inside the stage content — near the Enforcement section (blockers) and Overview (posture).
+
+- **Next best actions** — e.g. "Resolve overdue invoice" (with ID, amount), "Collect PO for held invoice", "Start renewal planning" (<90 days), "Resolve enforcement blockers". Derivation: `getContractActions(contract, customerInvoices)`.
+- **AI insights** — e.g. "Signed contract differs from approved quote on payment terms", "Invoice should have been generated already", "Product mapping incomplete for one SKU", "Minimum commit will exhaust in 41 days at current burn", "Renewal in 73 days — start planning". Derivation: `getContractInsights(contract, customerInvoices)`.
+
+Linked quote / invoices / tasks live in the insight rail.
 
 ---
 
@@ -220,11 +225,12 @@ Upcoming invoices for this customer, estimated amounts, type, hold state, depend
 **J. Activity / Audit Trail**
 Timeline: generated, reviewed, held, sent, disputed, credited, regenerated, linked to payment.
 
-### Right rail
+### Context & insights (main content)
 
-- Next best actions — e.g. "Send held invoice after PO", "Create credit note"
-- AI insights — e.g. "invoice differs from contract payment terms", "usage charges spiked", "duplicate billing risk on amendment overlap"
-- Linked records (contract, quote, credit notes)
+Render contextually inside the stage content — typically near the Review Checklist or in a callout above Invoice Composition.
+
+- **Next best actions** — e.g. "Release hold on INV-2026-0044", "Send overdue reminder" (with days past due), "Review and approve INV-2026-0041", "Process credit note CN-2026-0001". Derivation: `getInvoicingActions(invoice)`.
+- **AI insights** — e.g. "Invoice payment terms differ from contract (Net 45 vs Net 30)", "Invoice on hold: PO number required", "2 validation checks failed — resolve before sending", "1 credit note pending", "PO number available — ready for delivery". Derivation: `getInvoicingInsights(invoice, contract)`.
 
 ### SLG edge cases to represent
 
@@ -285,11 +291,12 @@ Applied credit notes, short pays, settlement adjustments, write-off requests, ap
 **J. Collections Timeline**
 Events: invoice due, reminder sent, customer replied, promised to pay, follow-up missed, billing ticket created, payment received, applied.
 
-### Right rail
+### Context & insights (main content)
 
-- Next best actions — e.g. "Match unapplied wire", "Escalate overdue"
-- AI insights — e.g. "customer usually pays 18 days late", "bank ref matches this invoice", "delay reason recurring: missing PO", "overdue balance may impact renewal"
-- Linked records (invoices, disputes, support tickets)
+Render contextually inside the stage content — near the Collections Workflow section.
+
+- **Next best actions** — e.g. "Match unapplied $28,000" (with bank ref), "Resolve partial payment" (with invoice + amount), "Follow up on promised payment" (with PTP date), "Escalate INV-2026-0040" (if no response). Derivation: `getPaymentActions(customer.id)`.
+- **AI insights** — e.g. "Customer typically pays 22 days after due date", "$28,000 unapplied cash — review bank references", "Partial payment on INV-2026-0034 — $4,600 received", "Active dispute: Usage overage disputed", "$5,800 overdue may impact renewal", "Customer committed to pay by 2026-04-10". Derivation: `getPaymentInsights(customer.id)`.
 
 ### SLG edge cases
 
@@ -350,11 +357,12 @@ Journal status, ERP export status, posting references, last export, failed expor
 **J. Audit Trail**
 Events: schedule created, rerun, modification applied, credit impact posted, manual adjustment approved, blocker resolved, journal exported.
 
-### Right rail
+### Context & insights (main content)
 
-- Next best actions — e.g. "Resolve unmapped line", "Rerun schedule"
-- AI insights — e.g. "amendment not yet reflected in schedule", "credit note will reduce current-period revenue", "this customer is blocking close"
-- Linked records (contract, invoices, credit notes, journal entries)
+Render contextually inside the stage content — near the Close Readiness or Modifications sections.
+
+- **Next best actions** — e.g. "Rerun schedule for AMD-003", "Approve adjustment ADJ-2026-002", "Resolve close blockers" (with count), "Re-export failed journal entries" (with period + reason). Derivation: `getRevRecActions(arrangement)`.
+- **AI insights** — e.g. "1 critical blocker preventing period close", "Amendment AMD-003 has not updated the recognition schedule", "1 manual adjustment awaiting approval", "Journal export blocked for 2026-Q1", "1 obligation using usage-based recognition". Derivation: `getRevRecInsights(arrangement)`.
 
 ### SLG edge cases
 
