@@ -13,6 +13,157 @@ import type { Stage } from "./RevenueJourneyRail";
 import { currency, shortDate } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
+// PRIORITY CHIPS (next to customer name in the context bar)
+// Actionable red/amber signals only. Max 3. Red outranks amber.
+// ---------------------------------------------------------------------------
+
+export type ChipSeverity = "red" | "amber";
+
+export interface PriorityChip {
+  label: string; // e.g. "OPEN AR"
+  value: string; // e.g. "$24,300"
+  severity: ChipSeverity;
+}
+
+export function derivePriorityChips(
+  customer: Customer,
+  customerInvoices: Invoice[],
+  contract: Contract | null,
+): PriorityChip[] {
+  const chips: PriorityChip[] = [];
+
+  // RED --------------------------------------------------------------------
+  if (customer.openAr > 0) {
+    chips.push({ label: "OPEN AR", value: currency(customer.openAr), severity: "red" });
+  }
+  const overdueCount = customerInvoices.filter((i) => i.status === "Overdue").length;
+  if (overdueCount > 0 && customer.openAr === 0) {
+    chips.push({ label: "OVERDUE", value: `${overdueCount} invoice${overdueCount > 1 ? "s" : ""}`, severity: "red" });
+  }
+  if (contract && contract.enforcement.blockingIssues.length > 0) {
+    chips.push({ label: "ENFORCEMENT", value: "Blocked", severity: "red" });
+  }
+
+  // AMBER ------------------------------------------------------------------
+  if (customer.prepaidCreditTotal > 0) {
+    const usedPct = Math.round(
+      ((customer.prepaidCreditTotal - customer.prepaidCreditBalance) / customer.prepaidCreditTotal) * 100,
+    );
+    if (usedPct >= 70) {
+      chips.push({ label: "CREDITS", value: `${usedPct}% used`, severity: "amber" });
+    }
+  }
+  if (customer.nextRenewalDate) {
+    const days = Math.round((new Date(customer.nextRenewalDate).getTime() - Date.now()) / 86400000);
+    if (days > 0 && days <= 30) {
+      chips.push({ label: "RENEWAL", value: `${days}d`, severity: "amber" });
+    }
+  }
+  const heldCount = customerInvoices.filter((i) => i.holdReason).length;
+  if (heldCount > 0) {
+    chips.push({ label: "HELD", value: `${heldCount} invoice${heldCount > 1 ? "s" : ""}`, severity: "amber" });
+  }
+
+  // Red first, then amber; cap at 3
+  chips.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === "red" ? -1 : 1));
+  return chips.slice(0, 3);
+}
+
+// ---------------------------------------------------------------------------
+// CONTEXT METRICS (right side of customer identity row, stage-dependent)
+// Always exactly 3.
+// ---------------------------------------------------------------------------
+
+export interface ContextMetric {
+  label: string; // short uppercase, e.g. "ARR"
+  value: string; // pre-formatted, e.g. "$476,200"
+}
+
+function daysUntil(iso: string | undefined | null): number | null {
+  if (!iso) return null;
+  return Math.round((new Date(iso).getTime() - Date.now()) / 86400000);
+}
+
+function daysSince(iso: string | undefined | null): number | null {
+  if (!iso) return null;
+  return Math.round((Date.now() - new Date(iso).getTime()) / 86400000);
+}
+
+function humanDuration(days: number): string {
+  if (days <= 0) return "today";
+  if (days < 45) return `${days}d`;
+  const months = Math.round(days / 30);
+  if (months < 18) return `${months}mo`;
+  const years = Math.round(months / 12);
+  return `${years}y`;
+}
+
+export function deriveContextMetrics(
+  stage: Stage,
+  customer: Customer,
+  quote: Quote | null,
+  contract: Contract | null,
+  invoice: Invoice | undefined,
+  arrangement: RevenueArrangement | undefined,
+): ContextMetric[] {
+  const customerOverview: ContextMetric[] = [
+    { label: "ARR", value: currency(customer.arr) },
+    { label: "TCV", value: currency(customer.tcv) },
+    {
+      label: "RENEWAL IN",
+      value: (() => {
+        const d = daysUntil(customer.nextRenewalDate);
+        return d === null ? "—" : humanDuration(d);
+      })(),
+    },
+  ];
+
+  switch (stage) {
+    case "quote":
+      if (!quote) return customerOverview;
+      return [
+        { label: "TCV", value: currency(quote.tcv ?? quote.amount) },
+        { label: "DISCOUNT", value: `${quote.discountPct}%` },
+        { label: "EXPIRES", value: shortDate(quote.expiryDate) },
+      ];
+    case "contract":
+      if (!contract) return customerOverview;
+      return [
+        { label: "TCV", value: currency(contract.tcv) },
+        { label: "MIN COMMIT", value: `${currency(contract.minAnnualCommit)}/yr` },
+        { label: "RENEWAL", value: shortDate(contract.renewalDate) },
+      ];
+    case "invoicing":
+      if (!invoice) return customerOverview;
+      return [
+        { label: "AMOUNT", value: currency(invoice.amount) },
+        { label: "DUE", value: shortDate(invoice.dueDate) },
+        { label: "CONTRACT", value: invoice.contractId || "—" },
+      ];
+    case "payment": {
+      const summary = getCustomerArSummary(customer.id);
+      const overdue = getInvoices(customer.id).filter((i) => i.status === "Overdue");
+      const oldest = overdue[0] ? daysSince(overdue[0].dueDate) : null;
+      return [
+        { label: "OPEN AR", value: currency(summary.totalOpen) },
+        { label: "OVERDUE", value: currency(summary.totalOverdue) },
+        { label: "OLDEST", value: oldest === null ? "—" : `${oldest}d` },
+      ];
+    }
+    case "revrec":
+      if (!arrangement) return customerOverview;
+      return [
+        { label: "RECOGNIZED", value: currency(arrangement.recognizedToDate) },
+        { label: "DEFERRED", value: currency(arrangement.deferred) },
+        { label: "CLOSE", value: arrangement.closeStatus ?? arrangement.status },
+      ];
+    case "customer":
+    default:
+      return customerOverview;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // STAGE STATUS (journey rail labels)
 // ---------------------------------------------------------------------------
 
@@ -127,16 +278,16 @@ export function deriveRevRecStatus(contractId: string): StageStatus {
 
 export function deriveAllStageStatuses(
   customer: Customer,
-  quote: Quote,
-  contract: Contract,
+  quote: Quote | null,
+  contract: Contract | null,
 ): Record<Stage, StageStatus> {
   return {
     customer: deriveCustomerStatus(customer),
-    quote: deriveQuoteStatus(quote),
-    contract: deriveContractStatus(contract),
-    invoicing: deriveInvoicingStatus(customer.id),
-    payment: derivePaymentStatus(customer.id),
-    revrec: deriveRevRecStatus(contract.id),
+    quote: quote ? deriveQuoteStatus(quote) : { text: "No quote", severity: "blue" },
+    contract: contract ? deriveContractStatus(contract) : { text: "No contract yet", severity: "blue" },
+    invoicing: contract ? deriveInvoicingStatus(customer.id) : { text: "—", severity: "blue" },
+    payment: contract ? derivePaymentStatus(customer.id) : { text: "—", severity: "blue" },
+    revrec: contract ? deriveRevRecStatus(contract.id) : { text: "—", severity: "blue" },
   };
 }
 
@@ -167,12 +318,12 @@ export function getCustomerInsights(customer: Customer): InsightItem[] {
   return items;
 }
 
-export function getQuoteInsights(quote: Quote, contract: Contract): InsightItem[] {
+export function getQuoteInsights(quote: Quote, contract: Contract | null): InsightItem[] {
   const items: InsightItem[] = [];
   if (quote.discountPct > 15) {
     items.push({ severity: "warning", text: `Discount (${quote.discountPct}%) exceeds policy threshold — requires approval` });
   }
-  if (quote.commercialTerms.paymentTerms !== contract.paymentTerms && contract.paymentTerms) {
+  if (contract && quote.commercialTerms.paymentTerms !== contract.paymentTerms && contract.paymentTerms) {
     items.push({ severity: "warning", text: `Payment terms (${quote.commercialTerms.paymentTerms}) differ from prior contract (${contract.paymentTerms})` });
   }
   const creditProduct = quote.products.find((p) => p.prepaidCredits && p.prepaidCredits > 0);
@@ -186,14 +337,15 @@ export function getQuoteInsights(quote: Quote, contract: Contract): InsightItem[
     const days = quote.approval.pendingSince ? Math.round((Date.now() - new Date(quote.approval.pendingSince).getTime()) / 86400000) : 0;
     if (days > 3) items.push({ severity: "warning", text: `Approval pending for ${days} days with ${quote.approval.currentApprover}` });
   }
-  if (quote.commercialTerms.contractTerm !== contract.term && contract.term) {
+  if (contract && quote.commercialTerms.contractTerm !== contract.term && contract.term) {
     items.push({ severity: "info", text: `Contract term (${quote.commercialTerms.contractTerm}) differs from current contract (${contract.term})` });
   }
   if (items.length === 0) items.push({ severity: "success", text: "Quote is in good standing — no issues detected" });
   return items;
 }
 
-export function getContractInsights(contract: Contract, customerInvoices: Invoice[]): InsightItem[] {
+export function getContractInsights(contract: Contract | null, customerInvoices: Invoice[]): InsightItem[] {
+  if (!contract) return [{ severity: "info", text: "No contract found for this customer." }];
   const items: InsightItem[] = [];
   const overdueInvoices = customerInvoices.filter((i) => i.status === "Overdue" && i.contractId === contract.id);
   if (overdueInvoices.length > 0) {
@@ -329,14 +481,16 @@ export interface LinkedRecord {
   id: string;
 }
 
-export function getQuoteLinkedRecords(quote: Quote): LinkedRecord[] {
+export function getQuoteLinkedRecords(quote: Quote | null): LinkedRecord[] {
+  if (!quote) return [];
   const records: LinkedRecord[] = [];
   if (quote.relatedContractId) records.push({ label: "Active Contract", id: quote.relatedContractId });
   if (quote.crmOpportunityLink) records.push({ label: "CRM Opportunity", id: quote.crmOpportunityLink.split("/").pop() ?? "—" });
   return records;
 }
 
-export function getContractLinkedRecords(contract: Contract, customerQuotes: Quote[], customerInvoices: Invoice[]): LinkedRecord[] {
+export function getContractLinkedRecords(contract: Contract | null, customerQuotes: Quote[], customerInvoices: Invoice[]): LinkedRecord[] {
+  if (!contract) return [];
   const records: LinkedRecord[] = [];
   if (contract.sourceQuoteId) records.push({ label: "Source Quote", id: contract.sourceQuoteId });
   const pendingQuotes = customerQuotes.filter((q) => q.status !== "Accepted" && q.relatedContractId === contract.id);
@@ -390,7 +544,8 @@ export interface NextAction {
   description: string;
 }
 
-export function getQuoteActions(quote: Quote): NextAction[] {
+export function getQuoteActions(quote: Quote | null): NextAction[] {
+  if (!quote) return [];
   const actions: NextAction[] = [];
   if (quote.approval.status === "pending") {
     actions.push({ label: "Follow up on approval", description: `Pending with ${quote.approval.currentApprover} since ${shortDate(quote.approval.pendingSince)}` });
@@ -407,7 +562,8 @@ export function getQuoteActions(quote: Quote): NextAction[] {
   return actions;
 }
 
-export function getContractActions(contract: Contract, customerInvoices: Invoice[]): NextAction[] {
+export function getContractActions(contract: Contract | null, customerInvoices: Invoice[]): NextAction[] {
+  if (!contract) return [];
   const actions: NextAction[] = [];
   const overdue = customerInvoices.filter((i) => i.status === "Overdue" && i.contractId === contract.id);
   if (overdue.length > 0) {

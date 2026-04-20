@@ -2,7 +2,28 @@ import { useEffect, useRef, useState } from "react";
 import type { Quote, Contract, Invoice } from "@/data/mock-data";
 import { StatusBadge } from "@/components/ui/primitives";
 import { currency, shortDate } from "@/lib/utils";
-import { ChevronDown, ChevronRight, CreditCard, Download, Edit, ExternalLink, Eye, FileCheck, FileMinus, GitCompare, HandCoins, Pause, Play, Receipt, RefreshCw, RotateCcw, Send, Shield, UserCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronRight,
+  CreditCard,
+  Download,
+  Edit,
+  ExternalLink,
+  Eye,
+  FileCheck,
+  FileMinus,
+  GitCompare,
+  HandCoins,
+  Pause,
+  Play,
+  Receipt,
+  RefreshCw,
+  RotateCcw,
+  Send,
+  Shield,
+  UserCheck,
+} from "lucide-react";
 import type { Stage } from "./RevenueJourneyRail";
 import type { InvoiceEnrichment, CollectionCase } from "@/data/billing-data";
 import type { RevenueArrangement } from "@/data/revrec-data";
@@ -19,14 +40,29 @@ function ActionButton({ icon: Icon, label }: { icon: typeof Edit; label: string 
   );
 }
 
+function BackButton({ onBack }: { onBack: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onBack}
+      className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border-default bg-white px-2 text-[11px] font-medium text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary"
+    >
+      <ArrowLeft size={11} className="shrink-0" />
+      All
+    </button>
+  );
+}
+
 function QuoteContextBar({
   quote,
   quoteVersions,
   onQuoteVersionChange,
+  onBack,
 }: {
   quote: Quote;
   quoteVersions: Quote[];
   onQuoteVersionChange: (nextQuote: Quote) => void;
+  onBack?: () => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -37,18 +73,18 @@ function QuoteContextBar({
         setIsOpen(false);
       }
     }
-
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    if (isOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen]);
 
   return (
-    <div className="flex items-center gap-5 rounded-lg border border-border-default bg-surface-muted px-4 py-2.5 text-[13px]">
+    <div className="flex items-center gap-3 rounded-lg border border-border-default bg-surface-muted px-4 py-2.5 text-[13px]">
+      {onBack && (
+        <>
+          <BackButton onBack={onBack} />
+          <span className="text-text-muted">|</span>
+        </>
+      )}
       <div className="relative" ref={menuRef}>
         <button
           type="button"
@@ -122,9 +158,15 @@ function QuoteActions() {
   );
 }
 
-function ContractContextBar({ contract }: { contract: Contract }) {
+function ContractContextBar({ contract, onBack }: { contract: Contract; onBack?: () => void }) {
   return (
-    <div className="flex items-center gap-5 rounded-lg border border-border-default bg-surface-muted px-4 py-2.5 text-[13px]">
+    <div className="flex items-center gap-3 rounded-lg border border-border-default bg-surface-muted px-4 py-2.5 text-[13px]">
+      {onBack && (
+        <>
+          <BackButton onBack={onBack} />
+          <span className="text-text-muted">|</span>
+        </>
+      )}
       <div className="flex items-center gap-2">
         <span className="font-semibold text-text-primary">{contract.id}</span>
         <StatusBadge status={contract.status} />
@@ -150,9 +192,23 @@ function ContractActions() {
   );
 }
 
-function InvoicingContextBar({ invoice, enrichment }: { invoice: Invoice; enrichment?: InvoiceEnrichment }) {
+function InvoicingContextBar({
+  invoice,
+  enrichment,
+  onBack,
+}: {
+  invoice: Invoice;
+  enrichment?: InvoiceEnrichment;
+  onBack?: () => void;
+}) {
   return (
-    <div className="flex items-center gap-5 rounded-lg border border-border-default bg-surface-muted px-4 py-2.5 text-[13px]">
+    <div className="flex items-center gap-3 rounded-lg border border-border-default bg-surface-muted px-4 py-2.5 text-[13px]">
+      {onBack && (
+        <>
+          <BackButton onBack={onBack} />
+          <span className="text-text-muted">|</span>
+        </>
+      )}
       <div className="flex items-center gap-2">
         <span className="font-semibold text-text-primary">{invoice.id}</span>
         <StatusBadge status={invoice.status} />
@@ -262,15 +318,16 @@ function RevRecActions() {
 
 interface Props {
   activeStage: Stage;
-  quote: Quote;
+  quote: Quote | null;
   quoteVersions: Quote[];
   onQuoteVersionChange: (nextQuote: Quote) => void;
-  contract: Contract;
+  contract: Contract | null;
   invoice?: Invoice;
   invoiceEnrichment?: InvoiceEnrichment;
   primaryCollectionCase?: CollectionCase;
   totalOpenAr?: number;
   revenueArrangement?: RevenueArrangement;
+  onBack?: () => void;
 }
 
 export function RecordContextBar({
@@ -284,20 +341,22 @@ export function RecordContextBar({
   primaryCollectionCase,
   totalOpenAr,
   revenueArrangement,
+  onBack,
 }: Props) {
   switch (activeStage) {
     case "quote":
-      return (
+      return quote ? (
         <QuoteContextBar
           quote={quote}
           quoteVersions={quoteVersions}
           onQuoteVersionChange={onQuoteVersionChange}
+          onBack={onBack}
         />
-      );
+      ) : null;
     case "contract":
-      return <ContractContextBar contract={contract} />;
+      return contract ? <ContractContextBar contract={contract} onBack={onBack} /> : null;
     case "invoicing":
-      return invoice ? <InvoicingContextBar invoice={invoice} enrichment={invoiceEnrichment} /> : null;
+      return invoice ? <InvoicingContextBar invoice={invoice} enrichment={invoiceEnrichment} onBack={onBack} /> : null;
     case "payment":
       return <PaymentContextBar primaryCase={primaryCollectionCase} totalOpen={totalOpenAr ?? 0} />;
     case "revrec":
@@ -307,7 +366,12 @@ export function RecordContextBar({
   }
 }
 
-export function RecordContextActions({ activeStage, invoice, primaryCollectionCase, revenueArrangement }: Pick<Props, "activeStage" | "invoice" | "primaryCollectionCase" | "revenueArrangement">) {
+export function RecordContextActions({
+  activeStage,
+  invoice,
+  primaryCollectionCase,
+  revenueArrangement,
+}: Pick<Props, "activeStage" | "invoice" | "primaryCollectionCase" | "revenueArrangement">) {
   switch (activeStage) {
     case "quote":
       return <QuoteActions />;

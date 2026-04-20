@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Task, Customer, Quote, Contract, Invoice } from "@/data/mock-data";
 import type { Stage } from "./RevenueJourneyRail";
 import type { RevenueArrangement } from "@/data/revrec-data";
@@ -6,9 +7,12 @@ import {
   AlertTriangle,
   ArrowRight,
   Brain,
+  Building2,
   CheckCircle2,
+  ChevronDown,
   Clock,
   FileText,
+  IdCard,
   Lightbulb,
   ListChecks,
   Shield,
@@ -45,14 +49,23 @@ import { getQuotesForCustomer } from "@/data/mock-data";
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function RailSection({ title, icon: Icon, children }: { title: string; icon: typeof Brain; children: React.ReactNode }) {
+function RailSection({ title, icon: Icon, children, defaultOpen = false }: { title: string; icon: typeof Brain; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="rounded-lg border border-border-default bg-white">
-      <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
-        <Icon size={13} className="text-text-secondary" />
-        <h4 className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">{title}</h4>
-      </div>
-      <div className="px-3 py-2.5">{children}</div>
+    <div className="border-b border-border-default last:border-b-0">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-surface-muted/60"
+      >
+        <Icon size={13} className="shrink-0 text-text-secondary" />
+        <h4 className="flex-1 text-[11px] font-semibold uppercase tracking-wider text-text-primary">{title}</h4>
+        <ChevronDown
+          size={13}
+          className={cn("shrink-0 text-text-muted transition-transform duration-200", open && "rotate-180")}
+        />
+      </button>
+      {open && <div className="px-3 pb-3">{children}</div>}
     </div>
   );
 }
@@ -71,8 +84,8 @@ interface Props {
   activeStage: Stage;
   tasks: Task[];
   customer: Customer;
-  quote: Quote;
-  contract: Contract;
+  quote: Quote | null;
+  contract: Contract | null;
   invoice?: Invoice;
   revenueArrangement?: RevenueArrangement;
 }
@@ -85,9 +98,9 @@ export function InsightRail({ activeStage, tasks, customer, quote, contract, inv
   const insights: InsightItem[] = (() => {
     switch (activeStage) {
       case "customer": return getCustomerInsights(customer);
-      case "quote": return getQuoteInsights(quote, contract);
+      case "quote": return quote ? getQuoteInsights(quote, contract) : [{ severity: "info", text: "No quote found for this customer." }];
       case "contract": return getContractInsights(contract, customerInvoices);
-      case "invoicing": return invoice ? getInvoicingInsights(invoice, contract) : [];
+      case "invoicing": return invoice && contract ? getInvoicingInsights(invoice, contract) : [];
       case "payment": return getPaymentInsights(customer.id);
       case "revrec": return getRevRecInsights(revenueArrangement);
       default: return [];
@@ -119,7 +132,11 @@ export function InsightRail({ activeStage, tasks, customer, quote, contract, inv
   const health: CustomerHealthData = deriveCustomerHealth(customer);
 
   return (
-    <aside className="flex w-[320px] shrink-0 flex-col gap-3">
+    <aside className="w-[320px] shrink-0">
+      <div className="overflow-hidden rounded-lg border border-border-default bg-white">
+      {/* Account details — Overview tab only, collapsed by default */}
+      {isCustomerStage && <AccountDetailsSection customer={customer} />}
+
       {/* Next best actions */}
       {actions.length > 0 && (
         <RailSection title="Next Best Action" icon={Zap}>
@@ -137,25 +154,6 @@ export function InsightRail({ activeStage, tasks, customer, quote, contract, inv
         </RailSection>
       )}
 
-      {/* Key Contacts (customer stage) */}
-      {isCustomerStage && (
-        <RailSection title="Key Contacts" icon={User}>
-          <div className="space-y-1.5 text-[13px]">
-            <div className="flex items-center justify-between">
-              <span className="text-text-secondary">AE</span>
-              <span className="font-medium text-text-primary">{customer.ae}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-text-secondary">CSM</span>
-              <span className="font-medium text-text-primary">{customer.csm}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-text-secondary">Billing Owner</span>
-              <span className="font-medium text-text-primary">{customer.billingOwner}</span>
-            </div>
-          </div>
-        </RailSection>
-      )}
 
       {/* AI Insights */}
       <RailSection title={isCustomerStage ? "Account Insights" : "AI Insights"} icon={Brain}>
@@ -231,6 +229,60 @@ export function InsightRail({ activeStage, tasks, customer, quote, contract, inv
           </div>
         </div>
       </RailSection>
+      </div>
     </aside>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Account Details — Overview tab only. Collapsed by default.
+// ---------------------------------------------------------------------------
+function AccountDetailsSection({ customer }: { customer: Customer }) {
+  return (
+    <RailSection title="Account Details" icon={IdCard}>
+      <div className="space-y-3 text-[13px]">
+        {/* Identity */}
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">Identity</p>
+          <DetailRow label="Segment" value={`${customer.segment} · ${customer.tier}`} />
+          <DetailRow label="Industry" value={customer.industry} />
+          <DetailRow label="Region" value={customer.region} />
+          <DetailRow label="Customer since" value={shortDate(customer.createdAt)} />
+        </div>
+
+        {/* Entities */}
+        <div className="space-y-1.5 border-t border-border-subtle pt-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+            <span className="inline-flex items-center gap-1">
+              <Building2 size={11} /> Entities
+            </span>
+          </p>
+          <DetailRow label="Account" value={customer.commercialAccount} />
+          <DetailRow label="Billing Entity" value={customer.billingLegalEntity} />
+          <DetailRow label="CB Entity" value={customer.chargebeeEntity} />
+        </div>
+
+        {/* Ownership */}
+        <div className="space-y-1.5 border-t border-border-subtle pt-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+            <span className="inline-flex items-center gap-1">
+              <User size={11} /> Ownership
+            </span>
+          </p>
+          <DetailRow label="AE" value={customer.ae} />
+          <DetailRow label="CSM" value={customer.csm} />
+          <DetailRow label="Billing Owner" value={customer.billingOwner} />
+        </div>
+      </div>
+    </RailSection>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-text-secondary">{label}</span>
+      <span className="truncate text-right font-medium text-text-primary">{value}</span>
+    </div>
   );
 }

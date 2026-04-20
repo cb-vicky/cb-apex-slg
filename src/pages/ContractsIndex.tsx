@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useScrolled } from "@/hooks/useScrolled";
 import { contracts, customers } from "@/data/mock-data";
+import { UploadModal } from "@/components/contracts/UploadModal";
 import { currency, shortDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/primitives";
 import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStrip";
@@ -103,6 +105,7 @@ export function ContractsIndex() {
   const groupFilter = searchParams.get("group");
   const groups = buildGroups();
   const { ref: scrollRef, isScrolled } = useScrolled();
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   const renewalCount = groups["approaching-renewal"].length;
   const pendingEnf = groups["pending-enforcement"].length;
@@ -120,71 +123,80 @@ export function ContractsIndex() {
     navigate(`/customers/${row.customerId}?tab=contract&contractId=${row.contractId}&from=${fromParam}`);
   }
 
+  const modal = uploadOpen ? <UploadModal onClose={() => setUploadOpen(false)} /> : null;
+
   if (groupFilter) {
     const gm = groupMeta.find((g) => g.slug === groupFilter);
     const rows = groups[groupFilter] ?? [];
     const filtered = contracts.filter((c) => rows.some((r) => r.contractId === c.id));
     return (
-      <div className="flex flex-1 w-full flex-col">
-        <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
-          <PageHeader
-            title="Contracts"
-            backLabel="Back to overview"
-            backPath="/contracts"
-            filterLabel={gm?.label}
-            createLabel="Upload"
-          />
+      <>
+        {modal}
+        <div className="flex flex-1 w-full flex-col">
+          <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
+            <PageHeader
+              title="Contracts"
+              backLabel="Back to overview"
+              backPath="/contracts"
+              filterLabel={gm?.label}
+              createLabel="Upload"
+              onCreateClick={() => setUploadOpen(true)}
+            />
+          </div>
+          <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
+            <MetricStrip metrics={metrics} />
+            <ListTable columns={listColumns}>
+              {filtered.map((c) => {
+                const cu = customers.find((x) => x.id === c.customerId);
+                return (
+                  <ListRow key={c.id} onClick={() => goToShell(toRow(c))}>
+                    <ListCell width="140px" className="font-medium text-blue-600">{c.id}</ListCell>
+                    <ListCell width="150px" className="font-medium">{cu?.name ?? "—"}</ListCell>
+                    <ListCell width="100px" className="tabular-nums">{currency(c.tcv)}</ListCell>
+                    <ListCell width="90px">{c.term}</ListCell>
+                    <ListCell width="110px">{c.renewalDate ? shortDate(c.renewalDate) : "—"}</ListCell>
+                    <ListCell width="110px"><StatusBadge status={c.enforcement.enforcementStatus} /></ListCell>
+                    <ListCell width="90px"><StatusBadge status={c.status} /></ListCell>
+                    <ListCell width="110px" className="text-text-secondary">{c.owner}</ListCell>
+                  </ListRow>
+                );
+              })}
+            </ListTable>
+          </div>
         </div>
-        <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
-          <MetricStrip metrics={metrics} />
-          <ListTable columns={listColumns}>
-            {filtered.map((c) => {
-              const cu = customers.find((x) => x.id === c.customerId);
-              return (
-                <ListRow key={c.id} onClick={() => goToShell(toRow(c))}>
-                  <ListCell width="140px" className="font-medium text-blue-600">{c.id}</ListCell>
-                  <ListCell width="150px" className="font-medium">{cu?.name ?? "—"}</ListCell>
-                  <ListCell width="100px" className="tabular-nums">{currency(c.tcv)}</ListCell>
-                  <ListCell width="90px">{c.term}</ListCell>
-                  <ListCell width="110px">{c.renewalDate ? shortDate(c.renewalDate) : "—"}</ListCell>
-                  <ListCell width="110px"><StatusBadge status={c.enforcement.enforcementStatus} /></ListCell>
-                  <ListCell width="90px"><StatusBadge status={c.status} /></ListCell>
-                  <ListCell width="110px" className="text-text-secondary">{c.owner}</ListCell>
-                </ListRow>
-              );
-            })}
-          </ListTable>
-        </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="flex flex-1 w-full flex-col">
-      <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
-        <PageHeader title="Contracts" createLabel="Upload" />
+    <>
+      {modal}
+      <div className="flex flex-1 w-full flex-col">
+        <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
+          <PageHeader title="Contracts" createLabel="Upload" onCreateClick={() => setUploadOpen(true)} />
+        </div>
+        <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
+          <MetricStrip metrics={metrics} />
+          {groupMeta.map((gm) => {
+            const rows = groups[gm.key] ?? [];
+            return (
+              <GroupedSection key={gm.key} title={gm.label} count={rows.length} viewAllPath={`/contracts?group=${gm.slug}`}>
+                {rows.slice(0, 5).map((row, idx) => (
+                  <GroupedRow key={`${row.contractId}-${idx}`} onClick={() => goToShell(row)}>
+                    <RowCell width="130px" className="font-medium text-blue-600">{row.contractId}</RowCell>
+                    <RowCell width="140px" className="font-medium text-text-primary">{row.customerName}</RowCell>
+                    <RowCell width="100px" className="tabular-nums">{currency(row.tcv)}</RowCell>
+                    <RowCell width="90px">{row.term}</RowCell>
+                    <RowCell width="100px"><StatusBadge status={row.enforcementStatus} /></RowCell>
+                    <RowCell width="100px" className="text-text-secondary">{row.renewalDate ? shortDate(row.renewalDate) : "—"}</RowCell>
+                    <RowCell width="110px" className="text-text-secondary">{row.owner}</RowCell>
+                  </GroupedRow>
+                ))}
+              </GroupedSection>
+            );
+          })}
+        </div>
       </div>
-      <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
-        <MetricStrip metrics={metrics} />
-        {groupMeta.map((gm) => {
-          const rows = groups[gm.key] ?? [];
-          return (
-            <GroupedSection key={gm.key} title={gm.label} count={rows.length} viewAllPath={`/contracts?group=${gm.slug}`}>
-              {rows.slice(0, 5).map((row, idx) => (
-                <GroupedRow key={`${row.contractId}-${idx}`} onClick={() => goToShell(row)}>
-                  <RowCell width="130px" className="font-medium text-blue-600">{row.contractId}</RowCell>
-                  <RowCell width="140px" className="font-medium text-text-primary">{row.customerName}</RowCell>
-                  <RowCell width="100px" className="tabular-nums">{currency(row.tcv)}</RowCell>
-                  <RowCell width="90px">{row.term}</RowCell>
-                  <RowCell width="100px"><StatusBadge status={row.enforcementStatus} /></RowCell>
-                  <RowCell width="100px" className="text-text-secondary">{row.renewalDate ? shortDate(row.renewalDate) : "—"}</RowCell>
-                  <RowCell width="110px" className="text-text-secondary">{row.owner}</RowCell>
-                </GroupedRow>
-              ))}
-            </GroupedSection>
-          );
-        })}
-      </div>
-    </div>
+    </>
   );
 }
