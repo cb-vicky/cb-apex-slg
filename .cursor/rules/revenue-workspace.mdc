@@ -1,0 +1,23 @@
+---
+description: Customer revenue workspace shell and lifecycle tabs
+globs: src/components/revenue-workspace/**,src/pages/CustomerDetailPage.tsx,src/pages/QuoteDetailPage.tsx,src/pages/ContractDetailPage.tsx,src/pages/InvoiceDetailPage.tsx
+alwaysApply: false
+---
+
+# Revenue Workspace
+
+When editing the customer-centric workspace shell or any lifecycle-tab content, read these for context:
+
+- **`docs/03-customer-workspace.md`** — shell anatomy (customer header, journey rail, record context bar, insight rail, tab gating, list-then-detail pattern, cross-tab linking)
+- **`docs/04-lifecycle-tabs.md`** — per-tab specs for Customer / Quote / Contract / Invoicing / Payment / RevRec (sections, context bar fields, actions, right-rail content, SLG edge cases)
+- **`docs/07-dynamic-status.md`** — how tab statuses, AI insights, next-best-actions, and customer health are derived from mock data
+- **`docs/02-design-system.md`** — badge catalog, severity colors, spacing
+- **`docs/11-workspace-cleanup-and-gating.md`** — tab gating rules, list-then-detail, use-case matrix
+
+## Key rules
+
+1. All detail routes render through `CustomerRevenueWorkspace` — no standalone pages.
+2. Statuses, insights, NBAs are **derived** from mock data via `derive-stage-data.ts` — never hardcoded.
+3. Record context bar is hidden on Customer tab, mandatory on all others.
+4. Don't gate downstream tabs when an **active prior contract exists** (even if a renewal quote is pending).
+5. Revenue recognition is independent of cash receipt.

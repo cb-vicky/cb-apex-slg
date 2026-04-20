@@ -1,0 +1,24 @@
+---
+description: Contract ingestion upload + invoice approval flow
+globs: src/pages/IngestContractPage.tsx,src/pages/ApprovalsIndex.tsx,src/pages/ApprovalDetailPage.tsx,src/context/IngestContext.tsx,src/data/ingest-data.ts,src/components/contracts/**,src/components/approvals/**
+alwaysApply: false
+---
+
+# Contract Ingestion & Invoice Approval
+
+When editing the ingestion flow, upload modal, approvals pages, or ingest context, read:
+
+- **`docs/09-contract-ingestion.md`** — full flow: upload modal → analysis animation → ingest verification workspace (happy + exception paths) → completion state → pending invoice review → submit for approval → approvals index → approval detail (invoice HTML preview + comments with @-tagging) → approve/reject
+- **`docs/06-routing.md`** — route order (`/contracts/ingest` before `/contracts/:contractId`)
+- **`docs/08-mock-data.md`** — ingestion types and session state shape
+
+## Key rules
+
+1. File upload UI is non-functional — only the **two sample documents** drive the prototype flow.
+2. Sample 1 = Echo Corp renewal (happy path). Sample 2 = Zenith Analytics new business (exception path with missing customer + product mapping).
+3. Session-created objects (customer, product plan) live in `IngestContext` React state only — refresh resets.
+4. `/contracts/ingest` is a **standalone route**, NOT inside the customer shell.
+5. Approval detail page has invoice HTML preview on the left, context + comments + decision actions on the right.
+6. Comments with `@`-tagging use the hardcoded user list (Jordan Kim, Priya Mehta, Alex Nguyen, Marcus Lee, Rachel Torres, Lena Schulz).
+7. On Approve → toast "Email sent to the customer" → navigate to invoice with `?from=approvals`.
+8. On Reject → invoice status becomes "Cancelled" via `invoiceStatusOverrides` in context.
