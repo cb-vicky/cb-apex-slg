@@ -49,3 +49,45 @@ body {
   min-height: 100vh;
   display: flex;
 }
+
+/*
+ * AI Insights — collapsed card loading: warm band sweeps left → right, 3× slowly, then expand.
+ * Total time must match `AI_INSIGHTS_LOADING_MS` in `CustomerNbaAiRow.tsx` (2600ms).
+ */
+@keyframes ai-insights-sheen-sweep {
+  0% {
+    background-position: -50% 50%;
+  }
+  100% {
+    background-position: 150% 50%;
+  }
+}
+
+.ai-insights-loading-sheen {
+  position: relative;
+}
+
+.ai-insights-loading-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  /* Horizontal band only — moves L→R via background-position */
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 228, 210, 0) 18%,
+    rgba(255, 240, 230, 0.75) 42%,
+    rgba(255, 242, 234, 1) 50%,
+    rgba(255, 185, 145, 0.2) 53%,
+    rgba(255, 232, 218, 0.65) 62%,
+    rgba(255, 228, 210, 0) 82%,
+    transparent 100%
+  );
+  background-size: 50% 100%;
+  background-repeat: no-repeat;
+  background-position: -50% 50%;
+  pointer-events: none;
+  will-change: background-position;
+  animation: ai-insights-sheen-sweep calc(2600ms / 3) cubic-bezier(0.42, 0, 0.58, 1) 3 forwards;
+}

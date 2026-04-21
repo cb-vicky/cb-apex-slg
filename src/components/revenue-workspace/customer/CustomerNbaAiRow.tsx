@@ -1,4 +1,4 @@
-import { useId, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { Customer } from "@/data/mock-data";
 import {
@@ -13,11 +13,21 @@ interface Props {
   customer: Customer;
 }
 
-const NBA_RX = 12;
-const NBA_INSET = 2.5;
-/** One full sweep of the animated border, then `NBA_REST_MS` pause; repeats. */
-const NBA_SWEEP_MS = 18_000;
-const NBA_REST_MS = 10_000;
+/** Matches `rounded-xl` outer radius; 1px border → inner (padding-box) radius = outer − border. */
+const NBA_OUTER_RADIUS = 12;
+const NBA_CSS_BORDER = 1;
+const NBA_INNER_RADIUS = NBA_OUTER_RADIUS - NBA_CSS_BORDER;
+/** Same as Tailwind `border` (1px) — animated stroke matches final card border thickness. */
+const NBA_STROKE = 1;
+/** Half-stroke inset so the stroke centerline matches the inner edge of the 1px CSS border. */
+const NBA_PATH_INSET = NBA_STROKE / 2;
+/** Corner radius along the stroke centerline (parallel offset inside the inner rounded rect). */
+const NBA_PATH_RADIUS = Math.max(0, NBA_INNER_RADIUS - NBA_PATH_INSET);
+/** One-time border “draw” on load; orange CSS border appears only after (SVG reveals, then unmounts). */
+const NBA_INTRO_MS = 2_200;
+
+/** Collapsed AI Insights: total sweep time (3× L→R in `index.css` — keep in sync with `calc(2600ms / 3)` there). */
+const AI_INSIGHTS_LOADING_MS = 2_600;
 
 function buildRoundedRectPathD(x: number, y: number, w: number, h: number, r: number): string {
   const rr = Math.min(r, w / 2, h / 2);
@@ -35,18 +45,8 @@ function buildRoundedRectPathD(x: number, y: number, w: number, h: number, r: nu
   ].join(" ");
 }
 
-function wrapDist(d: number, perim: number): number {
-  if (perim <= 0) return 0;
-  let u = d % perim;
-  if (u < 0) u += perim;
-  return u;
-}
-
-function pointAtPathLength(path: SVGPathElement, dist: number): { x: number; y: number } {
-  const L = path.getTotalLength();
-  if (L <= 0) return { x: 0, y: 0 };
-  const p = path.getPointAtLength(wrapDist(dist, L));
-  return { x: p.x, y: p.y };
+function easeOutCubic(t: number): number {
+  return 1 - (1 - t) ** 3;
 }
 
 function insightDotClass(severity: EnrichedCustomerInsight["severity"]) {
@@ -61,17 +61,12 @@ function insightDotClass(severity: EnrichedCustomerInsight["severity"]) {
 export function CustomerNbaAiRow({ customer }: Props) {
   const action = getPrimaryCustomerAction(customer);
   const insights = getCustomerInsightsEnriched(customer);
-  const uid = useId().replace(/:/g, "");
-  const gradAId = `nba-tail-head-a-${uid}`;
-  const gradBId = `nba-tail-head-b-${uid}`;
-
   const nbaSectionRef = useRef<HTMLElement>(null);
-  const nbaPathARef = useRef<SVGPathElement>(null);
-  const nbaPathBRef = useRef<SVGPathElement>(null);
-  const gradARef = useRef<SVGLinearGradientElement>(null);
-  const gradBRef = useRef<SVGLinearGradientElement>(null);
-  const metricsRef = useRef<{ perim: number; dashLen: number; d: string } | null>(null);
+  const nbaPathDrawRef = useRef<SVGPathElement>(null);
+  const metricsRef = useRef<{ perim: number; d: string } | null>(null);
+  const nbaIntroDoneRef = useRef(false);
   const [borderReady, setBorderReady] = useState(false);
+  const [nbaIntroComplete, setNbaIntroComplete] = useState(false);
 
   const [learnMoreOpen, setLearnMoreOpen] = useState(false);
   const [aiPhase, setAiPhase] = useState<"idle" | "loading" | "ready">("idle");
@@ -80,34 +75,27 @@ export function CustomerNbaAiRow({ customer }: Props) {
   useLayoutEffect(() => {
     function applyBorderMetrics() {
       const section = nbaSectionRef.current;
-      const pathA = nbaPathARef.current;
-      const pathB = nbaPathBRef.current;
-      if (!section || !pathA || !pathB) return;
+      const pathDraw = nbaPathDrawRef.current;
+      if (!section || !pathDraw) return;
 
       const w = section.clientWidth;
       const h = section.clientHeight;
       if (w <= 0 || h <= 0) return;
 
-      const innerW = Math.max(0, w - 2 * NBA_INSET);
-      const innerH = Math.max(0, h - 2 * NBA_INSET);
-      const d = buildRoundedRectPathD(NBA_INSET, NBA_INSET, innerW, innerH, NBA_RX);
-      pathA.setAttribute("d", d);
-      pathB.setAttribute("d", d);
+      const innerW = Math.max(0, w - 2 * NBA_PATH_INSET);
+      const innerH = Math.max(0, h - 2 * NBA_PATH_INSET);
+      const d = buildRoundedRectPathD(NBA_PATH_INSET, NBA_PATH_INSET, innerW, innerH, NBA_PATH_RADIUS);
+      pathDraw.setAttribute("d", d);
 
-      const perim = pathA.getTotalLength();
+      const perim = pathDraw.getTotalLength();
       if (perim <= 0) return;
 
-      const half = perim / 2;
-      let dashLen = Math.max(200, perim * 0.1);
-      if (dashLen >= half - 8) {
-        dashLen = Math.max(120, half - 24);
+      // Full-length dash: offset animates perim → 0 to trace the border once
+      pathDraw.setAttribute("stroke-dasharray", String(perim));
+      if (!nbaIntroDoneRef.current) {
+        pathDraw.setAttribute("stroke-dashoffset", String(perim));
       }
-      const gap = perim - dashLen;
-      const pattern = gap > 0 ? `${dashLen} ${gap}` : `${dashLen * 0.2} ${perim * 0.8}`;
-
-      pathA.setAttribute("stroke-dasharray", pattern);
-      pathB.setAttribute("stroke-dasharray", pattern);
-      metricsRef.current = { perim, dashLen, d };
+      metricsRef.current = { perim, d };
       setBorderReady(true);
     }
 
@@ -122,61 +110,53 @@ export function CustomerNbaAiRow({ customer }: Props) {
   }, []);
 
   useEffect(() => {
-    if (!borderReady) return;
+    if (!borderReady || nbaIntroComplete) return;
 
-    let raf = 0;
+    const pathDraw = nbaPathDrawRef.current;
+    const m = metricsRef.current;
+    if (!pathDraw || !m || m.perim <= 0) return;
 
-    function tick() {
-      const pA = nbaPathARef.current;
-      const gA = gradARef.current;
-      const gB = gradBRef.current;
-      const m = metricsRef.current;
-      if (!pA || !gA || !gB || !m || m.perim <= 0) {
-        raf = requestAnimationFrame(tick);
-        return;
-      }
-
-      const { perim, dashLen } = m;
-      const cycleLen = NBA_SWEEP_MS + NBA_REST_MS;
-      const elapsed = performance.now() % cycleLen;
-      const sweepT = elapsed < NBA_SWEEP_MS ? elapsed / NBA_SWEEP_MS : 1;
-      const offset = -sweepT * perim;
-      const offsetB = offset - perim / 2;
-
-      nbaPathBRef.current?.setAttribute("stroke-dashoffset", String(offsetB));
-      pA.setAttribute("stroke-dashoffset", String(offset));
-
-      const s = wrapDist(-offset, perim);
-
-      const setGrad = (grad: SVGLinearGradientElement, s0: number) => {
-        const tail = pointAtPathLength(pA, s0);
-        const head = pointAtPathLength(pA, s0 + dashLen);
-        grad.setAttribute("gradientUnits", "userSpaceOnUse");
-        grad.setAttribute("x1", String(tail.x));
-        grad.setAttribute("y1", String(tail.y));
-        grad.setAttribute("x2", String(head.x));
-        grad.setAttribute("y2", String(head.y));
-      };
-
-      const sB = wrapDist(-offsetB, perim);
-      setGrad(gA, s);
-      setGrad(gB, sB);
-
-      raf = requestAnimationFrame(tick);
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      nbaIntroDoneRef.current = true;
+      setNbaIntroComplete(true);
+      return;
     }
 
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [borderReady]);
+    const perim = m.perim;
+    const t0 = performance.now();
+    let rafId = 0;
+
+    function tick(now: number) {
+      if (nbaIntroDoneRef.current) return;
+      const path = nbaPathDrawRef.current;
+      if (!path) return;
+
+      const elapsed = now - t0;
+      const t = Math.min(1, elapsed / NBA_INTRO_MS);
+      const eased = easeOutCubic(t);
+      const offset = perim * (1 - eased);
+      path.setAttribute("stroke-dashoffset", String(offset));
+
+      if (t >= 1) {
+        nbaIntroDoneRef.current = true;
+        setNbaIntroComplete(true);
+        return;
+      }
+      rafId = requestAnimationFrame(tick);
+    }
+
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [borderReady, nbaIntroComplete]);
 
   function runGenerateAnimation() {
     setAiPhase("loading");
-    window.setTimeout(() => setAiPhase("ready"), 2400);
+    window.setTimeout(() => setAiPhase("ready"), AI_INSIGHTS_LOADING_MS);
   }
 
   function regenerateInsights() {
     setAiPhase("loading");
-    window.setTimeout(() => setAiPhase("ready"), 2400);
+    window.setTimeout(() => setAiPhase("ready"), AI_INSIGHTS_LOADING_MS);
   }
 
   function addToWorkbench(id: string) {
@@ -191,47 +171,40 @@ export function CustomerNbaAiRow({ customer }: Props) {
       <section
         ref={nbaSectionRef}
         className={cn(
-          "relative overflow-hidden rounded-xl border border-border-default bg-white",
+          "relative overflow-hidden rounded-xl border bg-white",
+          nbaIntroComplete ? "border-cb-orange" : "border-transparent",
         )}
       >
-        <svg
-          className="pointer-events-none absolute inset-0 block h-full w-full overflow-visible"
+        {/* Light orange wash: strong at bottom-right, fading toward upper-center */}
+        <div
+          className="pointer-events-none absolute inset-0 z-0 rounded-[inherit] bg-[radial-gradient(ellipse_110%_85%_at_100%_100%,var(--color-cb-orange-light)_0%,transparent_52%)]"
           aria-hidden
-          shapeRendering="geometricPrecision"
-        >
-          <defs>
-            {/* Tail (0%) → head (100%): transparent → cb-orange, aligned to path motion each frame */}
-            <linearGradient id={gradAId} ref={gradARef} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="var(--color-cb-orange)" stopOpacity="0" />
-              <stop offset="100%" stopColor="var(--color-cb-orange)" stopOpacity="1" />
-            </linearGradient>
-            <linearGradient id={gradBId} ref={gradBRef} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="var(--color-cb-orange)" stopOpacity="0" />
-              <stop offset="100%" stopColor="var(--color-cb-orange)" stopOpacity="1" />
-            </linearGradient>
-          </defs>
-          {/* Animated orange strokes — sit above the card’s CSS border; gaps show white fill */}
-          <path
-            ref={nbaPathARef}
-            fill="none"
-            stroke={`url(#${gradAId})`}
-            strokeWidth={1.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d=""
-          />
-          <path
-            ref={nbaPathBRef}
-            fill="none"
-            stroke={`url(#${gradBId})`}
-            strokeWidth={1.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d=""
-          />
-        </svg>
+        />
+        <div
+          className="pointer-events-none absolute inset-0 z-0 rounded-[inherit] bg-[linear-gradient(to_top_left,rgba(255,244,239,0.5)_0%,transparent_48%)]"
+          aria-hidden
+        />
 
-        <div className="relative z-[1] flex flex-col gap-4 p-5 md:flex-row md:items-start md:justify-between md:gap-8">
+        {!nbaIntroComplete && (
+          <svg
+            className="pointer-events-none absolute inset-0 z-[1] block h-full w-full overflow-visible"
+            aria-hidden
+            shapeRendering="geometricPrecision"
+          >
+            <path
+              ref={nbaPathDrawRef}
+              fill="none"
+              stroke="var(--color-cb-orange)"
+              strokeWidth={NBA_STROKE}
+              strokeLinecap="butt"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+              d=""
+            />
+          </svg>
+        )}
+
+        <div className="relative z-[2] flex flex-col gap-4 p-5 md:flex-row md:items-start md:justify-between md:gap-8">
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-orange-700">Next best action</p>
             <h2 className="mt-1.5 text-lg font-semibold leading-snug text-text-primary">{action.label}</h2>
@@ -263,16 +236,27 @@ export function CustomerNbaAiRow({ customer }: Props) {
       </section>
 
       {aiPhase !== "ready" ? (
-        <div className="relative rounded-lg border border-border-default bg-white">
-          <div className="relative flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div
+          className={cn(
+            "relative overflow-hidden rounded-lg border border-border-default bg-white",
+            aiPhase === "loading" && "ai-insights-loading-sheen",
+          )}
+        >
+          <div className="relative z-[1] flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="flex min-w-0 items-start gap-3">
               <span
                 className={cn(
-                  "mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-surface-muted)] shadow-sm ring-1 ring-border-default",
-                  aiPhase === "loading" && "animate-pulse",
+                  "mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[color:var(--color-surface-muted)] ring-1 ring-border-default",
+                  aiPhase === "loading" && "shadow-sm",
                 )}
               >
-                <Sparkles className="h-4 w-4 text-[color:var(--color-mature-blue)]" aria-hidden />
+                <Sparkles
+                  className={cn(
+                    "h-4 w-4 text-text-muted",
+                    aiPhase === "loading" && "text-orange-600/70",
+                  )}
+                  aria-hidden
+                />
               </span>
               <div className="min-w-0">
                 <p className="text-[13px] font-semibold text-text-primary">AI Insights</p>
@@ -286,15 +270,15 @@ export function CustomerNbaAiRow({ customer }: Props) {
               disabled={aiPhase === "loading"}
               onClick={runGenerateAnimation}
               className={cn(
-                "shrink-0 rounded-lg px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm transition-colors",
-                "bg-[color:var(--color-mature-blue)] hover:bg-[#1f2937]",
-                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-mature-blue)]",
-                "disabled:cursor-wait disabled:opacity-90",
+                "shrink-0 rounded-lg border border-border-default bg-white px-4 py-2 text-[13px] font-medium text-text-secondary transition-colors",
+                "hover:border-gray-300 hover:bg-surface-muted hover:text-text-primary",
+                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-default",
+                "disabled:cursor-wait disabled:border-border-default disabled:opacity-75",
               )}
             >
               {aiPhase === "loading" ? (
-                <span className="inline-flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 animate-pulse" aria-hidden />
+                <span className="inline-flex items-center gap-2 text-text-secondary">
+                  <Sparkles className="h-4 w-4 shrink-0 text-orange-600/80" aria-hidden />
                   Generating…
                 </span>
               ) : (
