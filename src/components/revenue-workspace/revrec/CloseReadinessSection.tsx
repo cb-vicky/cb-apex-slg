@@ -1,4 +1,5 @@
-import { SectionCard, StatusBadge, TimelineRow } from "@/components/ui/primitives";
+import { SectionCard, StatusBadge } from "@/components/ui/primitives";
+import { RecentActivitySection, type RecentActivityItem } from "../primitives/RecentActivitySection";
 import { shortDate } from "@/lib/utils";
 import type { CloseBlocker, JournalExport, RevRecAdjustment, RevenueArrangement } from "@/data/revrec-data";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
@@ -116,26 +117,13 @@ export function CloseReadinessSection({ blockers, journalExports, adjustments, a
         )}
       </SectionCard>
 
-      <SectionCard title="Revenue Audit Trail">
-        <div className="py-1">
-          {timeline.map((event, idx) => (
-            <TimelineRow
-              key={idx}
-              date={event.date}
-              action={event.action}
-              actor={event.actor}
-              detail={event.detail}
-              isLast={idx === timeline.length - 1}
-            />
-          ))}
-        </div>
-      </SectionCard>
+      <RecentActivitySection events={timeline} />
     </div>
   );
 }
 
-function buildAuditTrail(arrangement: RevenueArrangement) {
-  const events: { date: string; action: string; actor: string; detail?: string }[] = [];
+function buildAuditTrail(arrangement: RevenueArrangement): RecentActivityItem[] {
+  const events: RecentActivityItem[] = [];
 
   events.push({ date: arrangement.startDate, action: "Revenue arrangement created", actor: "System", detail: `From contract ${arrangement.contractId}` });
 
@@ -170,6 +158,5 @@ function buildAuditTrail(arrangement: RevenueArrangement) {
 
   events.push({ date: arrangement.lastRecalculated, action: "Schedule last recalculated", actor: "System" });
 
-  events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   return events;
 }

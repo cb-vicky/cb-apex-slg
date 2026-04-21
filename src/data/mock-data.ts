@@ -69,6 +69,8 @@ export interface ApprovalInfo {
   currentApprover: string;
   comments: string;
   pendingSince: string;
+  /** Mock: approval is waiting on the signed-in viewer (drives “your turn” CTA). */
+  pendingOnCurrentUser?: boolean;
 }
 
 export interface TimelineEvent {
@@ -114,6 +116,8 @@ export interface Quote {
   timeline: TimelineEvent[];
   comments: QuoteComment[];
   owner: string;
+  /** Unread count in team comment thread (mock inbox). */
+  teamCommentsUnread?: number;
 }
 
 export interface ContractProduct {
@@ -459,6 +463,7 @@ export const quotes: Quote[] = [
       currentApprover: "Sarah Chen, VP Revenue",
       comments: "Discount justified by 2-year commitment and prepaid credit purchase. Customer expanding from 150 to 400 seats.",
       pendingSince: "2026-03-28",
+      pendingOnCurrentUser: true,
     },
     products: [
       { sku: "APEX-PLATFORM", name: "Apex Platform – Enterprise", type: "recurring", quantity: 400, unitPrice: 45, discount: 18, netAmount: 14760, billingModel: "Per seat / month", minimumCommit: 120000 },
@@ -507,6 +512,7 @@ export const quotes: Quote[] = [
       { id: "q-0042-c4", author: "Alex Nguyen", role: "Billing Operations", date: "2026-03-31", text: "Billing setup supports annual upfront plus monthly overage. No implementation blockers." },
     ],
     owner: "Jordan Kim",
+    teamCommentsUnread: 2,
   },
   {
     id: "QT-2026-0042-v2",

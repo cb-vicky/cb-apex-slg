@@ -68,7 +68,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex w-[168px] shrink-0 flex-col bg-[#F0F1F3] pt-8 pb-4">
+    <aside className="relative z-[1] flex w-[168px] shrink-0 flex-col overflow-hidden rounded-tl-[24px] bg-[#F0F1F3] pt-8 pb-4">
       <nav className="flex flex-1 flex-col gap-4 overflow-y-auto px-2">
         {navGroups.map((group, idx) => (
           <div key={group.label ?? `group-${idx}`} className="flex flex-col">

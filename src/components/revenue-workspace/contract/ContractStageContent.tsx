@@ -1,4 +1,4 @@
-import { ArrowLeft, ChevronRight, Edit, ExternalLink, FileCheck } from "lucide-react";
+import { LayoutList } from "lucide-react";
 import type { Contract } from "@/data/mock-data";
 import { RecordHeader } from "../RecordHeader";
 import { ActionButton } from "../primitives/ActionButton";
@@ -21,16 +21,17 @@ export function ContractStageContent({ contract, onBack }: Props) {
   return (
     <div className="flex flex-col gap-4">
       <RecordHeader
+        stickyBar
         id={contract.id}
         status={contract.status}
         tagline={contract.enforcement.enforcementStatus}
+        leadingAction={
+          onBack ? <ActionButton icon={LayoutList} label="All contracts" onClick={onBack} /> : undefined
+        }
         actions={
           <>
-            {onBack && <ActionButton icon={ArrowLeft} label="All contracts" onClick={onBack} />}
-            <ActionButton icon={FileCheck} label="Review Enforcement" />
-            <ActionButton icon={Edit} label="Create Amendment" />
-            <ActionButton icon={ChevronRight} label="Invoice Schedule" />
-            <ActionButton icon={ExternalLink} label="Signed Doc" />
+            <ActionButton label="Create Amendment" />
+            <ActionButton label="Contract PDF" />
           </>
         }
       />

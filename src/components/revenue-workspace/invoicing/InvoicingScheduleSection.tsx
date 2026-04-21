@@ -1,4 +1,5 @@
-import { SectionCard, StatusBadge, TimelineRow } from "@/components/ui/primitives";
+import { SectionCard, StatusBadge } from "@/components/ui/primitives";
+import { RecentActivitySection, type RecentActivityItem } from "../primitives/RecentActivitySection";
 import { currency, shortDate } from "@/lib/utils";
 import type { InvoiceScheduleEntry, InvoiceEnrichment } from "@/data/billing-data";
 import type { Invoice } from "@/data/mock-data";
@@ -10,7 +11,7 @@ interface Props {
 }
 
 export function InvoicingScheduleSection({ invoice, enrichment, schedule }: Props) {
-  const timelineEvents = buildTimeline(invoice, enrichment);
+  const timelineEvents: RecentActivityItem[] = buildTimeline(invoice, enrichment);
 
   return (
     <div className="flex flex-col gap-4">
@@ -47,26 +48,13 @@ export function InvoicingScheduleSection({ invoice, enrichment, schedule }: Prop
         </SectionCard>
       )}
 
-      <SectionCard title="Invoice Activity / Audit Trail">
-        <div className="py-1">
-          {timelineEvents.map((event, idx) => (
-            <TimelineRow
-              key={idx}
-              date={event.date}
-              action={event.action}
-              actor={event.actor}
-              detail={event.detail}
-              isLast={idx === timelineEvents.length - 1}
-            />
-          ))}
-        </div>
-      </SectionCard>
+      <RecentActivitySection events={timelineEvents} />
     </div>
   );
 }
 
-function buildTimeline(invoice: Invoice, enrichment?: InvoiceEnrichment) {
-  const events: { date: string; action: string; actor: string; detail?: string }[] = [];
+function buildTimeline(invoice: Invoice, enrichment?: InvoiceEnrichment): RecentActivityItem[] {
+  const events: RecentActivityItem[] = [];
 
   events.push({ date: invoice.date, action: "Invoice generated", actor: "System", detail: `Amount: $${invoice.amount.toLocaleString()}` });
 

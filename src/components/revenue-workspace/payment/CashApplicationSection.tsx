@@ -1,4 +1,5 @@
-import { SectionCard, StatusBadge, TimelineRow } from "@/components/ui/primitives";
+import { SectionCard, StatusBadge } from "@/components/ui/primitives";
+import { RecentActivitySection, type RecentActivityItem } from "../primitives/RecentActivitySection";
 import { currency, shortDate } from "@/lib/utils";
 import type { Payment, CreditNote, CollectionCase } from "@/data/billing-data";
 import type { Invoice } from "@/data/mock-data";
@@ -84,20 +85,7 @@ export function CashApplicationSection({ payments, creditNotes, cases, invoices 
         </SectionCard>
       )}
 
-      <SectionCard title="Collections Timeline">
-        <div className="py-1">
-          {timeline.map((event, idx) => (
-            <TimelineRow
-              key={idx}
-              date={event.date}
-              action={event.action}
-              actor={event.actor}
-              detail={event.detail}
-              isLast={idx === timeline.length - 1}
-            />
-          ))}
-        </div>
-      </SectionCard>
+      <RecentActivitySection events={timeline} />
     </div>
   );
 }
@@ -106,8 +94,8 @@ function buildCollectionsTimeline(
   invoices: Invoice[],
   payments: Payment[],
   cases: CollectionCase[],
-) {
-  const events: { date: string; action: string; actor: string; detail?: string }[] = [];
+): RecentActivityItem[] {
+  const events: RecentActivityItem[] = [];
 
   for (const inv of invoices.filter((i) => i.status !== "Paid")) {
     events.push({ date: inv.dueDate, action: `Invoice ${inv.id} due`, actor: "System", detail: `Amount: ${inv.amount.toLocaleString()}` });
@@ -128,6 +116,5 @@ function buildCollectionsTimeline(
     });
   }
 
-  events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   return events;
 }

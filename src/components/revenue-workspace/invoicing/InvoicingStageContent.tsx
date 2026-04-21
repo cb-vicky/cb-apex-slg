@@ -1,17 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  ArrowLeft,
-  CheckCircle2,
-  Clock,
-  ChevronRight,
-  Eye,
-  FileMinus,
-  Pause,
-  Play,
-  RefreshCw,
-  Send,
-} from "lucide-react";
+import { Link } from "react-router-dom";
+import { ChevronRight, LayoutList } from "lucide-react";
 import type { Invoice, Contract } from "@/data/mock-data";
 import { customers } from "@/data/mock-data";
 import { getInvoiceEnrichment, getCreditNotesForInvoice, getInvoiceSchedule } from "@/data/billing-data";
@@ -30,11 +18,13 @@ interface Props {
   onBack?: () => void;
 }
 
+const pendingReviewPrimaryBtnClass =
+  "inline-flex items-center justify-center gap-1 rounded-lg px-4 py-2 text-center text-[13px] font-semibold text-white shadow-sm transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-cb-orange)] bg-[color:var(--color-cb-orange)]";
+
 export function InvoicingStageContent({ invoice, contract, onBack }: Props) {
   const enrichment = getInvoiceEnrichment(invoice.id);
   const creditNotes = getCreditNotesForInvoice(invoice.id);
   const schedule = getInvoiceSchedule(invoice.customerId);
-  const navigate = useNavigate();
 
   const {
     submittedInvoiceIds,
@@ -43,12 +33,10 @@ export function InvoicingStageContent({ invoice, contract, onBack }: Props) {
     invoiceStatusOverrides,
   } = useIngestContext();
 
-  const [dismissed, setDismissed] = useState(false);
-
   const effectiveStatus = invoiceStatusOverrides[invoice.id] ?? invoice.status;
   const isPendingReview = effectiveStatus === "Pending Review";
   const isSubmitted = submittedInvoiceIds.has(invoice.id);
-  const showBanner = isPendingReview && !dismissed;
+  const showBanner = isPendingReview;
 
   function handleSendForApproval() {
     const customer = customers.find((c) => c.id === invoice.customerId);
@@ -77,69 +65,72 @@ export function InvoicingStageContent({ invoice, contract, onBack }: Props) {
   return (
     <div className="flex flex-col gap-4">
       <RecordHeader
+        stickyBar
         id={displayInvoice.id}
         status={displayInvoice.status}
+        leadingAction={
+          onBack ? <ActionButton icon={LayoutList} label="All invoices" onClick={onBack} /> : undefined
+        }
         actions={
           <>
-            {onBack && <ActionButton icon={ArrowLeft} label="All invoices" onClick={onBack} />}
-            <ActionButton icon={Eye} label="Review" />
-            <ActionButton icon={Send} label="Approve & Send" />
-            {displayInvoice.holdReason ? (
-              <ActionButton icon={Play} label="Release Hold" />
-            ) : (
-              <ActionButton icon={Pause} label="Hold" />
-            )}
-            <ActionButton icon={RefreshCw} label="Regenerate" />
-            <ActionButton icon={FileMinus} label="Credit Note" />
+            <ActionButton label="Preview" />
+            <ActionButton label="Approve & Send" />
+            <ActionButton label="Regenerate" />
+            <ActionButton label="Issue credit note" />
           </>
         }
       />
 
-      {/* Pending Review Banner */}
+      {/* Pending review — same visual approach as Account 360 “Next best action” */}
       {showBanner && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Clock size={14} className="shrink-0 text-amber-600" />
-            {isSubmitted ? (
-              <span className="text-[12px] font-medium text-emerald-700">
-                <CheckCircle2 size={13} className="inline mr-1 text-emerald-500" />
-                Submitted for approval —{" "}
-                <button
-                  type="button"
-                  onClick={() => navigate("/approvals")}
-                  className="underline hover:no-underline"
-                >
+        <section className="relative overflow-hidden rounded-xl border border-cb-orange bg-white">
+          <div
+            className="pointer-events-none absolute inset-0 z-0 rounded-[inherit] bg-[radial-gradient(ellipse_110%_85%_at_100%_100%,var(--color-cb-orange-light)_0%,transparent_52%)]"
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute inset-0 z-0 rounded-[inherit] bg-[linear-gradient(to_top_left,rgba(255,244,239,0.5)_0%,transparent_48%)]"
+            aria-hidden
+          />
+
+          <div className="relative z-[2] flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between md:gap-5">
+            <div className="min-w-0 flex-1 space-y-0.5">
+              {isSubmitted ? (
+                <>
+                  <h2 className="text-base font-semibold leading-tight text-text-primary">
+                    Awaiting approval before send
+                  </h2>
+                  <p className="text-[13px] leading-snug text-text-secondary">
+                    This invoice is in the approvals queue. Open Approvals to track status and comments.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-base font-semibold leading-tight text-text-primary">
+                    Review before send
+                  </h2>
+                  <p className="text-[13px] leading-snug text-text-secondary">
+                    This invoice is pending review before it can be sent to the customer.
+                  </p>
+                </>
+              )}
+            </div>
+
+            <div className="flex shrink-0 flex-col gap-2 self-start sm:flex-row sm:items-center md:flex-col md:items-stretch lg:flex-row lg:items-center">
+              {isSubmitted ? (
+                <Link to="/approvals" className={pendingReviewPrimaryBtnClass}>
                   View in Approvals
+                  <ChevronRight className="h-4 w-4 opacity-90" aria-hidden />
+                </Link>
+              ) : (
+                <button type="button" onClick={handleSendForApproval} className={pendingReviewPrimaryBtnClass}>
+                  Send for Approval
+                  <ChevronRight className="h-4 w-4 opacity-90" aria-hidden />
                 </button>
-              </span>
-            ) : (
-              <span className="text-[12px] font-medium text-amber-700">
-                This invoice is pending review before it can be sent to the customer.
-              </span>
-            )}
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {!isSubmitted && (
-              <button
-                type="button"
-                onClick={handleSendForApproval}
-                className="inline-flex items-center gap-1 rounded-md bg-amber-600 px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-amber-500"
-              >
-                Send for Approval
-                <ChevronRight size={12} />
-              </button>
-            )}
-            {!isSubmitted && (
-              <button
-                type="button"
-                onClick={() => setDismissed(true)}
-                className="text-[11px] text-amber-600 hover:text-amber-700"
-              >
-                Dismiss
-              </button>
-            )}
-          </div>
-        </div>
+        </section>
       )}
 
       <InvoicingOverviewSection invoice={displayInvoice} enrichment={enrichment} />

@@ -1,4 +1,4 @@
-import { ArrowLeft, Edit, ExternalLink, GitCompare, Send } from "lucide-react";
+import { LayoutList } from "lucide-react";
 import type { Quote } from "@/data/mock-data";
 import { RecordHeader } from "../RecordHeader";
 import { ActionButton } from "../primitives/ActionButton";
@@ -19,26 +19,36 @@ interface Props {
 
 export function QuoteStageContent({ quote, quoteVersions, onQuoteVersionChange, onBack }: Props) {
   const approvalStatus = quote.approval.status === "pending" ? "Pending Approval" : quote.approval.status;
+  const approvalTagline =
+    approvalStatus !== quote.status && approvalStatus !== "not_required" ? approvalStatus : undefined;
   return (
     <div className="flex flex-col gap-4">
       <RecordHeader
+        stickyBar
+        showStatusBadge={false}
         id={quote.id}
         status={quote.status}
-        tagline={approvalStatus !== quote.status ? approvalStatus : undefined}
+        tagline={approvalTagline}
         versions={quoteVersions}
         onVersionChange={onQuoteVersionChange}
+        leadingAction={
+          onBack ? (
+            <ActionButton variant="default" icon={LayoutList} label="All quotes" onClick={onBack} />
+          ) : undefined
+        }
         actions={
           <>
-            {onBack && <ActionButton icon={ArrowLeft} label="All quotes" onClick={onBack} />}
-            <ActionButton icon={Edit} label="Edit" />
-            <ActionButton icon={Send} label="Submit for Approval" />
-            <ActionButton icon={ExternalLink} label="Send" />
-            <ActionButton icon={GitCompare} label="Compare" />
+            <ActionButton variant="default" label="Edit quote" />
+            <ActionButton variant="default" label="Submit for Approval" />
           </>
         }
       />
-      <QuoteApprovalsSection approval={quote.approval} comments={quote.comments} />
       <QuoteOverviewSection quote={quote} />
+      <QuoteApprovalsSection
+        approval={quote.approval}
+        comments={quote.comments}
+        teamCommentsUnread={quote.teamCommentsUnread}
+      />
       <QuotePricingSection products={quote.products} />
       <QuoteTermsSection terms={quote.commercialTerms} />
       <QuoteCrmSection quote={quote} />
