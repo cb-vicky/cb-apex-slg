@@ -157,7 +157,7 @@ Next-best-action lists for **Quote / Contract / Invoicing / Payment / RevRec** a
 
 ### Customer tab — primary action (`getPrimaryCustomerAction`)
 
-- **Purpose:** One prioritized “do this next” for the account — the **hero** CTA on the Customer tab (`CustomerNbaAiRow`). The NBA **card chrome** (white fill, grey CSS border, inset animated orange stroke) is presentation-only; behavior is fully determined by this function + routes.
+- **Purpose:** One prioritized “do this next” for the account — the **hero** CTA on the Customer tab (`CustomerNbaAiRow`). The NBA **card chrome** (white fill, light orange gradient wash, **cb-orange** CSS border, optional one-shot SVG border draw on load) is presentation-only; behavior is fully determined by this function + routes.
 - **Priority order (first match wins):** overdue invoice(s) → open AR (when no overdue row in scope) → stale CRM sync → renewal within 90 days (requires a contract for deep link) → prepaid burn >70% (requires contract) → escalated support tickets → fallback “calm” action (e.g. browse quotes).
 - **Returns:** `PrimaryCustomerAction` — `kind`, `label`, `description`, `learnMoreBody`, `executeTo` (path + query + optional `#support-comms-anchor`), `executeLabel`, `learnMoreLabel`.
 - **Related:** `getCustomerActions(customer)` still returns the **full prioritized list** for any code that needs every candidate; the tab UI uses **one** row from the equivalent priority stack via `getPrimaryCustomerAction`.
