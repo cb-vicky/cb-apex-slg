@@ -1,20 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import type { Quote, Contract, Invoice } from "@/data/mock-data";
 import { StatusBadge } from "@/components/ui/primitives";
-import { currency, shortDate } from "@/lib/utils";
+import { cn, currency, shortDate } from "@/lib/utils";
+import type { LucideIcon } from "lucide-react";
 import {
-  ArrowLeft,
   ChevronDown,
-  ChevronRight,
   CreditCard,
   Download,
   Edit,
   ExternalLink,
   Eye,
-  FileCheck,
   FileMinus,
   GitCompare,
   HandCoins,
+  LayoutList,
   Pause,
   Play,
   Receipt,
@@ -28,13 +27,16 @@ import type { Stage } from "./RevenueJourneyRail";
 import type { InvoiceEnrichment, CollectionCase } from "@/data/billing-data";
 import type { RevenueArrangement } from "@/data/revrec-data";
 
-function ActionButton({ icon: Icon, label }: { icon: typeof Edit; label: string }) {
+function ActionButton({ icon: Icon, label }: { icon?: LucideIcon; label: string }) {
   return (
     <button
       type="button"
-      className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border-default bg-white px-2 text-[11px] font-medium leading-none text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary"
+      className={cn(
+        "inline-flex h-7 shrink-0 items-center rounded-full border border-[#E4E5E8] bg-[#F0F1F3] px-3 text-[12px] font-medium leading-none text-text-secondary transition-colors hover:border-border-default hover:bg-[#E8E9EC] hover:text-text-primary",
+        Icon ? "gap-1.5" : undefined,
+      )}
     >
-      <Icon size={12} className="shrink-0" />
+      {Icon ? <Icon size={12} className="shrink-0" /> : null}
       {label}
     </button>
   );
@@ -45,9 +47,9 @@ function BackButton({ onBack }: { onBack: () => void }) {
     <button
       type="button"
       onClick={onBack}
-      className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border-default bg-white px-2 text-[11px] font-medium text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary"
+      className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full border border-[#E4E5E8] bg-[#F0F1F3] px-3 text-[12px] font-medium leading-none text-text-secondary transition-colors hover:border-border-default hover:bg-[#E8E9EC] hover:text-text-primary"
     >
-      <ArrowLeft size={11} className="shrink-0" />
+      <LayoutList size={12} className="shrink-0" />
       All
     </button>
   );
@@ -89,7 +91,7 @@ function QuoteContextBar({
         <button
           type="button"
           onClick={() => setIsOpen((open) => !open)}
-          className="inline-flex items-center gap-2 rounded-md border border-border-default bg-white px-2.5 py-1.5 transition-colors hover:bg-surface-muted"
+          className="inline-flex items-center gap-2 rounded-full border border-border-default bg-white px-3 py-1.5 transition-colors hover:bg-surface-muted"
         >
           <span className="font-semibold text-text-primary">{quote.id}</span>
           <span className="text-text-muted">v{quote.version}</span>
@@ -184,10 +186,8 @@ function ContractContextBar({ contract, onBack }: { contract: Contract; onBack?:
 function ContractActions() {
   return (
     <>
-      <ActionButton icon={FileCheck} label="Review Enforcement" />
-      <ActionButton icon={Edit} label="Create Amendment" />
-      <ActionButton icon={ChevronRight} label="Invoice Schedule" />
-      <ActionButton icon={ExternalLink} label="Signed Doc" />
+      <ActionButton label="Create Amendment" />
+      <ActionButton label="Contract PDF" />
     </>
   );
 }

@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 
 // ---------------------------------------------------------------------------
 // Status Badge
@@ -44,9 +45,11 @@ const statusColors: Record<string, string> = {
   "high risk": "bg-red-50 text-red-700 border-red-200",
   cancelled: "bg-gray-100 text-gray-500 border-gray-200",
   "low risk": "bg-gray-100 text-gray-500 border-gray-200",
+  "no approval required": "bg-gray-50 text-gray-700 border-gray-200",
 };
 
 export function StatusBadge({ status, className }: { status: string; className?: string }) {
+  if (status.toLowerCase() === "not_required") return null;
   const key = status.toLowerCase();
   const colors = statusColors[key] ?? "bg-gray-100 text-gray-600 border-gray-200";
   return (
@@ -129,6 +132,17 @@ export function KV({ label, value, className }: { label: string; value: ReactNod
       <span className="shrink-0 text-text-secondary">{label}</span>
       <span className="min-w-0 break-words text-right font-medium text-text-primary">{typeof value === "string" ? value : value}</span>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Clickable record ID (quotes, contracts, invoices — alias detail routes)
+// ---------------------------------------------------------------------------
+export function RecordIdLink({ to, children, className }: { to: string; children: ReactNode; className?: string }) {
+  return (
+    <Link to={to} className={cn("font-medium text-blue-600 hover:text-blue-700 hover:underline", className)}>
+      {children}
+    </Link>
   );
 }
 

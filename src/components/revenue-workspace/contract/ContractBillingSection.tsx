@@ -3,6 +3,12 @@ import { SectionCard, StatusBadge } from "@/components/ui/primitives";
 import { currency, shortDate } from "@/lib/utils";
 
 export function ContractBillingSection({ schedule }: { schedule: InvoiceScheduleItem[] }) {
+  const rows = [...schedule].sort((a, b) => {
+    const byDate = b.date.localeCompare(a.date);
+    if (byDate !== 0) return byDate;
+    return (b.invoiceId ?? "").localeCompare(a.invoiceId ?? "");
+  });
+
   return (
     <SectionCard title="Billing & Invoice Schedule">
       <div className="overflow-x-auto">
@@ -17,8 +23,11 @@ export function ContractBillingSection({ schedule }: { schedule: InvoiceSchedule
             </tr>
           </thead>
           <tbody>
-            {schedule.map((item, idx) => (
-              <tr key={idx} className="border-b border-border-subtle last:border-0">
+            {rows.map((item, idx) => (
+              <tr
+                key={`${item.date}-${item.invoiceId ?? idx}`}
+                className="border-b border-border-subtle last:border-0"
+              >
                 <td className="py-2 pr-4 text-text-primary">{shortDate(item.date)}</td>
                 <td className="py-2 pr-4 text-right tabular-nums font-medium text-text-primary">{currency(item.amount)}</td>
                 <td className="py-2 pr-4"><StatusBadge status={item.status} /></td>

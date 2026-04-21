@@ -74,6 +74,11 @@ interface Props {
   disabledStages?: Set<Stage>;
   from?: string;
   recordId?: string;
+  /**
+   * When a sticky record header sits below this bar, its own shadow carries depth;
+   * skip the stuck shadow here to avoid stacked elevation.
+   */
+  suppressStuckShadow?: boolean;
 }
 
 export function CustomerContextBar({
@@ -87,6 +92,7 @@ export function CustomerContextBar({
   disabledStages,
   from,
   recordId,
+  suppressStuckShadow = false,
 }: Props) {
   const navigate = useNavigate();
   const barRef = useRef<HTMLDivElement>(null);
@@ -106,7 +112,7 @@ export function CustomerContextBar({
         "sticky top-0 z-20 overflow-hidden rounded-tl-[24px] rounded-bl-[24px] bg-white",
         "border border-border-default",
         "transition-shadow duration-200 ease-out",
-        isStuck && "shadow-[0_10px_20px_-6px_rgba(17,24,39,0.18)]",
+        isStuck && !suppressStuckShadow && "shadow-[0_10px_20px_-6px_rgba(17,24,39,0.18)]",
       )}
     >
       {/* ROW 1 — breadcrumb + search */}

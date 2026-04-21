@@ -1,66 +1,75 @@
 import { useState } from "react";
 import type { ApprovalInfo, QuoteComment } from "@/data/mock-data";
 import { SectionCard, StatusBadge } from "@/components/ui/primitives";
-import { AlertTriangle, CheckCircle2, Clock, MessageSquare, User, XCircle } from "lucide-react";
-import { shortDate } from "@/lib/utils";
+import { cn, shortDate } from "@/lib/utils";
 
-function sectionStyle(status: ApprovalInfo["status"]) {
+function badgeLabelForApproval(status: ApprovalInfo["status"]): string {
   switch (status) {
     case "pending":
-      return "border-amber-200 bg-amber-50/30";
+      return "Pending Approval";
     case "approved":
-      return "border-emerald-200 bg-emerald-50/30";
+      return "Approved";
     case "rejected":
-      return "border-rose-200 bg-rose-50/30";
+      return "Rejected";
+    case "not_required":
+      return "No approval required";
     default:
-      return "border-border-default bg-white";
+      return "Unknown";
   }
 }
 
-function ApproverRow({ approval }: { approval: ApprovalInfo }) {
-  const { status, currentApprover, pendingSince } = approval;
-
-  if (status === "not_required") {
-    return (
-      <div className="flex items-center gap-2 text-[13px] text-text-secondary">
-        <CheckCircle2 size={13} className="shrink-0 text-emerald-500" />
-        No approval required — quote is within policy thresholds.
-      </div>
-    );
+function approverSummary(approval: ApprovalInfo): string {
+  switch (approval.status) {
+    case "not_required":
+      return "Within policy thresholds — no approval routing.";
+    case "pending": {
+      const who = approval.currentApprover || "—";
+      const since = approval.pendingSince ? ` · Pending since ${shortDate(approval.pendingSince)}` : "";
+      return `${who}${since}`;
+    }
+    case "approved":
+      return approval.currentApprover ? `Approved by ${approval.currentApprover}` : "Approved";
+    case "rejected":
+      return approval.currentApprover ? `Rejected by ${approval.currentApprover}` : "Rejected";
+    default:
+      return "";
   }
+}
 
-  const approverLabel =
-    status === "approved"
-      ? currentApprover
-        ? `Approved by ${currentApprover}`
-        : "Auto-approved"
-      : status === "rejected"
-      ? currentApprover
-        ? `Rejected by ${currentApprover}`
-        : "Rejected"
-      : currentApprover;
-
-  const approverIcon =
-    status === "approved" ? (
-      <CheckCircle2 size={13} className="shrink-0 text-emerald-500" />
-    ) : status === "rejected" ? (
-      <XCircle size={13} className="shrink-0 text-rose-500" />
-    ) : (
-      <User size={13} className="shrink-0 text-text-muted" />
-    );
-
+function WhyThisTriggered({
+  rules,
+  popoverAlign = "left",
+}: {
+  rules: string[];
+  popoverAlign?: "left" | "right";
+}) {
+  if (rules.length === 0) return null;
   return (
-    <div className="flex items-center gap-4">
-      <span className="inline-flex items-center gap-1.5 text-[13px] text-text-secondary">
-        {approverIcon}
-        <span className="font-medium text-text-primary">{approverLabel}</span>
-      </span>
-      {status === "pending" && pendingSince && (
-        <span className="inline-flex items-center gap-1.5 text-[13px] text-amber-600">
-          <Clock size={13} />
-          Pending since {shortDate(pendingSince)}
-        </span>
-      )}
+    <div className="group relative inline-flex max-w-full">
+      <button
+        type="button"
+        className="border-b border-dotted border-text-secondary text-left text-[13px] font-medium text-text-secondary underline-offset-2 transition-colors hover:border-text-primary hover:text-text-primary"
+      >
+        Why
+      </button>
+      <div
+        className={cn(
+          "pointer-events-none invisible absolute top-full z-50 w-[min(22rem,calc(100vw-3rem))] pt-2 opacity-0 transition-opacity duration-150 group-hover:visible group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:visible group-focus-within:pointer-events-auto group-focus-within:opacity-100",
+          popoverAlign === "right" ? "right-0 left-auto" : "left-0",
+        )}
+        role="tooltip"
+      >
+        <div className="rounded-md border border-border-default bg-white p-3 shadow-md">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">Triggered rules</p>
+          <ul className="mt-2 space-y-1.5">
+            {rules.map((rule) => (
+              <li key={rule} className="text-[12px] leading-snug text-text-primary">
+                {rule}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </div>
   );
 }
@@ -68,84 +77,67 @@ function ApproverRow({ approval }: { approval: ApprovalInfo }) {
 export function QuoteApprovalsSection({
   approval,
   comments,
+  teamCommentsUnread = 0,
 }: {
   approval: ApprovalInfo;
   comments: QuoteComment[];
+  teamCommentsUnread?: number;
 }) {
-  const [showAllComments, setShowAllComments] = useState(false);
-  const visibleComments = showAllComments ? comments : comments.slice(0, 1);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const hasThread = comments.length > 0;
+  const unread = teamCommentsUnread;
 
   return (
-    <SectionCard
-      title="Approvals & Policy Checks"
-      className={sectionStyle(approval.status)}
-    >
+    <SectionCard title="Approvals & Policy Checks" className="overflow-visible">
       <div className="flex flex-col gap-3">
-        {/* Status + approver row */}
-        <div className="flex items-center gap-4">
-          <StatusBadge status={approval.status === "pending" ? "Pending Approval" : approval.status} />
-          <ApproverRow approval={approval} />
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+            <StatusBadge status={badgeLabelForApproval(approval.status)} />
+            <p className="min-w-0 text-[13px] leading-snug text-text-primary">{approverSummary(approval)}</p>
+          </div>
+
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-x-3 gap-y-1">
+            {approval.triggeredRules.length > 0 ? (
+              <WhyThisTriggered rules={approval.triggeredRules} popoverAlign="right" />
+            ) : null}
+
+            {hasThread ? (
+              <button
+                type="button"
+                onClick={() => setCommentsOpen((o) => !o)}
+                className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-blue-700 underline-offset-2 hover:text-blue-800 hover:underline"
+              >
+                {commentsOpen ? (
+                  <span>Hide comments</span>
+                ) : unread > 0 ? (
+                  <>
+                    <span className="inline-flex h-2 w-2 shrink-0 rounded-full bg-blue-600" aria-hidden />
+                    <span>
+                      Show comments ({unread} new)
+                    </span>
+                  </>
+                ) : (
+                  <span>Show comments ({comments.length})</span>
+                )}
+              </button>
+            ) : null}
+          </div>
         </div>
 
-        {/* Triggered rules — only if there are any */}
-        {approval.triggeredRules.length > 0 && (
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[11px] uppercase tracking-wider text-text-muted">Triggered Rules</span>
-            <div className="flex flex-col gap-1">
-              {approval.triggeredRules.map((rule) => (
-                <div key={rule} className="flex items-start gap-2 text-[13px] text-text-primary">
-                  <AlertTriangle size={13} className="mt-0.5 shrink-0 text-amber-500" />
-                  {rule}
+        {hasThread && commentsOpen && (
+          <ul className="space-y-3 border-t border-border-subtle pt-3">
+            {comments.map((comment) => (
+              <li key={comment.id} className="text-[13px]">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="font-medium text-text-primary">{comment.author}</span>
+                  <span className="text-[11px] text-text-muted">{shortDate(comment.date)}</span>
                 </div>
-              ))}
-            </div>
-          </div>
+                <p className="mt-0.5 text-[12px] text-text-muted">{comment.role}</p>
+                <p className="mt-1.5 leading-relaxed text-text-secondary">{comment.text}</p>
+              </li>
+            ))}
+          </ul>
         )}
-
-        {/* Comments */}
-        {visibleComments.length > 0 ? (
-          <div className="rounded-md border border-border-default bg-white px-3 py-2">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-text-muted">
-                <MessageSquare size={12} />
-                Team comments
-              </span>
-              {comments.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllComments((prev) => !prev)}
-                  className="text-[11px] font-medium text-cb-orange hover:text-cb-orange/80"
-                >
-                  {showAllComments ? "Show latest" : `View all ${comments.length} comments`}
-                </button>
-              )}
-            </div>
-
-            <div className="space-y-3">
-              {visibleComments.map((comment, index) => (
-                <div key={comment.id} className="relative pl-4">
-                  {showAllComments && index < visibleComments.length - 1 && (
-                    <span className="absolute left-[5px] top-4 h-[calc(100%+8px)] w-px bg-border-subtle" />
-                  )}
-                  <span className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full bg-cb-orange/70" />
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="text-[12px]">
-                      <span className="font-medium text-text-primary">{comment.author}</span>
-                      <span className="ml-1 text-text-secondary">({comment.role})</span>
-                    </div>
-                    <span className="shrink-0 text-[11px] text-text-muted">{shortDate(comment.date)}</span>
-                  </div>
-                  <p className="mt-1 text-[13px] leading-relaxed text-text-secondary">{comment.text}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : approval.comments ? (
-          <div className="flex items-start gap-2 rounded-md border border-border-default bg-white px-3 py-2 text-[13px] text-text-secondary">
-            <MessageSquare size={13} className="mt-0.5 shrink-0 text-text-muted" />
-            {approval.comments}
-          </div>
-        ) : null}
       </div>
     </SectionCard>
   );

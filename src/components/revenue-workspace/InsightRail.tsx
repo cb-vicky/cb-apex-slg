@@ -17,7 +17,7 @@ import {
 } from "./derive-stage-data";
 
 // ---------------------------------------------------------------------------
-// Section open state (lifted to parent — persists across lifecycle tab switches)
+// Section open state (lifted to parent — persists across lifecycle tab switches once toggled)
 // ---------------------------------------------------------------------------
 
 export type InsightRailSectionKey = "accountDetails" | "openTasks" | "linkedRecords";
@@ -25,9 +25,9 @@ export type InsightRailSectionKey = "accountDetails" | "openTasks" | "linkedReco
 export type InsightRailSections = Record<InsightRailSectionKey, boolean>;
 
 export const DEFAULT_INSIGHT_RAIL_SECTIONS: InsightRailSections = {
-  accountDetails: true,
-  openTasks: true,
-  linkedRecords: true,
+  accountDetails: false,
+  openTasks: false,
+  linkedRecords: false,
 };
 
 // ---------------------------------------------------------------------------

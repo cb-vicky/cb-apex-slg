@@ -1,4 +1,4 @@
-import { SectionCard, StatusBadge } from "@/components/ui/primitives";
+import { RecordIdLink, SectionCard, StatusBadge } from "@/components/ui/primitives";
 import { getQuotesForCustomer, getContractsForCustomer, getInvoices } from "@/data/mock-data";
 import { currency, shortDate } from "@/lib/utils";
 
@@ -40,7 +40,7 @@ export function LifecycleSummarySection({ customerId }: Props) {
                 key={q.id}
                 className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2 text-[13px]"
               >
-                <span className="font-medium text-text-primary">{q.id}</span>
+                <RecordIdLink to={`/quotes/${q.id}`}>{q.id}</RecordIdLink>
                 <span className="text-text-secondary tabular-nums">TCV: {currency(q.tcv)}</span>
                 {statusPair(q.status)}
               </div>
@@ -59,7 +59,7 @@ export function LifecycleSummarySection({ customerId }: Props) {
                 key={c.id}
                 className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2 text-[13px]"
               >
-                <span className="font-medium text-text-primary">{c.id}</span>
+                <RecordIdLink to={`/contracts/${c.id}`}>{c.id}</RecordIdLink>
                 <span className="text-text-secondary tabular-nums">RENEWAL: {shortDate(c.renewalDate)}</span>
                 {statusPair(c.enforcement.enforcementStatus)}
               </div>
@@ -78,8 +78,10 @@ export function LifecycleSummarySection({ customerId }: Props) {
                 key={inv.id}
                 className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2 text-[13px]"
               >
-                <span className="font-medium text-text-primary">{inv.id}</span>
-                <span className="text-text-secondary">CONTRACT: {inv.contractId}</span>
+                <RecordIdLink to={`/invoices/${inv.id}`}>{inv.id}</RecordIdLink>
+                <span className="text-text-secondary">
+                  CONTRACT: <RecordIdLink to={`/contracts/${inv.contractId}`}>{inv.contractId}</RecordIdLink>
+                </span>
                 <span className="text-text-secondary tabular-nums">AMOUNT: {currency(inv.amount)}</span>
                 <span className="text-text-secondary tabular-nums">DUE: {shortDate(inv.dueDate)}</span>
                 {statusPair(inv.status)}

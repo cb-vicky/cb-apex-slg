@@ -1,61 +1,61 @@
 import type { Quote } from "@/data/mock-data";
-import { SectionCard } from "@/components/ui/primitives";
-import { ArrowRight, FileText, GitCompare, Receipt, ScrollText } from "lucide-react";
+import { contracts } from "@/data/mock-data";
+import { RecordIdLink, SectionCard, StatusBadge } from "@/components/ui/primitives";
+import { shortDate } from "@/lib/utils";
 
-export function QuoteRelatedSection({ quote }: { quote: Quote }) {
+function statusPair(status: string) {
   return (
-    <SectionCard title="Related Records">
-      <div className="grid grid-cols-2 gap-3">
-        <RelatedItem
-          icon={ScrollText}
-          label="Current Active Contract"
-          value={quote.relatedContractId}
-          sublabel="Active until Jun 30, 2026"
-        />
-        <RelatedItem
-          icon={GitCompare}
-          label="Key Changes vs Current Contract"
-          value="Seats 150 → 400, +AI credit block, 18% discount"
-          sublabel="Quote v3 proposes expansion"
-        />
-        <RelatedItem
-          icon={FileText}
-          label="Expected New Contract"
-          value="Will create CON-2026-xxxx"
-          sublabel="Co-termed to existing end date"
-        />
-        <RelatedItem
-          icon={Receipt}
-          label="Invoice Plan Preview"
-          value="Annual upfront + monthly overage"
-          sublabel="First invoice on effective date"
-        />
-      </div>
-    </SectionCard>
+    <span className="ml-auto flex shrink-0 items-center gap-1.5">
+      <span className="text-[12px] text-text-secondary">STATUS:</span>
+      <StatusBadge status={status} />
+    </span>
   );
 }
 
-function RelatedItem({
-  icon: Icon,
-  label,
-  value,
-  sublabel,
-}: {
-  icon: typeof ArrowRight;
-  label: string;
-  value: string;
-  sublabel: string;
-}) {
+export function QuoteRelatedSection({ quote }: { quote: Quote }) {
+  const linkedContract = quote.relatedContractId
+    ? contracts.find((c) => c.id === quote.relatedContractId)
+    : undefined;
+
+  const { commercialTerms } = quote;
+
   return (
-    <div className="flex items-start gap-3 rounded-md border border-border-default px-3 py-2.5">
-      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-surface-muted">
-        <Icon size={14} className="text-text-secondary" />
+    <SectionCard title="Related Records">
+      <div className="divide-y divide-border-subtle">
+        {linkedContract ? (
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2 text-[13px]">
+            <RecordIdLink to={`/contracts/${linkedContract.id}`}>{linkedContract.id}</RecordIdLink>
+            <span className="text-text-secondary">ACTIVE UNTIL: {shortDate(linkedContract.endDate)}</span>
+            {statusPair(linkedContract.status)}
+          </div>
+        ) : (
+          <div className="py-2 text-[12px] text-text-muted">No linked active contract</div>
+        )}
+
+        <div className="flex flex-wrap items-start gap-x-3 gap-y-1 py-2 text-[13px]">
+          <span className="shrink-0 font-medium text-text-primary">Key changes vs current contract</span>
+          <span className="min-w-0 flex-1 break-words text-text-secondary">{quote.versionSummary}</span>
+          <span className="ml-auto flex shrink-0 flex-wrap items-baseline justify-end gap-x-1 text-[12px]">
+            <span className="text-text-secondary">QUOTE:</span>
+            <RecordIdLink to={`/quotes/${quote.id}`}>{quote.id}</RecordIdLink>
+            <span className="text-text-secondary">(v{quote.version})</span>
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2 text-[13px]">
+          <span className="font-medium text-text-primary">Expected new contract</span>
+          <span className="text-text-secondary">
+            Term ends {shortDate(commercialTerms.endDate)}
+            {commercialTerms.coTermTarget ? ` · ${commercialTerms.coTermTarget}` : ""}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2 text-[13px]">
+          <span className="font-medium text-text-primary">Invoice plan</span>
+          <span className="text-text-secondary">{commercialTerms.billingFrequency}</span>
+          <span className="text-text-secondary tabular-nums">EFFECTIVE: {shortDate(commercialTerms.startDate)}</span>
+        </div>
       </div>
-      <div>
-        <p className="text-[11px] uppercase tracking-wider text-text-muted">{label}</p>
-        <p className="text-[13px] font-medium text-text-primary">{value}</p>
-        <p className="text-[12px] text-text-secondary">{sublabel}</p>
-      </div>
-    </div>
+    </SectionCard>
   );
 }

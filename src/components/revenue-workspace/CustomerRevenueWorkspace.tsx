@@ -66,7 +66,7 @@ export function CustomerRevenueWorkspace({
 
   const [activeInvoice, setActiveInvoice] = useState<Invoice | undefined>(initialInvoice);
 
-  // Insight rail section expand/collapse — persists while switching lifecycle tabs (same workspace mount).
+  // Insight rail: collapsed by default; section open state persists across lifecycle tabs after the user expands.
   const [railSections, setRailSections] = useState(() => ({ ...DEFAULT_INSIGHT_RAIL_SECTIONS }));
 
   function toggleRailSection(key: InsightRailSectionKey) {
@@ -91,6 +91,15 @@ export function CustomerRevenueWorkspace({
 
   const isListStage = LIST_STAGES.includes(activeStage);
   const inListMode = viewMode === "list" && isListStage;
+
+  /** Sticky `RecordHeader` (quote / contract / invoice detail) provides its own shadow — skip context bar stuck shadow. */
+  const suppressContextBarStuckShadow =
+    !inListMode &&
+    Boolean(
+      (activeStage === "quote" && !!activeQuote) ||
+        (activeStage === "contract" && !!effectiveContract) ||
+        (activeStage === "invoicing" && !!activeInvoice && !!effectiveContract),
+    );
 
   // The ID shown in the breadcrumb's record crumb.
   const currentRecordId = inListMode
@@ -200,6 +209,7 @@ export function CustomerRevenueWorkspace({
         disabledStages={disabledStages}
         from={from}
         recordId={currentRecordId}
+        suppressStuckShadow={suppressContextBarStuckShadow}
       />
 
       {/* Main content — scrolls under the sticky bar (bg inherited from AppShell's white card) */}
