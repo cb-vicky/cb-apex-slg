@@ -290,7 +290,6 @@ export function buildIngestResult(docId: "sample1" | "sample2", resolvedCustomer
         { type: "quote", id: "QT-2026-0042", label: "Quote QT-2026-0042", action: "linked" },
         { type: "customer", id: "cust_echo_001", label: "Customer: Echo Corp", action: "reused" },
         { type: "product", id: "APEX-PLATFORM", label: "APEX-PLATFORM, APEX-AI-CREDITS, APEX-SUPPORT", action: "reused" },
-        { type: "invoice", id: "INV-INGEST-001", label: "Invoice INV-INGEST-001 — Pending Review", action: "created" },
       ],
     };
   }
@@ -303,7 +302,6 @@ export function buildIngestResult(docId: "sample1" | "sample2", resolvedCustomer
       { type: "customer", id: resolvedCustomerId || "cust_zenith_006", label: "Customer: Zenith Analytics", action: "created" },
       { type: "product", id: "APEX-ANALYTICS-PRO", label: "Plan: APEX-ANALYTICS-PRO", action: "created" },
       { type: "contract", id: "CON-INGEST-002", label: "Contract CON-INGEST-002", action: "created" },
-      { type: "invoice", id: "INV-INGEST-002", label: "Invoice INV-INGEST-002 — Pending Review", action: "created" },
     ],
   };
 }

@@ -35,6 +35,8 @@ const statusColors: Record<string, string> = {
   "overdue notice": "bg-blue-50 text-blue-700 border-blue-200",
   "re-exported": "bg-blue-50 text-blue-700 border-blue-200",
   trialing: "bg-blue-50 text-blue-700 border-blue-200",
+  scheduled: "bg-blue-50 text-blue-700 border-blue-200",
+  "awaiting activation": "bg-blue-50 text-blue-700 border-blue-200",
   overdue: "bg-red-50 text-red-700 border-red-200",
   rejected: "bg-red-50 text-red-700 border-red-200",
   blocked: "bg-red-50 text-red-700 border-red-200",
