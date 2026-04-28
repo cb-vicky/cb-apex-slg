@@ -16,5 +16,5 @@ When editing the outer shell:
 
 1. **Do NOT redesign or replace the outer shell** (top nav, site switcher, left sidebar, rounded white content canvas).
 2. **Do NOT create a full-page wrapper card** inside the content area — work inside the existing white canvas.
-3. Sidebar items point to **index routes** (`/customers`, `/quotes`, `/contracts`, `/invoices`, `/approvals`), not hardcoded record IDs.
-4. `/contracts/ingest` must be declared before `/contracts/:contractId` in `App.tsx`.
+3. Sidebar items point to **index routes** (`/customers`, `/quotes`, `/contracts`, `/invoices`, `/approvals`, `/queue`), not hardcoded record IDs.
+4. The Desk section in the sidebar lists **My Workbench → Queue → Approvals**. The previously disabled "Inbox" entry has been replaced by **Queue** (`/queue`), which is the operational landing for every signed contract pending ingestion.

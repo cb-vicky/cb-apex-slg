@@ -120,9 +120,63 @@ Linked records and open tasks are in the insight rail — no need to duplicate h
 
 **Record context bar fields:** Contract ID, version / amendment number, status, signed / effective date, term, minimum commit, co-term / renewal, enforcement status.
 
-**Actions:** Review enforcement · Create amendment quote · View invoice schedule · Open signed document.
+**Actions:** Review enforcement · Create amendment quote · View invoice schedule · Open signed document · **Close contract early** (overflow menu).
 
 Component: `ContractStageContent`.
+
+### Contract Closure UI
+
+The Contract tab supports early termination via a full left/right pane layout (`CloseContractPane`). Access via the overflow menu (⋯) on the `RecordHeader` — only available for Active contracts. The same pane is also triggered automatically during the **Early Renewal** queue flow (see `docs/09-contract-ingestion.md`).
+
+**`CloseContractPane`** — full-canvas overlay inside `CustomerRevenueWorkspace` (not a standalone route):
+
+*Left pane (~520px, scrollable + sticky footer):*
+- Effective termination date (date picker, supports backdated/future-dated)
+- Reason dropdown (Customer non-renewal, M&A consolidation, Mutual agreement, Non-payment/Collections, **Replaced by new contract** — default for Early Renewal, Other)
+- Settlement type radio group (Termination charge, Credit note — default when `prepaidCreditBalance > 0`, No financial impact)
+- Calculated impact preview (min-commit shortfall or unused prepaid credits), with operator override field
+- Inline approval-policy badge ("This will require approval — non-standard invoice")
+- Sticky footer: **Cancel** + **Send for approval** (or "Send for approval & proceed to ingest" when from queue)
+
+*Right pane (~flex-1, tabbed):*
+- **Contract** tab (default) — details of the contract being closed: term, min-commit, prepaid balance, billing schedule
+- **Last Invoice** tab — most recent invoice for context
+- **Incoming Renewal** tab — visible only when triggered from Queue; shows new contract preview + proration / financial impact description
+
+*Header:*
+- Discard button (✕) with inline in-pane confirmation prompt
+- **← Back to Queue** breadcrumb (visible when `fromQueueItemId` is set)
+
+**`ClosureBanner`** — prominent wind-down banner (renders above Overview when `closure.effectiveDate > today`):
+- "Contract closing on {date}" with countdown
+- Reason, settlement summary, closed-by user
+
+**`ClosureSummaryCard`** — displays after Overview when closure exists:
+- Effective date, reason, settlement type + amount
+- Closed-by user, timestamp
+- Links to generated credit note or termination invoice
+- Approval status badge when pending
+
+**`ScheduledBanner`** — blue activation banner rendered when a `Scheduled` renewal contract is selected:
+- "Contract scheduled — activates {date}"
+- Mentions the prior contract ID being replaced and the activation conditions
+
+**Status badges:** `Closing` (amber) for wind-down, `Terminated` (red) for non-payment closures, `Closed` (gray) for neutral closures, `Scheduled` (blue) for renewal contracts pending activation — all derived from contract data.
+
+### Contract list lineage annotations
+
+When the Contract tab is in list view and a prior/renewal contract pair exists:
+
+- **Closing/Closed contract** row: `→ Renewed by CON-XXXX (Scheduled)` annotation with a `Scheduled` status badge
+- **Scheduled contract** row: `← Replaces CON-XXXX (Closing)` annotation with a `Closing` status badge + "Activates {date}" sublabel
+
+Lineage is read from `contract.replacedByContractId` and `contract.replacesContractId`. List ordering: Active/Closing first, then Scheduled, then Closed/Terminated (descending by effective date).
+
+### Contract tab — Closure state behavior
+
+During closure state (prior contract `Closing` + new contract `Scheduled`):
+- **Always land in list view** — never auto-select a contract until it is explicitly Active
+- `closeIntent` query param forces list view and auto-opens `CloseContractPane` on arrival (used by the Early Renewal queue flow)
 
 ### Sections
 
@@ -156,8 +210,8 @@ Timeline: `ContractTimelineSection`.
 
 Render contextually inside the stage content — near the Enforcement section (blockers) and Overview (posture).
 
-- **Next best actions** — e.g. "Resolve overdue invoice" (with ID, amount), "Collect PO for held invoice", "Start renewal planning" (<90 days), "Resolve enforcement blockers". Derivation: `getContractActions(contract, customerInvoices)`.
-- **AI insights** — e.g. "Signed contract differs from approved quote on payment terms", "Invoice should have been generated already", "Product mapping incomplete for one SKU", "Minimum commit will exhaust in 41 days at current burn", "Renewal in 73 days — start planning". Derivation: `getContractInsights(contract, customerInvoices)`.
+- **Next best actions** — e.g. "Resolve overdue invoice" (with ID, amount), "Collect PO for held invoice", "Start renewal planning" (<90 days), "Resolve enforcement blockers", **"Process credit note CN-xxx"** (closure), **"Review termination invoice INV-xxx"** (closure). Derivation: `getContractActions(contract, customerInvoices)`.
+- **AI insights** — e.g. "Signed contract differs from approved quote on payment terms", "Invoice should have been generated already", "Product mapping incomplete for one SKU", "Minimum commit will exhaust in 41 days at current burn", "Renewal in 73 days — start planning", **"Contract closing in X days — wind-down period active"**, **"Credit note CN-xxx pending — $X"**, **"Settlement requires approval"**. Derivation: `getContractInsights(contract, customerInvoices)`.
 
 Linked quote / invoices / tasks live in the insight rail.
 

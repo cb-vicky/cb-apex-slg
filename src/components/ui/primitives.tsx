@@ -48,6 +48,9 @@ const statusColors: Record<string, string> = {
   cancelled: "bg-gray-100 text-gray-500 border-gray-200",
   "low risk": "bg-gray-100 text-gray-500 border-gray-200",
   "no approval required": "bg-gray-50 text-gray-700 border-gray-200",
+  closing: "bg-amber-50 text-amber-700 border-amber-200",
+  terminated: "bg-red-50 text-red-700 border-red-200",
+  closed: "bg-gray-100 text-gray-500 border-gray-200",
 };
 
 export function StatusBadge({ status, className }: { status: string; className?: string }) {

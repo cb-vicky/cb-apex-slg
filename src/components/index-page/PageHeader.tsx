@@ -1,5 +1,6 @@
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import type { ReactNode } from "react";
 
 interface Props {
   title: string;
@@ -8,6 +9,12 @@ interface Props {
   filterLabel?: string;
   createLabel?: string;
   onCreateClick?: () => void;
+  viewToggle?: ReactNode;
+  /**
+   * Optional secondary action buttons rendered to the LEFT of the primary
+   * createLabel button. Use for tertiary actions like "Connect" / "Import".
+   */
+  secondaryActions?: ReactNode;
 }
 
 export function PageHeader({
@@ -17,6 +24,8 @@ export function PageHeader({
   filterLabel,
   createLabel,
   onCreateClick = () => {},
+  viewToggle,
+  secondaryActions,
 }: Props) {
   const navigate = useNavigate();
 
@@ -38,16 +47,20 @@ export function PageHeader({
             {filterLabel}
           </span>
         )}
+        {viewToggle}
       </div>
-      {createLabel ? (
-        <button
-          type="button"
-          onClick={onCreateClick}
-          className="shrink-0 rounded-md bg-blue-600 px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-blue-500"
-        >
-          {createLabel}
-        </button>
-      ) : null}
+      <div className="flex shrink-0 items-center gap-2">
+        {secondaryActions}
+        {createLabel ? (
+          <button
+            type="button"
+            onClick={onCreateClick}
+            className="shrink-0 rounded-md bg-blue-600 px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-blue-500"
+          >
+            {createLabel}
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

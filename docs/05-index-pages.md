@@ -2,9 +2,11 @@
 
 Every resource module in the sidebar has an index/landing page. The default landing experience is a **grouped priority page, not a flat table**.
 
-Modules: Customers (`/customers`), Quotes (`/quotes`), Contracts (`/contracts`), Invoices (`/invoices`), Approvals (`/approvals`).
+Modules: Customers (`/customers`), Quotes (`/quotes`), Contracts (`/contracts`), Invoices (`/invoices`), Approvals (`/approvals`), Queue (`/queue`).
 
 Implementation: `src/pages/*Index.tsx` + primitives in `src/components/index-page/`.
+
+> **Note on Contracts vs Queue:** Uploading a signed contract is exclusively a **Queue** action (Import button on `/queue`). The Contracts index has no Upload button anymore. See `docs/09-contract-ingestion.md` for the Queue → ingest → first-invoice approval pipeline.
 
 ## Shared page anatomy (all modules)
 
@@ -136,7 +138,7 @@ Row click → `/customers/:customerId?tab=contract&contractId=:contractId`
 
 ### Contracts index header
 
-Has **"Upload"** button (top-right) that opens the contract upload modal. See `docs/09-contract-ingestion.md`.
+No upload button — uploading signed contracts is now a **Queue** action. See `docs/09-contract-ingestion.md` for the Queue → ingest pipeline.
 
 ---
 
@@ -190,6 +192,44 @@ Approval ID | Invoice | Customer | Amount | Submitted By | Submitted On | Status
 ### Click behavior
 
 Row click → `/approvals/invoices/:invoiceId`
+
+---
+
+## Queue index (`/queue`)
+
+The operational landing for every signed contract pending ingestion. See `docs/09-contract-ingestion.md` for the full Queue → ingest → first-invoice approval pipeline.
+
+### Header
+
+- **Connect** (secondary, outlined) — opens `QueueIntegrationsModal` listing source integrations (Salesforce, DocuSign, Ironclad, NetSuite, Workday, HubSpot, PandaDoc).
+- **Import** (primary, blue) — opens `UploadModal` (drag-and-drop area + sample document picker).
+
+### Metric strip
+
+1. Pending review (count)
+2. In progress (count)
+3. TCV in queue (currency)
+4. Recently ingested (count)
+5. Failed / Rejected (count)
+
+### Groups
+
+1. **Pending review**
+2. **In progress**
+3. **Recently ingested**
+4. **Failed / Rejected**
+
+### Columns
+
+**Grouped row / Filtered list:** Queue ID | Document (name + source detail subtitle) | Scenario | Customer | TCV | Source badge (PDF / via API / via CPQ / Email) | Uploaded | Status
+
+### Click behavior
+
+- **Pending Review (sample-backed)** → `/queue/:queueItemId` (full ingest flow on Echo Corp + Zenith samples)
+- **Pending Review (placeholder)** → `/queue/:queueItemId` placeholder panel
+- **In Progress** → `/queue/:queueItemId` placeholder
+- **Ingested** → `/contracts/:contractId?from=queue`
+- **Failed / Rejected** → `/queue/:queueItemId` showing failure reason
 
 ---
 

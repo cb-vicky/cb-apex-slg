@@ -12,6 +12,15 @@ export function ContractOverviewSection({ contract }: { contract: Contract }) {
     { label: "Min Annual Commit", value: currency(contract.minAnnualCommit) },
     { label: "Prepaid Credit Balance", value: currency(contract.prepaidCreditBalance) },
     { label: "Renewal Date", value: shortDate(contract.renewalDate) },
+    ...(contract.scheduledStartDate
+      ? [{ label: "Activates On", value: <span className="text-blue-600">{shortDate(contract.scheduledStartDate)}</span> }]
+      : []),
+    ...(contract.replacesContractId
+      ? [{ label: "Replaces Contract", value: <span className="text-[11px] font-medium text-blue-700">{contract.replacesContractId}</span> }]
+      : []),
+    ...(contract.replacedByContractId
+      ? [{ label: "Renewed By", value: <span className="text-[11px] font-medium text-amber-700">{contract.replacedByContractId}</span> }]
+      : []),
   ];
 
   return (

@@ -3,13 +3,17 @@ import cbLogoWhite from "@/assets/cb-logo-white.svg";
 
 export function TopNav() {
   return (
-    <header className="relative z-10 flex h-[36px] shrink-0 items-center justify-between overflow-visible bg-[#012A38] px-[12px] text-[rgba(17,24,39,1)]">
+    <header className="relative z-0 flex h-[36px] shrink-0 items-center justify-between overflow-visible bg-[#012A38] px-[12px] text-[rgba(17,24,39,1)]">
+      {/* Logo tab — absolute so it can extend below header. Top 28px visible in header,
+          bottom portion bleeds under sidebar (which is z-[1] and covers it). */}
+      <div className="absolute left-[12px] top-[8px] flex h-[52px] w-[24px] items-start justify-center rounded-t-md bg-cb-orange pt-[7px]">
+        <img src={cbLogoWhite} alt="Chargebee" className="h-[13px] w-[13px] shrink-0" width={13} height={13} />
+      </div>
+
       {/* Left */}
       <div className="flex h-full items-center gap-[8px]">
-        {/* Logo — tab shape: rounded top, flush bottom */}
-        <div className="flex h-[28px] w-[24px] shrink-0 items-center justify-center self-end rounded-t-md rounded-b-none bg-cb-orange">
-          <img src={cbLogoWhite} alt="Chargebee" className="h-[13px] w-[13px] shrink-0 text-[16px]" width={13} height={13} />
-        </div>
+        {/* Spacer for logo width */}
+        <div className="h-[28px] w-[24px] shrink-0 self-end" aria-hidden />
 
         {/* Site selector */}
         <button className="flex items-center gap-1.5 rounded px-2 py-1 text-[12px] text-gray-300 hover:bg-white/10">

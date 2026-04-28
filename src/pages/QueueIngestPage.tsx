@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   AlertCircle,
   AlertTriangle,
@@ -8,11 +8,13 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  FileText,
   Link2,
   Minus,
   PanelRightClose,
   PanelRightOpen,
   Plus,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { currency, shortDate } from "@/lib/utils";
@@ -20,7 +22,10 @@ import { SectionCard, KV, StatusBadge } from "@/components/ui/primitives";
 import { useScrolled } from "@/hooks/useScrolled";
 import { getExtractedContract, buildIngestResult } from "@/data/ingest-data";
 import type { ExtractedContract } from "@/data/ingest-data";
+import { getQueueItem } from "@/data/queue-data";
+import type { QueueItem } from "@/data/queue-data";
 import { useIngestContext } from "@/context/IngestContext";
+import { invoices } from "@/data/mock-data";
 import type { Customer } from "@/data/mock-data";
 
 // ---------------------------------------------------------------------------
@@ -48,12 +53,12 @@ function scrollToSection(id: string) {
 // ---------------------------------------------------------------------------
 
 function ContractDocumentViewer({ doc }: { doc: ExtractedContract }) {
-  const isHappy = doc.docId === "sample1";
+  const isHappy = doc.docId === "sample1" || doc.docId === "sample3";
+  const isEarlyRenewal = doc.docId === "sample3";
   const products = doc.products;
 
   return (
     <div className="space-y-4 font-mono text-[11px] leading-relaxed text-text-secondary">
-      {/* Header */}
       <div className="text-center">
         <p className="text-[13px] font-bold uppercase tracking-widest text-text-primary">
           Master Subscription Agreement
@@ -68,7 +73,6 @@ function ContractDocumentViewer({ doc }: { doc: ExtractedContract }) {
 
       <hr className="border-border-subtle" />
 
-      {/* Parties */}
       <div>
         <p className="font-semibold text-text-primary">PARTIES</p>
         <p className="mt-1">
@@ -89,7 +93,6 @@ function ContractDocumentViewer({ doc }: { doc: ExtractedContract }) {
 
       <hr className="border-border-subtle" />
 
-      {/* Term */}
       <div>
         <p className="font-semibold text-text-primary">1. TERM</p>
         <p className="mt-1">
@@ -102,7 +105,6 @@ function ContractDocumentViewer({ doc }: { doc: ExtractedContract }) {
 
       <hr className="border-border-subtle" />
 
-      {/* Services */}
       <div>
         <p className="font-semibold text-text-primary">2. SUBSCRIPTION SERVICES</p>
         <table className="mt-2 w-full text-[10px]">
@@ -137,7 +139,6 @@ function ContractDocumentViewer({ doc }: { doc: ExtractedContract }) {
 
       <hr className="border-border-subtle" />
 
-      {/* Pricing */}
       <div>
         <p className="font-semibold text-text-primary">3. PRICING AND COMMITMENT</p>
         <div className="mt-1 space-y-0.5">
@@ -154,20 +155,14 @@ function ContractDocumentViewer({ doc }: { doc: ExtractedContract }) {
 
       <hr className="border-border-subtle" />
 
-      {/* Payment */}
       <div>
         <p className="font-semibold text-text-primary">4. PAYMENT TERMS</p>
-        <p className="mt-1">
-          Billing frequency: {doc.terms.billingFrequency}.
-        </p>
-        <p className="mt-0.5">
-          Payment due: {doc.terms.paymentTerms} from invoice date.
-        </p>
+        <p className="mt-1">Billing frequency: {doc.terms.billingFrequency}.</p>
+        <p className="mt-0.5">Payment due: {doc.terms.paymentTerms} from invoice date.</p>
       </div>
 
       <hr className="border-border-subtle" />
 
-      {/* Governing law */}
       <div>
         <p className="font-semibold text-text-primary">5. GOVERNING LAW</p>
         <p className="mt-1">
@@ -177,7 +172,6 @@ function ContractDocumentViewer({ doc }: { doc: ExtractedContract }) {
 
       <hr className="border-border-subtle" />
 
-      {/* Signatures */}
       <div>
         <p className="font-semibold text-text-primary">SIGNATURES</p>
         <div className="mt-2 grid grid-cols-2 gap-4">
@@ -192,10 +186,10 @@ function ContractDocumentViewer({ doc }: { doc: ExtractedContract }) {
           <div>
             <p className="text-text-muted">For Customer:</p>
             <p className="mt-3 border-b border-border-default pb-1 font-semibold text-text-primary">
-              {isHappy ? "Mira Patel" : "David Chen"}
+              {isEarlyRenewal ? "Sandra Kim" : isHappy ? "Mira Patel" : "David Chen"}
             </p>
-            <p className="text-text-muted">CFO, {isHappy ? "Echo Corp" : "Zenith Analytics"}</p>
-            <p className="text-text-muted">Date: {shortDate("2026-04-12")}</p>
+            <p className="text-text-muted">CFO, {isEarlyRenewal ? "Verdant Health" : isHappy ? "Echo Corp" : "Zenith Analytics"}</p>
+            <p className="text-text-muted">Date: {shortDate(isEarlyRenewal ? "2026-04-19" : "2026-04-12")}</p>
           </div>
         </div>
       </div>
@@ -204,7 +198,7 @@ function ContractDocumentViewer({ doc }: { doc: ExtractedContract }) {
 }
 
 // ---------------------------------------------------------------------------
-// PDF Document Viewer (right panel): grey canvas, toolbar, paged white page
+// PDF Document Viewer (right panel)
 // ---------------------------------------------------------------------------
 
 function PdfDocumentViewer({ doc, onCollapse }: { doc: ExtractedContract; onCollapse: () => void }) {
@@ -214,7 +208,6 @@ function PdfDocumentViewer({ doc, onCollapse }: { doc: ExtractedContract; onColl
 
   return (
     <div className="flex h-full flex-col bg-[#EEF0F2]">
-      {/* Toolbar */}
       <div className="flex items-center justify-between gap-2 border-b border-border-default bg-white px-3 py-2">
         <div className="flex items-center gap-1">
           <button
@@ -271,7 +264,6 @@ function PdfDocumentViewer({ doc, onCollapse }: { doc: ExtractedContract; onColl
         </div>
       </div>
 
-      {/* Grey canvas with 16px padding around the white page */}
       <div className="flex-1 overflow-auto p-4">
         <div
           className="mx-auto rounded-sm border border-border-default bg-white shadow-[0_2px_12px_rgba(17,24,39,0.08)]"
@@ -287,7 +279,7 @@ function PdfDocumentViewer({ doc, onCollapse }: { doc: ExtractedContract; onColl
 }
 
 // ---------------------------------------------------------------------------
-// Validation Check Row (optionally clickable — scrolls left pane to anchor)
+// Validation row
 // ---------------------------------------------------------------------------
 
 function ValidationRow({
@@ -310,11 +302,7 @@ function ValidationRow({
       <AlertCircle size={13} className="shrink-0 text-red-500" />
     );
   const textColor =
-    status === "pass"
-      ? "text-emerald-700"
-      : status === "warn"
-        ? "text-amber-700"
-        : "text-red-700";
+    status === "pass" ? "text-emerald-700" : status === "warn" ? "text-amber-700" : "text-red-700";
 
   const content = (
     <>
@@ -326,8 +314,7 @@ function ValidationRow({
     </>
   );
 
-  const baseClass =
-    "flex w-full items-start gap-2 rounded-md border-b border-border-subtle px-2 py-1.5 last:border-0";
+  const baseClass = "flex w-full items-start gap-2 rounded-md border-b border-border-subtle px-2 py-1.5 last:border-0";
 
   if (anchorId) {
     return (
@@ -343,20 +330,20 @@ function ValidationRow({
       </button>
     );
   }
-
   return <div className={baseClass}>{content}</div>;
 }
 
 // ---------------------------------------------------------------------------
-// Inline Create Customer Form
+// Inline create-customer + create-product forms
 // ---------------------------------------------------------------------------
 
-interface CreateCustomerFormProps {
+function CreateCustomerForm({
+  extractedName,
+  onCreated,
+}: {
   extractedName: string;
   onCreated: (c: Customer) => void;
-}
-
-function CreateCustomerForm({ extractedName, onCreated }: CreateCustomerFormProps) {
+}) {
   const [name, setName] = useState(extractedName);
   const [entity, setEntity] = useState(extractedName + " Inc.");
   const [ae, setAe] = useState("Jordan Kim");
@@ -431,18 +418,10 @@ function CreateCustomerForm({ extractedName, onCreated }: CreateCustomerFormProp
   );
 }
 
-// ---------------------------------------------------------------------------
-// Inline Create Product Form
-// ---------------------------------------------------------------------------
-
 function CreateProductForm({ onCreated }: { onCreated: () => void }) {
   const [planName, setPlanName] = useState("Apex Analytics Pro");
   const [sku, setSku] = useState("APEX-ANALYTICS-PRO");
   const [unitPrice, setUnitPrice] = useState("65");
-
-  function handleCreate() {
-    onCreated();
-  }
 
   return (
     <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
@@ -469,7 +448,7 @@ function CreateProductForm({ onCreated }: { onCreated: () => void }) {
             className="w-full rounded border border-border-default bg-surface-muted px-2 py-1 text-[12px] text-text-muted" />
         </div>
       </div>
-      <button type="button" onClick={handleCreate}
+      <button type="button" onClick={onCreated}
         className="mt-3 rounded-md bg-text-primary px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-[#222]">
         Create Plan
       </button>
@@ -481,16 +460,21 @@ function CreateProductForm({ onCreated }: { onCreated: () => void }) {
 // Issue callout (with optional inline expand)
 // ---------------------------------------------------------------------------
 
-interface IssueCalloutProps {
+function IssueCallout({
+  title,
+  resolved,
+  resolvedLabel,
+  onExpand,
+  expanded,
+  children,
+}: {
   title: string;
   resolved: boolean;
   resolvedLabel?: string;
   onExpand: () => void;
   expanded: boolean;
   children?: React.ReactNode;
-}
-
-function IssueCallout({ title, resolved, resolvedLabel, onExpand, expanded, children }: IssueCalloutProps) {
+}) {
   if (resolved) {
     return (
       <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5">
@@ -516,13 +500,21 @@ function IssueCallout({ title, resolved, resolvedLabel, onExpand, expanded, chil
 }
 
 // ---------------------------------------------------------------------------
-// Completion State
+// Completion State — two CTAs (primary: review invoice, secondary: open contract)
 // ---------------------------------------------------------------------------
 
-function CompletionState({ docId, onOpenContract, onBack }: {
+function CompletionState({
+  docId,
+  invoiceId,
+  onReviewInvoice,
+  onOpenContract,
+  onBackToQueue,
+}: {
   docId: "sample1" | "sample2";
+  invoiceId: string;
+  onReviewInvoice: () => void;
   onOpenContract: () => void;
-  onBack: () => void;
+  onBackToQueue: () => void;
 }) {
   const contractId = docId === "sample1" ? "CON-2026-0190" : "CON-INGEST-002";
   const effectiveDateLabel = "May 1, 2026";
@@ -532,11 +524,13 @@ function CompletionState({ docId, onOpenContract, onBack }: {
         { type: "quote" as const, id: "QT-2026-0042", label: "Quote QT-2026-0042", action: "linked" as const },
         { type: "customer" as const, id: "cust_echo_001", label: "Customer: Echo Corp", action: "reused" as const },
         { type: "product" as const, id: "APEX-PLATFORM", label: "APEX-PLATFORM, APEX-AI-CREDITS, APEX-SUPPORT", action: "reused" as const },
+        { type: "invoice" as const, id: invoiceId, label: `Invoice ${invoiceId}`, action: "created" as const },
       ]
     : [
         { type: "customer" as const, id: "cust_zenith_006", label: "Customer: Zenith Analytics", action: "created" as const },
         { type: "product" as const, id: "APEX-ANALYTICS-PRO", label: "Plan: APEX-ANALYTICS-PRO", action: "created" as const },
         { type: "contract" as const, id: contractId, label: `Contract ${contractId}`, action: "created" as const },
+        { type: "invoice" as const, id: invoiceId, label: `Invoice ${invoiceId}`, action: "created" as const },
       ];
 
   const actionColor = (a: "created" | "linked" | "reused") =>
@@ -553,8 +547,9 @@ function CompletionState({ docId, onOpenContract, onBack }: {
         <div>
           <p className="text-[15px] font-semibold text-text-primary">Contract Ingested Successfully</p>
           <p className="text-[12px] text-text-muted">
-            Contract <span className="font-medium text-text-primary">{contractId}</span> is scheduled to activate on{" "}
-            <span className="font-medium text-text-primary">{effectiveDateLabel}</span>. Billing will be generated from the first month after activation.
+            Contract <span className="font-medium text-text-primary">{contractId}</span> activates on{" "}
+            <span className="font-medium text-text-primary">{effectiveDateLabel}</span>. Invoice{" "}
+            <span className="font-medium text-text-primary">{invoiceId}</span> has been generated and submitted for approval.
           </p>
         </div>
       </div>
@@ -575,16 +570,96 @@ function CompletionState({ docId, onOpenContract, onBack }: {
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <button type="button" onClick={onOpenContract}
-          className="inline-flex items-center gap-1.5 rounded-md bg-[#012A38] px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#01374a]">
-          Open Contract <ChevronRight size={14} />
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={onReviewInvoice}
+          className="inline-flex items-center gap-1.5 rounded-md bg-[#012A38] px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#01374a]">
+          <Sparkles size={13} />
+          Review First Invoice
+          <ChevronRight size={14} />
         </button>
-        <button type="button" onClick={onBack}
-          className="rounded-md border border-border-default px-4 py-2 text-[13px] font-medium text-text-secondary transition-colors hover:bg-surface-muted">
-          Back to Contracts
+        <button type="button" onClick={onOpenContract}
+          className="inline-flex items-center gap-1 rounded-md border border-border-default bg-white px-4 py-2 text-[13px] font-medium text-text-secondary transition-colors hover:bg-surface-muted">
+          Open Contract
+        </button>
+        <button type="button" onClick={onBackToQueue}
+          className="inline-flex items-center gap-1 rounded-md px-3 py-2 text-[12px] font-medium text-text-muted transition-colors hover:text-text-primary">
+          Back to Queue
         </button>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Placeholder / non-ingestable state
+// ---------------------------------------------------------------------------
+
+function PlaceholderState({ item, onBack }: { item: QueueItem; onBack: () => void }) {
+  const isFailed = item.status === "Failed" || item.status === "Rejected";
+
+  return (
+    <div className="flex flex-col items-start gap-5 py-4">
+      <div className="flex items-center gap-3">
+        <div className={cn(
+          "flex h-10 w-10 items-center justify-center rounded-full",
+          isFailed ? "bg-red-100" : "bg-amber-100",
+        )}>
+          {isFailed ? (
+            <AlertCircle size={22} className="text-red-600" />
+          ) : (
+            <FileText size={22} className="text-amber-600" />
+          )}
+        </div>
+        <div>
+          <p className="text-[15px] font-semibold text-text-primary">
+            {isFailed
+              ? `Document ${item.status.toLowerCase()}`
+              : item.scenario === "Amendment"
+                ? "Amendment ingestion — coming soon"
+                : item.scenario === "Early Renewal"
+                  ? "Early renewal ingestion — coming soon"
+                  : "Document not yet processed"}
+          </p>
+          <p className="mt-0.5 text-[12px] text-text-muted">
+            {isFailed
+              ? item.failureReason ?? "This document could not be processed."
+              : item.scenario === "Amendment"
+                ? "The Amendment ingestion flow is part of the next release. The full extraction and approval flow only runs on the Echo Corp and Zenith Analytics samples in this prototype."
+                : item.scenario === "Early Renewal"
+                  ? "The Early Renewal flow is part of the next release. The full extraction and approval flow only runs on the Echo Corp and Zenith Analytics samples in this prototype."
+                  : "Extraction has not been run for this queue item yet. In the prototype, only the Echo Corp and Zenith Analytics samples have full ingestion flows."}
+          </p>
+        </div>
+      </div>
+
+      <div className="w-full rounded-lg border border-border-default bg-surface-muted">
+        <div className="border-b border-border-default px-4 py-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">Document</p>
+        </div>
+        <div className="divide-y divide-border-subtle px-4">
+          <div className="flex items-center justify-between py-2.5">
+            <p className="text-[12px] text-text-muted">Document name</p>
+            <p className="text-[13px] font-medium text-text-primary">{item.documentName}</p>
+          </div>
+          <div className="flex items-center justify-between py-2.5">
+            <p className="text-[12px] text-text-muted">Source</p>
+            <p className="text-[13px] font-medium text-text-primary">{item.source}{item.sourceDetail ? ` · ${item.sourceDetail}` : ""}</p>
+          </div>
+          <div className="flex items-center justify-between py-2.5">
+            <p className="text-[12px] text-text-muted">Customer (extracted)</p>
+            <p className="text-[13px] font-medium text-text-primary">{item.customerName}</p>
+          </div>
+          <div className="flex items-center justify-between py-2.5">
+            <p className="text-[12px] text-text-muted">Scenario</p>
+            <p className="text-[13px] font-medium text-text-primary">{item.scenario}</p>
+          </div>
+        </div>
+      </div>
+
+      <button type="button" onClick={onBack}
+        className="inline-flex items-center gap-1 rounded-md border border-border-default bg-white px-4 py-2 text-[13px] font-medium text-text-secondary transition-colors hover:bg-surface-muted">
+        Back to Queue
+      </button>
     </div>
   );
 }
@@ -593,16 +668,22 @@ function CompletionState({ docId, onOpenContract, onBack }: {
 // Main Page
 // ---------------------------------------------------------------------------
 
-export function IngestContractPage() {
+export function QueueIngestPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const { queueItemId } = useParams<{ queueItemId: string }>();
   const { ref: stickyRef, isScrolled } = useScrolled();
-  const { addSessionCustomer, addSessionProductSku, setIngestResult } = useIngestContext();
+  const {
+    addSessionCustomer,
+    addSessionProductSku,
+    setIngestResult,
+    submitInvoiceForApproval,
+    applyQueueItemOverride,
+    setPendingRenewalIngestion,
+  } = useIngestContext();
 
-  const sampleParam = searchParams.get("sample");
-  const docId: "sample1" | "sample2" = sampleParam === "2" ? "sample2" : "sample1";
-  const doc = getExtractedContract(docId);
-  const isHappy = docId === "sample1";
+  const queueItem = queueItemId ? getQueueItem(queueItemId) : undefined;
+  const sampleId = queueItem?.sampleId ?? null;
+  const ingestable = Boolean(queueItem?.ingestable && sampleId);
 
   // UI state
   const [viewerCollapsed, setViewerCollapsed] = useState(false);
@@ -614,19 +695,116 @@ export function IngestContractPage() {
   const [resolvedCustomer, setResolvedCustomer] = useState<Customer | null>(null);
   const [finished, setFinished] = useState(false);
 
-  const allBlockersResolved = isHappy
-    ? quoteLinkConfirmed
-    : customerResolved && productResolved;
+  // ── Queue item not found ─────────────────────────────────────────────────
+  if (!queueItem) {
+    return (
+      <div className="flex flex-1 w-full flex-col items-center justify-center py-16 text-text-muted">
+        <p className="text-[14px]">Queue item not found.</p>
+        <button onClick={() => navigate("/queue")} className="mt-3 text-[12px] text-blue-600 hover:underline">
+          Back to Queue
+        </button>
+      </div>
+    );
+  }
+
+  // ── Non-ingestable item: placeholder state ───────────────────────────────
+  if (!ingestable) {
+    return (
+      <div className="flex flex-1 w-full flex-col">
+        <div
+          ref={stickyRef}
+          className={cn(
+            "sticky top-0 z-10 flex w-full items-center justify-between gap-4 border-b border-[#F0F1F3] bg-white px-6 py-3 rounded-tl-[24px] transition-shadow duration-200",
+            isScrolled && "shadow-[0_2px_8px_rgba(0,0,0,0.08)]",
+          )}
+        >
+          <nav className="flex min-w-0 items-center gap-1 text-[12px] text-text-muted">
+            <button
+              onClick={() => navigate("/queue")}
+              className="text-text-secondary transition-colors hover:text-text-primary"
+            >
+              Queue
+            </button>
+            <ChevronRight size={11} className="text-text-muted/50" />
+            <span className="truncate max-w-[420px] font-medium text-text-primary">{queueItem.documentName}</span>
+          </nav>
+          <StatusBadge status={queueItem.status} />
+        </div>
+        <div className="px-6 py-5">
+          <PlaceholderState item={queueItem} onBack={() => navigate("/queue")} />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Full ingestion flow (sample1 / sample2 / sample3) ───────────────────
+  const docId = sampleId as "sample1" | "sample2" | "sample3";
+  const doc = getExtractedContract(docId);
+  const isHappy = docId === "sample1";
+  const isEarlyRenewal = docId === "sample3";
+
+  // For early renewal, all products are pre-matched and customer is pre-linked —
+  // no blocking issues, so the extraction workspace is always ready.
+  const allBlockersResolved = isEarlyRenewal
+    ? true
+    : isHappy
+      ? quoteLinkConfirmed
+      : customerResolved && productResolved;
+
+  const finishedInvoiceId = isHappy ? "INV-INGEST-001" : "INV-INGEST-002";
+  const finishedContractId = isHappy ? "CON-2026-0190" : "CON-INGEST-002";
+  const finishedCustomerId = isHappy ? "cust_echo_001" : "cust_zenith_006";
+
+  // Early Renewal: finish gate intercepts and routes to customer workspace for closure.
+  function handleEarlyRenewalFinish() {
+    if (!queueItem?.activeContractId || !queueItem?.customerId) return;
+    setPendingRenewalIngestion(queueItem.activeContractId, {
+      queueItemId: queueItem.id,
+      sampleId: "sample3",
+      renewalTcv: queueItem.tcv,
+      customerId: queueItem.customerId,
+      pendingContractId: "CON-2026-0VH1",
+    });
+    navigate(
+      `/customers/${queueItem.customerId}?tab=contract&contractId=${queueItem.activeContractId}&closeIntent=early-renewal&queueItemId=${queueItem.id}`
+    );
+  }
 
   function handleFinish() {
+    if (isEarlyRenewal) {
+      handleEarlyRenewalFinish();
+      return;
+    }
     const result = buildIngestResult(docId, resolvedCustomer?.id ?? "cust_zenith_006");
     setIngestResult(result);
+
+    // Auto-submit the first invoice for approval.
+    const inv = invoices.find((i) => i.id === finishedInvoiceId);
+    submitInvoiceForApproval(finishedInvoiceId, {
+      customerId: finishedCustomerId,
+      customerName: resolvedCustomer?.name ?? (isHappy ? "Echo Corp" : "Zenith Analytics"),
+      invoiceAmount: inv?.amount ?? (isHappy ? 261800 : 38750),
+      invoiceDate: inv?.date ?? new Date().toISOString().slice(0, 10),
+    });
+
+    // Mark the queue item as Ingested
+    if (queueItem) {
+      applyQueueItemOverride(queueItem.id, {
+        status: "Ingested",
+        contractId: finishedContractId,
+        invoiceId: finishedInvoiceId,
+      });
+    }
+
     setFinished(true);
   }
 
+  function handleReviewInvoice() {
+    navigate(`/approvals/invoices/${finishedInvoiceId}?ingestId=${queueItem?.id ?? ""}`);
+  }
+
   function handleOpenContract() {
-    const contractId = docId === "sample1" ? "CON-2026-0190" : "CON-INGEST-002";
-    navigate(`/contracts/${contractId}?from=ingest`);
+    navigate(`/contracts/${finishedContractId}?from=queue`);
   }
 
   function handleCustomerCreated(c: Customer) {
@@ -644,7 +822,7 @@ export function IngestContractPage() {
 
   return (
     <div className="flex flex-1 w-full flex-col">
-      {/* Sticky breadcrumb header + primary CTAs */}
+      {/* Sticky breadcrumb + primary CTAs */}
       <div
         ref={stickyRef}
         className={cn(
@@ -654,10 +832,10 @@ export function IngestContractPage() {
       >
         <nav className="flex min-w-0 items-center gap-1 text-[12px] text-text-muted">
           <button
-            onClick={() => navigate("/contracts")}
+            onClick={() => navigate("/queue")}
             className="text-text-secondary transition-colors hover:text-text-primary"
           >
-            Contracts
+            Queue
           </button>
           <ChevronRight size={11} className="text-text-muted/50" />
           <span className="font-medium text-text-primary">Ingest Contract</span>
@@ -671,16 +849,23 @@ export function IngestContractPage() {
           {!finished && (
             <>
               {allBlockersResolved ? (
-                <span className="inline-flex items-center gap-1 text-[12px] font-medium text-emerald-700">
-                  <CheckCircle2 size={12} />
-                  Ready to ingest
-                </span>
+                isEarlyRenewal ? (
+                  <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-amber-700">
+                    <AlertTriangle size={12} />
+                    Prior contract must close first
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[12px] font-medium text-emerald-700">
+                    <CheckCircle2 size={12} />
+                    Ready to ingest
+                  </span>
+                )
               ) : (
                 <span className="text-[12px] text-text-secondary">Resolve blocking issues</span>
               )}
               <button
                 type="button"
-                onClick={() => navigate("/contracts")}
+                onClick={() => navigate("/queue")}
                 className="rounded-md border border-border-default px-3 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:bg-surface-muted"
               >
                 Cancel
@@ -696,7 +881,7 @@ export function IngestContractPage() {
                     : "cursor-not-allowed bg-gray-300",
                 )}
               >
-                Finish Ingestion
+                {isEarlyRenewal ? "Proceed to Close Prior Contract" : "Finish Ingestion"}
               </button>
             </>
           )}
@@ -705,19 +890,19 @@ export function IngestContractPage() {
 
       {/* Two-column body: LEFT = extracted fields + sticky validation · RIGHT = PDF viewer */}
       <div className="flex flex-1 min-h-0">
-        {/* LEFT: extracted fields (scrollable) + validation (sticky) */}
         <div className="flex min-w-0 flex-1 overflow-auto">
           {finished ? (
             <div className="w-full px-6 py-5">
               <CompletionState
-                docId={docId}
+                docId={docId as "sample1" | "sample2"}
+                invoiceId={finishedInvoiceId}
+                onReviewInvoice={handleReviewInvoice}
                 onOpenContract={handleOpenContract}
-                onBack={() => navigate("/contracts")}
+                onBackToQueue={() => navigate("/queue")}
               />
             </div>
           ) : (
             <div className="flex w-full gap-6 px-6 py-5">
-              {/* Extracted field cards (scrollable) */}
               <div className="flex min-w-0 flex-1 flex-col gap-4">
                 <div id={SECTION_IDS.document} className="scroll-mt-4">
                   <SectionCard title="Document Details">
@@ -734,14 +919,14 @@ export function IngestContractPage() {
                       <div className="divide-y divide-border-subtle">
                         <KV label="Extracted Name" value={doc.customerName} />
                         <KV label="Legal Entity" value={doc.customerLegalEntity} />
-                        {isHappy && (
+                        {(isHappy || isEarlyRenewal) && (
                           <>
                             <KV
                               label="Matched Customer"
                               value={
                                 <span className="flex items-center gap-1">
                                   <CheckCircle2 size={12} className="text-emerald-500" />
-                                  Echo Corp (cust_echo_001)
+                                  {isEarlyRenewal ? "Verdant Health (cust_verdant_005)" : "Echo Corp (cust_echo_001)"}
                                 </span>
                               }
                             />
@@ -750,7 +935,7 @@ export function IngestContractPage() {
                         )}
                       </div>
 
-                      {!isHappy && (
+                      {!isHappy && !isEarlyRenewal && (
                         <IssueCallout
                           title="Customer not found in system"
                           resolved={customerResolved}
@@ -764,11 +949,28 @@ export function IngestContractPage() {
                           />
                         </IssueCallout>
                       )}
+
+                      {/* Early Renewal detection callout — shown when customer is matched */}
+                      {isEarlyRenewal && (
+                        <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3">
+                          <AlertTriangle size={13} className="mt-0.5 shrink-0 text-amber-600" />
+                          <div>
+                            <p className="text-[12px] font-semibold text-amber-800">
+                              Active contract detected — early renewal
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-amber-700">
+                              Verdant Health has an active contract <span className="font-medium">CON-2025-0034</span> running until Sep 30, 2026.
+                              This renewal cannot be ingested until that contract is formally closed.
+                              Click <strong>Proceed to Close Prior Contract</strong> to initiate closure and schedule the renewal.
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </SectionCard>
                 </div>
 
-                {isHappy && (
+                {isHappy && !isEarlyRenewal && (
                   <div id={SECTION_IDS.quote} className="scroll-mt-4">
                     <SectionCard title="Quote Match">
                       <div className="flex flex-col gap-3">
@@ -857,7 +1059,7 @@ export function IngestContractPage() {
                           )}
                         </div>
                       ))}
-                      {!isHappy && !productResolved && (
+                      {!isHappy && !isEarlyRenewal && !productResolved && (
                         <IssueCallout
                           title="Product SKU not in catalog"
                           resolved={productResolved}
@@ -873,88 +1075,125 @@ export function IngestContractPage() {
                 </div>
               </div>
 
-              {/* Sticky validation aside — compact list, clickable → scroll to field */}
               <aside className="sticky top-4 hidden w-[260px] shrink-0 self-start lg:block">
                 <div className="flex flex-col">
-                  {isHappy ? (
-                        <>
-                          <ValidationRow
-                            label="Customer found and matched"
-                            status="pass"
-                            detail="Echo Corp (cust_echo_001)"
-                            anchorId={SECTION_IDS.customer}
-                          />
-                          <ValidationRow
-                            label="Quote match found"
-                            status={quoteLinkConfirmed ? "pass" : "warn"}
-                            detail={quoteLinkConfirmed ? "Linked to QT-2026-0042" : "Link to existing quote to confirm"}
-                            anchorId={SECTION_IDS.quote}
-                          />
-                          <ValidationRow
-                            label="All products mapped to catalog"
-                            status="pass"
-                            anchorId={SECTION_IDS.products}
-                          />
-                          <ValidationRow
-                            label="Billing entity configured"
-                            status="pass"
-                            detail="Chargebee US – Acme Merchant"
-                            anchorId={SECTION_IDS.customer}
-                          />
-                          <ValidationRow
-                            label="Payment terms present"
-                            status="pass"
-                            detail="Net 45"
-                            anchorId={SECTION_IDS.terms}
-                          />
-                          <ValidationRow
-                            label="Contract dates valid"
-                            status="pass"
-                            detail="May 1 2026 → Apr 30 2028"
-                            anchorId={SECTION_IDS.terms}
-                          />
-                        </>
-                      ) : (
-                        <>
-                          <ValidationRow
-                            label="Customer found and matched"
-                            status={customerResolved ? "pass" : "fail"}
-                            detail={customerResolved ? `Created: ${resolvedCustomer?.name}` : "Zenith Analytics Inc. not in system"}
-                            anchorId={SECTION_IDS.customer}
-                          />
-                          <ValidationRow
-                            label="All products mapped to catalog"
-                            status={productResolved ? "pass" : "fail"}
-                            detail={productResolved ? "APEX-ANALYTICS-PRO created" : "APEX-ANALYTICS-PRO not in catalog"}
-                            anchorId={SECTION_IDS.products}
-                          />
-                          <ValidationRow
-                            label="Payment terms present"
-                            status="pass"
-                            detail="Net 30"
-                            anchorId={SECTION_IDS.terms}
-                          />
-                          <ValidationRow
-                            label="Contract dates valid"
-                            status="pass"
-                            detail="May 1 2026 → Apr 30 2027"
-                            anchorId={SECTION_IDS.terms}
-                          />
-                          <ValidationRow
-                            label="Billing entity configured"
-                            status="pass"
-                            detail="Chargebee US – Acme Merchant"
-                            anchorId={SECTION_IDS.customer}
-                          />
-                        </>
-                      )}
+                  {isEarlyRenewal ? (
+                    <>
+                      <ValidationRow
+                        label="Customer found and matched"
+                        status="pass"
+                        detail="Verdant Health (cust_verdant_005)"
+                        anchorId={SECTION_IDS.customer}
+                      />
+                      <ValidationRow
+                        label="All products mapped to catalog"
+                        status="pass"
+                        detail="APEX-PLATFORM, APEX-AI-CREDITS"
+                        anchorId={SECTION_IDS.products}
+                      />
+                      <ValidationRow
+                        label="Billing entity configured"
+                        status="pass"
+                        detail="Chargebee US – Acme Merchant"
+                        anchorId={SECTION_IDS.customer}
+                      />
+                      <ValidationRow
+                        label="Payment terms present"
+                        status="pass"
+                        detail="Net 30"
+                        anchorId={SECTION_IDS.terms}
+                      />
+                      <ValidationRow
+                        label="Contract dates valid"
+                        status="pass"
+                        detail="Jun 1 2026 → May 31 2028"
+                        anchorId={SECTION_IDS.terms}
+                      />
+                      <ValidationRow
+                        label="Prior contract closure required"
+                        status="warn"
+                        detail="CON-2025-0034 is Active — must close before renewal activates"
+                        anchorId={SECTION_IDS.customer}
+                      />
+                    </>
+                  ) : isHappy ? (
+                    <>
+                      <ValidationRow
+                        label="Customer found and matched"
+                        status="pass"
+                        detail="Echo Corp (cust_echo_001)"
+                        anchorId={SECTION_IDS.customer}
+                      />
+                      <ValidationRow
+                        label="Quote match found"
+                        status={quoteLinkConfirmed ? "pass" : "warn"}
+                        detail={quoteLinkConfirmed ? "Linked to QT-2026-0042" : "Link to existing quote to confirm"}
+                        anchorId={SECTION_IDS.quote}
+                      />
+                      <ValidationRow
+                        label="All products mapped to catalog"
+                        status="pass"
+                        anchorId={SECTION_IDS.products}
+                      />
+                      <ValidationRow
+                        label="Billing entity configured"
+                        status="pass"
+                        detail="Chargebee US – Acme Merchant"
+                        anchorId={SECTION_IDS.customer}
+                      />
+                      <ValidationRow
+                        label="Payment terms present"
+                        status="pass"
+                        detail="Net 45"
+                        anchorId={SECTION_IDS.terms}
+                      />
+                      <ValidationRow
+                        label="Contract dates valid"
+                        status="pass"
+                        detail="May 1 2026 → Apr 30 2028"
+                        anchorId={SECTION_IDS.terms}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <ValidationRow
+                        label="Customer found and matched"
+                        status={customerResolved ? "pass" : "fail"}
+                        detail={customerResolved ? `Created: ${resolvedCustomer?.name}` : "Zenith Analytics Inc. not in system"}
+                        anchorId={SECTION_IDS.customer}
+                      />
+                      <ValidationRow
+                        label="All products mapped to catalog"
+                        status={productResolved ? "pass" : "fail"}
+                        detail={productResolved ? "APEX-ANALYTICS-PRO created" : "APEX-ANALYTICS-PRO not in catalog"}
+                        anchorId={SECTION_IDS.products}
+                      />
+                      <ValidationRow
+                        label="Payment terms present"
+                        status="pass"
+                        detail="Net 30"
+                        anchorId={SECTION_IDS.terms}
+                      />
+                      <ValidationRow
+                        label="Contract dates valid"
+                        status="pass"
+                        detail="May 1 2026 → Apr 30 2027"
+                        anchorId={SECTION_IDS.terms}
+                      />
+                      <ValidationRow
+                        label="Billing entity configured"
+                        status="pass"
+                        detail="Chargebee US – Acme Merchant"
+                        anchorId={SECTION_IDS.customer}
+                      />
+                    </>
+                  )}
                 </div>
               </aside>
             </div>
           )}
         </div>
 
-        {/* RIGHT: PDF viewer (grey canvas, paged, zoomable, collapsible) */}
         <div
           className={cn(
             "shrink-0 overflow-hidden border-l border-border-default transition-all duration-200",
@@ -966,7 +1205,6 @@ export function IngestContractPage() {
           )}
         </div>
 
-        {/* Collapsed expand tab on right edge */}
         {viewerCollapsed && (
           <div className="border-l border-border-default">
             <button

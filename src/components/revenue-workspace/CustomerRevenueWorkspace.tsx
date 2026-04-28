@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
-import type { Customer, Quote, Contract, Invoice, Task } from "@/data/mock-data";
+import { useNavigate } from "react-router-dom";
+import { CheckCircle2 } from "lucide-react";
+import type { Customer, Quote, Contract, Invoice, Task, ContractClosure } from "@/data/mock-data";
 import { getInvoices, getQuoteLineage, getQuotesForCustomer, getContractsForCustomer } from "@/data/mock-data";
+import { extractedSample3 } from "@/data/ingest-data";
 import { getCollectionCasesForCustomer } from "@/data/billing-data";
 import { getRevenueArrangement } from "@/data/revrec-data";
+import { useIngestContext } from "@/context/IngestContext";
 import { CustomerContextBar } from "./CustomerContextBar";
 import { type Stage } from "./RevenueJourneyRail";
 import { QuoteStageContent } from "./quote/QuoteStageContent";
@@ -19,6 +23,8 @@ import {
 import { QuoteListView } from "./quote/QuoteListView";
 import { ContractListView } from "./contract/ContractListView";
 import { InvoiceListView } from "./invoicing/InvoiceListView";
+import { CloseContractPane } from "@/components/contracts/CloseContractPane";
+import type { IncomingRenewalPreview } from "@/components/contracts/CloseContractPane";
 
 // Stages that use a list-then-detail pattern
 const LIST_STAGES: Stage[] = ["quote", "contract", "invoicing"];
@@ -31,6 +37,10 @@ interface Props {
   initialStage: Stage;
   from?: string;
   activeRecordId?: string;
+  /** When set to "early-renewal", auto-opens CloseContractPane for the specified contract. */
+  closeIntent?: string;
+  /** The queue item ID from which the close intent was triggered (for auto-ingest after approval). */
+  queueItemId?: string;
 }
 
 export function CustomerRevenueWorkspace({
@@ -41,20 +51,153 @@ export function CustomerRevenueWorkspace({
   initialStage,
   from,
   activeRecordId,
+  closeIntent,
+  queueItemId,
 }: Props) {
-  const [activeStage, setActiveStage] = useState<Stage>(initialStage);
+  const navigate = useNavigate();
+  const [activeStage, setActiveStage] = useState<Stage>(
+    closeIntent ? "contract" : initialStage
+  );
+  const { 
+    contractClosures, 
+    applyContractClosure, 
+    closureToast, 
+    showClosureToast, 
+    clearClosureToast,
+    submitInvoiceForApproval,
+    sessionContracts,
+    renewalToast,
+    clearRenewalToast,
+  } = useIngestContext();
 
-  // "list" = record picker; "detail" = full stage content
+  // When closeIntent is present, force list mode (so user sees context before pane opens)
   const [viewMode, setViewMode] = useState<"list" | "detail">(
-    activeRecordId ? "detail" : "list",
+    closeIntent ? "list" : activeRecordId ? "detail" : "list",
   );
 
   const [activeQuote, setActiveQuote] = useState<Quote | null>(quote);
   const [activeContract, setActiveContract] = useState<Contract | null>(contract);
+  const [showClosePane, setShowClosePane] = useState(false);
+
+  // Auto-open close pane when triggered from queue flow with early-renewal intent
+  useEffect(() => {
+    if (closeIntent === "early-renewal" && activeContract?.status === "Active") {
+      setShowClosePane(true);
+    }
+  }, [closeIntent, activeContract?.status]);
 
   const customerQuotes = getQuotesForCustomer(customer.id);
-  const customerContracts = getContractsForCustomer(customer.id);
+  // Merge runtime session contracts so auto-ingested Scheduled renewals appear
+  const seedContracts = getContractsForCustomer(customer.id);
+  const sessionContractsForCustomer = sessionContracts.filter((c) => c.customerId === customer.id);
+  const customerContracts = [...seedContracts, ...sessionContractsForCustomer.filter((c) => !seedContracts.some((s) => s.id === c.id))];
   const customerInvoices = getInvoices(customer.id);
+
+  // Toast auto-dismiss
+  useEffect(() => {
+    if (!closureToast) return;
+    const timer = setTimeout(() => clearClosureToast(), 2400);
+    return () => clearTimeout(timer);
+  }, [closureToast, clearClosureToast]);
+
+  useEffect(() => {
+    if (!renewalToast) return;
+    const timer = setTimeout(() => clearRenewalToast(), 3500);
+    return () => clearTimeout(timer);
+  }, [renewalToast, clearRenewalToast]);
+
+  // Merge seed contracts with runtime closures
+  function getEffectiveContract(c: Contract | null): Contract | null {
+    if (!c) return null;
+    const runtimeClosure = contractClosures[c.id];
+    if (runtimeClosure) {
+      const today = new Date().toISOString().slice(0, 10);
+      const effectiveDate = runtimeClosure.effectiveDate;
+      const isFuture = effectiveDate > today;
+      return {
+        ...c,
+        status: isFuture ? "Closing" : (runtimeClosure.reason === "non_payment" ? "Terminated" : "Closed"),
+        closure: runtimeClosure,
+      };
+    }
+    return c;
+  }
+
+  // Build incoming renewal preview from sample3 data when triggered from queue
+  const incomingRenewal: IncomingRenewalPreview | undefined = closeIntent === "early-renewal" && queueItemId
+    ? {
+        queueItemId: queueItemId,
+        tcv: extractedSample3.terms.tcv,
+        startDate: extractedSample3.terms.startDate,
+        endDate: extractedSample3.terms.endDate,
+        term: extractedSample3.terms.term,
+        minCommit: extractedSample3.terms.minCommit,
+        prepaidCredits: extractedSample3.terms.prepaidCredits,
+        products: extractedSample3.products.map((p) => ({
+          name: p.extractedName,
+          quantity: p.quantity,
+          unitPrice: p.unitPrice,
+          discount: p.discount,
+        })),
+      }
+    : undefined;
+
+  function handleContractClosure(closure: ContractClosure) {
+    if (!activeContract) return;
+    
+    setShowClosePane(false);
+    
+    // Generate IDs for closure-related documents
+    const timestamp = Date.now().toString().slice(-4);
+    let updatedClosure = { ...closure };
+    let approvalDocumentId: string | undefined;
+    
+    if (closure.settlementType === "credit_note") {
+      updatedClosure.creditNoteId = `CN-CLOSE-${timestamp}`;
+      approvalDocumentId = updatedClosure.creditNoteId;
+      // Submit credit note for approval
+      submitInvoiceForApproval(approvalDocumentId, {
+        customerId: customer.id,
+        customerName: customer.name,
+        invoiceAmount: closure.finalAmount,
+        invoiceDate: new Date().toISOString().slice(0, 10),
+      });
+    } else if (closure.settlementType === "termination_charge") {
+      updatedClosure.invoiceId = `INV-TERM-${timestamp}`;
+      approvalDocumentId = updatedClosure.invoiceId;
+      // Submit termination invoice for approval
+      submitInvoiceForApproval(approvalDocumentId, {
+        customerId: customer.id,
+        customerName: customer.name,
+        invoiceAmount: closure.finalAmount,
+        invoiceDate: new Date().toISOString().slice(0, 10),
+      });
+    }
+    
+    applyContractClosure(activeContract.id, updatedClosure);
+    
+    const settlementText = closure.settlementType === "credit_note"
+      ? `Credit note for $${closure.finalAmount.toLocaleString()}`
+      : closure.settlementType === "termination_charge"
+        ? `Termination charge of $${closure.finalAmount.toLocaleString()}`
+        : "No financial impact";
+    
+    const approvalText = closure.approvalRequired ? " pending approval." : ".";
+
+    if (queueItemId && approvalDocumentId) {
+      // Early renewal path — navigate to the approval page with queueItemId context.
+      navigate(
+        `/approvals/invoices/${approvalDocumentId}?closureFor=${activeContract.id}&queueItemId=${queueItemId}`
+      );
+    } else if (queueItemId && closure.settlementType === "no_financial_impact") {
+      // No financial impact — there's nothing to approve, but we still need to
+      // process the renewal. Navigate to the queue item so the user can proceed.
+      showClosureToast(`Contract closure initiated. ${settlementText}${approvalText}`, activeContract.id);
+      navigate(`/queue/${queueItemId}`);
+    } else {
+      showClosureToast(`Contract closure initiated. ${settlementText}${approvalText}`, activeContract.id);
+    }
+  }
 
   const quoteVersions = activeQuote ? getQuoteLineage(activeQuote.lineageId) : [];
 
@@ -83,7 +226,7 @@ export function CustomerRevenueWorkspace({
     ...(customerInvoices.length === 0 ? (["payment"] as Stage[]) : []),
   ]);
 
-  const effectiveContract = activeContract ?? contract;
+  const effectiveContract = getEffectiveContract(activeContract ?? contract);
 
   const collectionCases = getCollectionCasesForCustomer(customer.id);
   const primaryCase = collectionCases[0];
@@ -177,12 +320,17 @@ export function CustomerRevenueWorkspace({
         ) : (
           <EmptyState message="No quote selected." />
         );
-      case "contract":
+      case "contract": {
         return effectiveContract ? (
-          <ContractStageContent contract={effectiveContract} onBack={handleBackToList} />
+          <ContractStageContent
+            contract={effectiveContract}
+            onBack={handleBackToList}
+            onOpenClosePane={() => setShowClosePane(true)}
+          />
         ) : (
           <EmptyState message="No contract found for this customer." />
         );
+      }
       case "invoicing":
         return activeInvoice && effectiveContract ? (
           <InvoicingStageContent invoice={activeInvoice} contract={effectiveContract} onBack={handleBackToList} />
@@ -212,7 +360,7 @@ export function CustomerRevenueWorkspace({
         suppressStuckShadow={suppressContextBarStuckShadow}
       />
 
-      {/* Main content — scrolls under the sticky bar (bg inherited from AppShell's white card) */}
+      {/* Main content — always rendered */}
       <div className="flex-1 px-6 pt-4 pb-6">
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
           <div>{renderContent()}</div>
@@ -224,6 +372,44 @@ export function CustomerRevenueWorkspace({
           />
         </div>
       </div>
+
+      {/* Close contract modal — full page overlay with padding on top/left/right */}
+      {showClosePane && effectiveContract && (
+        <div className="fixed inset-0 z-50 pt-2 pl-2 pr-2">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/10" />
+          {/* Modal card */}
+          <div className="relative h-full rounded-t-xl bg-white shadow-xl overflow-hidden flex flex-col">
+            <CloseContractPane
+              contract={effectiveContract}
+              onDiscard={() => setShowClosePane(false)}
+              onConfirm={handleContractClosure}
+              fromQueueItemId={queueItemId}
+              incomingRenewal={incomingRenewal}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Closure toast */}
+      {closureToast && (
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 shadow-lg">
+            <CheckCircle2 size={18} className="shrink-0 text-emerald-600" />
+            <p className="text-[13px] font-medium text-emerald-800">{closureToast.message}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Renewal scheduled toast (blue) */}
+      {renewalToast && (
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 shadow-lg">
+            <CheckCircle2 size={18} className="shrink-0 text-blue-600" />
+            <p className="text-[13px] font-medium text-blue-800">{renewalToast.message}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

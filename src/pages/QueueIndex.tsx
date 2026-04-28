@@ -1,0 +1,355 @@
+import { useState } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { Plug, Upload, FileText, Plug2, Sparkles, Mail } from "lucide-react";
+import { useScrolled } from "@/hooks/useScrolled";
+import { currency, shortDate } from "@/lib/utils";
+import { StatusBadge } from "@/components/ui/primitives";
+import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStrip";
+import { GroupedSection } from "@/components/index-page/GroupedSection";
+import { GroupedRow, RowCell } from "@/components/index-page/GroupedRow";
+import { ListTable, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
+import { PageHeader } from "@/components/index-page/PageHeader";
+import { ViewToggle, type ViewMode } from "@/components/index-page/ViewToggle";
+import { UploadModal } from "@/components/contracts/UploadModal";
+import { QueueIntegrationsModal } from "@/components/queue/QueueIntegrationsModal";
+import { useIngestContext } from "@/context/IngestContext";
+import { queueGroupMeta, type QueueItem, type QueueSource } from "@/data/queue-data";
+
+// ---------------------------------------------------------------------------
+// Source badge — small inline indicator for PDF / API / CPQ / Email
+// ---------------------------------------------------------------------------
+
+function SourceBadge({ source, detail }: { source: QueueSource; detail?: string }) {
+  const config: Record<QueueSource, { icon: typeof FileText; tone: string; label: string }> = {
+    "PDF Upload": {
+      icon: Upload,
+      tone: "border-border-default bg-surface-muted text-text-secondary",
+      label: "PDF",
+    },
+    API: {
+      icon: Plug2,
+      tone: "border-blue-200 bg-blue-50 text-blue-700",
+      label: "via API",
+    },
+    CPQ: {
+      icon: Sparkles,
+      tone: "border-purple-200 bg-purple-50 text-purple-700",
+      label: "via CPQ",
+    },
+    Email: {
+      icon: Mail,
+      tone: "border-border-default bg-surface-muted text-text-secondary",
+      label: "Email",
+    },
+  };
+  const { icon: Icon, tone, label } = config[source];
+  return (
+    <span
+      title={detail}
+      className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium leading-4 ${tone}`}
+    >
+      <Icon size={10} strokeWidth={2.25} />
+      {label}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function buildGroups(items: QueueItem[]): Record<string, QueueItem[]> {
+  const groups: Record<string, QueueItem[]> = {
+    "pending-review": [],
+    "in-progress": [],
+    ingested: [],
+    failed: [],
+  };
+  for (const q of items) {
+    for (const meta of queueGroupMeta) {
+      if (meta.match(q)) {
+        groups[meta.key].push(q);
+        break;
+      }
+    }
+  }
+  return groups;
+}
+
+function rowSubtitle(q: QueueItem): string {
+  // For ingested / failed items show context that matters
+  if (q.status === "Ingested") return q.contractId ?? q.documentName;
+  if (q.status === "Failed" || q.status === "Rejected")
+    return q.failureReason ? q.failureReason.slice(0, 80) : q.documentName;
+  return q.sourceDetail ?? q.documentName;
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+const listColumns: Column[] = [
+  { key: "id", label: "Queue ID", width: "120px" },
+  { key: "doc", label: "Document", width: "260px" },
+  { key: "scenario", label: "Scenario", width: "120px" },
+  { key: "customer", label: "Customer", width: "150px" },
+  { key: "tcv", label: "TCV", width: "110px" },
+  { key: "source", label: "Source", width: "110px" },
+  { key: "uploaded", label: "Uploaded", width: "110px" },
+  { key: "status", label: "Status", width: "120px" },
+];
+
+export function QueueIndex() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { ref: scrollRef, isScrolled } = useScrolled();
+  const { queueItems } = useIngestContext();
+
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [connectOpen, setConnectOpen] = useState(false);
+
+  const groupFilter = searchParams.get("group");
+  const viewMode = (searchParams.get("view") as ViewMode) || "groups";
+  const groups = buildGroups(queueItems);
+
+  function handleViewChange(mode: ViewMode) {
+    const params = new URLSearchParams(searchParams);
+    if (mode === "groups") {
+      params.delete("view");
+      params.delete("group");
+    } else {
+      params.set("view", mode);
+      params.delete("group");
+    }
+    setSearchParams(params);
+  }
+
+  function handleRowClick(q: QueueItem) {
+    if (q.status === "Ingested" && q.contractId) {
+      navigate(`/contracts/${q.contractId}?from=queue`);
+      return;
+    }
+    if (q.status === "Failed" || q.status === "Rejected") {
+      // No-op: rendered with disabled visual, but rows are still clickable
+      // for parity. Navigate to the queue detail to show the failure state.
+      navigate(`/queue/${q.id}`);
+      return;
+    }
+    navigate(`/queue/${q.id}`);
+  }
+
+  const viewToggle = (
+    <ViewToggle
+      value={groupFilter ? "groups" : viewMode}
+      onChange={handleViewChange}
+      resourcePlural="Queue items"
+    />
+  );
+
+  // Metrics
+  const pendingCount = groups["pending-review"].length;
+  const inProgressCount = groups["in-progress"].length;
+  const ingestedCount = groups["ingested"].length;
+  const failedCount = groups["failed"].length;
+  const tcvPending = groups["pending-review"].reduce((s, q) => s + q.tcv, 0);
+
+  const metrics: MetricCard[] = [
+    { label: "Pending review", value: pendingCount, variant: pendingCount > 0 ? "warning" : "default" },
+    { label: "In progress", value: inProgressCount },
+    { label: "TCV in queue", value: currency(tcvPending), variant: tcvPending > 0 ? "warning" : "default" },
+    { label: "Recently ingested", value: ingestedCount },
+    { label: "Failed / Rejected", value: failedCount, variant: failedCount > 0 ? "danger" : "default" },
+  ];
+
+  const secondaryActions = (
+    <>
+      <button
+        type="button"
+        onClick={() => setConnectOpen(true)}
+        className="inline-flex items-center gap-1.5 rounded-md border border-border-default bg-white px-3 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:bg-surface-muted"
+      >
+        <Plug size={13} strokeWidth={2} />
+        Connect
+      </button>
+    </>
+  );
+
+  const modal = (
+    <>
+      {uploadOpen && <UploadModal onClose={() => setUploadOpen(false)} />}
+      {connectOpen && <QueueIntegrationsModal onClose={() => setConnectOpen(false)} />}
+    </>
+  );
+
+  // ── Filtered group view (?group=…) ─────────────────────────────────────────
+  if (groupFilter) {
+    const gm = queueGroupMeta.find((g) => g.slug === groupFilter);
+    const rows = groups[gm?.key ?? ""] ?? [];
+    return (
+      <>
+        {modal}
+        <div className="flex flex-1 w-full flex-col">
+          <div
+            ref={scrollRef}
+            className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${
+              isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""
+            }`}
+          >
+            <PageHeader
+              title="Queue"
+              backLabel="Back to overview"
+              backPath="/queue"
+              filterLabel={gm?.label}
+              createLabel="Import"
+              onCreateClick={() => setUploadOpen(true)}
+              secondaryActions={secondaryActions}
+            />
+          </div>
+          <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
+            <MetricStrip metrics={metrics} />
+            <ListTable columns={listColumns}>
+              {rows.map((q) => (
+                <ListRow key={q.id} onClick={() => handleRowClick(q)}>
+                  <ListCell width="120px" className="font-medium text-blue-600">{q.id}</ListCell>
+                  <ListCell width="260px">
+                    <div className="flex min-w-0 items-start gap-2">
+                      <FileText size={12} className="mt-0.5 shrink-0 text-text-muted" />
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-text-primary">{q.documentName}</p>
+                        <p className="truncate text-[11px] text-text-muted">{rowSubtitle(q)}</p>
+                      </div>
+                    </div>
+                  </ListCell>
+                  <ListCell width="120px" className="text-text-secondary">{q.scenario}</ListCell>
+                  <ListCell width="150px" className="font-medium">{q.customerName}</ListCell>
+                  <ListCell width="110px" className="tabular-nums">{q.tcv > 0 ? currency(q.tcv) : "—"}</ListCell>
+                  <ListCell width="110px"><SourceBadge source={q.source} detail={q.sourceDetail} /></ListCell>
+                  <ListCell width="110px" className="text-text-secondary">{shortDate(q.uploadedAt)}</ListCell>
+                  <ListCell width="120px"><StatusBadge status={q.status} /></ListCell>
+                </ListRow>
+              ))}
+            </ListTable>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // ── All-list view (?view=all) ──────────────────────────────────────────────
+  if (viewMode === "all") {
+    return (
+      <>
+        {modal}
+        <div className="flex flex-1 w-full flex-col">
+          <div
+            ref={scrollRef}
+            className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${
+              isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""
+            }`}
+          >
+            <PageHeader
+              title="Queue"
+              createLabel="Import"
+              onCreateClick={() => setUploadOpen(true)}
+              viewToggle={viewToggle}
+              secondaryActions={secondaryActions}
+            />
+          </div>
+          <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
+            <MetricStrip metrics={metrics} />
+            <ListTable columns={listColumns}>
+              {queueItems.map((q) => (
+                <ListRow key={q.id} onClick={() => handleRowClick(q)}>
+                  <ListCell width="120px" className="font-medium text-blue-600">{q.id}</ListCell>
+                  <ListCell width="260px">
+                    <div className="flex min-w-0 items-start gap-2">
+                      <FileText size={12} className="mt-0.5 shrink-0 text-text-muted" />
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-text-primary">{q.documentName}</p>
+                        <p className="truncate text-[11px] text-text-muted">{rowSubtitle(q)}</p>
+                      </div>
+                    </div>
+                  </ListCell>
+                  <ListCell width="120px" className="text-text-secondary">{q.scenario}</ListCell>
+                  <ListCell width="150px" className="font-medium">{q.customerName}</ListCell>
+                  <ListCell width="110px" className="tabular-nums">{q.tcv > 0 ? currency(q.tcv) : "—"}</ListCell>
+                  <ListCell width="110px"><SourceBadge source={q.source} detail={q.sourceDetail} /></ListCell>
+                  <ListCell width="110px" className="text-text-secondary">{shortDate(q.uploadedAt)}</ListCell>
+                  <ListCell width="120px"><StatusBadge status={q.status} /></ListCell>
+                </ListRow>
+              ))}
+            </ListTable>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // ── Grouped landing (default) ──────────────────────────────────────────────
+  return (
+    <>
+      {modal}
+      <div className="flex flex-1 w-full flex-col">
+        <div
+          ref={scrollRef}
+          className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${
+            isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""
+          }`}
+        >
+          <PageHeader
+            title="Queue"
+            createLabel="Import"
+            onCreateClick={() => setUploadOpen(true)}
+            viewToggle={viewToggle}
+            secondaryActions={secondaryActions}
+          />
+        </div>
+        <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
+          <MetricStrip metrics={metrics} />
+
+          {queueGroupMeta.map((gm) => {
+            const rows = groups[gm.key] ?? [];
+            return (
+              <GroupedSection
+                key={gm.key}
+                title={gm.label}
+                count={rows.length}
+                viewAllPath={`/queue?group=${gm.slug}`}
+              >
+                {rows.slice(0, 5).map((q) => (
+                  <GroupedRow key={q.id} onClick={() => handleRowClick(q)}>
+                    <RowCell width="120px" className="font-medium text-blue-600">{q.id}</RowCell>
+                    <RowCell width="240px">
+                      <div className="flex min-w-0 items-start gap-2">
+                        <FileText size={12} className="mt-0.5 shrink-0 text-text-muted" />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-text-primary">{q.documentName}</p>
+                          <p className="truncate text-[11px] text-text-muted">{rowSubtitle(q)}</p>
+                        </div>
+                      </div>
+                    </RowCell>
+                    <RowCell width="110px" className="text-text-secondary">{q.scenario}</RowCell>
+                    <RowCell width="140px" className="font-medium text-text-primary">{q.customerName}</RowCell>
+                    <RowCell width="110px" className="tabular-nums">{q.tcv > 0 ? currency(q.tcv) : "—"}</RowCell>
+                    <RowCell width="110px"><SourceBadge source={q.source} detail={q.sourceDetail} /></RowCell>
+                    <RowCell width="110px" className="text-text-secondary">{shortDate(q.uploadedAt)}</RowCell>
+                  </GroupedRow>
+                ))}
+              </GroupedSection>
+            );
+          })}
+
+          {/* Empty state if everything is empty (defensive — shouldn't happen with seed data) */}
+          {Object.values(groups).every((g) => g.length === 0) && (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-border-default bg-surface-muted py-16 text-center">
+              <p className="text-[14px] font-medium text-text-secondary">No queue items</p>
+              <p className="mt-1 text-[12px] text-text-muted">
+                Import a signed contract or connect an external source to populate the queue.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}

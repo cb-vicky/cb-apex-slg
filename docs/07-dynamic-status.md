@@ -28,14 +28,21 @@ Each tab in the lifecycle journey rail shows a dynamic status label and color be
 
 ### Contract tab status
 
-- **Source:** `contract.status`, `contract.amendments`, `contract.enforcement`, `contract.billingSchedule`
+- **Source:** `contract.status`, `contract.scheduledStartDate`, `contract.amendments`, `contract.enforcement`, `contract.billingSchedule`, `contract.closure`
 - **Logic:**
-  - Base: `contract.status` (e.g. "Active")
-  - If `amendments.length > 0` → appends `"+ N amendment(s)"`
-  - **Color:**
-    - **red** if `enforcement.blockingIssues.length > 0`
-    - **amber** if any `billingSchedule` item is "Overdue"
-    - **green** otherwise
+  - **Scheduled state (highest priority):**
+    - If `contract.scheduledStartDate` exists → `"Scheduled · activates {shortDate}"` — **blue**
+  - **Closure states (second priority):**
+    - If `closure` exists and `closure.effectiveDate` is in the future → `"Closing in Xd"` — **amber**
+    - If `closure` exists and `closure.effectiveDate` is today or past, and `closure.reason` is `"non_payment"` → `"Terminated"` — **red**
+    - If `closure` exists and `closure.effectiveDate` is today or past (other reasons) → `"Closed"` — **gray**
+  - **Non-closure states:**
+    - Base: `contract.status` (e.g. "Active")
+    - If `amendments.length > 0` → appends `"+ N amendment(s)"`
+    - **Color:**
+      - **red** if `enforcement.blockingIssues.length > 0`
+      - **amber** if any `billingSchedule` item is "Overdue"
+      - **green** otherwise
 
 ### Invoicing tab status
 
@@ -72,7 +79,8 @@ Each tab in the lifecycle journey rail shows a dynamic status label and color be
 | green | `text-emerald-600` | healthy, active, complete |
 | amber | `text-amber-600` | pending, review, warning |
 | red | `text-red-600` | overdue, blocked, critical |
-| blue | `text-blue-600` | informational, draft, neutral |
+| blue | `text-blue-600` | informational, draft, neutral, **Scheduled renewal** |
+| gray | `text-gray-500` | historical, closed, neutral/terminal state |
 
 ---
 
@@ -110,13 +118,20 @@ Used by the Account 360 **AI Insights** list after the user clicks **Generate**.
 
 ### Contract insights (`getContractInsights`)
 
-- **Sources:** `contract.comparisonToQuote`, `.enforcement`, `.amendments`, `.prepaidCreditBalance`, `.renewalDate`; customer invoices
+- **Sources:** `contract.comparisonToQuote`, `.enforcement`, `.amendments`, `.prepaidCreditBalance`, `.renewalDate`, `.closure`; customer invoices
 - **Examples:**
   - warning: "Invoice INV-2026-0034 is 16 days overdue ($5,800)"
   - warning: "Signed contract differs from quote on 1 field: Billing cadence"
   - info: "Minimum commit will exhaust in ~41 days"
   - info: "Renewal in 73 days — start planning"
   - success: "Product mapping complete — all SKUs matched"
+  - **Closure insights (when `contract.closure` exists):**
+    - info/warning: "Contract closing in X days — wind-down period active" (future-dated)
+    - info: "Credit note CN-xxx pending — $X" (when `settlementType === "credit_note"`)
+    - warning: "Settlement requires approval" (when `approvalRequired === true`)
+  - **Scheduled insights (when `contract.scheduledStartDate` exists):**
+    - info: "Activates on {date} — prior contract closes first"
+    - info: "Replaces contract CON-xxx" (when `replacesContractId` is set)
 
 ### Invoicing insights (`getInvoicingInsights`)
 
@@ -177,12 +192,15 @@ Same business rules as historically documented, but exposed as an **array** of `
 
 ### Contract tab (`getContractActions`)
 
-- **Sources:** customer invoices filtered by `contractId`, `contract.renewalDate`, `contract.enforcement.blockingIssues`
+- **Sources:** customer invoices filtered by `contractId`, `contract.renewalDate`, `contract.enforcement.blockingIssues`, `contract.closure`
 - **Examples:**
   - "Resolve overdue invoice" (with ID, amount)
   - "Collect PO for held invoice" (with hold reason)
   - "Start renewal planning" (if < 90 days to renewal)
   - "Resolve enforcement blockers" (with first blocking issue)
+  - **Closure actions (when `contract.closure` exists):**
+    - "Process credit note CN-xxx" (when `settlementType === "credit_note"`)
+    - "Review termination invoice INV-xxx" (when `settlementType === "termination_charge"`)
 
 ### Invoicing tab (`getInvoicingActions`)
 
