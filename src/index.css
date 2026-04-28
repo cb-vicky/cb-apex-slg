@@ -6,6 +6,9 @@
 
   --color-cb-orange: #ff3300;
   --color-cb-orange-light: #fff4ef;
+  /* Shell / top nav dark — matches layout chrome */
+  --color-shell-dark: #012a38;
+  --color-shell-dark-hover: #01374a;
   --color-surface: #ffffff;
   --color-surface-muted: #f8f9fa;
   --color-surface-subtle: #f1f3f5;

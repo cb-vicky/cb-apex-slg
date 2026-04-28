@@ -55,6 +55,8 @@ export interface CreditNote {
   status: string;
   date: string;
   owner: string;
+  contractId?: string;
+  closureRelated?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -276,6 +278,30 @@ export const creditNotes: CreditNote[] = [
     date: "2026-03-28",
     owner: "Lena Schulz",
   },
+  {
+    id: "CN-2026-0003",
+    invoiceId: "",
+    customerId: "cust_lumina_002",
+    amount: 52000,
+    reason: "Contract early termination – unused prepaid AI credits (52,000 of 80,000 original balance) refunded per mutual agreement. Contract CON-2024-0201 closing effective May 1, 2026.",
+    status: "Pending Approval",
+    date: "2026-04-25",
+    owner: "Alex Nguyen",
+    contractId: "CON-2024-0201",
+    closureRelated: true,
+  },
+  {
+    id: "CN-2025-0018",
+    invoiceId: "",
+    customerId: "cust_echo_001",
+    amount: 18400,
+    reason: "Historical closure credit – prorated platform fees for early termination of legacy contract CON-2023-0089. Customer consolidated to new enterprise agreement.",
+    status: "Issued",
+    date: "2025-06-15",
+    owner: "Alex Nguyen",
+    contractId: "CON-2023-0089",
+    closureRelated: true,
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -422,6 +448,14 @@ export function getCreditNotesForCustomer(customerId: string): CreditNote[] {
 
 export function getCreditNotesForInvoice(invoiceId: string): CreditNote[] {
   return creditNotes.filter((cn) => cn.invoiceId === invoiceId);
+}
+
+export function getCreditNotesForContract(contractId: string): CreditNote[] {
+  return creditNotes.filter((cn) => cn.contractId === contractId);
+}
+
+export function getClosureCreditNotesForCustomer(customerId: string): CreditNote[] {
+  return creditNotes.filter((cn) => cn.customerId === customerId && cn.closureRelated === true);
 }
 
 export function getPaymentsForCustomer(customerId: string): Payment[] {

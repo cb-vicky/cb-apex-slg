@@ -1,18 +1,21 @@
 import { useState, useRef, useEffect, type CSSProperties } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ChevronLeft, ChevronRight, CheckCircle2, XCircle, MessageSquare, AtSign,
-  User, Minus, Plus, PanelRightClose, PanelRightOpen,
+  User, Minus, Plus, PanelRightClose, PanelRightOpen, FileText, FileEdit, ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { currency, shortDate } from "@/lib/utils";
-import { SectionCard, KV, StatusBadge } from "@/components/ui/primitives";
+import { SectionCard, StatusBadge } from "@/components/ui/primitives";
 import { useScrolled } from "@/hooks/useScrolled";
 import { useIngestContext } from "@/context/IngestContext";
+import type { InvoiceFieldOverrides } from "@/data/approval-policy";
 import { invoices, customers, contracts } from "@/data/mock-data";
-import type { Contract, Customer } from "@/data/mock-data";
+import { verdantRenewalContractTemplate } from "@/data/mock-data";
+import type { Contract, Customer, Invoice } from "@/data/mock-data";
 import { getInvoiceEnrichment } from "@/data/billing-data";
 import { InvoiceHTMLPreview } from "@/components/approvals/InvoiceHTMLPreview";
+import { ApprovalSettingsModal } from "@/components/approvals/ApprovalSettingsModal";
 import type { ApprovalComment } from "@/data/ingest-data";
 
 const TAGGABLE_USERS = [
@@ -26,7 +29,7 @@ const TAGGABLE_USERS = [
 ];
 
 // ---------------------------------------------------------------------------
-// Comment Thread
+// Comment Thread (unchanged)
 // ---------------------------------------------------------------------------
 
 function highlightMentions(text: string) {
@@ -57,10 +60,6 @@ function CommentItem({ comment }: { comment: ApprovalComment }) {
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Comment Input with @-tagging
-// ---------------------------------------------------------------------------
 
 function CommentInput({ onSubmit }: { onSubmit: (text: string) => void }) {
   const [text, setText] = useState("");
@@ -150,7 +149,7 @@ function CommentInput({ onSubmit }: { onSubmit: (text: string) => void }) {
 
 function Toast({ message, onDone }: { message: string; onDone: () => void }) {
   useEffect(() => {
-    const t = setTimeout(onDone, 2800);
+    const t = setTimeout(onDone, 2400);
     return () => clearTimeout(t);
   }, [onDone]);
 
@@ -163,7 +162,7 @@ function Toast({ message, onDone }: { message: string; onDone: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
-// Reject Reason Form (inline card at top of left column)
+// Reject Reason Form
 // ---------------------------------------------------------------------------
 
 function RejectForm({ onConfirm, onCancel }: { onConfirm: (reason: string) => void; onCancel: () => void }) {
@@ -197,90 +196,355 @@ function RejectForm({ onConfirm, onCancel }: { onConfirm: (reason: string) => vo
 }
 
 // ---------------------------------------------------------------------------
-// Contract PDF Viewer (toolbar + grey canvas + contract body)
+// Editable critical-fields card (LEFT side)
 // ---------------------------------------------------------------------------
 
-function ContractSourceViewer({
-  contract,
-  customer,
-  onCollapse,
+function EditableField({
+  label,
+  hint,
+  children,
 }: {
-  contract: Contract;
-  customer: Customer;
-  onCollapse: () => void;
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
 }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <label className="text-[11px] font-medium text-text-muted">{label}</label>
+      {children}
+      {hint && <p className="text-[10px] text-text-muted">{hint}</p>}
+    </div>
+  );
+}
+
+interface CriticalFieldsCardProps {
+  invoice: Invoice;
+  overrides: InvoiceFieldOverrides;
+  onChange: (next: InvoiceFieldOverrides) => void;
+  enrichmentBilling?: { start?: string; end?: string };
+  enrichmentPaymentTerms?: string;
+  enrichmentPo?: string;
+  disabled: boolean;
+  isBackdated: boolean;
+}
+
+function CriticalFieldsCard({
+  invoice,
+  overrides,
+  onChange,
+  enrichmentBilling,
+  enrichmentPaymentTerms,
+  enrichmentPo,
+  disabled,
+  isBackdated,
+}: CriticalFieldsCardProps) {
+  const amount = overrides.amount ?? invoice.amount;
+  const dueDate = overrides.dueDate ?? invoice.dueDate;
+  const invoiceDate = overrides.invoiceDate ?? invoice.date;
+  const paymentTerms = overrides.paymentTerms ?? enrichmentPaymentTerms ?? "Net 30";
+  const billingStart = overrides.billingPeriodStart ?? enrichmentBilling?.start ?? invoice.date;
+  const billingEnd = overrides.billingPeriodEnd ?? enrichmentBilling?.end ?? invoice.dueDate;
+  const taxRate = overrides.taxRate ?? 8;
+  const poNumber = overrides.poNumber ?? enrichmentPo ?? "";
+  const memo = overrides.memo ?? "";
+
+  return (
+    <SectionCard title="Critical fields">
+      <div className="grid grid-cols-2 gap-3">
+        <EditableField label="Invoice amount">
+          <div className="flex items-center rounded-md border border-border-default bg-white px-2 py-1 focus-within:border-cb-orange">
+            <span className="mr-0.5 text-[11px] text-text-muted">$</span>
+            <input
+              type="number"
+              value={amount}
+              disabled={disabled}
+              onChange={(e) => onChange({ ...overrides, amount: Number(e.target.value) })}
+              className="w-full bg-transparent text-[12px] font-medium tabular-nums text-text-primary outline-none disabled:cursor-not-allowed"
+            />
+          </div>
+        </EditableField>
+
+        <EditableField label="Tax rate (%)">
+          <div className="flex items-center rounded-md border border-border-default bg-white px-2 py-1 focus-within:border-cb-orange">
+            <input
+              type="number"
+              value={taxRate}
+              disabled={disabled}
+              onChange={(e) => onChange({ ...overrides, taxRate: Number(e.target.value) })}
+              className="w-full bg-transparent text-right text-[12px] font-medium tabular-nums text-text-primary outline-none disabled:cursor-not-allowed"
+            />
+            <span className="ml-0.5 text-[11px] text-text-muted">%</span>
+          </div>
+        </EditableField>
+
+        <EditableField
+          label="Invoice date"
+          hint={isBackdated ? "Backdated — will trigger non-standard approval" : undefined}
+        >
+          <input
+            type="date"
+            value={invoiceDate}
+            disabled={disabled}
+            onChange={(e) => onChange({ ...overrides, invoiceDate: e.target.value })}
+            className={cn(
+              "rounded-md border bg-white px-2 py-1 text-[12px] text-text-primary outline-none focus:border-cb-orange disabled:cursor-not-allowed",
+              isBackdated ? "border-amber-300 bg-amber-50/40" : "border-border-default",
+            )}
+          />
+        </EditableField>
+
+        <EditableField label="Due date">
+          <input
+            type="date"
+            value={dueDate}
+            disabled={disabled}
+            onChange={(e) => onChange({ ...overrides, dueDate: e.target.value })}
+            className="rounded-md border border-border-default bg-white px-2 py-1 text-[12px] text-text-primary outline-none focus:border-cb-orange disabled:cursor-not-allowed"
+          />
+        </EditableField>
+
+        <EditableField label="Payment terms">
+          <select
+            value={paymentTerms}
+            disabled={disabled}
+            onChange={(e) => onChange({ ...overrides, paymentTerms: e.target.value })}
+            className="rounded-md border border-border-default bg-white px-2 py-1 text-[12px] text-text-primary outline-none focus:border-cb-orange disabled:cursor-not-allowed"
+          >
+            <option value="Net 0">Net 0 (Due on receipt)</option>
+            <option value="Net 15">Net 15</option>
+            <option value="Net 30">Net 30</option>
+            <option value="Net 45">Net 45</option>
+            <option value="Net 60">Net 60</option>
+            <option value="Net 90">Net 90</option>
+          </select>
+        </EditableField>
+
+        <EditableField label="PO number">
+          <input
+            type="text"
+            value={poNumber}
+            disabled={disabled}
+            placeholder="—"
+            onChange={(e) => onChange({ ...overrides, poNumber: e.target.value })}
+            className="rounded-md border border-border-default bg-white px-2 py-1 text-[12px] text-text-primary outline-none focus:border-cb-orange disabled:cursor-not-allowed placeholder:text-text-muted"
+          />
+        </EditableField>
+
+        <EditableField label="Billing period — start">
+          <input
+            type="date"
+            value={billingStart}
+            disabled={disabled}
+            onChange={(e) => onChange({ ...overrides, billingPeriodStart: e.target.value })}
+            className="rounded-md border border-border-default bg-white px-2 py-1 text-[12px] text-text-primary outline-none focus:border-cb-orange disabled:cursor-not-allowed"
+          />
+        </EditableField>
+
+        <EditableField label="Billing period — end">
+          <input
+            type="date"
+            value={billingEnd}
+            disabled={disabled}
+            onChange={(e) => onChange({ ...overrides, billingPeriodEnd: e.target.value })}
+            className="rounded-md border border-border-default bg-white px-2 py-1 text-[12px] text-text-primary outline-none focus:border-cb-orange disabled:cursor-not-allowed"
+          />
+        </EditableField>
+      </div>
+
+      <div className="mt-3">
+        <EditableField label="Memo to customer">
+          <textarea
+            value={memo}
+            disabled={disabled}
+            rows={2}
+            placeholder="Add a note that appears on the invoice…"
+            onChange={(e) => onChange({ ...overrides, memo: e.target.value })}
+            className="w-full resize-none rounded-md border border-border-default bg-white px-2 py-1.5 text-[12px] text-text-primary outline-none focus:border-cb-orange disabled:cursor-not-allowed placeholder:text-text-muted"
+          />
+        </EditableField>
+      </div>
+    </SectionCard>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Right-panel viewer with Invoice | Contract tabs
+// ---------------------------------------------------------------------------
+
+type DocTab = "invoice" | "contract";
+
+function PreviewToolbar({
+  active,
+  onChange,
+  onCollapse,
+  page,
+  setPage,
+  zoom,
+  setZoom,
+  pageCount,
+}: {
+  active: DocTab;
+  onChange: (t: DocTab) => void;
+  onCollapse: () => void;
+  page: number;
+  setPage: (p: number) => void;
+  zoom: number;
+  setZoom: (z: number) => void;
+  pageCount: number;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 border-b border-border-default bg-white px-3 py-2">
+      {/* Tab toggle */}
+      <div className="flex items-center gap-0.5 rounded-md border border-border-default bg-surface-muted p-0.5">
+        <button
+          type="button"
+          onClick={() => onChange("invoice")}
+          className={cn(
+            "flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition-colors",
+            active === "invoice"
+              ? "bg-white text-text-primary shadow-sm"
+              : "text-text-muted hover:text-text-secondary",
+          )}
+        >
+          <FileEdit size={11} />
+          Invoice
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange("contract")}
+          className={cn(
+            "flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition-colors",
+            active === "contract"
+              ? "bg-white text-text-primary shadow-sm"
+              : "text-text-muted hover:text-text-secondary",
+          )}
+        >
+          <FileText size={11} />
+          Contract
+        </button>
+      </div>
+
+      <div className="flex items-center gap-1">
+        {active === "contract" && (
+          <>
+            <button
+              type="button"
+              onClick={() => setPage(Math.max(1, page - 1))}
+              disabled={page === 1}
+              className="rounded p-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary disabled:opacity-40 disabled:hover:bg-transparent"
+              aria-label="Previous page"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <span className="min-w-[58px] text-center text-[11px] tabular-nums text-text-secondary">
+              Page {page} / {pageCount}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage(Math.min(pageCount, page + 1))}
+              disabled={page === pageCount}
+              className="rounded p-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary disabled:opacity-40 disabled:hover:bg-transparent"
+              aria-label="Next page"
+            >
+              <ChevronRight size={14} />
+            </button>
+            <div className="mx-1 h-4 w-px bg-border-default" />
+          </>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setZoom(Math.max(50, zoom - 10))}
+          className="rounded p-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
+          aria-label="Zoom out"
+        >
+          <Minus size={14} />
+        </button>
+        <span className="min-w-[36px] text-center text-[11px] tabular-nums text-text-secondary">{zoom}%</span>
+        <button
+          type="button"
+          onClick={() => setZoom(Math.min(200, zoom + 10))}
+          className="rounded p-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
+          aria-label="Zoom in"
+        >
+          <Plus size={14} />
+        </button>
+        <div className="mx-1 h-4 w-px bg-border-default" />
+        <button
+          type="button"
+          onClick={onCollapse}
+          className="rounded p-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
+          aria-label="Hide preview"
+          title="Hide preview"
+        >
+          <PanelRightClose size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DocumentPreviewPanel({
+  invoice,
+  customer,
+  contract,
+  enrichment,
+  onCollapse,
+  invoiceOverrides,
+}: {
+  invoice: Invoice;
+  customer: Customer;
+  contract?: Contract;
+  enrichment?: ReturnType<typeof getInvoiceEnrichment>;
+  onCollapse: () => void;
+  invoiceOverrides: InvoiceFieldOverrides;
+}) {
+  const [tab, setTab] = useState<DocTab>("invoice");
   const [zoom, setZoom] = useState(100);
   const [page, setPage] = useState(1);
   const pageCount = 3;
 
+  // Apply editable overrides to a working copy of the invoice for the preview
+  const effectiveInvoice: Invoice = {
+    ...invoice,
+    amount: invoiceOverrides.amount ?? invoice.amount,
+    dueDate: invoiceOverrides.dueDate ?? invoice.dueDate,
+    date: invoiceOverrides.invoiceDate ?? invoice.date,
+  };
+
   return (
     <div className="flex h-full flex-col bg-[#EEF0F2]">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between gap-2 border-b border-border-default bg-white px-3 py-2">
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1}
-            className="rounded p-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary disabled:opacity-40 disabled:hover:bg-transparent"
-            aria-label="Previous page"
-          >
-            <ChevronLeft size={14} />
-          </button>
-          <span className="min-w-[60px] text-center text-[11px] tabular-nums text-text-secondary">
-            Page {page} / {pageCount}
-          </span>
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-            disabled={page === pageCount}
-            className="rounded p-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary disabled:opacity-40 disabled:hover:bg-transparent"
-            aria-label="Next page"
-          >
-            <ChevronRight size={14} />
-          </button>
-        </div>
+      <PreviewToolbar
+        active={tab}
+        onChange={setTab}
+        onCollapse={onCollapse}
+        page={page}
+        setPage={setPage}
+        zoom={zoom}
+        setZoom={setZoom}
+        pageCount={pageCount}
+      />
 
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setZoom((z) => Math.max(50, z - 10))}
-            className="rounded p-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
-            aria-label="Zoom out"
-          >
-            <Minus size={14} />
-          </button>
-          <span className="min-w-[38px] text-center text-[11px] tabular-nums text-text-secondary">{zoom}%</span>
-          <button
-            type="button"
-            onClick={() => setZoom((z) => Math.min(200, z + 10))}
-            className="rounded p-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
-            aria-label="Zoom in"
-          >
-            <Plus size={14} />
-          </button>
-          <div className="mx-1 h-4 w-px bg-border-default" />
-          <button
-            type="button"
-            onClick={onCollapse}
-            className="rounded p-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
-            aria-label="Hide document"
-            title="Hide document"
-          >
-            <PanelRightClose size={14} />
-          </button>
-        </div>
-      </div>
-
-      {/* Grey canvas with 16px padding around the white page */}
       <div className="flex-1 overflow-auto p-4">
         <div
           className="mx-auto rounded-sm border border-border-default bg-white shadow-[0_2px_12px_rgba(17,24,39,0.08)]"
           style={{ zoom: zoom / 100 } as CSSProperties}
         >
-          <div className="px-8 py-7">
-            <ContractDocumentBody contract={contract} customer={customer} />
-          </div>
+          {tab === "invoice" ? (
+            <InvoiceHTMLPreview
+              invoice={effectiveInvoice}
+              customerName={customer.name}
+              enrichment={enrichment}
+            />
+          ) : contract ? (
+            <div className="px-8 py-7">
+              <ContractDocumentBody contract={contract} customer={customer} />
+            </div>
+          ) : (
+            <div className="px-8 py-12 text-center text-[12px] text-text-muted">
+              No contract source available for this invoice.
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -288,26 +552,22 @@ function ContractSourceViewer({
 }
 
 // ---------------------------------------------------------------------------
-// Contract Document Body — renders Contract + Customer as PDF-style text
+// Contract Document Body — unchanged from before
 // ---------------------------------------------------------------------------
 
 function ContractDocumentBody({ contract, customer }: { contract: Contract; customer: Customer }) {
   return (
     <div className="space-y-5 font-mono text-[11px] leading-relaxed text-text-secondary">
-      {/* Header */}
       <div className="text-center">
         <p className="text-[13px] font-bold uppercase tracking-widest text-text-primary">
           Master Subscription Agreement
         </p>
-        <p className="mt-1 text-[10px] uppercase tracking-wider text-text-muted">
-          Order Form
-        </p>
+        <p className="mt-1 text-[10px] uppercase tracking-wider text-text-muted">Order Form</p>
         <p className="mt-0.5 text-[10px] text-text-muted">Contract ID: {contract.id}</p>
       </div>
 
       <hr className="border-border-subtle" />
 
-      {/* Parties */}
       <div>
         <p className="font-semibold text-text-primary">PARTIES</p>
         <p className="mt-1">
@@ -322,7 +582,6 @@ function ContractDocumentBody({ contract, customer }: { contract: Contract; cust
 
       <hr className="border-border-subtle" />
 
-      {/* Term */}
       <div>
         <p className="font-semibold text-text-primary">1. TERM</p>
         <p className="mt-1">
@@ -332,7 +591,6 @@ function ContractDocumentBody({ contract, customer }: { contract: Contract; cust
 
       <hr className="border-border-subtle" />
 
-      {/* Subscription Services */}
       <div>
         <p className="font-semibold text-text-primary">2. SUBSCRIPTION SERVICES</p>
         <table className="mt-2 w-full text-[10px]">
@@ -353,9 +611,7 @@ function ContractDocumentBody({ contract, customer }: { contract: Contract; cust
                 </td>
                 <td className="py-1 text-right tabular-nums">{p.quantity || "—"}</td>
                 <td className="py-1 text-right tabular-nums">
-                  {p.unitPrice < 1
-                    ? `$${p.unitPrice.toFixed(3)}/cr`
-                    : `$${p.unitPrice.toLocaleString()}`}
+                  {p.unitPrice < 1 ? `$${p.unitPrice.toFixed(3)}/cr` : `$${p.unitPrice.toLocaleString()}`}
                 </td>
                 <td className="py-1 text-right tabular-nums">
                   {p.discountApplied > 0 ? `${p.discountApplied}%` : "—"}
@@ -368,7 +624,6 @@ function ContractDocumentBody({ contract, customer }: { contract: Contract; cust
 
       <hr className="border-border-subtle" />
 
-      {/* Pricing & Commitment */}
       <div>
         <p className="font-semibold text-text-primary">3. PRICING & COMMITMENT</p>
         <p className="mt-1">Total Contract Value (TCV): {currency(contract.tcv)}</p>
@@ -380,7 +635,6 @@ function ContractDocumentBody({ contract, customer }: { contract: Contract; cust
 
       <hr className="border-border-subtle" />
 
-      {/* Payment */}
       <div>
         <p className="font-semibold text-text-primary">4. BILLING & PAYMENT</p>
         <p className="mt-1">Billing Frequency: {contract.billingFrequency}.</p>
@@ -389,7 +643,6 @@ function ContractDocumentBody({ contract, customer }: { contract: Contract; cust
 
       <hr className="border-border-subtle" />
 
-      {/* Signatures */}
       <div>
         <p className="font-semibold text-text-primary">SIGNATURES</p>
         <div className="mt-2 grid grid-cols-2 gap-6">
@@ -421,11 +674,22 @@ function ContractDocumentBody({ contract, customer }: { contract: Contract; cust
 
 export function ApprovalDetailPage() {
   const { invoiceId } = useParams<{ invoiceId: string }>();
+  const [searchParams] = useSearchParams();
+  const ingestId = searchParams.get("ingestId") ?? "";
+  // Early renewal context: present when this approval is for a closure credit note/invoice
+  const closureFor = searchParams.get("closureFor") ?? "";
+  const closureQueueItemId = searchParams.get("queueItemId") ?? "";
   const navigate = useNavigate();
   const { ref: stickyRef, isScrolled } = useScrolled();
   const {
     approvalRequests, updateApprovalStatus, addApprovalComment,
     setInvoiceStatusOverride, invoiceStatusOverrides,
+    invoiceFieldOverrides, setInvoiceFieldOverride,
+    firstApprovalCompletedFor, markFirstApprovalCompleted,
+    approvalPolicy, setApprovalPolicy,
+    pendingRenewalIngestions, clearPendingRenewalIngestion,
+    addSessionContract, applyQueueItemOverride,
+    showRenewalToast,
   } = useIngestContext();
 
   const [showToast, setShowToast] = useState(false);
@@ -433,20 +697,53 @@ export function ApprovalDetailPage() {
   const [approved, setApproved] = useState(false);
   const [rejected, setRejected] = useState(false);
   const [viewerCollapsed, setViewerCollapsed] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showFinalSuccess, setShowFinalSuccess] = useState(false);
 
-  const invoice = invoices.find((i) => i.id === invoiceId);
-  const customer = customers.find((c) => c.id === invoice?.customerId);
-  const contract = contracts.find((c) => c.id === invoice?.contractId);
-  const enrichment = invoiceId ? getInvoiceEnrichment(invoiceId) : undefined;
+  // Static invoice lookup — may be undefined for runtime-created closure documents
+  const staticInvoice = invoices.find((i) => i.id === invoiceId);
+
+  // Approval request may have been created in-session for closure documents
   const approval = approvalRequests.find((r) => r.invoiceId === invoiceId);
-  const effectiveStatus = invoiceId ? (invoiceStatusOverrides[invoiceId] ?? invoice?.status ?? "—") : "—";
 
-  // Previous invoice for this customer (for comparison context)
-  const prevInvoice = invoice
-    ? invoices
-        .filter((i) => i.customerId === invoice.customerId && i.id !== invoice.id && i.status !== "Pending Review")
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
+  // For closure documents (CN-CLOSE-* or INV-TERM-*), build a synthetic invoice
+  // from the approval request so the page can render
+  const isClosureDocument = Boolean(
+    invoiceId && (invoiceId.startsWith("CN-CLOSE-") || invoiceId.startsWith("INV-TERM-"))
+  );
+  const syntheticInvoice: Invoice | undefined = isClosureDocument && approval
+    ? {
+        id: approval.invoiceId,
+        customerId: approval.customerId,
+        contractId: closureFor,
+        date: approval.invoiceDate,
+        dueDate: approval.invoiceDate,
+        amount: approval.invoiceAmount,
+        status: approval.status === "Pending Approval" ? "Pending Approval" : "Approved",
+        lineItems: [
+          {
+            description: invoiceId?.startsWith("CN-CLOSE-")
+              ? "Contract closure — credit note for unused prepaid balance"
+              : "Contract termination charge",
+            amount: approval.invoiceAmount,
+          },
+        ],
+        owner: "Alex Nguyen",
+      }
     : undefined;
+
+  const effectiveInvoice = staticInvoice ?? syntheticInvoice;
+  const customer = customers.find((c) => c.id === effectiveInvoice?.customerId);
+  const contract = contracts.find((c) => c.id === effectiveInvoice?.contractId)
+    ?? (closureFor ? contracts.find((c) => c.id === closureFor) : undefined);
+  const enrichment = invoiceId ? getInvoiceEnrichment(invoiceId) : undefined;
+  const effectiveStatus = invoiceId ? (invoiceStatusOverrides[invoiceId] ?? effectiveInvoice?.status ?? "—") : "—";
+  const overrides = invoiceId ? (invoiceFieldOverrides[invoiceId] ?? {}) : {};
+
+  // Backdated detection — invoice date earlier than today
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const effectiveInvoiceDate = overrides.invoiceDate ?? effectiveInvoice?.date ?? "";
+  const isBackdated = effectiveInvoiceDate !== "" && effectiveInvoiceDate < todayIso;
 
   function handleAddComment(text: string) {
     if (!approval) return;
@@ -465,12 +762,63 @@ export function ApprovalDetailPage() {
     updateApprovalStatus(approval.id, "Approved");
     setInvoiceStatusOverride(invoiceId, "Approved");
     setApproved(true);
+
+    // Early renewal auto-ingest: if this approval is for a closure document
+    // and there's a pending renewal ingestion against the prior contract, create
+    // the scheduled contract and mark the queue item as ingested.
+    if (closureFor && closureQueueItemId && pendingRenewalIngestions[closureFor]) {
+      const pending = pendingRenewalIngestions[closureFor];
+      const closureEffectiveDate = effectiveInvoice?.date ?? todayIso;
+      const newContract = {
+        ...verdantRenewalContractTemplate,
+        scheduledStartDate: closureEffectiveDate,
+        replacesContractId: closureFor,
+      };
+      addSessionContract(newContract);
+      applyQueueItemOverride(pending.queueItemId, {
+        status: "Ingested",
+        contractId: newContract.id,
+      });
+      clearPendingRenewalIngestion(closureFor);
+      showRenewalToast(
+        `Renewal ${newContract.id} scheduled to activate ${shortDate(closureEffectiveDate)} — prior contract closing.`,
+        pending.customerId
+      );
+    }
+
     setShowToast(true);
   }
 
   function handleToastDone() {
     setShowToast(false);
-    navigate(`/invoices/${invoiceId}?from=approvals`);
+
+    // If this was a closure approval for an early renewal, navigate to the
+    // customer's contract tab (list view) to see both contracts.
+    if (closureFor && closureQueueItemId && customer) {
+      navigate(`/customers/${customer.id}?tab=contract`);
+      return;
+    }
+
+    // Per spec: only trigger the merchant approval-policy modal on the FIRST
+    // invoice approval within an ingestion cycle (URL carries ?ingestId=…).
+    // Manual approvals from /approvals (no ingestId) just go to the invoice.
+    if (ingestId && !firstApprovalCompletedFor[ingestId]) {
+      markFirstApprovalCompleted(ingestId);
+      setShowSettingsModal(true);
+    } else {
+      navigate(`/invoices/${invoiceId}?from=approvals`);
+    }
+  }
+
+  function handleSavePolicy(policy: typeof approvalPolicy) {
+    setApprovalPolicy(policy);
+    setShowSettingsModal(false);
+    setShowFinalSuccess(true);
+  }
+
+  function handleSkipPolicy() {
+    setShowSettingsModal(false);
+    setShowFinalSuccess(true);
   }
 
   function handleReject(reason: string) {
@@ -489,7 +837,7 @@ export function ApprovalDetailPage() {
     setTimeout(() => navigate("/approvals"), 1200);
   }
 
-  if (!invoice || !customer) {
+  if (!effectiveInvoice || !customer) {
     return (
       <div className="flex flex-1 w-full flex-col items-center justify-center py-16 text-text-muted">
         <p className="text-[14px]">Invoice not found or approval not yet submitted.</p>
@@ -497,6 +845,108 @@ export function ApprovalDetailPage() {
           className="mt-3 text-[12px] text-blue-600 hover:underline">
           Back to Approvals
         </button>
+      </div>
+    );
+  }
+
+  // Non-null assertion safe here — guarded above.
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const invoice = effectiveInvoice!;
+
+  // ── Final success state — replaces the whole page after policy save ────
+  if (showFinalSuccess) {
+    const policyLabel =
+      approvalPolicy.mode === "auto-approve" ? "Auto-approve, always"
+      : approvalPolicy.mode === "always-approve" ? "Send for approval, always"
+      : approvalPolicy.mode === "non-standard" ? "Send for approval, only if non-standard"
+      : "No policy set";
+    return (
+      <div className="flex flex-1 w-full flex-col">
+        <div
+          ref={stickyRef}
+          className={cn(
+            "sticky top-0 z-10 flex w-full items-center justify-between border-b border-[#F0F1F3] bg-white px-6 py-3 rounded-tl-[24px] transition-shadow duration-200",
+            isScrolled && "shadow-[0_2px_8px_rgba(0,0,0,0.08)]"
+          )}
+        >
+          <div className="flex items-center gap-2 text-[12px] text-text-muted">
+            <button onClick={() => navigate("/approvals")}
+              className="text-text-secondary transition-colors hover:text-text-primary">
+              Approvals
+            </button>
+            <ChevronRight size={11} className="text-text-muted/50" />
+            <span className="font-medium text-text-primary">{invoice.id}</span>
+            <span className="mx-2 text-text-muted/40">·</span>
+            <span className="text-emerald-600 font-medium">Setup complete</span>
+          </div>
+        </div>
+
+        <div className="mx-auto flex w-full max-w-[640px] flex-col gap-5 px-6 py-12">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
+              <CheckCircle2 size={24} className="text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-[18px] font-semibold text-text-primary">All set</p>
+              <p className="text-[12px] text-text-muted">
+                Invoice <span className="font-medium text-text-primary">{invoice.id}</span> sent to{" "}
+                <span className="font-medium text-text-primary">{customer.name}</span>. Future invoices
+                will follow your approval policy.
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border-default bg-surface-muted">
+            <div className="border-b border-border-default px-4 py-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">Summary</p>
+            </div>
+            <div className="divide-y divide-border-subtle px-4">
+              <div className="flex items-center justify-between py-2.5">
+                <p className="text-[12px] text-text-muted">Invoice</p>
+                <p className="text-[13px] font-medium text-text-primary">{invoice.id} · {currency(invoice.amount)}</p>
+              </div>
+              <div className="flex items-center justify-between py-2.5">
+                <p className="text-[12px] text-text-muted">Customer</p>
+                <p className="text-[13px] font-medium text-text-primary">{customer.name}</p>
+              </div>
+              {contract && (
+                <div className="flex items-center justify-between py-2.5">
+                  <p className="text-[12px] text-text-muted">Contract</p>
+                  <p className="text-[13px] font-medium text-text-primary">{contract.id}</p>
+                </div>
+              )}
+              <div className="flex items-center justify-between py-2.5">
+                <p className="text-[12px] text-text-muted">Approval policy</p>
+                <p className="text-[13px] font-medium text-text-primary">{policyLabel}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => navigate(`/customers/${customer.id}?tab=customer`)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-[#012A38] px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#01374a]"
+            >
+              View Customer
+              <ArrowRight size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(`/invoices/${invoice.id}?from=approvals`)}
+              className="inline-flex items-center gap-1 rounded-md border border-border-default bg-white px-4 py-2 text-[13px] font-medium text-text-secondary transition-colors hover:bg-surface-muted"
+            >
+              Open Invoice
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/queue")}
+              className="ml-auto text-[12px] font-medium text-text-muted transition-colors hover:text-text-primary"
+            >
+              Back to Queue
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -523,7 +973,7 @@ export function ApprovalDetailPage() {
           <span className="mx-2 text-text-muted/40">·</span>
           <span className="truncate text-text-secondary">{customer.name}</span>
           <span className="mx-2 text-text-muted/40">·</span>
-          <span className="shrink-0 font-medium text-text-primary">{currency(invoice.amount)}</span>
+          <span className="shrink-0 font-medium text-text-primary">{currency(overrides.amount ?? invoice.amount)}</span>
         </nav>
 
         <div className="flex shrink-0 items-center gap-2">
@@ -557,12 +1007,11 @@ export function ApprovalDetailPage() {
         </div>
       </div>
 
-      {/* Two-pane body: (invoice + comments rail) | contract PDF viewer */}
+      {/* Two-pane body: (editable form + comments rail) | document preview tabs */}
       <div className="flex flex-1 min-h-0">
-        {/* Left outer: scrollable container holding [invoice column] + [sticky comments aside] */}
         <div className="flex min-w-0 flex-1 overflow-auto">
           <div className="flex w-full gap-6 px-6 py-5">
-            {/* Invoice column (scrollable content lives in parent) */}
+            {/* LEFT: editable critical fields + status banners + collaboration */}
             <div className="flex min-w-0 flex-1 flex-col gap-4">
               {/* Inline status banners */}
               {showRejectForm && canDecide && (
@@ -575,7 +1024,7 @@ export function ApprovalDetailPage() {
                 <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
                   <CheckCircle2 size={16} className="text-emerald-600" />
                   <p className="text-[12px] font-medium text-emerald-700">
-                    Invoice approved. Redirecting to invoice detail…
+                    Invoice approved. Finalising next steps…
                   </p>
                 </div>
               )}
@@ -588,63 +1037,44 @@ export function ApprovalDetailPage() {
                 </div>
               )}
 
-              {/* Metadata cards (stacked, single-column KVs with dividers) */}
-              <SectionCard title="Approval Details">
-                <div className="divide-y divide-border-subtle">
-                  <KV label="Invoice ID" value={invoice.id} />
-                  <KV label="Submitted By" value={approval?.submittedBy ?? "—"} />
-                  <KV label="Submitted On" value={approval ? shortDate(approval.submittedAt) : "—"} />
-                  <KV label="Approver" value={approval?.approver ?? "Sarah Chen, VP Revenue"} />
-                  <KV label="Amount" value={currency(invoice.amount)} />
+              {/* Editable critical fields card */}
+              <CriticalFieldsCard
+                invoice={invoice}
+                overrides={overrides}
+                onChange={(next) => invoiceId && setInvoiceFieldOverride(invoiceId, next)}
+                enrichmentBilling={
+                  enrichment?.billingPeriodStart
+                    ? { start: enrichment.billingPeriodStart, end: enrichment.billingPeriodEnd }
+                    : undefined
+                }
+                enrichmentPaymentTerms={enrichment?.paymentTerms}
+                enrichmentPo={enrichment?.poNumber}
+                disabled={!canDecide}
+                isBackdated={isBackdated}
+              />
+
+              {/* Approval metadata + contract summary */}
+              <SectionCard title="Approval & Context">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
+                  <span className="text-text-muted">Submitted by</span>
+                  <span className="text-text-primary">{approval?.submittedBy ?? "—"}</span>
+                  <span className="text-text-muted">Submitted on</span>
+                  <span className="text-text-primary">{approval ? shortDate(approval.submittedAt) : "—"}</span>
+                  <span className="text-text-muted">Approver</span>
+                  <span className="text-text-primary">{approval?.approver ?? "Sarah Chen, VP Revenue"}</span>
+                  {contract && (
+                    <>
+                      <span className="text-text-muted">Contract</span>
+                      <span className="text-text-primary">{contract.id} · {contract.term}</span>
+                      <span className="text-text-muted">TCV</span>
+                      <span className="text-text-primary">{currency(contract.tcv)}</span>
+                    </>
+                  )}
                 </div>
               </SectionCard>
-
-              {contract && (
-                <SectionCard title="Contract Summary">
-                  <div className="divide-y divide-border-subtle">
-                    <KV label="Contract ID" value={contract.id} />
-                    <KV label="Status" value={<StatusBadge status={contract.status} />} />
-                    <KV label="Term" value={contract.term} />
-                    <KV label="TCV" value={currency(contract.tcv)} />
-                    <KV label="Renewal Date" value={contract.renewalDate ? shortDate(contract.renewalDate) : "—"} />
-                    <KV label="Payment Terms" value={contract.paymentTerms} />
-                  </div>
-                </SectionCard>
-              )}
-
-              {prevInvoice && (
-                <SectionCard title="Previous Invoice">
-                  <div className="divide-y divide-border-subtle">
-                    <KV label="Invoice ID" value={prevInvoice.id} />
-                    <KV label="Date" value={shortDate(prevInvoice.date)} />
-                    <KV label="Amount" value={currency(prevInvoice.amount)} />
-                    <KV label="Status" value={<StatusBadge status={prevInvoice.status} />} />
-                  </div>
-                  <p className={cn(
-                    "mt-2 text-[11px] font-medium",
-                    invoice.amount > prevInvoice.amount ? "text-amber-600" : "text-emerald-600"
-                  )}>
-                    {invoice.amount > prevInvoice.amount
-                      ? `▲ ${currency(invoice.amount - prevInvoice.amount)} vs prior`
-                      : `▼ ${currency(prevInvoice.amount - invoice.amount)} vs prior`}
-                  </p>
-                </SectionCard>
-              )}
-
-              {/* Invoice preview */}
-              <div>
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-                  Invoice Preview
-                </p>
-                <InvoiceHTMLPreview
-                  invoice={{ ...invoice, status: effectiveStatus }}
-                  customerName={customer.name}
-                  enrichment={enrichment}
-                />
-              </div>
             </div>
 
-            {/* Sticky Comments rail (mirrors validation aside on IngestContractPage) */}
+            {/* Sticky Comments rail */}
             <aside className="hidden w-[300px] shrink-0 self-start sticky top-4 lg:block">
               <div className="overflow-hidden rounded-lg border border-border-default bg-white">
                 <div className="flex items-center gap-2 border-b border-border-subtle bg-[#F7F7F8] px-3 py-2">
@@ -676,39 +1106,36 @@ export function ApprovalDetailPage() {
           </div>
         </div>
 
-        {/* RIGHT: Contract source PDF viewer (collapsible) */}
+        {/* RIGHT: Invoice | Contract preview tabs (collapsible) */}
         <div
           className={cn(
             "shrink-0 overflow-hidden border-l border-border-default transition-all duration-200",
-            viewerCollapsed ? "w-0" : "w-[460px]"
+            viewerCollapsed ? "w-0" : "w-[480px]"
           )}
         >
-          {!viewerCollapsed && contract && (
-            <ContractSourceViewer
-              contract={contract}
+          {!viewerCollapsed && (
+            <DocumentPreviewPanel
+              invoice={invoice}
               customer={customer}
+              contract={contract}
+              enrichment={enrichment}
               onCollapse={() => setViewerCollapsed(true)}
+              invoiceOverrides={overrides}
             />
-          )}
-          {!viewerCollapsed && !contract && (
-            <div className="flex h-full items-center justify-center p-6 text-[12px] text-text-muted">
-              No contract source available for this invoice.
-            </div>
           )}
         </div>
 
-        {/* Collapsed expand tab on right edge */}
         {viewerCollapsed && (
           <div className="border-l border-border-default">
             <button
               type="button"
               onClick={() => setViewerCollapsed(false)}
               className="flex h-full w-8 flex-col items-center justify-center gap-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
-              title="Show contract source"
+              title="Show preview"
             >
               <PanelRightOpen size={14} />
               <span className="rotate-90 whitespace-nowrap text-[9px] uppercase tracking-widest">
-                Contract
+                Preview
               </span>
             </button>
           </div>
@@ -716,7 +1143,15 @@ export function ApprovalDetailPage() {
       </div>
 
       {showToast && (
-        <Toast message="Email sent to the customer" onDone={handleToastDone} />
+        <Toast message="Invoice sent to the customer" onDone={handleToastDone} />
+      )}
+
+      {showSettingsModal && (
+        <ApprovalSettingsModal
+          initial={approvalPolicy}
+          onSave={handleSavePolicy}
+          onSkip={handleSkipPolicy}
+        />
       )}
     </div>
   );

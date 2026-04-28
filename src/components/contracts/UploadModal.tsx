@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { X, Upload, FileText, Loader2, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { sampleDocs, analysisMessages } from "@/data/ingest-data";
+import { getQueueItemBySample } from "@/data/queue-data";
 import { useIngestContext } from "@/context/IngestContext";
 
 interface Props {
@@ -47,14 +48,19 @@ export function UploadModal({ onClose }: Props) {
     if (step !== "done" || !chosenSample) return;
     const t = setTimeout(() => {
       setSelectedSample(chosenSample);
-      navigate(`/contracts/ingest?sample=${chosenSample === "sample1" ? "1" : "2"}`);
+      const queueItem = getQueueItemBySample(chosenSample);
+      if (queueItem) {
+        navigate(`/queue/${queueItem.id}`);
+      } else {
+        navigate("/queue");
+      }
       onClose();
     }, 600);
     return () => clearTimeout(t);
   }, [step, chosenSample, navigate, setSelectedSample, onClose]);
 
-  function handleSampleClick(id: "sample1" | "sample2") {
-    setChosenSample(id);
+  function handleSampleClick(id: "sample1" | "sample2" | "sample3") {
+    setChosenSample(id as "sample1" | "sample2");
     setStep("loading");
     setProgress(0);
     setMsgIdx(0);

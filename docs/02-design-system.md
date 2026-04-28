@@ -29,16 +29,16 @@ All status badges rendered by the `StatusBadge` component use consistent color c
 Active, Paid, Healthy, Enforced, Approved, Applied, Completed, Synced, Matched, Posted, Ready, Updated, Resolved, Issued, Delivered
 
 ### AMBER (`bg-amber-50 / text-amber-700`)
-Pending, Pending Approval, Pending Review, Pending Rerun, Review Required, In Progress, Partial, On Hold, PO Required, Medium Risk
+Pending, Pending Approval, Pending Review, Pending Rerun, Review Required, In Progress, Partial, On Hold, PO Required, Medium Risk, **Closing** (contract wind-down)
 
 ### BLUE (`bg-blue-50 / text-blue-700`)
-Reminder Sent, Overdue Notice, Re-exported, Trialing
+Reminder Sent, Overdue Notice, Re-exported, Trialing, **Scheduled** (renewal contract pending activation)
 
 ### RED (`bg-red-50 / text-red-700`)
-Overdue, Rejected, Blocked, Failed, Unapplied, Reversed, No Response, High Risk
+Overdue, Rejected, Blocked, Failed, Unapplied, Reversed, No Response, High Risk, **Terminated** (contract closed for non-payment)
 
 ### GRAY (`bg-gray-100 / text-gray-500`)
-Cancelled, Low Risk
+Cancelled, Low Risk, **Closed** (contract closed neutrally)
 
 **Fallback:** any unrecognized status renders as gray.
 

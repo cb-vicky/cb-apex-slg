@@ -8,6 +8,7 @@ import { GroupedSection } from "@/components/index-page/GroupedSection";
 import { GroupedRow, RowCell } from "@/components/index-page/GroupedRow";
 import { ListTable, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
 import { PageHeader } from "@/components/index-page/PageHeader";
+import { ViewToggle, type ViewMode } from "@/components/index-page/ViewToggle";
 
 // ---------------------------------------------------------------------------
 // Group logic
@@ -94,11 +95,32 @@ const listColumns: Column[] = [
 // ---------------------------------------------------------------------------
 
 export function QuotesIndex() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const groupFilter = searchParams.get("group");
+  const viewMode = (searchParams.get("view") as ViewMode) || "groups";
   const groups = buildGroups();
   const { ref: scrollRef, isScrolled } = useScrolled();
+
+  function handleViewChange(mode: ViewMode) {
+    const params = new URLSearchParams(searchParams);
+    if (mode === "groups") {
+      params.delete("view");
+      params.delete("group");
+    } else {
+      params.set("view", mode);
+      params.delete("group");
+    }
+    setSearchParams(params);
+  }
+
+  const viewToggle = (
+    <ViewToggle
+      value={groupFilter ? "groups" : viewMode}
+      onChange={handleViewChange}
+      resourcePlural="Quotes"
+    />
+  );
 
   const pending = quotes.filter((q) => q.approval.status === "pending").length;
   const expiringSoon = groups["expiring-soon"].length;
@@ -156,10 +178,43 @@ export function QuotesIndex() {
     );
   }
 
+  // All list view
+  if (viewMode === "all") {
+    return (
+      <div className="flex flex-1 w-full flex-col">
+        <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
+          <PageHeader title="Quotes" createLabel="Create" viewToggle={viewToggle} />
+        </div>
+        <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
+          <MetricStrip metrics={metrics} />
+          <ListTable columns={listColumns}>
+            {quotes.map((q) => {
+              const c = customers.find((cu) => cu.id === q.customerId);
+              return (
+                <ListRow key={q.id} onClick={() => navigate(`/customers/${q.customerId}?tab=quote&quoteId=${q.id}&from=quotes`)}>
+                  <ListCell width="130px" className="font-medium text-blue-600">{q.id}</ListCell>
+                  <ListCell width="150px" className="font-medium">{c?.name ?? "—"}</ListCell>
+                  <ListCell width="100px">{q.quoteType}</ListCell>
+                  <ListCell width="90px">{q.source}</ListCell>
+                  <ListCell width="100px" className="tabular-nums">{currency(q.tcv)}</ListCell>
+                  <ListCell width="80px">{q.discountPct}%</ListCell>
+                  <ListCell width="120px"><StatusBadge status={q.status} /></ListCell>
+                  <ListCell width="100px">{shortDate(q.expiryDate)}</ListCell>
+                  <ListCell width="110px" className="text-text-secondary">{q.owner}</ListCell>
+                </ListRow>
+              );
+            })}
+          </ListTable>
+        </div>
+      </div>
+    );
+  }
+
+  // Grouped landing (default)
   return (
     <div className="flex flex-1 w-full flex-col">
       <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
-        <PageHeader title="Quotes" createLabel="Create" />
+        <PageHeader title="Quotes" createLabel="Create" viewToggle={viewToggle} />
       </div>
       <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
         <MetricStrip metrics={metrics} />

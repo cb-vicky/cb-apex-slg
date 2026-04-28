@@ -16,6 +16,9 @@ Routes are declared in `src/App.tsx`. The principle: **every detail route render
 /invoices
 /invoices?group=pending-review
 /approvals
+/queue
+/queue?group=pending-review
+/queue?group=ingested
 ```
 
 Same component toggles between grouped and list mode based on the `?group` query param.
@@ -44,17 +47,24 @@ These render through the same shell, **not** redirect. They resolve the customer
 /invoices/:invoiceId    — resolves invoiceId → customerId, renders shell with tab=invoicing&invoiceId
 ```
 
-### Ingestion & approvals routes
+### Queue & approvals routes
 
 ```
-/contracts/ingest            — IngestContractPage (standalone, not in workspace shell)
-/contracts/ingest?sample=1   — happy-path sample
-/contracts/ingest?sample=2   — exception-path sample
-/approvals                   — ApprovalsIndex
-/approvals/invoices/:invoiceId — ApprovalDetailPage
+/queue                                    — QueueIndex (Inbox > Queue, replaces /contracts/ingest entry point)
+/queue?group=pending-review               — pending review group filter
+/queue/:queueItemId                       — QueueIngestPage (standalone, not in workspace shell)
+                                            • Echo Corp sample  → QI-2026-0001
+                                            • Zenith Analytics  → QI-2026-0002
+                                            • Other items render the placeholder state
+/approvals                                — ApprovalsIndex
+/approvals/invoices/:invoiceId            — ApprovalDetailPage
+/approvals/invoices/:invoiceId?ingestId=… — Approval Detail entered from a fresh ingest cycle.
+                                            The `ingestId` triggers the merchant Approval Settings
+                                            modal after the first-invoice approve toast and
+                                            terminates with the "All set" success state.
 ```
 
-**Route order constraint:** `/contracts/ingest` must be declared **before** `/contracts/:contractId` in `App.tsx` to prevent "ingest" being matched as a contract ID param.
+The `/queue/:queueItemId` route replaces the legacy `/contracts/ingest?sample=N` URL. The breadcrumb for the ingest page reads **Queue > Ingest Contract > {document}**. There is no longer any route order constraint with `/contracts/:contractId` because the path no longer starts with `/contracts/`.
 
 ## Stage / tab type
 
@@ -91,24 +101,38 @@ From Invoices index (any row):
   navigate("/customers/cust_echo_001?tab=invoicing&invoiceId=INV-2026-0034")
 ```
 
-## Full navigation chain (contract ingestion → approval)
+## Full navigation chain (Queue → ingest → first-invoice approval)
 
 See `docs/09-contract-ingestion.md` for the end-to-end flow. Key route transitions:
 
 ```
-/contracts                               — click Upload
+/queue                                                  — click Import
   → upload modal opens
   → click sample → loading animation
-/contracts/ingest?sample=1               — verification page
-  → click Finish → completion state
-/invoices/INV-INGEST-001                 — invoice detail in shared shell
-  → click Send for Approval
-/approvals                               — pending approval row appears
-/approvals/invoices/INV-INGEST-001       — approval detail page
+/queue/QI-2026-0001                                     — verification page
+  → click Finish → first invoice auto-submitted for approval
+                 → completion state with two CTAs:
+                   • "Review First Invoice →" (primary)
+                   • "Open Contract" (secondary)
+/approvals/invoices/INV-INGEST-001?ingestId=QI-2026-0001 — approval detail page
+  → critical fields editable on the LEFT
+  → Invoice | Contract tabs in the RIGHT preview panel
   → click Approve
-/invoices/INV-INGEST-001?from=approvals  — back in invoice shell, Approved state
+  → toast "Invoice sent to the customer"
+  → ApprovalSettingsModal opens (because ingestId is fresh and policy is unset)
+  → save policy → final "All set" success state
+  → click "View Customer →"
+/customers/cust_echo_001?tab=customer                   — customer shell with new contract + invoice visible
 ```
+
+For non-ingest approvals (where there is no `ingestId` query param), the toast is followed by a direct navigation to `/invoices/:invoiceId?from=approvals` and no settings modal appears.
 
 ## Sidebar navigation
 
-Sidebar items point to **index routes**, not hardcoded record IDs. The "Approvals" nav item is enabled (previously disabled/stubbed). See `src/components/layout/Sidebar.tsx`.
+Sidebar items point to **index routes**, not hardcoded record IDs. The Desk section currently lists:
+
+- **My Workbench** → `/`
+- **Queue** → `/queue` (replaces the previous disabled "Inbox" entry; this is the operational landing for every contract pending ingestion)
+- **Approvals** → `/approvals`
+
+Other groups (Records, Catalog, Insights) are unchanged. See `src/components/layout/Sidebar.tsx`.

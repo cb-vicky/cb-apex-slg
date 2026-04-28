@@ -169,6 +169,34 @@ export interface ContractDifference {
   contractValue: string;
 }
 
+export type ClosureReason =
+  | "customer_non_renewal"
+  | "ma_consolidation"
+  | "mutual_agreement"
+  | "non_payment"
+  | "replaced_by_new"
+  | "other";
+
+export type ClosureSettlementType =
+  | "termination_charge"
+  | "credit_note"
+  | "no_financial_impact";
+
+export interface ContractClosure {
+  effectiveDate: string;
+  reason: ClosureReason;
+  reasonDetail?: string;
+  settlementType: ClosureSettlementType;
+  calculatedAmount: number;
+  finalAmount: number;
+  invoiceId?: string;
+  creditNoteId?: string;
+  closedBy: string;
+  closedAt: string;
+  approvalRequired: boolean;
+  approvalReason?: string;
+}
+
 export interface Contract {
   id: string;
   customerId: string;
@@ -204,6 +232,13 @@ export interface Contract {
   billingFrequency: string;
   coTermBehavior: string;
   owner: string;
+  closure?: ContractClosure;
+  /** For Scheduled contracts: the date the contract activates (= prior contract's closure effectiveDate). */
+  scheduledStartDate?: string;
+  /** ID of the prior contract this contract replaces (set on Scheduled renewal). */
+  replacesContractId?: string;
+  /** ID of the renewal contract that replaced this one (set on Closing/Closed prior contract). */
+  replacedByContractId?: string;
 }
 
 export interface Invoice {
@@ -286,7 +321,7 @@ export const customers: Customer[] = [
     prepaidCreditTotal: 80000,
     openAr: 8400,
     nextRenewalDate: "2026-04-25",
-    riskBadges: ["Renewal in 22 days"],
+    riskBadges: ["Contract closing May 1"],
     createdAt: "2024-04-01",
     domain: "lumina.ai",
     industry: "Conversational AI",
@@ -992,6 +1027,7 @@ export const contracts: Contract[] = [
     billingFrequency: "Annual upfront + monthly overage",
     coTermBehavior: "All amendments co-termed to 2026-06-30",
     owner: "Alex Nguyen",
+    replacedByContractId: "CON-2026-0190",
   },
   {
     id: "CON-2026-0190",
@@ -1055,12 +1091,14 @@ export const contracts: Contract[] = [
     billingFrequency: "Annual upfront + monthly overage",
     coTermBehavior: "N/A",
     owner: "Alex Nguyen",
+    scheduledStartDate: "2026-05-01",
+    replacesContractId: "CON-2024-0189",
   },
   {
     id: "CON-2024-0201",
     customerId: "cust_lumina_002",
     sourceQuoteId: "QT-2024-0028",
-    status: "Active",
+    status: "Closing",
     signedDate: "2024-04-15",
     effectiveDate: "2024-05-01",
     term: "24 months",
@@ -1094,7 +1132,7 @@ export const contracts: Contract[] = [
     ],
     amendments: [],
     invoicesGenerated: 4,
-    creditNotes: 0,
+    creditNotes: 1,
     openAr: 8400,
     paymentsReceived: 367040,
     unappliedCash: 0,
@@ -1109,11 +1147,25 @@ export const contracts: Contract[] = [
       { date: "2024-04-10", action: "Contract created from quote", actor: "System" },
       { date: "2024-04-15", action: "Contract signed", actor: "Lumina AI" },
       { date: "2024-05-01", action: "Contract enforced", actor: "System" },
+      { date: "2026-04-25", action: "Early termination initiated", actor: "Alex Nguyen", detail: "Reason: Replaced by new contract – transitioning to QT-2026-0038" },
     ],
     paymentTerms: "Net 30",
     billingFrequency: "Annual upfront",
     coTermBehavior: "N/A",
     owner: "Alex Nguyen",
+    closure: {
+      effectiveDate: "2026-05-01",
+      reason: "replaced_by_new",
+      reasonDetail: "Customer transitioning to new 3-year enterprise agreement (QT-2026-0038). Mutual agreement to close current contract early and credit unused prepaid balance.",
+      settlementType: "credit_note",
+      calculatedAmount: 52000,
+      finalAmount: 52000,
+      creditNoteId: "CN-2026-0003",
+      closedBy: "Alex Nguyen",
+      closedAt: "2026-04-25T14:30:00Z",
+      approvalRequired: true,
+      approvalReason: "Closure credit note",
+    },
   },
   {
     id: "CON-2025-0022",
@@ -1294,10 +1346,295 @@ export const contracts: Contract[] = [
     coTermBehavior: "N/A",
     owner: "Lena Schulz",
   },
+
+  // ── Historical closed contracts (closure history for demo customers) ───────
+
+  {
+    id: "CON-2023-0089",
+    customerId: "cust_echo_001",
+    sourceQuoteId: "QT-2023-0018",
+    status: "Closed",
+    signedDate: "2022-07-01",
+    effectiveDate: "2022-07-01",
+    term: "24 months",
+    endDate: "2024-06-30",
+    tcv: 326400,
+    minAnnualCommit: 150000,
+    prepaidCreditBalance: 0,
+    prepaidCreditTotal: 60000,
+    renewalDate: "2024-06-15",
+    products: [
+      { sku: "APEX-PLATFORM", name: "Apex Platform – Enterprise", type: "recurring", quantity: 100, unitPrice: 48, discountApplied: 10, minimumCommit: 150000, prepaidCredits: 0, overageRate: 0, billingCadence: "Annual upfront" },
+      { sku: "APEX-AI-CREDITS", name: "AI Agent Credits – Prepaid Block", type: "one-time", quantity: 1, unitPrice: 60000, discountApplied: 0, minimumCommit: 0, prepaidCredits: 60000, overageRate: 0, billingCadence: "Prepaid" },
+    ],
+    enforcement: {
+      sourceType: "Linked Quote (QT-2023-0018)",
+      linkedQuoteId: "QT-2023-0018",
+      saleOrderStatus: "Completed",
+      enforcementStatus: "Enforced",
+      productMappingIssues: [],
+      missingFields: [],
+      provisioningStatus: "Deprovisioned",
+      entitlementStatus: "Expired",
+      manualOverrides: [],
+      blockingIssues: [],
+    },
+    billingSchedule: [
+      { date: "2022-07-01", amount: 81600, status: "Paid", invoiceId: "INV-2022-0401" },
+      { date: "2022-07-01", amount: 60000, status: "Paid", invoiceId: "INV-2022-0402" },
+      { date: "2023-07-01", amount: 81600, status: "Paid", invoiceId: "INV-2023-0188" },
+    ],
+    amendments: [],
+    invoicesGenerated: 3,
+    creditNotes: 1,
+    openAr: 0,
+    paymentsReceived: 223200,
+    unappliedCash: 0,
+    revRecSummary: { recognized: 326400, deferred: 0, status: "Completed" },
+    signedDocumentUrl: "#",
+    ingestionTimestamp: "2022-07-01T09:00:00Z",
+    extractionConfidence: 98,
+    quoteMatchConfidence: 97,
+    importantClauses: ["Auto-renewal at then-current rates", "60-day cancellation notice"],
+    comparisonToQuote: [],
+    timeline: [
+      { date: "2022-06-25", action: "Contract created from quote", actor: "System" },
+      { date: "2022-07-01", action: "Contract signed and enforced", actor: "Echo Corp" },
+      { date: "2024-06-30", action: "Contract closed — not renewed", actor: "System", detail: "Replaced by CON-2024-0189 on renewal" },
+    ],
+    paymentTerms: "Net 30",
+    billingFrequency: "Annual upfront",
+    coTermBehavior: "N/A",
+    owner: "Alex Nguyen",
+    closure: {
+      effectiveDate: "2024-06-30",
+      reason: "customer_non_renewal",
+      reasonDetail: "Customer chose to transition to a new contract structure with expanded seat count.",
+      settlementType: "credit_note",
+      calculatedAmount: 18400,
+      finalAmount: 18400,
+      creditNoteId: "CN-2025-0018",
+      closedBy: "Alex Nguyen",
+      closedAt: "2024-06-28T15:00:00Z",
+      approvalRequired: false,
+    },
+    replacedByContractId: "CON-2024-0189",
+  },
+
+  {
+    id: "CON-2022-0045",
+    customerId: "cust_northlane_003",
+    sourceQuoteId: "QT-2022-0011",
+    status: "Terminated",
+    signedDate: "2021-10-01",
+    effectiveDate: "2021-10-01",
+    term: "12 months",
+    endDate: "2022-09-30",
+    tcv: 198000,
+    minAnnualCommit: 90000,
+    prepaidCreditBalance: 0,
+    prepaidCreditTotal: 30000,
+    renewalDate: "2022-09-15",
+    products: [
+      { sku: "APEX-PLATFORM", name: "Apex Platform – Professional", type: "recurring", quantity: 60, unitPrice: 42, discountApplied: 5, minimumCommit: 90000, prepaidCredits: 0, overageRate: 0, billingCadence: "Quarterly" },
+      { sku: "APEX-AI-CREDITS", name: "AI Agent Credits – Starter Block", type: "one-time", quantity: 1, unitPrice: 30000, discountApplied: 0, minimumCommit: 0, prepaidCredits: 30000, overageRate: 0, billingCadence: "Prepaid" },
+    ],
+    enforcement: {
+      sourceType: "Linked Quote (QT-2022-0011)",
+      linkedQuoteId: "QT-2022-0011",
+      saleOrderStatus: "Completed",
+      enforcementStatus: "Terminated",
+      productMappingIssues: [],
+      missingFields: [],
+      provisioningStatus: "Deprovisioned",
+      entitlementStatus: "Revoked",
+      manualOverrides: [],
+      blockingIssues: [],
+    },
+    billingSchedule: [
+      { date: "2021-10-01", amount: 22680, status: "Paid", invoiceId: "INV-2021-0280" },
+      { date: "2022-01-01", amount: 22680, status: "Paid", invoiceId: "INV-2022-0030" },
+      { date: "2022-04-01", amount: 22680, status: "Paid", invoiceId: "INV-2022-0088" },
+      { date: "2022-07-01", amount: 22680, status: "Unpaid — written off", invoiceId: "INV-2022-0141" },
+    ],
+    amendments: [],
+    invoicesGenerated: 4,
+    creditNotes: 0,
+    openAr: 0,
+    paymentsReceived: 68040,
+    unappliedCash: 0,
+    revRecSummary: { recognized: 198000, deferred: 0, status: "Completed" },
+    signedDocumentUrl: "#",
+    ingestionTimestamp: "2021-10-01T09:00:00Z",
+    extractionConfidence: 90,
+    quoteMatchConfidence: 88,
+    importantClauses: ["Quarterly billing", "30-day cure period before termination"],
+    comparisonToQuote: [],
+    timeline: [
+      { date: "2021-10-01", action: "Contract signed and enforced", actor: "Northlane Labs" },
+      { date: "2022-07-15", action: "Payment overdue — 45 days", actor: "System" },
+      { date: "2022-08-01", action: "Collections escalated", actor: "Lena Schulz" },
+      { date: "2022-09-01", action: "Contract terminated for non-payment", actor: "Lena Schulz", detail: "30-day cure period elapsed with no payment" },
+    ],
+    paymentTerms: "Net 30",
+    billingFrequency: "Quarterly",
+    coTermBehavior: "N/A",
+    owner: "Lena Schulz",
+    closure: {
+      effectiveDate: "2022-09-01",
+      reason: "non_payment",
+      reasonDetail: "Customer failed to remit payment after 30-day cure period. Contract terminated per agreement clause 12.4.",
+      settlementType: "termination_charge",
+      calculatedAmount: 22680,
+      finalAmount: 0,
+      invoiceId: "INV-2022-0141",
+      closedBy: "Lena Schulz",
+      closedAt: "2022-09-01T11:00:00Z",
+      approvalRequired: false,
+    },
+  },
+
+  {
+    id: "CON-2023-0112",
+    customerId: "cust_verdant_005",
+    sourceQuoteId: "QT-2023-0044",
+    status: "Closed",
+    signedDate: "2022-09-15",
+    effectiveDate: "2022-10-01",
+    term: "24 months",
+    endDate: "2024-09-30",
+    tcv: 372000,
+    minAnnualCommit: 160000,
+    prepaidCreditBalance: 0,
+    prepaidCreditTotal: 50000,
+    renewalDate: "2024-09-15",
+    products: [
+      { sku: "APEX-PLATFORM", name: "Apex Platform – Enterprise", type: "recurring", quantity: 150, unitPrice: 48, discountApplied: 8, minimumCommit: 160000, prepaidCredits: 0, overageRate: 0, billingCadence: "Annual upfront" },
+      { sku: "APEX-AI-CREDITS", name: "AI Agent Credits – Prepaid Block", type: "one-time", quantity: 1, unitPrice: 50000, discountApplied: 0, minimumCommit: 0, prepaidCredits: 50000, overageRate: 0, billingCadence: "Prepaid" },
+    ],
+    enforcement: {
+      sourceType: "Linked Quote (QT-2023-0044)",
+      linkedQuoteId: "QT-2023-0044",
+      saleOrderStatus: "Completed",
+      enforcementStatus: "Enforced",
+      productMappingIssues: [],
+      missingFields: [],
+      provisioningStatus: "Deprovisioned",
+      entitlementStatus: "Expired",
+      manualOverrides: [],
+      blockingIssues: [],
+    },
+    billingSchedule: [
+      { date: "2022-10-01", amount: 88320, status: "Paid", invoiceId: "INV-2022-0510" },
+      { date: "2022-10-01", amount: 50000, status: "Paid", invoiceId: "INV-2022-0511" },
+      { date: "2023-10-01", amount: 88320, status: "Paid", invoiceId: "INV-2023-0310" },
+    ],
+    amendments: [],
+    invoicesGenerated: 3,
+    creditNotes: 0,
+    openAr: 0,
+    paymentsReceived: 226640,
+    unappliedCash: 0,
+    revRecSummary: { recognized: 372000, deferred: 0, status: "Completed" },
+    signedDocumentUrl: "#",
+    ingestionTimestamp: "2022-10-01T09:00:00Z",
+    extractionConfidence: 95,
+    quoteMatchConfidence: 94,
+    importantClauses: ["Annual billing", "60-day cancellation notice", "Mutual termination clause"],
+    comparisonToQuote: [],
+    timeline: [
+      { date: "2022-09-15", action: "Contract signed", actor: "Verdant Health" },
+      { date: "2022-10-01", action: "Contract enforced", actor: "System" },
+      { date: "2024-07-01", action: "Early termination agreed", actor: "Lena Schulz", detail: "Mutual agreement — customer upgrading to new contract structure" },
+      { date: "2024-09-30", action: "Contract closed", actor: "System", detail: "Replaced by CON-2025-0034" },
+    ],
+    paymentTerms: "Net 30",
+    billingFrequency: "Annual upfront",
+    coTermBehavior: "N/A",
+    owner: "Lena Schulz",
+    closure: {
+      effectiveDate: "2024-09-30",
+      reason: "mutual_agreement",
+      reasonDetail: "Both parties agreed to close the contract at natural term end with an early transition to an upgraded agreement.",
+      settlementType: "no_financial_impact",
+      calculatedAmount: 0,
+      finalAmount: 0,
+      closedBy: "Lena Schulz",
+      closedAt: "2024-09-28T10:00:00Z",
+      approvalRequired: false,
+    },
+    replacedByContractId: "CON-2025-0034",
+  },
 ];
 
 // Backward compat
 export const contract: Contract = contracts[0];
+
+// ---------------------------------------------------------------------------
+// VERDANT HEALTH EARLY RENEWAL — template for runtime-created Scheduled contract
+// ---------------------------------------------------------------------------
+// This is the contract record that gets created after the closure of
+// CON-2025-0034 is approved. The auto-ingest step in ApprovalDetailPage
+// reads this template and stamps it with the actual scheduledStartDate and
+// replacesContractId before adding it to sessionContracts.
+// ---------------------------------------------------------------------------
+
+export const verdantRenewalContractTemplate: Omit<Contract, "scheduledStartDate" | "replacesContractId"> = {
+  id: "CON-2026-0VH1",
+  customerId: "cust_verdant_005",
+  sourceQuoteId: "QI-2026-0006",
+  status: "Scheduled",
+  signedDate: "2026-04-19",
+  effectiveDate: "2026-06-01",
+  term: "24 months",
+  endDate: "2028-05-31",
+  tcv: 348000,
+  minAnnualCommit: 160000,
+  prepaidCreditBalance: 40000,
+  prepaidCreditTotal: 40000,
+  renewalDate: "2028-05-15",
+  products: [
+    { sku: "APEX-PLATFORM", name: "Apex Platform – Enterprise", type: "recurring", quantity: 200, unitPrice: 52, discountApplied: 8, minimumCommit: 160000, prepaidCredits: 0, overageRate: 0, billingCadence: "Annual upfront" },
+    { sku: "APEX-AI-CREDITS", name: "AI Agent Credits – Prepaid Block", type: "one-time", quantity: 1, unitPrice: 40000, discountApplied: 0, minimumCommit: 0, prepaidCredits: 40000, overageRate: 0, billingCadence: "Prepaid" },
+  ],
+  enforcement: {
+    sourceType: "Ingested PDF (via Queue QI-2026-0006)",
+    linkedQuoteId: "",
+    saleOrderStatus: "Pending",
+    enforcementStatus: "Pending",
+    productMappingIssues: [],
+    missingFields: [],
+    provisioningStatus: "Scheduled — activates on closure of CON-2025-0034",
+    entitlementStatus: "Scheduled — 200 seats provisioned on activation",
+    manualOverrides: [],
+    blockingIssues: [],
+  },
+  billingSchedule: [
+    { date: "2026-06-01", amount: 174000, status: "Scheduled" },
+    { date: "2026-06-01", amount: 40000, status: "Scheduled" },
+  ],
+  amendments: [],
+  invoicesGenerated: 0,
+  creditNotes: 0,
+  openAr: 0,
+  paymentsReceived: 0,
+  unappliedCash: 0,
+  revRecSummary: { recognized: 0, deferred: 348000, status: "Not Started" },
+  signedDocumentUrl: "#",
+  ingestionTimestamp: "2026-04-19T14:00:00Z",
+  extractionConfidence: 95,
+  quoteMatchConfidence: 0,
+  importantClauses: ["Annual billing upfront", "60-day cancellation notice", "AI credit expiry at term end"],
+  comparisonToQuote: [],
+  timeline: [
+    { date: "2026-04-19", action: "Contract ingested from PDF", actor: "System", detail: "Early renewal — via Queue QI-2026-0006" },
+    { date: "2026-04-19", action: "Scheduled pending prior contract closure", actor: "Alex Nguyen", detail: "Activates upon closure approval of CON-2025-0034" },
+  ],
+  paymentTerms: "Net 30",
+  billingFrequency: "Annual upfront",
+  coTermBehavior: "N/A",
+  owner: "Lena Schulz",
+};
 
 // ---------------------------------------------------------------------------
 // INVOICES

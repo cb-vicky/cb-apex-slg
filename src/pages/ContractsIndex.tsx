@@ -1,8 +1,6 @@
-import { useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useScrolled } from "@/hooks/useScrolled";
 import { contracts, customers } from "@/data/mock-data";
-import { UploadModal } from "@/components/contracts/UploadModal";
 import { currency, shortDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/primitives";
 import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStrip";
@@ -10,6 +8,7 @@ import { GroupedSection } from "@/components/index-page/GroupedSection";
 import { GroupedRow, RowCell } from "@/components/index-page/GroupedRow";
 import { ListTable, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
 import { PageHeader } from "@/components/index-page/PageHeader";
+import { ViewToggle, type ViewMode } from "@/components/index-page/ViewToggle";
 
 // ---------------------------------------------------------------------------
 // Group logic
@@ -100,12 +99,32 @@ const listColumns: Column[] = [
 // ---------------------------------------------------------------------------
 
 export function ContractsIndex() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const groupFilter = searchParams.get("group");
+  const viewMode = (searchParams.get("view") as ViewMode) || "groups";
   const groups = buildGroups();
   const { ref: scrollRef, isScrolled } = useScrolled();
-  const [uploadOpen, setUploadOpen] = useState(false);
+
+  function handleViewChange(mode: ViewMode) {
+    const params = new URLSearchParams(searchParams);
+    if (mode === "groups") {
+      params.delete("view");
+      params.delete("group");
+    } else {
+      params.set("view", mode);
+      params.delete("group");
+    }
+    setSearchParams(params);
+  }
+
+  const viewToggle = (
+    <ViewToggle
+      value={groupFilter ? "groups" : viewMode}
+      onChange={handleViewChange}
+      resourcePlural="Contracts"
+    />
+  );
 
   const renewalCount = groups["approaching-renewal"].length;
   const pendingEnf = groups["pending-enforcement"].length;
@@ -123,15 +142,12 @@ export function ContractsIndex() {
     navigate(`/customers/${row.customerId}?tab=contract&contractId=${row.contractId}&from=${fromParam}`);
   }
 
-  const modal = uploadOpen ? <UploadModal onClose={() => setUploadOpen(false)} /> : null;
-
   if (groupFilter) {
     const gm = groupMeta.find((g) => g.slug === groupFilter);
     const rows = groups[groupFilter] ?? [];
     const filtered = contracts.filter((c) => rows.some((r) => r.contractId === c.id));
     return (
       <>
-        {modal}
         <div className="flex flex-1 w-full flex-col">
           <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
             <PageHeader
@@ -139,8 +155,6 @@ export function ContractsIndex() {
               backLabel="Back to overview"
               backPath="/contracts"
               filterLabel={gm?.label}
-              createLabel="Upload"
-              onCreateClick={() => setUploadOpen(true)}
             />
           </div>
           <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
@@ -168,12 +182,45 @@ export function ContractsIndex() {
     );
   }
 
+  // All list view
+  if (viewMode === "all") {
+    return (
+      <>
+        <div className="flex flex-1 w-full flex-col">
+          <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
+            <PageHeader title="Contracts" viewToggle={viewToggle} />
+          </div>
+          <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
+            <MetricStrip metrics={metrics} />
+            <ListTable columns={listColumns}>
+              {contracts.map((c) => {
+                const cu = customers.find((x) => x.id === c.customerId);
+                return (
+                  <ListRow key={c.id} onClick={() => navigate(`/customers/${c.customerId}?tab=contract&contractId=${c.id}&from=contracts`)}>
+                    <ListCell width="140px" className="font-medium text-blue-600">{c.id}</ListCell>
+                    <ListCell width="150px" className="font-medium">{cu?.name ?? "—"}</ListCell>
+                    <ListCell width="100px" className="tabular-nums">{currency(c.tcv)}</ListCell>
+                    <ListCell width="90px">{c.term}</ListCell>
+                    <ListCell width="110px">{c.renewalDate ? shortDate(c.renewalDate) : "—"}</ListCell>
+                    <ListCell width="110px"><StatusBadge status={c.enforcement.enforcementStatus} /></ListCell>
+                    <ListCell width="90px"><StatusBadge status={c.status} /></ListCell>
+                    <ListCell width="110px" className="text-text-secondary">{c.owner}</ListCell>
+                  </ListRow>
+                );
+              })}
+            </ListTable>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Grouped landing (default)
   return (
     <>
-      {modal}
       <div className="flex flex-1 w-full flex-col">
         <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
-          <PageHeader title="Contracts" createLabel="Upload" onCreateClick={() => setUploadOpen(true)} />
+          <PageHeader title="Contracts" viewToggle={viewToggle} />
         </div>
         <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
           <MetricStrip metrics={metrics} />

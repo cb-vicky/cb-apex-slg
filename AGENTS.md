@@ -22,10 +22,12 @@ src/
     revenue-workspace/      # customer-centric lifecycle shell + per-tab sections
     index-page/             # grouped landing + list table primitives
     getting-started/        # workbench home
-    approvals/              # invoice approval UI
-    contracts/              # upload modal
+    approvals/              # invoice approval UI + ApprovalSettingsModal
+    contracts/              # upload modal, closure modal + ClosureSummaryCard + ClosureBanner
+    queue/                  # Inbox > Queue: integrations modal + queue UI bits
     ui/                     # shared primitives (StatusBadge, KV, SectionCard, etc.)
-  data/                     # mock-data, revrec, support, billing, ingest, gettingStarted
+  data/                     # mock-data, revrec, support, billing, ingest,
+                            # queue-data, approval-policy, gettingStarted
   context/                  # IngestContext, WorkbenchRoleContext
 ```
 
@@ -53,10 +55,10 @@ Detailed specs are split across `docs/` so you load only what's relevant. Cursor
 | The outer shell (TopNav, Sidebar, AppShell) | `docs/01-shell-and-layout.md` |
 | `CustomerRevenueWorkspace` or any lifecycle tab | `docs/03-customer-workspace.md` + `docs/04-lifecycle-tabs.md` |
 | Deriving tab statuses, AI insights, NBAs, health | `docs/07-dynamic-status.md` |
-| A module index page (Customers/Quotes/Contracts/Invoices/Approvals) | `docs/05-index-pages.md` |
+| A module index page (Customers/Quotes/Contracts/Invoices/Approvals/Queue) | `docs/05-index-pages.md` |
 | Routing, URL params, navigation flows | `docs/06-routing.md` |
 | Mock data types, seed entries, use-case matrix | `docs/08-mock-data.md` |
-| Contract ingestion or invoice approval flow | `docs/09-contract-ingestion.md` |
+| The Queue, contract ingestion, or first-invoice approval flow | `docs/09-contract-ingestion.md` |
 | Workbench Home / Getting Started | `docs/10-workbench-home.md` |
 | Tab gating, list-then-detail behavior | `docs/11-workspace-cleanup-and-gating.md` |
 | Product intent, personas, "what good looks like" | `docs/00-overview.md` |

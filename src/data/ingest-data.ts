@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 export interface SampleDoc {
-  id: "sample1" | "sample2";
+  id: "sample1" | "sample2" | "sample3";
   label: string;
   subtitle: string;
   path: "happy" | "exception";
@@ -43,7 +43,7 @@ export interface IngestIssue {
 }
 
 export interface ExtractedContract {
-  docId: "sample1" | "sample2";
+  docId: "sample1" | "sample2" | "sample3";
   documentName: string;
   extractedAt: string;
   extractionConfidence: number;
@@ -66,7 +66,7 @@ export interface CreatedObject {
 }
 
 export interface IngestResult {
-  docId: "sample1" | "sample2";
+  docId: "sample1" | "sample2" | "sample3";
   contractId: string;
   customerId: string;
   invoiceId: string;
@@ -114,6 +114,13 @@ export const sampleDocs: SampleDoc[] = [
     subtitle: "Exception path: new customer + unmapped product",
     path: "exception",
     documentName: "ZenithAnalytics_NewBusiness_Contract_2026_Signed.pdf",
+  },
+  {
+    id: "sample3",
+    label: "Verdant Health — Early Renewal",
+    subtitle: "Early renewal path: active contract requires closure before ingestion",
+    path: "happy",
+    documentName: "VerdantHealth_EarlyRenewal_2026.pdf",
   },
 ];
 
@@ -257,6 +264,58 @@ export const extractedSample2: ExtractedContract = {
 };
 
 // ---------------------------------------------------------------------------
+// EXTRACTED CONTRACT DATA — Sample 3 (Verdant Health Early Renewal)
+// ---------------------------------------------------------------------------
+
+export const extractedSample3: ExtractedContract = {
+  docId: "sample3",
+  documentName: "VerdantHealth_EarlyRenewal_2026.pdf",
+  extractedAt: "2026-04-19T13:55:00Z",
+  extractionConfidence: 95,
+  customerName: "Verdant Health",
+  customerLegalEntity: "Verdant Health Systems LLC",
+  customerId: "cust_verdant_005",
+  customerFound: true,
+  quoteMatchId: undefined,
+  quoteMatchConfidence: undefined,
+  products: [
+    {
+      extractedName: "Apex Platform – Enterprise",
+      extractedSku: "APEX-PLATFORM",
+      catalogSku: "APEX-PLATFORM",
+      matched: true,
+      quantity: 200,
+      unitPrice: 52,
+      discount: 8,
+      billingModel: "Per seat / month",
+    },
+    {
+      extractedName: "AI Agent Credits – Prepaid Block",
+      extractedSku: "APEX-AI-CREDITS",
+      catalogSku: "APEX-AI-CREDITS",
+      matched: true,
+      quantity: 1,
+      unitPrice: 40000,
+      discount: 0,
+      billingModel: "Prepaid drawdown",
+    },
+  ],
+  terms: {
+    term: "24 months",
+    startDate: "2026-06-01",
+    endDate: "2028-05-31",
+    billingFrequency: "Annual upfront",
+    paymentTerms: "Net 30",
+    tcv: 348000,
+    arr: 174000,
+    minCommit: 160000,
+    prepaidCredits: 40000,
+    autoRenew: true,
+  },
+  issues: [],
+};
+
+// ---------------------------------------------------------------------------
 // ANALYSIS LOADING MESSAGES
 // ---------------------------------------------------------------------------
 
@@ -273,11 +332,13 @@ export const analysisMessages = [
 // HELPERS
 // ---------------------------------------------------------------------------
 
-export function getExtractedContract(sampleId: "sample1" | "sample2"): ExtractedContract {
-  return sampleId === "sample1" ? extractedSample1 : extractedSample2;
+export function getExtractedContract(sampleId: "sample1" | "sample2" | "sample3"): ExtractedContract {
+  if (sampleId === "sample1") return extractedSample1;
+  if (sampleId === "sample3") return extractedSample3;
+  return extractedSample2;
 }
 
-export function buildIngestResult(docId: "sample1" | "sample2", resolvedCustomerId: string): IngestResult {
+export function buildIngestResult(docId: "sample1" | "sample2" | "sample3", resolvedCustomerId: string): IngestResult {
   if (docId === "sample1") {
     return {
       docId,
@@ -290,6 +351,19 @@ export function buildIngestResult(docId: "sample1" | "sample2", resolvedCustomer
         { type: "quote", id: "QT-2026-0042", label: "Quote QT-2026-0042", action: "linked" },
         { type: "customer", id: "cust_echo_001", label: "Customer: Echo Corp", action: "reused" },
         { type: "product", id: "APEX-PLATFORM", label: "APEX-PLATFORM, APEX-AI-CREDITS, APEX-SUPPORT", action: "reused" },
+      ],
+    };
+  }
+  if (docId === "sample3") {
+    return {
+      docId,
+      contractId: "CON-2026-0VH1",
+      customerId: "cust_verdant_005",
+      invoiceId: "",
+      createdObjects: [
+        { type: "customer", id: "cust_verdant_005", label: "Customer: Verdant Health", action: "reused" },
+        { type: "product", id: "APEX-PLATFORM", label: "APEX-PLATFORM, APEX-AI-CREDITS", action: "reused" },
+        { type: "contract", id: "CON-2026-0VH1", label: "Contract CON-2026-0VH1 (Scheduled)", action: "created" },
       ],
     };
   }

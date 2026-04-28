@@ -11,7 +11,8 @@ import { CustomerDetailPage } from "@/pages/CustomerDetailPage";
 import { QuoteDetailPage } from "@/pages/QuoteDetailPage";
 import { ContractDetailPage } from "@/pages/ContractDetailPage";
 import { InvoiceDetailPage } from "@/pages/InvoiceDetailPage";
-import { IngestContractPage } from "@/pages/IngestContractPage";
+import { QueueIndex } from "@/pages/QueueIndex";
+import { QueueIngestPage } from "@/pages/QueueIngestPage";
 import { ApprovalsIndex } from "@/pages/ApprovalsIndex";
 import { ApprovalDetailPage } from "@/pages/ApprovalDetailPage";
 
@@ -31,8 +32,9 @@ export default function App() {
             <Route path="/contracts" element={<ContractsIndex />} />
             <Route path="/invoices" element={<InvoicesIndex />} />
 
-            {/* Contract ingestion — must be before /contracts/:contractId */}
-            <Route path="/contracts/ingest" element={<IngestContractPage />} />
+            {/* Queue (Inbox > Queue) — landing for all contracts pending ingestion */}
+            <Route path="/queue" element={<QueueIndex />} />
+            <Route path="/queue/:queueItemId" element={<QueueIngestPage />} />
 
             {/* Approvals module */}
             <Route path="/approvals" element={<ApprovalsIndex />} />

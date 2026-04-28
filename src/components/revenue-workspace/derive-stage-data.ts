@@ -167,7 +167,7 @@ export function deriveContextMetrics(
 // STAGE STATUS (journey rail labels)
 // ---------------------------------------------------------------------------
 
-export type StatusSeverity = "green" | "amber" | "red" | "blue";
+export type StatusSeverity = "green" | "amber" | "red" | "blue" | "gray";
 
 export interface StageStatus {
   text: string;
@@ -179,6 +179,7 @@ const severityToColor: Record<StatusSeverity, string> = {
   amber: "text-amber-600",
   red: "text-red-600",
   blue: "text-blue-600",
+  gray: "text-gray-500",
 };
 
 export function severityColor(severity: StatusSeverity): string {
@@ -216,6 +217,33 @@ export function deriveQuoteStatus(quote: Quote): StageStatus {
 }
 
 export function deriveContractStatus(contract: Contract): StageStatus {
+  // Scheduled contracts (renewal not yet active — prior contract still closing)
+  if (contract.status === "Scheduled") {
+    const activationDate = contract.scheduledStartDate ?? contract.effectiveDate;
+    return {
+      text: `Scheduled · activates ${shortDate(activationDate)}`,
+      severity: "blue",
+    };
+  }
+
+  // Handle closure statuses
+  if (contract.closure) {
+    const effectiveDate = new Date(contract.closure.effectiveDate);
+    const today = new Date();
+    const isFuture = effectiveDate > today;
+    
+    if (isFuture) {
+      const daysRemaining = Math.ceil((effectiveDate.getTime() - today.getTime()) / 86400000);
+      return { text: `Closing in ${daysRemaining}d`, severity: "amber" };
+    }
+    
+    // Past effective date
+    if (contract.closure.reason === "non_payment") {
+      return { text: "Terminated", severity: "red" };
+    }
+    return { text: "Closed", severity: "gray" as StatusSeverity };
+  }
+
   const parts: string[] = [];
   parts.push(contract.status);
   if (contract.amendments.length > 0) {
@@ -608,6 +636,31 @@ export function getQuoteInsights(quote: Quote, contract: Contract | null): Insig
 export function getContractInsights(contract: Contract | null, customerInvoices: Invoice[]): InsightItem[] {
   if (!contract) return [{ severity: "info", text: "No contract found for this customer." }];
   const items: InsightItem[] = [];
+
+  // Closure-related insights (priority)
+  if (contract.closure) {
+    const effectiveDate = new Date(contract.closure.effectiveDate);
+    const today = new Date();
+    const isFuture = effectiveDate > today;
+    const daysRemaining = Math.ceil((effectiveDate.getTime() - today.getTime()) / 86400000);
+
+    if (isFuture) {
+      items.push({ severity: "warning", text: `Contract closing in ${daysRemaining} day${daysRemaining !== 1 ? "s" : ""} — wind-down period active` });
+    } else {
+      items.push({ severity: "info", text: `Contract closed on ${shortDate(contract.closure.effectiveDate)}` });
+    }
+
+    if (contract.closure.settlementType === "credit_note" && contract.closure.creditNoteId) {
+      items.push({ severity: "info", text: `Credit note ${contract.closure.creditNoteId} pending — ${currency(contract.closure.finalAmount)}` });
+    }
+    if (contract.closure.settlementType === "termination_charge" && contract.closure.invoiceId) {
+      items.push({ severity: "info", text: `Termination invoice ${contract.closure.invoiceId} pending — ${currency(contract.closure.finalAmount)}` });
+    }
+    if (contract.closure.approvalRequired) {
+      items.push({ severity: "warning", text: `Settlement requires approval — ${contract.closure.approvalReason}` });
+    }
+  }
+
   const overdueInvoices = customerInvoices.filter((i) => i.status === "Overdue" && i.contractId === contract.id);
   if (overdueInvoices.length > 0) {
     const oldest = overdueInvoices[0];
@@ -617,17 +670,17 @@ export function getContractInsights(contract: Contract | null, customerInvoices:
   if (contract.comparisonToQuote.length > 0) {
     items.push({ severity: "warning", text: `Signed contract differs from quote on ${contract.comparisonToQuote.length} field${contract.comparisonToQuote.length > 1 ? "s" : ""}: ${contract.comparisonToQuote.map((d) => d.field).join(", ")}` });
   }
-  if (contract.prepaidCreditTotal > 0) {
+  if (contract.prepaidCreditTotal > 0 && !contract.closure) {
     const burnDays = contract.prepaidCreditBalance > 0
       ? Math.round(contract.prepaidCreditBalance / ((contract.prepaidCreditTotal - contract.prepaidCreditBalance) / Math.max(1, Math.round((Date.now() - new Date(contract.effectiveDate).getTime()) / 86400000))))
       : 0;
     if (burnDays > 0 && burnDays < 60) items.push({ severity: "info", text: `Minimum commit will exhaust in ~${burnDays} days at current burn rate` });
   }
-  if (contract.renewalDate) {
+  if (contract.renewalDate && !contract.closure) {
     const daysToRenewal = Math.round((new Date(contract.renewalDate).getTime() - Date.now()) / 86400000);
     if (daysToRenewal > 0 && daysToRenewal < 90) items.push({ severity: "info", text: `Renewal in ${daysToRenewal} days — start planning` });
   }
-  if (contract.enforcement.productMappingIssues.length === 0 && contract.enforcement.enforcementStatus === "Enforced") {
+  if (contract.enforcement.productMappingIssues.length === 0 && contract.enforcement.enforcementStatus === "Enforced" && !contract.closure) {
     items.push({ severity: "success", text: "Product mapping complete — all SKUs matched" });
   }
   if (contract.enforcement.blockingIssues.length > 0) {
@@ -879,6 +932,26 @@ export function getQuoteActions(quote: Quote | null): NextAction[] {
 export function getContractActions(contract: Contract | null, customerInvoices: Invoice[]): NextAction[] {
   if (!contract) return [];
   const actions: NextAction[] = [];
+
+  // Closure-related actions (priority)
+  if (contract.closure) {
+    const effectiveDate = new Date(contract.closure.effectiveDate);
+    const today = new Date();
+    const isFuture = effectiveDate > today;
+    const daysRemaining = Math.ceil((effectiveDate.getTime() - today.getTime()) / 86400000);
+
+    if (isFuture) {
+      actions.push({ label: `Contract closing on ${shortDate(contract.closure.effectiveDate)}`, description: `${daysRemaining} day${daysRemaining !== 1 ? "s" : ""} remaining in wind-down` });
+    }
+
+    if (contract.closure.settlementType === "credit_note" && contract.closure.creditNoteId) {
+      actions.push({ label: `Process credit note ${contract.closure.creditNoteId}`, description: `${currency(contract.closure.finalAmount)} pending approval` });
+    }
+    if (contract.closure.settlementType === "termination_charge" && contract.closure.invoiceId) {
+      actions.push({ label: `Review termination invoice ${contract.closure.invoiceId}`, description: `${currency(contract.closure.finalAmount)} pending approval` });
+    }
+  }
+
   const overdue = customerInvoices.filter((i) => i.status === "Overdue" && i.contractId === contract.id);
   if (overdue.length > 0) {
     actions.push({ label: `Resolve overdue invoice`, description: `${overdue[0].id} is past due (${currency(overdue[0].amount)})` });
@@ -887,7 +960,7 @@ export function getContractActions(contract: Contract | null, customerInvoices: 
   if (held.length > 0) {
     actions.push({ label: `Collect PO for held invoice`, description: `${held[0].id} on hold: ${held[0].holdReason}` });
   }
-  if (contract.renewalDate) {
+  if (contract.renewalDate && !contract.closure) {
     const days = Math.round((new Date(contract.renewalDate).getTime() - Date.now()) / 86400000);
     if (days > 0 && days < 90) actions.push({ label: "Start renewal planning", description: `Contract ends ${shortDate(contract.renewalDate)}` });
   }
