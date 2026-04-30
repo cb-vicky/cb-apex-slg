@@ -21,10 +21,10 @@ The outer shell is already built in `src/components/layout/` (`AppShell.tsx`, `T
 ### C. Left Sidebar
 
 - White background, no border-right (or very subtle)
-- Top item: "My Workbench" with chevron (orange active color)
-- Then plain text nav items (no icons): Customers, Quotes, Contracts, Invoices, Credit notes, Inbox, Product Catalog, Entitlements, Approvals, Usages, RevenueStory
-- Active item uses the orange color
-- Compact text-only style, ~130px wide
+- **Desk** group: **My Workbench** → `/`, **Queue** → `/queue`, **Approvals** → `/approvals` (each row uses a chevron; active state uses orange gradient accent)
+- Small **orange dot** on the trailing edge of **My Workbench** when session state has pending approvals or in-flight Early Renewal closure ingestions; **Approvals** gets a dot when any approval is **Pending Approval** (see `docs/10-workbench-home.md`)
+- Further groups (Records, Catalog, Insights) follow the same row pattern
+- Compact text-only style, ~180px wide in the prototype
 
 ### D. Content Area Background
 

@@ -17,4 +17,4 @@ When editing the outer shell:
 1. **Do NOT redesign or replace the outer shell** (top nav, site switcher, left sidebar, rounded white content canvas).
 2. **Do NOT create a full-page wrapper card** inside the content area — work inside the existing white canvas.
 3. Sidebar items point to **index routes** (`/customers`, `/quotes`, `/contracts`, `/invoices`, `/approvals`, `/queue`), not hardcoded record IDs.
-4. The Desk section in the sidebar lists **My Workbench → Queue → Approvals**. The previously disabled "Inbox" entry has been replaced by **Queue** (`/queue`), which is the operational landing for every signed contract pending ingestion.
+5. **Desk nav dots:** **My Workbench** may show a trailing orange dot when there are pending approvals or in-flight `pendingRenewalIngestions`; **Approvals** may show a dot when any approval is **Pending Approval**. See `docs/10-workbench-home.md`.

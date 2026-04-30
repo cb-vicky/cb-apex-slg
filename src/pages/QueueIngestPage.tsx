@@ -785,6 +785,7 @@ export function QueueIngestPage() {
       customerName: resolvedCustomer?.name ?? (isHappy ? "Echo Corp" : "Zenith Analytics"),
       invoiceAmount: inv?.amount ?? (isHappy ? 261800 : 38750),
       invoiceDate: inv?.date ?? new Date().toISOString().slice(0, 10),
+      ingestId: queueItem?.id,
     });
 
     // Mark the queue item as Ingested

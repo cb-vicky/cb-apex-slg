@@ -2,6 +2,15 @@
 
 Routes are declared in `src/App.tsx`. The principle: **every detail route renders through the shared `CustomerRevenueWorkspace` shell** — no standalone detail pages.
 
+## Workbench (`/` and `/workbench`)
+
+Both **`/`** and **`/workbench`** render **`WorkbenchHome`**.
+
+- **My Tasks** (default tab) — operational task list + summary stats; destinations are existing routes (`/queue/:id`, `/approvals/invoices/:id` with optional query params, `/customers/:customerId?tab=…`). See `docs/10-workbench-home.md`.
+- **Getting Started** — role-aware onboarding content (milestones, rails, footer); unchanged component composition from before My Tasks existed.
+
+The in-page role switcher (Billing Manager / Billing Operator) applies to both tabs.
+
 ## Canonical route model
 
 ### Index routes (grouped landing + filtered list)
@@ -134,5 +143,7 @@ Sidebar items point to **index routes**, not hardcoded record IDs. The Desk sect
 - **My Workbench** → `/`
 - **Queue** → `/queue` (replaces the previous disabled "Inbox" entry; this is the operational landing for every contract pending ingestion)
 - **Approvals** → `/approvals`
+
+**Notification dots** (small orange circles on the trailing edge of the row): **My Workbench** shows when there are pending invoice approvals in session **or** an Early Renewal closure is in flight (`pendingRenewalIngestions`). **Approvals** shows when any approval request is **Pending Approval**. See `docs/10-workbench-home.md`.
 
 Other groups (Records, Catalog, Insights) are unchanged. See `src/components/layout/Sidebar.tsx`.

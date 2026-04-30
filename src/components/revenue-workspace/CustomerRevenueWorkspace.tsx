@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2 } from "lucide-react";
 import type { Customer, Quote, Contract, Invoice, Task, ContractClosure } from "@/data/mock-data";
@@ -25,6 +25,7 @@ import { ContractListView } from "./contract/ContractListView";
 import { InvoiceListView } from "./invoicing/InvoiceListView";
 import { CloseContractPane } from "@/components/contracts/CloseContractPane";
 import type { IncomingRenewalPreview } from "@/components/contracts/CloseContractPane";
+import { mergeContractsWithRuntimeClosures } from "./derive-stage-data";
 
 // Stages that use a list-then-detail pattern
 const LIST_STAGES: Stage[] = ["quote", "contract", "invoicing"];
@@ -68,6 +69,7 @@ export function CustomerRevenueWorkspace({
     sessionContracts,
     renewalToast,
     clearRenewalToast,
+    invoiceStatusOverrides,
   } = useIngestContext();
 
   // When closeIntent is present, force list mode (so user sees context before pane opens)
@@ -91,7 +93,22 @@ export function CustomerRevenueWorkspace({
   const seedContracts = getContractsForCustomer(customer.id);
   const sessionContractsForCustomer = sessionContracts.filter((c) => c.customerId === customer.id);
   const customerContracts = [...seedContracts, ...sessionContractsForCustomer.filter((c) => !seedContracts.some((s) => s.id === c.id))];
-  const customerInvoices = getInvoices(customer.id);
+
+  /** List + rail: apply runtime closures so rows match Contract detail / CloseContractPane. */
+  const contractsForListView = useMemo(
+    () => mergeContractsWithRuntimeClosures(customerContracts, contractClosures),
+    [customerContracts, contractClosures],
+  );
+
+  const customerInvoicesRaw = getInvoices(customer.id);
+
+  /** List + initial selection: apply approval invoice status overrides */
+  const invoicesForListView = useMemo(() => {
+    return customerInvoicesRaw.map((inv) => {
+      const st = invoiceStatusOverrides[inv.id];
+      return st !== undefined ? { ...inv, status: st } : inv;
+    });
+  }, [customerInvoicesRaw, invoiceStatusOverrides]);
 
   // Toast auto-dismiss
   useEffect(() => {
@@ -204,7 +221,7 @@ export function CustomerRevenueWorkspace({
   // Initial invoice: pre-select when deep-linked to a specific invoice
   const initialInvoice: Invoice | undefined =
     activeRecordId && initialStage === "invoicing"
-      ? customerInvoices.find((i) => i.id === activeRecordId)
+      ? invoicesForListView.find((i) => i.id === activeRecordId)
       : undefined;
 
   const [activeInvoice, setActiveInvoice] = useState<Invoice | undefined>(initialInvoice);
@@ -223,7 +240,7 @@ export function CustomerRevenueWorkspace({
   // Disabled stages: downstream tabs are locked when no contract / invoices exist yet
   const disabledStages = new Set<Stage>([
     ...(customerContracts.length === 0 ? (["contract", "invoicing", "revrec"] as Stage[]) : []),
-    ...(customerInvoices.length === 0 ? (["payment"] as Stage[]) : []),
+    ...(customerInvoicesRaw.length === 0 ? (["payment"] as Stage[]) : []),
   ]);
 
   const effectiveContract = getEffectiveContract(activeContract ?? contract);
@@ -286,7 +303,7 @@ export function CustomerRevenueWorkspace({
         case "contract":
           return (
             <ContractListView
-              contracts={customerContracts}
+              contracts={contractsForListView}
               onSelect={(c) => {
                 setActiveContract(c);
                 setViewMode("detail");
@@ -296,7 +313,7 @@ export function CustomerRevenueWorkspace({
         case "invoicing":
           return (
             <InvoiceListView
-              invoices={customerInvoices}
+              invoices={invoicesForListView}
               onSelect={(inv) => {
                 setActiveInvoice(inv);
                 setViewMode("detail");

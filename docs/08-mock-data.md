@@ -236,7 +236,14 @@ Uses `useState` only — no localStorage / sessionStorage. Refresh resets all se
 
 ### `src/context/WorkbenchRoleContext.tsx`
 
-- Controls Billing Manager (Admin) vs Billing Operator persona for Workbench Home
+- Controls Billing Manager (Admin) vs Billing Operator persona for the Workbench **Getting Started** tab
+
+### Workbench task derivation (`src/data/workbench-tasks.ts`)
+
+- **`deriveWorkbenchTasks(context)`** — merges tasks from: (1) merged **queue** items (`Pending Review` / `In Progress`), (2) **approval requests** (`Pending Approval`), (3) open **customer tasks** from the `tasks` export in this file
+- **`groupWorkbenchTasks`** / **`computeWorkbenchStats`** — grouping and summary-strip numbers for **My Tasks**
+- **`WorkbenchTaskContext`** — minimal shape: `queueItems`, `approvalRequests`, `contractClosures`, `pendingRenewalIngestions` (typically from `useIngestContext()`)
+- Closure approvals (`CN-CLOSE-*`, `INV-TERM-*`) pair with **`pendingRenewalIngestions`** for Early Renewal deep links (`?closureFor=&queueItemId=`)
 
 ## Use-case matrix — what each customer showcases
 

@@ -94,6 +94,8 @@ export interface ApprovalRequest {
   submittedAt: string;
   approver: string;
   comments: ApprovalComment[];
+  /** Queue item id when this approval was created from a finished ingest (drives `?ingestId=` + policy modal). */
+  ingestId?: string;
 }
 
 // ---------------------------------------------------------------------------
