@@ -18,7 +18,7 @@ This folder replaces the monolithic `apex-ui-plan.md`. Each doc is a self-contai
 | 07 | [`07-dynamic-status.md`](07-dynamic-status.md) | Editing `derive-stage-data.ts` or anything status/insight/NBA/health related |
 | 08 | [`08-mock-data.md`](08-mock-data.md) | Adding / changing types, seed records, context state |
 | 09 | [`09-contract-ingestion.md`](09-contract-ingestion.md) | Contract ingestion upload, verification, or invoice approval flow |
-| 10 | [`10-workbench-home.md`](10-workbench-home.md) | Getting Started / Workbench Home page |
+| 10 | [`10-workbench-home.md`](10-workbench-home.md) | Workbench: My Tasks + Getting Started tabs, `workbench-tasks`, sidebar dots |
 | 11 | [`11-workspace-cleanup-and-gating.md`](11-workspace-cleanup-and-gating.md) | Tab gating rules, list-then-detail transitions |
 | 12 | [`12-open-questions.md`](12-open-questions.md) | Decisions, assumptions, stubs, outstanding Qs |
 

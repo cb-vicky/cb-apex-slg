@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import type { Customer, Contract, ContractClosure } from "@/data/mock-data";
 import type { IngestResult, ApprovalRequest, ApprovalComment } from "@/data/ingest-data";
 import { seedApprovalComments } from "@/data/ingest-data";
@@ -43,6 +43,8 @@ interface IngestContextValue {
       customerName?: string;
       invoiceAmount?: number;
       invoiceDate?: string;
+      /** Queue item id for first-invoice-from-ingest (Workbench / deep links use `?ingestId=`). */
+      ingestId?: string;
     },
   ) => void;
 
@@ -97,6 +99,12 @@ interface IngestContextValue {
   renewalToast: { message: string; customerId: string } | null;
   showRenewalToast: (message: string, customerId: string) => void;
   clearRenewalToast: () => void;
+
+  /**
+   * Last Workbench task-id snapshot (session-scoped), used to detect rows that
+   * surface mid-session. Mutable ref avoids extra renders when the snapshot updates.
+   */
+  workbenchTaskSnapshotRef: MutableRefObject<string[]>;
 }
 
 const IngestContext = createContext<IngestContextValue | null>(null);
@@ -129,6 +137,7 @@ export function IngestProvider({ children }: { children: ReactNode }) {
   const [pendingRenewalIngestions, setPendingRenewalIngestionsState] = useState<Record<string, PendingRenewalIngestion>>({});
   const [sessionContracts, setSessionContracts] = useState<Contract[]>([]);
   const [renewalToast, setRenewalToast] = useState<{ message: string; customerId: string } | null>(null);
+  const workbenchTaskSnapshotRef = useRef<string[]>([]);
 
   function addSessionCustomer(c: Customer) {
     setSessionCustomers((prev) => [...prev.filter((x) => x.id !== c.id), c]);
@@ -163,6 +172,7 @@ export function IngestProvider({ children }: { children: ReactNode }) {
       customerName?: string;
       invoiceAmount?: number;
       invoiceDate?: string;
+      ingestId?: string;
     },
   ) {
     setSubmittedInvoiceIds((prev) => new Set([...prev, invoiceId]));
@@ -181,6 +191,7 @@ export function IngestProvider({ children }: { children: ReactNode }) {
       submittedAt: new Date().toISOString(),
       approver: "Sarah Chen, VP Revenue",
       comments: [...seedApprovalComments],
+      ...(meta?.ingestId ? { ingestId: meta.ingestId } : {}),
     };
     addApprovalRequest(newRequest);
   }
@@ -298,6 +309,7 @@ export function IngestProvider({ children }: { children: ReactNode }) {
         renewalToast,
         showRenewalToast,
         clearRenewalToast,
+        workbenchTaskSnapshotRef,
       }}
     >
       {children}

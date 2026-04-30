@@ -1,14 +1,23 @@
 import type { Invoice } from "@/data/mock-data";
 import type { InvoiceEnrichment } from "@/data/billing-data";
-import { currency, shortDate } from "@/lib/utils";
+import { cn, currency, shortDate } from "@/lib/utils";
+
+export type InvoicePreviewVariant = "invoice" | "credit-note" | "termination";
 
 interface Props {
   invoice: Invoice;
   customerName: string;
   enrichment?: InvoiceEnrichment;
+  /** Closure-generated documents use credit-note / termination styling instead of a standard invoice. */
+  variant?: InvoicePreviewVariant;
 }
 
-export function InvoiceHTMLPreview({ invoice, customerName, enrichment }: Props) {
+export function InvoiceHTMLPreview({
+  invoice,
+  customerName,
+  enrichment,
+  variant = "invoice",
+}: Props) {
   const lineItems = enrichment?.detailedLineItems
     ? enrichment.detailedLineItems.map((l) => ({ description: l.name, amount: l.netAmount }))
     : invoice.lineItems;
@@ -17,6 +26,16 @@ export function InvoiceHTMLPreview({ invoice, customerName, enrichment }: Props)
   const tax = enrichment?.taxTotal ?? Math.round(subtotal * 0.08);
   const total = invoice.amount;
   const billTo = enrichment?.billToContact ?? `${customerName}\nFinance / Accounts Payable`;
+
+  const isCreditNote = variant === "credit-note";
+  const docTitle =
+    variant === "credit-note"
+      ? "Credit note"
+      : variant === "termination"
+        ? "Termination invoice"
+        : "Invoice";
+  const idLabel =
+    variant === "credit-note" ? "Credit note #" : variant === "termination" ? "Invoice #" : "Invoice #";
 
   return (
     <div className="min-h-[640px] rounded-lg border border-border-default bg-white p-8 shadow-sm font-sans text-[13px] leading-relaxed text-text-primary">
@@ -30,21 +49,35 @@ export function InvoiceHTMLPreview({ invoice, customerName, enrichment }: Props)
           <p className="text-[11px] text-text-muted">billing@chargebee.com</p>
         </div>
         <div className="text-right">
-          <p className="text-[22px] font-bold uppercase tracking-widest text-text-muted">Invoice</p>
+          <p className="text-[22px] font-bold uppercase tracking-widest text-text-muted">{docTitle}</p>
           <div className="mt-2 inline-block rounded-lg border border-border-default bg-surface-muted px-4 py-2 text-left">
             <div className="grid grid-cols-2 gap-x-6 gap-y-0.5">
-              <span className="text-[11px] text-text-muted">Invoice #</span>
+              <span className="text-[11px] text-text-muted">{idLabel}</span>
               <span className="text-[11px] font-semibold text-text-primary">{invoice.id}</span>
-              <span className="text-[11px] text-text-muted">Date</span>
+              <span className="text-[11px] text-text-muted">{isCreditNote ? "Issue date" : "Date"}</span>
               <span className="text-[11px] font-semibold">{shortDate(invoice.date)}</span>
-              <span className="text-[11px] text-text-muted">Due Date</span>
-              <span className="text-[11px] font-semibold text-amber-700">{shortDate(invoice.dueDate)}</span>
-              <span className="text-[11px] text-text-muted">Status</span>
-              <span className={`text-[11px] font-semibold ${
-                invoice.status === "Paid" ? "text-emerald-600"
-                  : invoice.status === "Overdue" ? "text-red-600"
-                  : "text-amber-600"
-              }`}>{invoice.status}</span>
+              {!isCreditNote && (
+                <>
+                  <span className="text-[11px] text-text-muted">Due Date</span>
+                  <span className="text-[11px] font-semibold text-amber-700">{shortDate(invoice.dueDate)}</span>
+                </>
+              )}
+              {isCreditNote && (
+                <>
+                  <span className="text-[11px] text-text-muted">Status</span>
+                  <span className="text-[11px] font-semibold text-amber-600">{invoice.status}</span>
+                </>
+              )}
+              {!isCreditNote && (
+                <>
+                  <span className="text-[11px] text-text-muted">Status</span>
+                  <span className={`text-[11px] font-semibold ${
+                    invoice.status === "Paid" ? "text-emerald-600"
+                      : invoice.status === "Overdue" ? "text-red-600"
+                      : "text-amber-600"
+                  }`}>{invoice.status}</span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -53,7 +86,9 @@ export function InvoiceHTMLPreview({ invoice, customerName, enrichment }: Props)
       {/* Bill To */}
       <div className="mb-6 grid grid-cols-2 gap-8">
         <div>
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-text-muted">Bill To</p>
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+            {isCreditNote ? "Credit to" : "Bill To"}
+          </p>
           <p className="font-semibold text-text-primary">{customerName}</p>
           {billTo.split("\n").map((line, i) => (
             <p key={i} className="text-[12px] text-text-secondary">{line}</p>
@@ -98,7 +133,12 @@ export function InvoiceHTMLPreview({ invoice, customerName, enrichment }: Props)
           {lineItems.map((line, i) => (
             <tr key={i} className="border-b border-border-subtle">
               <td className="py-2.5 pr-4 text-text-primary">{line.description}</td>
-              <td className="py-2.5 text-right tabular-nums font-medium text-text-primary">{currency(line.amount)}</td>
+              <td className={cn(
+                "py-2.5 text-right tabular-nums font-medium",
+                isCreditNote ? "text-emerald-700" : "text-text-primary",
+              )}>
+                {isCreditNote ? `(${currency(line.amount)})` : currency(line.amount)}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -106,25 +146,49 @@ export function InvoiceHTMLPreview({ invoice, customerName, enrichment }: Props)
 
       {/* Totals */}
       <div className="mt-4 flex flex-col items-end gap-1 border-t border-border-default pt-4">
-        <div className="flex w-56 items-center justify-between text-[12px]">
-          <span className="text-text-secondary">Subtotal</span>
-          <span className="tabular-nums font-medium">{currency(subtotal)}</span>
-        </div>
-        <div className="flex w-56 items-center justify-between text-[12px]">
-          <span className="text-text-secondary">Tax (8%)</span>
-          <span className="tabular-nums font-medium">{currency(tax)}</span>
-        </div>
+        {!isCreditNote && (
+          <>
+            <div className="flex w-56 items-center justify-between text-[12px]">
+              <span className="text-text-secondary">Subtotal</span>
+              <span className="tabular-nums font-medium">{currency(subtotal)}</span>
+            </div>
+            <div className="flex w-56 items-center justify-between text-[12px]">
+              <span className="text-text-secondary">Tax (8%)</span>
+              <span className="tabular-nums font-medium">{currency(tax)}</span>
+            </div>
+          </>
+        )}
         <div className="flex w-56 items-center justify-between border-t border-border-default pt-2 text-[14px]">
-          <span className="font-bold text-text-primary">Total Due</span>
-          <span className="tabular-nums font-bold text-[#012A38]">{currency(total)}</span>
+          <span className="font-bold text-text-primary">
+            {isCreditNote ? "Total credit" : "Total Due"}
+          </span>
+          <span className={cn(
+            "tabular-nums font-bold",
+            isCreditNote ? "text-emerald-700" : "text-[#012A38]",
+          )}>
+            {isCreditNote ? `(${currency(total)})` : currency(total)}
+          </span>
         </div>
       </div>
 
       {/* Footer */}
       <div className="mt-8 rounded-lg border border-border-default bg-surface-muted px-4 py-3 text-[11px] text-text-muted">
-        <p className="font-medium text-text-secondary">Payment Instructions</p>
-        <p className="mt-0.5">Please make payment via ACH or Wire transfer to the account details provided in your billing onboarding.</p>
-        <p className="mt-1">Questions? Contact <span className="text-blue-600">billing@chargebee.com</span></p>
+        {isCreditNote ? (
+          <>
+            <p className="font-medium text-text-secondary">Credit memo</p>
+            <p className="mt-0.5">
+              This credit reduces open balance on your account. Refunds, if applicable, follow your merchant&apos;s
+              standard timeline.
+            </p>
+            <p className="mt-1">Questions? Contact <span className="text-blue-600">billing@chargebee.com</span></p>
+          </>
+        ) : (
+          <>
+            <p className="font-medium text-text-secondary">Payment Instructions</p>
+            <p className="mt-0.5">Please make payment via ACH or Wire transfer to the account details provided in your billing onboarding.</p>
+            <p className="mt-1">Questions? Contact <span className="text-blue-600">billing@chargebee.com</span></p>
+          </>
+        )}
       </div>
     </div>
   );

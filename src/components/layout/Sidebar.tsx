@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { customers } from "@/data/mock-data";
 import { useRecentCustomerIds } from "@/lib/recent-customers";
+import { useIngestContext } from "@/context/IngestContext";
 
 interface NavItem {
   label: string;
@@ -83,12 +84,14 @@ function NavRow({
   disabled,
   onClick,
   leading,
+  dot,
 }: {
   label: string;
   active: boolean;
   disabled?: boolean;
   onClick: () => void;
   leading?: React.ReactNode;
+  dot?: boolean;
 }) {
   return (
     <button
@@ -124,6 +127,12 @@ function NavRow({
         />
       )}
       <span className="truncate">{label}</span>
+      {dot && (
+        <span
+          aria-label="has pending items"
+          className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-cb-orange"
+        />
+      )}
     </button>
   );
 }
@@ -154,6 +163,15 @@ export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const recentIds = useRecentCustomerIds();
+  const { approvalRequests, pendingRenewalIngestions } = useIngestContext();
+
+  // Dot notification counts — driven by dynamic ingest/approval state
+  const pendingApprovalCount = approvalRequests.filter(
+    (r) => r.status === "Pending Approval",
+  ).length;
+  const inflightClosures = Object.keys(pendingRenewalIngestions).length;
+  const workbenchHasDot = pendingApprovalCount > 0 || inflightClosures > 0;
+  const approvalsHasDot = pendingApprovalCount > 0;
 
   function isActive(path: string) {
     if (path === "/") {
@@ -209,6 +227,9 @@ export function Sidebar() {
               {group.items.map((item) => {
                 const disabled = DISABLED_NAV_PATHS.has(item.path);
                 const active = !disabled && isActive(item.path);
+                const dot =
+                  (item.path === "/" && workbenchHasDot) ||
+                  (item.path === "/approvals" && approvalsHasDot);
                 return (
                   <NavRow
                     key={item.label}
@@ -216,6 +237,7 @@ export function Sidebar() {
                     active={active}
                     disabled={disabled}
                     onClick={() => navigate(item.path)}
+                    dot={dot}
                   />
                 );
               })}

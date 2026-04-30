@@ -6,14 +6,17 @@ alwaysApply: false
 
 # Workbench Home
 
-When editing the Getting Started / Workbench Home page:
+When editing the Workbench (`WorkbenchHome`, `WorkbenchTaskList`) or Getting Started components:
 
-- **`docs/10-workbench-home.md`** — layout (hero, summary strip, environment banner, milestone content, footer callout), admin vs operator milestones, visual spec, status pill colors
+- **`docs/10-workbench-home.md`** — **My Tasks** vs **Getting Started** tabs, `deriveWorkbenchTasks`, summary strip, grouped list, sidebar dots, ingest handoff URLs
 - **`docs/02-design-system.md`** — overall design tone
+- **`docs/09-contract-ingestion.md`** — when wiring queue / approval / Early Renewal behavior
 
 ## Key rules
 
-1. Two personas: **Billing Manager (Admin)** and **Billing Operator**. Role switcher in-page via `WorkbenchRoleContext`.
-2. Admin = full-width 8-milestone grid. Operator = 8-col checklist (6 milestones) + 4-col sticky side panel.
-3. Status pills: green = Complete, amber = In progress, gray = Not started, red = Blocked.
-4. Fits inside the existing white content frame — no outer wrapper card.
+1. **Tabs:** **My Tasks** (default) and **Getting Started**. Role switcher **top-right** via `WorkbenchRoleContext`; applies to both tabs.
+2. **My Tasks:** Data from `deriveWorkbenchTasks(IngestContext snapshot)` — queue + approvals + customer tasks; no duplicate global state. Rows navigate to existing routes only.
+3. **Getting Started:** Unchanged composition — `GettingStartedHeader`, `SummaryStrip`, `EnvironmentBanner`, `MilestoneGrid` / operator layout, `OperatorRail`, `FooterCallout`.
+4. Two personas on Getting Started: **Billing Manager (Admin)** = 8-milestone grid; **Billing Operator** = 6 milestones + sticky rail.
+5. Milestone status pills: green = Complete, amber = In progress, gray = Not started, red = Blocked.
+6. Fits inside the existing white content frame — no outer wrapper card.

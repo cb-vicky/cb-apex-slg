@@ -17,17 +17,19 @@ The **Customer** is the page shell. Quote, Contract, Invoicing, Payment, and Rev
 ```
 src/
   pages/                    # route components (index pages + detail shells)
+    workbench/              # WorkbenchHome (My Tasks + Getting Started tabs), WorkbenchTaskList
   components/
     layout/                 # AppShell, TopNav, Sidebar
     revenue-workspace/      # customer-centric lifecycle shell + per-tab sections
     index-page/             # grouped landing + list table primitives
-    getting-started/        # workbench home
+    getting-started/        # Getting Started tab (milestones, rails, etc.)
     approvals/              # invoice approval UI + ApprovalSettingsModal
     contracts/              # upload modal, closure modal + ClosureSummaryCard + ClosureBanner
     queue/                  # Inbox > Queue: integrations modal + queue UI bits
     ui/                     # shared primitives (StatusBadge, KV, SectionCard, etc.)
   data/                     # mock-data, revrec, support, billing, ingest,
-                            # queue-data, approval-policy, gettingStarted
+                            # queue-data, approval-policy, gettingStarted,
+                            # workbench-tasks (deriveWorkbenchTasks for My Tasks)
   context/                  # IngestContext, WorkbenchRoleContext
 ```
 
@@ -59,7 +61,7 @@ Detailed specs are split across `docs/` so you load only what's relevant. Cursor
 | Routing, URL params, navigation flows | `docs/06-routing.md` |
 | Mock data types, seed entries, use-case matrix | `docs/08-mock-data.md` |
 | The Queue, contract ingestion, or first-invoice approval flow | `docs/09-contract-ingestion.md` |
-| Workbench Home / Getting Started | `docs/10-workbench-home.md` |
+| Workbench (My Tasks + Getting Started) | `docs/10-workbench-home.md` |
 | Tab gating, list-then-detail behavior | `docs/11-workspace-cleanup-and-gating.md` |
 | Product intent, personas, "what good looks like" | `docs/00-overview.md` |
 | Open questions / assumptions / stubs | `docs/12-open-questions.md` |

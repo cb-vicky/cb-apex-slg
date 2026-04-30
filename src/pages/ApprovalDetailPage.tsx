@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type CSSProperties } from "react";
+import { useState, useRef, useEffect, useMemo, type CSSProperties } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ChevronLeft, ChevronRight, CheckCircle2, XCircle, MessageSquare, AtSign,
@@ -14,9 +14,114 @@ import { invoices, customers, contracts } from "@/data/mock-data";
 import { verdantRenewalContractTemplate } from "@/data/mock-data";
 import type { Contract, Customer, Invoice } from "@/data/mock-data";
 import { getInvoiceEnrichment } from "@/data/billing-data";
-import { InvoiceHTMLPreview } from "@/components/approvals/InvoiceHTMLPreview";
+import { InvoiceHTMLPreview, type InvoicePreviewVariant } from "@/components/approvals/InvoiceHTMLPreview";
 import { ApprovalSettingsModal } from "@/components/approvals/ApprovalSettingsModal";
 import type { ApprovalComment } from "@/data/ingest-data";
+
+// ---------------------------------------------------------------------------
+// Closure document kinds — CN-CLOSE-* = credit note, INV-TERM-* = termination invoice
+// ---------------------------------------------------------------------------
+
+type ApprovalDocKind = "invoice" | "credit-note" | "termination-invoice";
+
+function getApprovalDocKind(invoiceId: string | undefined): ApprovalDocKind {
+  if (!invoiceId) return "invoice";
+  if (invoiceId.startsWith("CN-CLOSE-")) return "credit-note";
+  if (invoiceId.startsWith("INV-TERM-")) return "termination-invoice";
+  return "invoice";
+}
+
+function approvalPreviewVariant(kind: ApprovalDocKind): InvoicePreviewVariant {
+  if (kind === "credit-note") return "credit-note";
+  if (kind === "termination-invoice") return "termination";
+  return "invoice";
+}
+
+interface ApprovalDocUi {
+  kind: ApprovalDocKind;
+  previewTab: string;
+  amountField: string;
+  dateField: string;
+  memoPlaceholder: string;
+  toastSent: string;
+  approvedBanner: string;
+  rejectedBanner: string;
+  rejectPlaceholder: string;
+  notFoundMessage: string;
+  rejectCommentPrefix: string;
+  summaryRowLabel: string;
+  emptyPreviewHint: string;
+  finalSuccessDocLabel: string;
+  finalSuccessVerb: string;
+  finalSuccessClosing: string;
+  finalSuccessOpenDocLabel: string;
+}
+
+function getApprovalDocUi(kind: ApprovalDocKind): ApprovalDocUi {
+  switch (kind) {
+    case "credit-note":
+      return {
+        kind,
+        previewTab: "Credit note",
+        amountField: "Credit amount",
+        dateField: "Issue date",
+        memoPlaceholder: "Add a note that appears on the credit note…",
+        toastSent: "Credit note issued",
+        approvedBanner: "Credit note approved. Finalising next steps…",
+        rejectedBanner: "Credit note cancelled. Redirecting to Approvals…",
+        rejectPlaceholder: "Provide a reason for rejecting this credit note…",
+        notFoundMessage: "Credit note not found or approval not yet submitted.",
+        rejectCommentPrefix: "Credit note rejected",
+        summaryRowLabel: "Credit note",
+        emptyPreviewHint: "No contract source available for this credit.",
+        finalSuccessDocLabel: "Credit note",
+        finalSuccessVerb: "issued to",
+        finalSuccessClosing:
+          ". Credits will post to the customer account per your approval policy.",
+        finalSuccessOpenDocLabel: "View credit note",
+      };
+    case "termination-invoice":
+      return {
+        kind,
+        previewTab: "Invoice",
+        amountField: "Invoice amount",
+        dateField: "Invoice date",
+        memoPlaceholder: "Add a note that appears on the invoice…",
+        toastSent: "Termination invoice sent to the customer",
+        approvedBanner: "Termination invoice approved. Finalising next steps…",
+        rejectedBanner: "Termination invoice cancelled. Redirecting to Approvals…",
+        rejectPlaceholder: "Provide a reason for rejecting this termination invoice…",
+        notFoundMessage: "Invoice not found or approval not yet submitted.",
+        rejectCommentPrefix: "Termination invoice rejected",
+        summaryRowLabel: "Termination invoice",
+        emptyPreviewHint: "No contract source available for this invoice.",
+        finalSuccessDocLabel: "Termination invoice",
+        finalSuccessVerb: "sent to",
+        finalSuccessClosing: ". Future invoices will follow your approval policy.",
+        finalSuccessOpenDocLabel: "Open invoice",
+      };
+    default:
+      return {
+        kind: "invoice",
+        previewTab: "Invoice",
+        amountField: "Invoice amount",
+        dateField: "Invoice date",
+        memoPlaceholder: "Add a note that appears on the invoice…",
+        toastSent: "Invoice sent to the customer",
+        approvedBanner: "Invoice approved. Finalising next steps…",
+        rejectedBanner: "Invoice cancelled. Redirecting to Approvals…",
+        rejectPlaceholder: "Provide a reason for rejecting this invoice…",
+        notFoundMessage: "Invoice not found or approval not yet submitted.",
+        rejectCommentPrefix: "Invoice rejected",
+        summaryRowLabel: "Invoice",
+        emptyPreviewHint: "No contract source available for this invoice.",
+        finalSuccessDocLabel: "Invoice",
+        finalSuccessVerb: "sent to",
+        finalSuccessClosing: ". Future invoices will follow your approval policy.",
+        finalSuccessOpenDocLabel: "Open Invoice",
+      };
+  }
+}
 
 const TAGGABLE_USERS = [
   { name: "Jordan Kim", role: "Account Executive" },
@@ -165,7 +270,15 @@ function Toast({ message, onDone }: { message: string; onDone: () => void }) {
 // Reject Reason Form
 // ---------------------------------------------------------------------------
 
-function RejectForm({ onConfirm, onCancel }: { onConfirm: (reason: string) => void; onCancel: () => void }) {
+function RejectForm({
+  onConfirm,
+  onCancel,
+  rejectPlaceholder = "Provide a reason for rejecting this invoice…",
+}: {
+  onConfirm: (reason: string) => void;
+  onCancel: () => void;
+  rejectPlaceholder?: string;
+}) {
   const [reason, setReason] = useState("");
   return (
     <div className="rounded-lg border border-red-200 bg-red-50/50 p-4">
@@ -174,7 +287,7 @@ function RejectForm({ onConfirm, onCancel }: { onConfirm: (reason: string) => vo
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         rows={3}
-        placeholder="Provide a reason for rejecting this invoice..."
+        placeholder={rejectPlaceholder}
         className="w-full resize-none rounded-lg border border-red-200 bg-white px-3 py-2 text-[12px] text-text-primary outline-none focus:border-red-400 placeholder:text-text-muted"
       />
       <div className="mt-2 flex gap-2">
@@ -226,6 +339,9 @@ interface CriticalFieldsCardProps {
   enrichmentPo?: string;
   disabled: boolean;
   isBackdated: boolean;
+  amountFieldLabel: string;
+  dateFieldLabel: string;
+  memoPlaceholder: string;
 }
 
 function CriticalFieldsCard({
@@ -237,6 +353,9 @@ function CriticalFieldsCard({
   enrichmentPo,
   disabled,
   isBackdated,
+  amountFieldLabel,
+  dateFieldLabel,
+  memoPlaceholder,
 }: CriticalFieldsCardProps) {
   const amount = overrides.amount ?? invoice.amount;
   const dueDate = overrides.dueDate ?? invoice.dueDate;
@@ -251,7 +370,7 @@ function CriticalFieldsCard({
   return (
     <SectionCard title="Critical fields">
       <div className="grid grid-cols-2 gap-3">
-        <EditableField label="Invoice amount">
+        <EditableField label={amountFieldLabel}>
           <div className="flex items-center rounded-md border border-border-default bg-white px-2 py-1 focus-within:border-cb-orange">
             <span className="mr-0.5 text-[11px] text-text-muted">$</span>
             <input
@@ -278,7 +397,7 @@ function CriticalFieldsCard({
         </EditableField>
 
         <EditableField
-          label="Invoice date"
+          label={dateFieldLabel}
           hint={isBackdated ? "Backdated — will trigger non-standard approval" : undefined}
         >
           <input
@@ -357,7 +476,7 @@ function CriticalFieldsCard({
             value={memo}
             disabled={disabled}
             rows={2}
-            placeholder="Add a note that appears on the invoice…"
+            placeholder={memoPlaceholder}
             onChange={(e) => onChange({ ...overrides, memo: e.target.value })}
             className="w-full resize-none rounded-md border border-border-default bg-white px-2 py-1.5 text-[12px] text-text-primary outline-none focus:border-cb-orange disabled:cursor-not-allowed placeholder:text-text-muted"
           />
@@ -382,6 +501,7 @@ function PreviewToolbar({
   zoom,
   setZoom,
   pageCount,
+  documentTabLabel,
 }: {
   active: DocTab;
   onChange: (t: DocTab) => void;
@@ -391,6 +511,7 @@ function PreviewToolbar({
   zoom: number;
   setZoom: (z: number) => void;
   pageCount: number;
+  documentTabLabel: string;
 }) {
   return (
     <div className="flex items-center justify-between gap-2 border-b border-border-default bg-white px-3 py-2">
@@ -407,7 +528,7 @@ function PreviewToolbar({
           )}
         >
           <FileEdit size={11} />
-          Invoice
+          {documentTabLabel}
         </button>
         <button
           type="button"
@@ -491,6 +612,9 @@ function DocumentPreviewPanel({
   enrichment,
   onCollapse,
   invoiceOverrides,
+  previewVariant,
+  documentTabLabel,
+  emptyPreviewHint,
 }: {
   invoice: Invoice;
   customer: Customer;
@@ -498,6 +622,9 @@ function DocumentPreviewPanel({
   enrichment?: ReturnType<typeof getInvoiceEnrichment>;
   onCollapse: () => void;
   invoiceOverrides: InvoiceFieldOverrides;
+  previewVariant: InvoicePreviewVariant;
+  documentTabLabel: string;
+  emptyPreviewHint: string;
 }) {
   const [tab, setTab] = useState<DocTab>("invoice");
   const [zoom, setZoom] = useState(100);
@@ -523,6 +650,7 @@ function DocumentPreviewPanel({
         zoom={zoom}
         setZoom={setZoom}
         pageCount={pageCount}
+        documentTabLabel={documentTabLabel}
       />
 
       <div className="flex-1 overflow-auto p-4">
@@ -535,6 +663,7 @@ function DocumentPreviewPanel({
               invoice={effectiveInvoice}
               customerName={customer.name}
               enrichment={enrichment}
+              variant={previewVariant}
             />
           ) : contract ? (
             <div className="px-8 py-7">
@@ -542,7 +671,7 @@ function DocumentPreviewPanel({
             </div>
           ) : (
             <div className="px-8 py-12 text-center text-[12px] text-text-muted">
-              No contract source available for this invoice.
+              {emptyPreviewHint}
             </div>
           )}
         </div>
@@ -699,6 +828,8 @@ export function ApprovalDetailPage() {
   const [viewerCollapsed, setViewerCollapsed] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showFinalSuccess, setShowFinalSuccess] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const docUi = useMemo(() => getApprovalDocUi(getApprovalDocKind(invoiceId)), [invoiceId]);
 
   // Static invoice lookup — may be undefined for runtime-created closure documents
   const staticInvoice = invoices.find((i) => i.id === invoiceId);
@@ -786,6 +917,7 @@ export function ApprovalDetailPage() {
       );
     }
 
+    setToastMessage(docUi.toastSent);
     setShowToast(true);
   }
 
@@ -831,7 +963,7 @@ export function ApprovalDetailPage() {
       id: `ac-rej-${Date.now()}`,
       author: "You",
       role: "Billing Ops",
-      text: `Invoice rejected. Reason: ${reason}`,
+      text: `${docUi.rejectCommentPrefix}. Reason: ${reason}`,
       timestamp: new Date().toISOString(),
     });
     setTimeout(() => navigate("/approvals"), 1200);
@@ -840,7 +972,7 @@ export function ApprovalDetailPage() {
   if (!effectiveInvoice || !customer) {
     return (
       <div className="flex flex-1 w-full flex-col items-center justify-center py-16 text-text-muted">
-        <p className="text-[14px]">Invoice not found or approval not yet submitted.</p>
+        <p className="text-[14px]">{docUi.notFoundMessage}</p>
         <button onClick={() => navigate("/approvals")}
           className="mt-3 text-[12px] text-blue-600 hover:underline">
           Back to Approvals
@@ -849,9 +981,7 @@ export function ApprovalDetailPage() {
     );
   }
 
-  // Non-null assertion safe here — guarded above.
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  const invoice = effectiveInvoice!;
+  const invoice = effectiveInvoice;
 
   // ── Final success state — replaces the whole page after policy save ────
   if (showFinalSuccess) {
@@ -889,9 +1019,11 @@ export function ApprovalDetailPage() {
             <div>
               <p className="text-[18px] font-semibold text-text-primary">All set</p>
               <p className="text-[12px] text-text-muted">
-                Invoice <span className="font-medium text-text-primary">{invoice.id}</span> sent to{" "}
-                <span className="font-medium text-text-primary">{customer.name}</span>. Future invoices
-                will follow your approval policy.
+                <span className="font-medium text-text-primary">{docUi.finalSuccessDocLabel}</span>{" "}
+                <span className="font-medium text-text-primary">{invoice.id}</span>{" "}
+                {docUi.finalSuccessVerb}{" "}
+                <span className="font-medium text-text-primary">{customer.name}</span>
+                {docUi.finalSuccessClosing}
               </p>
             </div>
           </div>
@@ -902,7 +1034,7 @@ export function ApprovalDetailPage() {
             </div>
             <div className="divide-y divide-border-subtle px-4">
               <div className="flex items-center justify-between py-2.5">
-                <p className="text-[12px] text-text-muted">Invoice</p>
+                <p className="text-[12px] text-text-muted">{docUi.summaryRowLabel}</p>
                 <p className="text-[13px] font-medium text-text-primary">{invoice.id} · {currency(invoice.amount)}</p>
               </div>
               <div className="flex items-center justify-between py-2.5">
@@ -936,7 +1068,7 @@ export function ApprovalDetailPage() {
               onClick={() => navigate(`/invoices/${invoice.id}?from=approvals`)}
               className="inline-flex items-center gap-1 rounded-md border border-border-default bg-white px-4 py-2 text-[13px] font-medium text-text-secondary transition-colors hover:bg-surface-muted"
             >
-              Open Invoice
+              {docUi.finalSuccessOpenDocLabel}
             </button>
             <button
               type="button"
@@ -1018,13 +1150,14 @@ export function ApprovalDetailPage() {
                 <RejectForm
                   onConfirm={handleReject}
                   onCancel={() => setShowRejectForm(false)}
+                  rejectPlaceholder={docUi.rejectPlaceholder}
                 />
               )}
               {approved && (
                 <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
                   <CheckCircle2 size={16} className="text-emerald-600" />
                   <p className="text-[12px] font-medium text-emerald-700">
-                    Invoice approved. Finalising next steps…
+                    {docUi.approvedBanner}
                   </p>
                 </div>
               )}
@@ -1032,7 +1165,7 @@ export function ApprovalDetailPage() {
                 <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
                   <XCircle size={16} className="text-gray-500" />
                   <p className="text-[12px] font-medium text-gray-600">
-                    Invoice cancelled. Redirecting to Approvals…
+                    {docUi.rejectedBanner}
                   </p>
                 </div>
               )}
@@ -1051,6 +1184,9 @@ export function ApprovalDetailPage() {
                 enrichmentPo={enrichment?.poNumber}
                 disabled={!canDecide}
                 isBackdated={isBackdated}
+                amountFieldLabel={docUi.amountField}
+                dateFieldLabel={docUi.dateField}
+                memoPlaceholder={docUi.memoPlaceholder}
               />
 
               {/* Approval metadata + contract summary */}
@@ -1121,6 +1257,9 @@ export function ApprovalDetailPage() {
               enrichment={enrichment}
               onCollapse={() => setViewerCollapsed(true)}
               invoiceOverrides={overrides}
+              previewVariant={approvalPreviewVariant(docUi.kind)}
+              documentTabLabel={docUi.previewTab}
+              emptyPreviewHint={docUi.emptyPreviewHint}
             />
           )}
         </div>
@@ -1143,7 +1282,7 @@ export function ApprovalDetailPage() {
       </div>
 
       {showToast && (
-        <Toast message="Invoice sent to the customer" onDone={handleToastDone} />
+        <Toast message={toastMessage} onDone={handleToastDone} />
       )}
 
       {showSettingsModal && (

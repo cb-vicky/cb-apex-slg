@@ -1,4 +1,4 @@
-import type { Customer, Quote, Contract, Invoice } from "@/data/mock-data";
+import type { Customer, Quote, Contract, Invoice, ContractClosure } from "@/data/mock-data";
 import { getContractsForCustomer, getInvoices, getTasks } from "@/data/mock-data";
 import {
   getCollectionCasesForCustomer,
@@ -255,8 +255,46 @@ export function deriveContractStatus(contract: Contract): StageStatus {
   return { text: parts.join(" + "), severity };
 }
 
-export function deriveInvoicingStatus(customerId: string): StageStatus {
-  const inv = getInvoices(customerId);
+/** Applies session `contractClosures` so list rows match CloseContractPane / Contract detail. */
+export function mergeContractsWithRuntimeClosures(
+  contracts: Contract[],
+  contractClosures: Record<string, ContractClosure>,
+): Contract[] {
+  return contracts.map((c) => {
+    const runtimeClosure = contractClosures[c.id];
+    if (!runtimeClosure) return c;
+    const today = new Date().toISOString().slice(0, 10);
+    const effectiveDate = runtimeClosure.effectiveDate;
+    const isFuture = effectiveDate > today;
+    return {
+      ...c,
+      status: isFuture
+        ? "Closing"
+        : runtimeClosure.reason === "non_payment"
+          ? "Terminated"
+          : "Closed",
+      closure: runtimeClosure,
+    };
+  });
+}
+
+/** Applies session `invoiceStatusOverrides` so rail/chips match Approval Detail outcomes. */
+export function mergeInvoiceStatuses(
+  invoices: Invoice[],
+  overrides: Record<string, string> | undefined,
+): Invoice[] {
+  if (!overrides || Object.keys(overrides).length === 0) return invoices;
+  return invoices.map((inv) => {
+    const st = overrides[inv.id];
+    return st !== undefined ? { ...inv, status: st } : inv;
+  });
+}
+
+export function deriveInvoicingStatus(
+  customerId: string,
+  invoiceStatusOverrides?: Record<string, string>,
+): StageStatus {
+  const inv = mergeInvoiceStatuses(getInvoices(customerId), invoiceStatusOverrides);
   const pendingReview = inv.filter((i) => i.status === "Pending Review").length;
   const overdue = inv.filter((i) => i.status === "Overdue").length;
   const held = inv.filter((i) => i.holdReason).length;
@@ -308,12 +346,13 @@ export function deriveAllStageStatuses(
   customer: Customer,
   quote: Quote | null,
   contract: Contract | null,
+  invoiceStatusOverrides?: Record<string, string>,
 ): Record<Stage, StageStatus> {
   return {
     customer: deriveCustomerStatus(customer),
     quote: quote ? deriveQuoteStatus(quote) : { text: "No quote", severity: "blue" },
     contract: contract ? deriveContractStatus(contract) : { text: "No contract yet", severity: "blue" },
-    invoicing: contract ? deriveInvoicingStatus(customer.id) : { text: "—", severity: "blue" },
+    invoicing: contract ? deriveInvoicingStatus(customer.id, invoiceStatusOverrides) : { text: "—", severity: "blue" },
     payment: contract ? derivePaymentStatus(customer.id) : { text: "—", severity: "blue" },
     revrec: contract ? deriveRevRecStatus(contract.id) : { text: "—", severity: "blue" },
   };

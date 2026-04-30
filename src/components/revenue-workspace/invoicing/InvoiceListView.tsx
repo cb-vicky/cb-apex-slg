@@ -3,6 +3,7 @@ import { StatusBadge } from "@/components/ui/primitives";
 import { currency, shortDate } from "@/lib/utils";
 import { Receipt, CreditCard } from "lucide-react";
 import { getClosureCreditNotesForCustomer } from "@/data/billing-data";
+import { useIngestContext } from "@/context/IngestContext";
 
 interface Props {
   invoices: Invoice[];
@@ -10,9 +11,14 @@ interface Props {
 }
 
 export function InvoiceListView({ invoices, onSelect }: Props) {
+  const { creditNoteStatusOverrides } = useIngestContext();
   // Get closure-related credit notes for the customer (if there are invoices, we have a customerId)
   const customerId = invoices[0]?.customerId;
-  const closureCreditNotes = customerId ? getClosureCreditNotesForCustomer(customerId) : [];
+  const closureCreditNotesRaw = customerId ? getClosureCreditNotesForCustomer(customerId) : [];
+  const closureCreditNotes = closureCreditNotesRaw.map((cn) => {
+    const st = creditNoteStatusOverrides[cn.id];
+    return st !== undefined ? { ...cn, status: st } : cn;
+  });
 
   if (invoices.length === 0 && closureCreditNotes.length === 0) {
     return (

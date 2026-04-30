@@ -10,10 +10,12 @@ import {
   deriveAllStageStatuses,
   derivePriorityChips,
   deriveContextMetrics,
+  mergeInvoiceStatuses,
   type PriorityChip,
   type ContextMetric,
   type StageStatus,
 } from "./derive-stage-data";
+import { useIngestContext } from "@/context/IngestContext";
 
 // Display labels are intentionally decoupled from the internal Stage union so
 // we can ship "Overview" / "Collections" labels without renaming the union.
@@ -97,9 +99,13 @@ export function CustomerContextBar({
   const navigate = useNavigate();
   const barRef = useRef<HTMLDivElement>(null);
   const isStuck = useStuckOnScroll(barRef);
+  const { invoiceStatusOverrides } = useIngestContext();
 
-  const customerInvoices = getInvoices(customer.id);
-  const stageStatuses = deriveAllStageStatuses(customer, quote, contract);
+  const customerInvoices = mergeInvoiceStatuses(
+    getInvoices(customer.id),
+    invoiceStatusOverrides,
+  );
+  const stageStatuses = deriveAllStageStatuses(customer, quote, contract, invoiceStatusOverrides);
   const chips = derivePriorityChips(customer, customerInvoices, contract);
   const metrics = deriveContextMetrics(activeStage, customer, quote, contract, invoice, arrangement);
   const crumbs = buildCrumbs({ from, customerName: customer.name, customerId: customer.id, activeStage, recordId });

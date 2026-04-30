@@ -20,6 +20,13 @@ Covers the full pipeline from a signed contract entering the system to the first
 - `src/pages/ApprovalDetailPage.tsx` — editable critical fields, Invoice|Contract tabs, success state; handles post-closure auto-ingest for Early Renewal
 - `src/components/approvals/InvoiceHTMLPreview.tsx`
 - `src/components/approvals/ApprovalSettingsModal.tsx`
+- `src/pages/workbench/WorkbenchHome.tsx`, `WorkbenchTaskList.tsx` — **My Tasks** tab aggregates queue, approvals, and customer tasks from `IngestContext` (see `docs/10-workbench-home.md`, `src/data/workbench-tasks.ts`)
+
+---
+
+## Workbench handoff
+
+**My Workbench** (`/`, tab **My Tasks**) is the operator ↔ approver handoff surface: `deriveWorkbenchTasks` (in `src/data/workbench-tasks.ts`) reads **the same `IngestContext`** as this flow — merged queue rows, `approvalRequests`, `pendingRenewalIngestions`, and mock customer tasks. After **Finish Ingestion** (standard path), the pending first-invoice approval appears grouped by customer; after **Proceed to Close Prior Contract** (Early Renewal), the closure approval appears under **Verdant Health** with **Critical** severity and `?closureFor=&queueItemId=` when applicable. No extra session layer beyond `IngestContext`.
 
 ---
 
