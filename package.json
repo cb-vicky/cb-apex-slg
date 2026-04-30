@@ -1,7 +1,11 @@
 {
-  "name": "chargebee-apex",
+  "name": "apex-new-deal",
   "private": true,
   "version": "0.0.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cb-vicky/apex-new-deal.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
