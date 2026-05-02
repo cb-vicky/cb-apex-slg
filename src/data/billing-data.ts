@@ -1,3 +1,4 @@
+import type { Invoice } from "./mock-data";
 import { invoices } from "./mock-data";
 
 // ---------------------------------------------------------------------------
@@ -442,20 +443,47 @@ export function getInvoiceEnrichment(invoiceId: string): InvoiceEnrichment | und
   return enrichments[invoiceId];
 }
 
-export function getCreditNotesForCustomer(customerId: string): CreditNote[] {
-  return creditNotes.filter((cn) => cn.customerId === customerId);
+export function mergeCreditNoteStatuses(
+  notes: CreditNote[],
+  overrides: Record<string, string> | undefined,
+): CreditNote[] {
+  if (!overrides || Object.keys(overrides).length === 0) return notes;
+  return notes.map((cn) => {
+    const st = overrides[cn.id];
+    return st !== undefined ? { ...cn, status: st } : cn;
+  });
 }
 
-export function getCreditNotesForInvoice(invoiceId: string): CreditNote[] {
-  return creditNotes.filter((cn) => cn.invoiceId === invoiceId);
+export function getCreditNotesForCustomer(
+  customerId: string,
+  statusOverrides?: Record<string, string>,
+): CreditNote[] {
+  const raw = creditNotes.filter((cn) => cn.customerId === customerId);
+  return mergeCreditNoteStatuses(raw, statusOverrides);
 }
 
-export function getCreditNotesForContract(contractId: string): CreditNote[] {
-  return creditNotes.filter((cn) => cn.contractId === contractId);
+export function getCreditNotesForInvoice(
+  invoiceId: string,
+  statusOverrides?: Record<string, string>,
+): CreditNote[] {
+  const raw = creditNotes.filter((cn) => cn.invoiceId === invoiceId);
+  return mergeCreditNoteStatuses(raw, statusOverrides);
 }
 
-export function getClosureCreditNotesForCustomer(customerId: string): CreditNote[] {
-  return creditNotes.filter((cn) => cn.customerId === customerId && cn.closureRelated === true);
+export function getCreditNotesForContract(
+  contractId: string,
+  statusOverrides?: Record<string, string>,
+): CreditNote[] {
+  const raw = creditNotes.filter((cn) => cn.contractId === contractId);
+  return mergeCreditNoteStatuses(raw, statusOverrides);
+}
+
+export function getClosureCreditNotesForCustomer(
+  customerId: string,
+  statusOverrides?: Record<string, string>,
+): CreditNote[] {
+  const raw = creditNotes.filter((cn) => cn.customerId === customerId && cn.closureRelated === true);
+  return mergeCreditNoteStatuses(raw, statusOverrides);
 }
 
 export function getPaymentsForCustomer(customerId: string): Payment[] {
@@ -470,18 +498,21 @@ export function getInvoiceSchedule(customerId: string): InvoiceScheduleEntry[] {
   return invoiceSchedules[customerId] ?? [];
 }
 
-export function getCustomerArSummary(customerId: string) {
-  const customerInvoices = invoices.filter((i) => i.customerId === customerId);
-  const open = customerInvoices.filter((i) => i.status !== "Paid");
-  const overdue = customerInvoices.filter((i) => i.status === "Overdue");
-  const pendingReview = customerInvoices.filter((i) => i.status === "Pending Review");
-  const held = customerInvoices.filter((i) => i.holdReason);
+/**
+ * @param customerInvoices When provided (e.g. merged with session `invoiceStatusOverrides`), AR math uses this list instead of seed `invoices`.
+ */
+export function getCustomerArSummary(customerId: string, customerInvoices?: Invoice[]) {
+  const list = customerInvoices ?? invoices.filter((i) => i.customerId === customerId);
+  const open = list.filter((i) => i.status !== "Paid");
+  const overdue = list.filter((i) => i.status === "Overdue");
+  const pendingReview = list.filter((i) => i.status === "Pending Review");
+  const held = list.filter((i) => i.holdReason);
   const customerPayments = getPaymentsForCustomer(customerId);
   const unapplied = customerPayments.filter((p) => p.matchStatus === "unapplied").reduce((s, p) => s + p.amount, 0);
   const totalOpen = open.reduce((s, i) => s + i.amount, 0);
   const totalOverdue = overdue.reduce((s, i) => s + i.amount, 0);
-  const disputed = customerInvoices.filter((i) => i.disputeReason).reduce((s, i) => s + i.amount, 0);
-  const totalInvoiced = customerInvoices.reduce((s, i) => s + i.amount, 0);
+  const disputed = list.filter((i) => i.disputeReason).reduce((s, i) => s + i.amount, 0);
+  const totalInvoiced = list.reduce((s, i) => s + i.amount, 0);
 
   return {
     totalOpen,
@@ -494,7 +525,7 @@ export function getCustomerArSummary(customerId: string) {
     totalInvoiced,
     openInvoices: open,
     overdueInvoices: overdue,
-    allInvoices: customerInvoices,
+    allInvoices: list,
     avgDaysToPay: 22,
     oldestOutstandingDays: overdue.length > 0 ? Math.max(...overdue.map((i) => Math.round((Date.now() - new Date(i.dueDate).getTime()) / 86400000))) : 0,
   };

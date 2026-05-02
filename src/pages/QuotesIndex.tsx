@@ -79,14 +79,14 @@ const groupMeta = [
 ];
 
 const listColumns: Column[] = [
-  { key: "id", label: "Quote ID", width: "130px" },
-  { key: "customer", label: "Customer", width: "150px" },
+  { key: "id", label: "Quote ID", width: "130px", sortable: true },
+  { key: "customer", label: "Customer", width: "150px", sortable: true },
   { key: "type", label: "Type", width: "100px" },
   { key: "source", label: "Source", width: "90px" },
-  { key: "tcv", label: "TCV", width: "100px" },
-  { key: "discount", label: "Discount", width: "80px" },
+  { key: "tcv", label: "TCV", width: "100px", align: "right" },
+  { key: "discount", label: "Discount", width: "80px", align: "right" },
   { key: "approval", label: "Approval", width: "120px" },
-  { key: "expiry", label: "Expiry", width: "100px" },
+  { key: "expiry", label: "Expiry", width: "100px", sortable: true },
   { key: "owner", label: "Owner", width: "110px" },
 ];
 
@@ -98,17 +98,17 @@ export function QuotesIndex() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const groupFilter = searchParams.get("group");
-  const viewMode = (searchParams.get("view") as ViewMode) || "groups";
+  const viewMode = (searchParams.get("view") as ViewMode) || "all";
   const groups = buildGroups();
   const { ref: scrollRef, isScrolled } = useScrolled();
 
   function handleViewChange(mode: ViewMode) {
     const params = new URLSearchParams(searchParams);
     if (mode === "groups") {
-      params.delete("view");
+      params.set("view", "groups");
       params.delete("group");
     } else {
-      params.set("view", mode);
+      params.delete("view");
       params.delete("group");
     }
     setSearchParams(params);
@@ -155,7 +155,7 @@ export function QuotesIndex() {
         </div>
         <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
           <MetricStrip metrics={metrics} />
-          <ListTable columns={listColumns}>
+          <ListTable columns={listColumns} resultCount={filtered.length}>
             {filtered.map((q) => {
               const c = customers.find((cu) => cu.id === q.customerId);
               return (
@@ -164,9 +164,15 @@ export function QuotesIndex() {
                   <ListCell width="150px" className="font-medium">{c?.name ?? "—"}</ListCell>
                   <ListCell width="100px">{q.quoteType}</ListCell>
                   <ListCell width="90px">{q.source}</ListCell>
-                  <ListCell width="100px" className="tabular-nums">{currency(q.tcv)}</ListCell>
-                  <ListCell width="80px">{q.discountPct}%</ListCell>
-                  <ListCell width="120px"><StatusBadge status={q.status} /></ListCell>
+                  <ListCell width="100px" align="right" className="tabular-nums">
+                    {currency(q.tcv)}
+                  </ListCell>
+                  <ListCell width="80px" align="right">
+                    {q.discountPct}%
+                  </ListCell>
+                  <ListCell width="120px" noTruncate>
+                    <StatusBadge status={q.status} />
+                  </ListCell>
                   <ListCell width="100px">{shortDate(q.expiryDate)}</ListCell>
                   <ListCell width="110px" className="text-text-secondary">{q.owner}</ListCell>
                 </ListRow>
@@ -187,7 +193,7 @@ export function QuotesIndex() {
         </div>
         <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
           <MetricStrip metrics={metrics} />
-          <ListTable columns={listColumns}>
+          <ListTable columns={listColumns} resultCount={quotes.length}>
             {quotes.map((q) => {
               const c = customers.find((cu) => cu.id === q.customerId);
               return (
@@ -196,9 +202,15 @@ export function QuotesIndex() {
                   <ListCell width="150px" className="font-medium">{c?.name ?? "—"}</ListCell>
                   <ListCell width="100px">{q.quoteType}</ListCell>
                   <ListCell width="90px">{q.source}</ListCell>
-                  <ListCell width="100px" className="tabular-nums">{currency(q.tcv)}</ListCell>
-                  <ListCell width="80px">{q.discountPct}%</ListCell>
-                  <ListCell width="120px"><StatusBadge status={q.status} /></ListCell>
+                  <ListCell width="100px" align="right" className="tabular-nums">
+                    {currency(q.tcv)}
+                  </ListCell>
+                  <ListCell width="80px" align="right">
+                    {q.discountPct}%
+                  </ListCell>
+                  <ListCell width="120px" noTruncate>
+                    <StatusBadge status={q.status} />
+                  </ListCell>
                   <ListCell width="100px">{shortDate(q.expiryDate)}</ListCell>
                   <ListCell width="110px" className="text-text-secondary">{q.owner}</ListCell>
                 </ListRow>
@@ -226,9 +238,15 @@ export function QuotesIndex() {
                 <GroupedRow key={`${row.quoteId}-${idx}`} onClick={() => goToShell(row)}>
                   <RowCell width="120px" className="font-medium text-blue-600">{row.quoteId}</RowCell>
                   <RowCell width="140px" className="font-medium text-text-primary">{row.customerName}</RowCell>
-                  <RowCell width="100px" className="tabular-nums">{currency(row.tcv)}</RowCell>
-                  <RowCell width="80px">{row.discountPct}%</RowCell>
-                  <RowCell width="120px"><StatusBadge status={row.status} /></RowCell>
+                  <RowCell width="100px" className="tabular-nums" align="right">
+                    {currency(row.tcv)}
+                  </RowCell>
+                  <RowCell width="80px" align="right">
+                    {row.discountPct}%
+                  </RowCell>
+                  <RowCell width="120px" noTruncate>
+                    <StatusBadge status={row.status} />
+                  </RowCell>
                   <RowCell width="100px" className="text-text-secondary">{shortDate(row.expiryDate)}</RowCell>
                   <RowCell width="110px" className="text-text-secondary">{row.owner}</RowCell>
                 </GroupedRow>

@@ -9,24 +9,46 @@ import type { QueueItem } from "@/data/queue-data";
 import type { ApprovalRequest } from "@/data/ingest-data";
 import type { ContractClosure } from "@/data/mock-data";
 import type { PendingRenewalIngestion } from "@/data/approval-policy";
+import type { ContractGraceExtension, DrawerEntityType, DrawerMode } from "@/data/contract-transition";
 import { customers, tasks as customerTasks } from "@/data/mock-data";
+import type { DemoPersona } from "@/types/demo-persona";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
+export interface WorkbenchTaskDrawerLaunch {
+  entityType: DrawerEntityType;
+  mode?: DrawerMode;
+  entityId?: string;
+  context?: {
+    customerId?: string;
+    contractId?: string;
+    latePhase?: "extend" | "resolve";
+    queueItemId?: string;
+  };
+}
+
 export interface WorkbenchTask {
   id: string;
   customerId?: string;
   customerName: string;
-  type: "contract-ingest" | "invoice-approval" | "closure-approval" | "billing-task";
+  type:
+    | "contract-ingest"
+    | "invoice-approval"
+    | "closure-approval"
+    | "billing-task"
+    | "late-renewal-extension"
+    | "late-renewal";
   title: string;
   subtitle?: string;
   severity: "critical" | "high" | "medium" | "low";
   destination: string; // full path including query params
+  /** When set, My Tasks opens the unified EntityDrawer instead of routing away. */
+  drawer?: WorkbenchTaskDrawerLaunch;
   assignee?: string;
   dueDate?: string;
-  source: "queue" | "approval" | "customer-task";
+  source: "queue" | "approval" | "customer-task" | "contract-lifecycle";
 }
 
 export interface TaskGroup {
@@ -42,6 +64,7 @@ export interface WorkbenchTaskContext {
   approvalRequests: ApprovalRequest[];
   contractClosures: Record<string, ContractClosure>;
   pendingRenewalIngestions: Record<string, PendingRenewalIngestion>;
+  contractGraceExtensions: Record<string, ContractGraceExtension>;
 }
 
 // ---------------------------------------------------------------------------
@@ -61,6 +84,8 @@ function scenarioToSeverity(
   switch (scenario) {
     case "Early Renewal":
       return "critical";
+    case "Late Renewal":
+      return "high";
     case "New Business":
       return "high";
     case "Renewal":
@@ -102,26 +127,84 @@ function taskTypeToTab(type: string): string {
 // Derive
 // ---------------------------------------------------------------------------
 
+function filterTasksForDemoPersona(
+  tasks: WorkbenchTask[],
+  persona: DemoPersona,
+): WorkbenchTask[] {
+  if (persona === "operator") {
+    return tasks.filter((t) => t.source !== "approval");
+  }
+  return tasks.filter((t) => t.source === "approval");
+}
+
 export function deriveWorkbenchTasks(
   context: WorkbenchTaskContext,
+  options?: { persona?: DemoPersona },
 ): WorkbenchTask[] {
+  const persona = options?.persona ?? "operator";
   const derived: WorkbenchTask[] = [];
 
   // ── Queue source ──────────────────────────────────────────────────────────
   // context.queueItems already has runtime overrides applied (from IngestContext).
   for (const q of context.queueItems) {
     if (q.status !== "Pending Review" && q.status !== "In Progress") continue;
+    const isLateRenewal = q.scenario === "Late Renewal";
+    const destination =
+      isLateRenewal && q.customerId && q.activeContractId
+        ? `/customers/${q.customerId}?tab=contract&contractId=${q.activeContractId}`
+        : `/queue/${q.id}`;
+    const drawer: WorkbenchTaskDrawerLaunch | undefined = q.ingestable
+      ? { entityType: "queue_item", mode: "ingest", entityId: q.id }
+      : isLateRenewal && q.customerId && q.activeContractId
+        ? {
+            entityType: "transition",
+            mode: "late_renewal",
+            context: {
+              customerId: q.customerId,
+              contractId: q.activeContractId,
+              latePhase: "extend",
+            },
+          }
+        : undefined;
+    const type: WorkbenchTask["type"] =
+      isLateRenewal && !q.ingestable ? "late-renewal" : "contract-ingest";
     derived.push({
       id: `queue-${q.id}`,
       customerId: q.customerId,
       customerName: q.customerName,
-      type: "contract-ingest",
+      type,
       title: q.documentName,
       subtitle: `${q.scenario} · ${q.source}`,
       severity: scenarioToSeverity(q.scenario),
-      destination: `/queue/${q.id}`,
+      destination,
+      drawer,
       assignee: q.uploadedBy,
       source: "queue",
+    });
+  }
+
+  for (const ext of Object.values(context.contractGraceExtensions)) {
+    if (ext.resolved) continue;
+    const cust = customers.find((x) => x.id === ext.customerId);
+    derived.push({
+      id: `grace-${ext.contractId}`,
+      customerId: ext.customerId,
+      customerName: cust?.name ?? "Unknown",
+      type: "late-renewal-extension",
+      title: `Resolve grace extension — ${ext.contractId}`,
+      subtitle: `Grace through ${ext.until} · billing ${ext.billingMode}`,
+      severity: "critical",
+      destination: `/customers/${ext.customerId}?tab=contract&contractId=${ext.contractId}`,
+      drawer: {
+        entityType: "transition",
+        mode: "late_renewal",
+        context: {
+          customerId: ext.customerId,
+          contractId: ext.contractId,
+          latePhase: "resolve",
+        },
+      },
+      source: "contract-lifecycle",
     });
   }
 
@@ -171,6 +254,12 @@ export function deriveWorkbenchTasks(
       if (req.ingestId) {
         destination += `?ingestId=${encodeURIComponent(req.ingestId)}`;
       }
+      const drawer: WorkbenchTaskDrawerLaunch | undefined = {
+        entityType: "invoice",
+        mode: "invoice_approval",
+        entityId: req.invoiceId,
+        context: req.ingestId ? { queueItemId: req.ingestId } : undefined,
+      };
       derived.push({
         id: `approval-${req.id}`,
         customerId: req.customerId || undefined,
@@ -180,6 +269,7 @@ export function deriveWorkbenchTasks(
         subtitle: `Submitted by ${req.submittedBy}`,
         severity: "high",
         destination,
+        drawer,
         assignee: req.approver,
         source: "approval",
       });
@@ -206,7 +296,7 @@ export function deriveWorkbenchTasks(
     });
   }
 
-  return derived;
+  return filterTasksForDemoPersona(derived, persona);
 }
 
 // ---------------------------------------------------------------------------
@@ -285,11 +375,15 @@ export function computeWorkbenchStats(context: WorkbenchTaskContext) {
     needsReviewQueue.reduce((sum, q) => sum + q.tcv, 0) +
     pendingApprovals.reduce((sum, r) => sum + r.invoiceAmount, 0);
   const inflightClosures = Object.keys(context.pendingRenewalIngestions).length;
+  const openGraceExtensions = Object.values(context.contractGraceExtensions ?? {}).filter(
+    (e) => !e.resolved,
+  ).length;
 
   return {
     pendingApprovalCount: pendingApprovals.length,
     needsReviewCount: needsReviewQueue.length,
     tcvPending,
     inflightClosures,
+    openGraceExtensions,
   };
 }

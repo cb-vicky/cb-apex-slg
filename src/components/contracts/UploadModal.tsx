@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { openDrawer } from "@/store/drawer-store";
 import { X, Upload, FileText, Loader2, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { sampleDocs, analysisMessages } from "@/data/ingest-data";
@@ -13,11 +13,10 @@ interface Props {
 type Step = "choose" | "loading" | "done";
 
 export function UploadModal({ onClose }: Props) {
-  const navigate = useNavigate();
   const { setSelectedSample } = useIngestContext();
 
   const [step, setStep] = useState<Step>("choose");
-  const [chosenSample, setChosenSample] = useState<"sample1" | "sample2" | null>(null);
+  const [chosenSample, setChosenSample] = useState<"sample2" | "sample3" | null>(null);
   const [progress, setProgress] = useState(0);
   const [msgIdx, setMsgIdx] = useState(0);
 
@@ -50,17 +49,15 @@ export function UploadModal({ onClose }: Props) {
       setSelectedSample(chosenSample);
       const queueItem = getQueueItemBySample(chosenSample);
       if (queueItem) {
-        navigate(`/queue/${queueItem.id}`);
-      } else {
-        navigate("/queue");
+        openDrawer({ entityType: "queue_item", mode: "ingest", entityId: queueItem.id });
       }
       onClose();
     }, 600);
     return () => clearTimeout(t);
-  }, [step, chosenSample, navigate, setSelectedSample, onClose]);
+  }, [step, chosenSample, setSelectedSample, onClose]);
 
-  function handleSampleClick(id: "sample1" | "sample2" | "sample3") {
-    setChosenSample(id as "sample1" | "sample2");
+  function handleSampleClick(id: "sample2" | "sample3") {
+    setChosenSample(id);
     setStep("loading");
     setProgress(0);
     setMsgIdx(0);

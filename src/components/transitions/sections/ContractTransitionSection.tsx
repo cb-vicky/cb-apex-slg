@@ -1,0 +1,333 @@
+import type { TransitionDrawerIntent } from "@/data/contract-transition";
+import { currency } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { KV } from "@/components/ui/primitives";
+import { DrawerNativeSelect, DrawerRailIndent, DrawerSelectShell, DrawerStackedField } from "../DrawerSelectShell";
+
+const drawerInputClass =
+  "w-full rounded-md border border-border-default bg-white px-2 py-2 text-[13px] text-text-primary outline-none focus:border-neutral-300 focus:ring-1 focus:ring-neutral-200/90";
+
+interface Props {
+  intent: TransitionDrawerIntent;
+  executionDate: string;
+  onExecutionDateChange: (v: string) => void;
+  settlementMethod: "credit_note" | "refund" | "charge_difference" | "defer";
+  onSettlementMethodChange: (m: "credit_note" | "refund" | "charge_difference" | "defer") => void;
+  amendmentDelta: number;
+  /** Late renewal — extend phase */
+  graceDays: number;
+  onGraceDaysChange: (n: number) => void;
+  graceBilling: "continue" | "pause";
+  onGraceBillingChange: (m: "continue" | "pause") => void;
+  /** Late renewal — resolve */
+  resolution: "renew" | "replace" | "terminate";
+  onResolutionChange: (r: "renew" | "replace" | "terminate") => void;
+  latePhase: "extend" | "resolve";
+  /** `drawer` = flat queue ingest rail (no bordered card). */
+  variant?: "panel" | "drawer";
+  className?: string;
+}
+
+export function ContractTransitionSection({
+  intent,
+  executionDate,
+  onExecutionDateChange,
+  settlementMethod,
+  onSettlementMethodChange,
+  amendmentDelta,
+  graceDays,
+  onGraceDaysChange,
+  graceBilling,
+  onGraceBillingChange,
+  resolution,
+  onResolutionChange,
+  latePhase,
+  variant = "panel",
+  className,
+}: Props) {
+  const isDrawer = variant === "drawer";
+
+  if (intent === "early_renewal") {
+    if (isDrawer) {
+      return (
+        <div className={cn("flex flex-col gap-1.5", className)}>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Transition schedule</p>
+          <DrawerRailIndent>
+            <div className="flex flex-col gap-3">
+              <DrawerStackedField label="On date">
+                <input
+                  type="date"
+                  className={drawerInputClass}
+                  value={executionDate}
+                  onChange={(e) => onExecutionDateChange(e.target.value)}
+                />
+              </DrawerStackedField>
+              <DrawerStackedField label="Checklist">
+                <ul className="space-y-1.5 text-[13px] leading-snug text-text-secondary">
+                  <li className="flex gap-2">
+                    <span className="shrink-0 text-emerald-600">✓</span>
+                    Close existing contract
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="shrink-0 text-emerald-600">✓</span>
+                    Activate new contract
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="shrink-0 text-emerald-600">✓</span>
+                    Generate invoice
+                  </li>
+                </ul>
+              </DrawerStackedField>
+              <DrawerSelectShell id="transition-early-renew-settlement" label="Settlement">
+                <DrawerNativeSelect
+                  id="transition-early-renew-settlement"
+                  value={settlementMethod}
+                  onChange={(e) =>
+                    onSettlementMethodChange(e.target.value as "credit_note" | "refund" | "charge_difference" | "defer")
+                  }
+                >
+                  <option value="credit_note">Credit note</option>
+                  <option value="refund">Refund</option>
+                  <option value="charge_difference">Charge difference</option>
+                  <option value="defer">Defer</option>
+                </DrawerNativeSelect>
+              </DrawerSelectShell>
+            </div>
+          </DrawerRailIndent>
+        </div>
+      );
+    }
+    return (
+      <section className={cn("rounded-lg border border-border-default bg-white p-3", className)}>
+        <h3 className="mb-2 text-[12px] font-semibold text-text-primary">Early renewal — transition schedule</h3>
+        <label className="text-[11px] font-medium text-text-secondary">
+          On date
+          <input
+            type="date"
+            className="mt-0.5 w-full rounded-md border border-border-default px-2 py-1 text-[12px]"
+            value={executionDate}
+            onChange={(e) => onExecutionDateChange(e.target.value)}
+          />
+        </label>
+        <ul className="mt-2 space-y-1 text-[11px] text-text-secondary">
+          <li className="flex gap-1.5">
+            <span className="text-emerald-600">✓</span> Close existing contract
+          </li>
+          <li className="flex gap-1.5">
+            <span className="text-emerald-600">✓</span> Activate new contract
+          </li>
+          <li className="flex gap-1.5">
+            <span className="text-emerald-600">✓</span> Generate invoice
+          </li>
+        </ul>
+        <div className="mt-2">
+          <p className="text-[11px] font-medium text-text-secondary">Settlement</p>
+          <select
+            className="mt-0.5 w-full rounded-md border border-border-default px-2 py-1 text-[12px]"
+            value={settlementMethod}
+            onChange={(e) =>
+              onSettlementMethodChange(e.target.value as "credit_note" | "refund" | "charge_difference" | "defer")
+            }
+          >
+            <option value="credit_note">Credit note</option>
+            <option value="refund">Refund</option>
+            <option value="charge_difference">Charge difference</option>
+            <option value="defer">Defer</option>
+          </select>
+        </div>
+      </section>
+    );
+  }
+
+  if (intent === "amendment") {
+    if (isDrawer) {
+      return (
+        <div className={cn("flex flex-col gap-1.5", className)}>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Amendment</p>
+          <DrawerRailIndent>
+            <div className="flex flex-col gap-2">
+              <p className="text-[13px] leading-snug text-text-secondary">
+                Modify plan, quantity, or pricing on the active subscription. Changes apply on the next billing cycle
+                unless you schedule an effective date in billing.
+              </p>
+              <div className="flex flex-col divide-y divide-border-subtle">
+                <KV label="Net ARR impact (draft)" value={currency(amendmentDelta)} />
+              </div>
+            </div>
+          </DrawerRailIndent>
+        </div>
+      );
+    }
+    return (
+      <section className={cn("rounded-lg border border-border-default bg-white p-3", className)}>
+        <h3 className="mb-2 text-[12px] font-semibold text-text-primary">Amendment</h3>
+        <p className="text-[11px] text-text-secondary">
+          Modify plan, quantity, or pricing. Net ARR impact (draft):{" "}
+          <span className="font-semibold text-text-primary">{currency(amendmentDelta)}</span>
+        </p>
+      </section>
+    );
+  }
+
+  if (intent === "late_extend") {
+    if (latePhase === "extend") {
+      if (isDrawer) {
+        return (
+          <div className={cn("flex flex-col gap-1.5", className)}>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Extend (grace period)</p>
+            <DrawerRailIndent>
+              <div className="flex flex-col gap-3">
+                <DrawerStackedField label="Duration (days)">
+                  <input
+                    type="number"
+                    min={1}
+                    max={90}
+                    className={drawerInputClass}
+                    value={graceDays}
+                    onChange={(e) => onGraceDaysChange(Number(e.target.value))}
+                  />
+                </DrawerStackedField>
+                <DrawerStackedField label="Billing during grace">
+                  <div className="flex flex-wrap gap-4 pt-0.5 text-[13px] text-text-primary">
+                    <label className="inline-flex cursor-pointer items-center gap-2">
+                      <input
+                        type="radio"
+                        name="grace-bill"
+                        className="rounded border-border-default"
+                        checked={graceBilling === "continue"}
+                        onChange={() => onGraceBillingChange("continue")}
+                      />
+                      Continue
+                    </label>
+                    <label className="inline-flex cursor-pointer items-center gap-2">
+                      <input
+                        type="radio"
+                        name="grace-bill"
+                        className="rounded border-border-default"
+                        checked={graceBilling === "pause"}
+                        onChange={() => onGraceBillingChange("pause")}
+                      />
+                      Pause
+                    </label>
+                  </div>
+                </DrawerStackedField>
+                <p className="text-[12px] leading-snug text-text-muted">Sets operational state to extended until grace ends.</p>
+              </div>
+            </DrawerRailIndent>
+          </div>
+        );
+      }
+      return (
+        <section className={cn("rounded-lg border border-border-default bg-white p-3", className)}>
+          <h3 className="mb-2 text-[12px] font-semibold text-text-primary">Extend (grace period)</h3>
+          <label className="text-[11px] font-medium text-text-secondary">
+            Duration (days)
+            <input
+              type="number"
+              min={1}
+              max={90}
+              className="mt-0.5 w-full rounded-md border border-border-default px-2 py-1 text-[12px]"
+              value={graceDays}
+              onChange={(e) => onGraceDaysChange(Number(e.target.value))}
+            />
+          </label>
+          <p className="mt-2 text-[11px] font-medium text-text-secondary">Billing during grace</p>
+          <div className="mt-1 flex gap-3 text-[13px]">
+            <label className="inline-flex items-center gap-1.5">
+              <input
+                type="radio"
+                name="grace-bill"
+                checked={graceBilling === "continue"}
+                onChange={() => onGraceBillingChange("continue")}
+              />
+              Continue
+            </label>
+            <label className="inline-flex items-center gap-1.5">
+              <input
+                type="radio"
+                name="grace-bill"
+                checked={graceBilling === "pause"}
+                onChange={() => onGraceBillingChange("pause")}
+              />
+              Pause
+            </label>
+          </div>
+          <p className="mt-2 text-[11px] text-text-muted">Sets operational state to extended until grace ends.</p>
+        </section>
+      );
+    }
+    if (isDrawer) {
+      return (
+        <div className={cn("flex flex-col gap-1.5", className)}>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Resolve extension</p>
+          <DrawerRailIndent>
+            <div className="flex flex-col gap-2 text-[13px] leading-snug text-text-primary">
+              <label className="inline-flex cursor-pointer items-start gap-2">
+                <input
+                  type="radio"
+                  name="res"
+                  className="mt-1 rounded border-border-default"
+                  checked={resolution === "renew"}
+                  onChange={() => onResolutionChange("renew")}
+                />
+                Renew existing contract
+              </label>
+              <label className="inline-flex cursor-pointer items-start gap-2">
+                <input
+                  type="radio"
+                  name="res"
+                  className="mt-1 rounded border-border-default"
+                  checked={resolution === "replace"}
+                  onChange={() => onResolutionChange("replace")}
+                />
+                Replace with new contract
+              </label>
+              <label className="inline-flex cursor-pointer items-start gap-2">
+                <input
+                  type="radio"
+                  name="res"
+                  className="mt-1 rounded border-border-default"
+                  checked={resolution === "terminate"}
+                  onChange={() => onResolutionChange("terminate")}
+                />
+                Terminate
+              </label>
+              <p className="text-[12px] text-text-muted">
+                Replace supersedes the prior record; terminate may issue a final invoice or write-off in billing.
+              </p>
+            </div>
+          </DrawerRailIndent>
+        </div>
+      );
+    }
+    return (
+      <section className={cn("rounded-lg border border-border-default bg-white p-3", className)}>
+        <h3 className="mb-2 text-[12px] font-semibold text-text-primary">Resolve extension</h3>
+        <div className="flex flex-col gap-1.5 text-[13px]">
+          <label className="inline-flex items-center gap-2">
+            <input type="radio" name="res" checked={resolution === "renew"} onChange={() => onResolutionChange("renew")} />
+            Renew existing contract
+          </label>
+          <label className="inline-flex items-center gap-2">
+            <input type="radio" name="res" checked={resolution === "replace"} onChange={() => onResolutionChange("replace")} />
+            Replace with new contract
+          </label>
+          <label className="inline-flex items-center gap-2">
+            <input type="radio" name="res" checked={resolution === "terminate"} onChange={() => onResolutionChange("terminate")} />
+            Terminate
+          </label>
+        </div>
+        <p className="mt-2 text-[11px] text-text-muted">
+          Replace supersedes the prior record; terminate may issue a final invoice or write-off in billing.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className={cn("rounded-lg border border-border-default bg-white p-3", className)}>
+      <h3 className="mb-2 text-[12px] font-semibold text-text-primary">Transition</h3>
+      <p className="text-[11px] text-text-muted">No coordinated cut-over for a net-new deal. Activation follows policy above.</p>
+    </section>
+  );
+}

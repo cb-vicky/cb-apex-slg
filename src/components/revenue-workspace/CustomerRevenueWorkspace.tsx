@@ -70,6 +70,8 @@ export function CustomerRevenueWorkspace({
     renewalToast,
     clearRenewalToast,
     invoiceStatusOverrides,
+    contractGraceExtensions,
+    sessionInvoices,
   } = useIngestContext();
 
   // When closeIntent is present, force list mode (so user sees context before pane opens)
@@ -81,26 +83,31 @@ export function CustomerRevenueWorkspace({
   const [activeContract, setActiveContract] = useState<Contract | null>(contract);
   const [showClosePane, setShowClosePane] = useState(false);
 
-  // Auto-open close pane when triggered from queue flow with early-renewal intent
-  useEffect(() => {
-    if (closeIntent === "early-renewal" && activeContract?.status === "Active") {
-      setShowClosePane(true);
-    }
-  }, [closeIntent, activeContract?.status]);
-
   const customerQuotes = getQuotesForCustomer(customer.id);
   // Merge runtime session contracts so auto-ingested Scheduled renewals appear
-  const seedContracts = getContractsForCustomer(customer.id);
-  const sessionContractsForCustomer = sessionContracts.filter((c) => c.customerId === customer.id);
-  const customerContracts = [...seedContracts, ...sessionContractsForCustomer.filter((c) => !seedContracts.some((s) => s.id === c.id))];
+  const customerContracts = useMemo(() => {
+    const seedContracts = getContractsForCustomer(customer.id);
+    const sessionContractsForCustomer = sessionContracts.filter((c) => c.customerId === customer.id);
+    return [
+      ...seedContracts,
+      ...sessionContractsForCustomer.filter((c) => !seedContracts.some((s) => s.id === c.id)),
+    ];
+  }, [customer.id, sessionContracts]);
 
-  /** List + rail: apply runtime closures so rows match Contract detail / CloseContractPane. */
+  /** List + rail + detail: session overlays (closure, grace) so every surface matches IngestContext. */
   const contractsForListView = useMemo(
-    () => mergeContractsWithRuntimeClosures(customerContracts, contractClosures),
-    [customerContracts, contractClosures],
+    () => mergeContractsWithRuntimeClosures(customerContracts, contractClosures, contractGraceExtensions),
+    [customerContracts, contractClosures, contractGraceExtensions],
   );
 
-  const customerInvoicesRaw = getInvoices(customer.id);
+  const customerInvoicesRaw = useMemo(() => {
+    const seed = getInvoices(customer.id);
+    const extra = sessionInvoices.filter((i) => i.customerId === customer.id);
+    return [
+      ...seed,
+      ...extra.filter((e) => !seed.some((s) => s.id === e.id)),
+    ];
+  }, [customer.id, sessionInvoices]);
 
   /** List + initial selection: apply approval invoice status overrides */
   const invoicesForListView = useMemo(() => {
@@ -122,23 +129,6 @@ export function CustomerRevenueWorkspace({
     const timer = setTimeout(() => clearRenewalToast(), 3500);
     return () => clearTimeout(timer);
   }, [renewalToast, clearRenewalToast]);
-
-  // Merge seed contracts with runtime closures
-  function getEffectiveContract(c: Contract | null): Contract | null {
-    if (!c) return null;
-    const runtimeClosure = contractClosures[c.id];
-    if (runtimeClosure) {
-      const today = new Date().toISOString().slice(0, 10);
-      const effectiveDate = runtimeClosure.effectiveDate;
-      const isFuture = effectiveDate > today;
-      return {
-        ...c,
-        status: isFuture ? "Closing" : (runtimeClosure.reason === "non_payment" ? "Terminated" : "Closed"),
-        closure: runtimeClosure,
-      };
-    }
-    return c;
-  }
 
   // Build incoming renewal preview from sample3 data when triggered from queue
   const incomingRenewal: IncomingRenewalPreview | undefined = closeIntent === "early-renewal" && queueItemId
@@ -166,31 +156,35 @@ export function CustomerRevenueWorkspace({
     
     // Generate IDs for closure-related documents
     const timestamp = Date.now().toString().slice(-4);
-    let updatedClosure = { ...closure };
     let approvalDocumentId: string | undefined;
-    
-    if (closure.settlementType === "credit_note") {
-      updatedClosure.creditNoteId = `CN-CLOSE-${timestamp}`;
-      approvalDocumentId = updatedClosure.creditNoteId;
-      // Submit credit note for approval
-      submitInvoiceForApproval(approvalDocumentId, {
-        customerId: customer.id,
-        customerName: customer.name,
-        invoiceAmount: closure.finalAmount,
-        invoiceDate: new Date().toISOString().slice(0, 10),
-      });
-    } else if (closure.settlementType === "termination_charge") {
-      updatedClosure.invoiceId = `INV-TERM-${timestamp}`;
-      approvalDocumentId = updatedClosure.invoiceId;
-      // Submit termination invoice for approval
-      submitInvoiceForApproval(approvalDocumentId, {
-        customerId: customer.id,
-        customerName: customer.name,
-        invoiceAmount: closure.finalAmount,
-        invoiceDate: new Date().toISOString().slice(0, 10),
-      });
-    }
-    
+
+    const updatedClosure: ContractClosure =
+      closure.settlementType === "credit_note"
+        ? (() => {
+            const creditNoteId = `CN-CLOSE-${timestamp}`;
+            approvalDocumentId = creditNoteId;
+            submitInvoiceForApproval(creditNoteId, {
+              customerId: customer.id,
+              customerName: customer.name,
+              invoiceAmount: closure.finalAmount,
+              invoiceDate: new Date().toISOString().slice(0, 10),
+            });
+            return { ...closure, creditNoteId };
+          })()
+        : closure.settlementType === "termination_charge"
+          ? (() => {
+              const invoiceId = `INV-TERM-${timestamp}`;
+              approvalDocumentId = invoiceId;
+              submitInvoiceForApproval(invoiceId, {
+                customerId: customer.id,
+                customerName: customer.name,
+                invoiceAmount: closure.finalAmount,
+                invoiceDate: new Date().toISOString().slice(0, 10),
+              });
+              return { ...closure, invoiceId };
+            })()
+          : { ...closure };
+
     applyContractClosure(activeContract.id, updatedClosure);
     
     const settlementText = closure.settlementType === "credit_note"
@@ -237,13 +231,34 @@ export function CustomerRevenueWorkspace({
     setActiveQuote(quote);
   }, [quote]);
 
+  // Keep selected contract aligned when the shell resolves a different record (URL / alias route).
+  useEffect(() => {
+    setActiveContract(contract);
+  }, [contract?.id, contract]);
+
   // Disabled stages: downstream tabs are locked when no contract / invoices exist yet
   const disabledStages = new Set<Stage>([
     ...(customerContracts.length === 0 ? (["contract", "invoicing", "revrec"] as Stage[]) : []),
     ...(customerInvoicesRaw.length === 0 ? (["payment"] as Stage[]) : []),
   ]);
 
-  const effectiveContract = getEffectiveContract(activeContract ?? contract);
+  const selectedContractId = (activeContract ?? contract)?.id ?? null;
+  const effectiveContract = useMemo(() => {
+    if (!selectedContractId) return null;
+    return contractsForListView.find((c) => c.id === selectedContractId) ?? null;
+  }, [contractsForListView, selectedContractId]);
+
+  const effectiveInvoice = useMemo(() => {
+    if (!activeInvoice?.id) return undefined;
+    return invoicesForListView.find((i) => i.id === activeInvoice.id) ?? activeInvoice;
+  }, [activeInvoice, invoicesForListView]);
+
+  // Auto-open close pane when triggered from queue flow with early-renewal intent (use merged status).
+  useEffect(() => {
+    if (closeIntent === "early-renewal" && effectiveContract?.status === "Active") {
+      setShowClosePane(true);
+    }
+  }, [closeIntent, effectiveContract?.status]);
 
   const collectionCases = getCollectionCasesForCustomer(customer.id);
   const primaryCase = collectionCases[0];
@@ -258,7 +273,7 @@ export function CustomerRevenueWorkspace({
     Boolean(
       (activeStage === "quote" && !!activeQuote) ||
         (activeStage === "contract" && !!effectiveContract) ||
-        (activeStage === "invoicing" && !!activeInvoice && !!effectiveContract),
+        (activeStage === "invoicing" && !!effectiveInvoice && !!effectiveContract),
     );
 
   // The ID shown in the breadcrumb's record crumb.
@@ -268,8 +283,8 @@ export function CustomerRevenueWorkspace({
     ? activeQuote?.id
     : activeStage === "contract"
     ? effectiveContract?.id
-    : activeStage === "invoicing" && activeInvoice
-    ? activeInvoice.id
+    : activeStage === "invoicing" && effectiveInvoice
+    ? effectiveInvoice.id
     : activeStage === "payment" && primaryCase
     ? primaryCase.invoiceId
     : activeStage === "revrec" && revenueArrangement
@@ -338,9 +353,11 @@ export function CustomerRevenueWorkspace({
           <EmptyState message="No quote selected." />
         );
       case "contract": {
+        const graceExt = effectiveContract ? contractGraceExtensions[effectiveContract.id] : undefined;
         return effectiveContract ? (
           <ContractStageContent
             contract={effectiveContract}
+            graceExtension={graceExt}
             onBack={handleBackToList}
             onOpenClosePane={() => setShowClosePane(true)}
           />
@@ -349,8 +366,8 @@ export function CustomerRevenueWorkspace({
         );
       }
       case "invoicing":
-        return activeInvoice && effectiveContract ? (
-          <InvoicingStageContent invoice={activeInvoice} contract={effectiveContract} onBack={handleBackToList} />
+        return effectiveInvoice && effectiveContract ? (
+          <InvoicingStageContent invoice={effectiveInvoice} contract={effectiveContract} onBack={handleBackToList} />
         ) : null;
       case "payment":
         return <PaymentStageContent customer={customer} />;
@@ -367,7 +384,7 @@ export function CustomerRevenueWorkspace({
         customer={customer}
         quote={activeQuote}
         contract={effectiveContract}
-        invoice={activeInvoice}
+        invoice={effectiveInvoice}
         arrangement={revenueArrangement}
         activeStage={activeStage}
         onStageChange={handleStageChange}

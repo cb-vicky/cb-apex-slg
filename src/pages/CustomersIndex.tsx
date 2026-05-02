@@ -1,6 +1,10 @@
+import { useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useScrolled } from "@/hooks/useScrolled";
 import { customers, quotes, contracts, invoices } from "@/data/mock-data";
+import type { Contract, Customer, Invoice } from "@/data/mock-data";
+import { useIngestContext } from "@/context/IngestContext";
+import { mergeContractsWithRuntimeClosures, mergeInvoiceStatuses } from "@/components/revenue-workspace/derive-stage-data";
 import { supportTickets } from "@/data/support-data";
 import { currency, shortDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/primitives";
@@ -28,7 +32,7 @@ interface CustomerGroupRow {
   targetParam: string;
 }
 
-function buildGroups() {
+function buildGroups(customerList: Customer[], contractsList: Contract[], invoicesList: Invoice[]) {
   const groups: Record<string, CustomerGroupRow[]> = {
     "renewals-30d": [],
     "quotes-pending": [],
@@ -39,11 +43,11 @@ function buildGroups() {
     "expansion-opportunity": [],
   };
 
-  for (const c of customers) {
+  for (const c of customerList) {
     if (c.nextRenewalDate) {
       const days = Math.round((new Date(c.nextRenewalDate).getTime() - Date.now()) / 86400000);
       if (days <= 30 && days > 0) {
-        const con = contracts.find((ct) => ct.customerId === c.id);
+        const con = contractsList.find((ct) => ct.customerId === c.id);
         groups["renewals-30d"].push({
           customerId: c.id, customerName: c.name,
           reason: `Renewal in ${days} days`,
@@ -78,7 +82,7 @@ function buildGroups() {
       });
     }
 
-    const overdueInvs = invoices.filter((i) => i.customerId === c.id && i.status === "Overdue");
+    const overdueInvs = invoicesList.filter((i) => i.customerId === c.id && i.status === "Overdue");
     for (const inv of overdueInvs) {
       groups["overdue-invoices"].push({
         customerId: c.id, customerName: c.name,
@@ -90,7 +94,7 @@ function buildGroups() {
       });
     }
 
-    const enfContracts = contracts.filter((ct) => ct.customerId === c.id && ct.enforcement.enforcementStatus !== "Enforced");
+    const enfContracts = contractsList.filter((ct) => ct.customerId === c.id && ct.enforcement.enforcementStatus !== "Enforced");
     for (const con of enfContracts) {
       groups["enforcement-mismatch"].push({
         customerId: c.id, customerName: c.name,
@@ -141,12 +145,12 @@ const groupMeta: { key: string; label: string; slug: string }[] = [
 ];
 
 const listColumns: Column[] = [
-  { key: "customer", label: "Customer", width: "180px" },
-  { key: "arr", label: "ARR", width: "100px" },
-  { key: "openAr", label: "Open AR", width: "100px" },
-  { key: "contracts", label: "Contracts", width: "80px" },
-  { key: "quotes", label: "Quotes", width: "80px" },
-  { key: "renewal", label: "Renewal", width: "110px" },
+  { key: "customer", label: "Customer", width: "180px", sortable: true },
+  { key: "arr", label: "ARR", width: "100px", align: "right" },
+  { key: "openAr", label: "Open AR", width: "100px", align: "right" },
+  { key: "contracts", label: "Contracts", width: "80px", align: "right" },
+  { key: "quotes", label: "Quotes", width: "80px", align: "right" },
+  { key: "renewal", label: "Renewal", width: "110px", sortable: true },
   { key: "risk", label: "Risk", width: "120px" },
   { key: "owner", label: "Owner", width: "120px" },
 ];
@@ -158,18 +162,59 @@ const listColumns: Column[] = [
 export function CustomersIndex() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const {
+    contractClosures,
+    contractGraceExtensions,
+    sessionContracts,
+    sessionCustomers,
+    sessionInvoices,
+    invoiceStatusOverrides,
+  } = useIngestContext();
+
+  const customersMerged = useMemo(() => {
+    const byId = new Map(customers.map((c) => [c.id, c]));
+    for (const c of sessionCustomers) {
+      byId.set(c.id, c);
+    }
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [sessionCustomers]);
+
+  const contractsView = useMemo(() => {
+    const byId = new Map(contracts.map((c) => [c.id, c]));
+    for (const c of sessionContracts) {
+      byId.set(c.id, c);
+    }
+    return mergeContractsWithRuntimeClosures([...byId.values()], contractClosures, contractGraceExtensions);
+  }, [contractClosures, contractGraceExtensions, sessionContracts]);
+
+  const invoicesWithSession = useMemo(() => {
+    const byId = new Map(invoices.map((i) => [i.id, i]));
+    for (const inv of sessionInvoices) {
+      byId.set(inv.id, inv);
+    }
+    return [...byId.values()];
+  }, [sessionInvoices]);
+
+  const invoicesView = useMemo(
+    () => mergeInvoiceStatuses(invoicesWithSession, invoiceStatusOverrides),
+    [invoicesWithSession, invoiceStatusOverrides],
+  );
+
   const groupFilter = searchParams.get("group");
-  const viewMode = (searchParams.get("view") as ViewMode) || "groups";
-  const groups = buildGroups();
+  const viewMode = (searchParams.get("view") as ViewMode) || "all";
+  const groups = useMemo(
+    () => buildGroups(customersMerged, contractsView, invoicesView),
+    [customersMerged, contractsView, invoicesView],
+  );
   const { ref: scrollRef, isScrolled } = useScrolled();
 
   function handleViewChange(mode: ViewMode) {
     const params = new URLSearchParams(searchParams);
     if (mode === "groups") {
-      params.delete("view");
+      params.set("view", "groups");
       params.delete("group");
     } else {
-      params.set("view", mode);
+      params.delete("view");
       params.delete("group");
     }
     setSearchParams(params);
@@ -184,11 +229,11 @@ export function CustomersIndex() {
   );
 
   const metrics: MetricCard[] = [
-    { label: "Active customers", value: customers.length },
+    { label: "Active customers", value: customersMerged.length },
     { label: "Renewals in 30 days", value: groups["renewals-30d"].length, variant: groups["renewals-30d"].length > 0 ? "warning" : "default" },
-    { label: "Open AR total", value: currency(customers.reduce((s, c) => s + c.openAr, 0)), variant: "danger" },
+    { label: "Open AR total", value: currency(customersMerged.reduce((s, c) => s + c.openAr, 0)), variant: "danger" },
     { label: "Quotes pending", value: groups["quotes-pending"].length, variant: groups["quotes-pending"].length > 0 ? "warning" : "default" },
-    { label: "At-risk customers", value: customers.filter((c) => c.riskBadges.length > 0).length, variant: "danger" },
+    { label: "At-risk customers", value: customersMerged.filter((c) => c.riskBadges.length > 0).length, variant: "danger" },
   ];
 
   function navigateToShell(row: CustomerGroupRow) {
@@ -213,20 +258,31 @@ export function CustomersIndex() {
         </div>
         <div className="flex flex-col gap-3 pl-6 pr-[12px] pt-3 pb-5">
           <MetricStrip metrics={metrics} />
-          <ListTable columns={listColumns}>
-            {customers
+          <ListTable
+            columns={listColumns}
+            resultCount={customersMerged.filter((c) => rows.some((r) => r.customerId === c.id)).length}
+          >
+            {customersMerged
               .filter((c) => rows.some((r) => r.customerId === c.id))
               .map((c) => {
                 const matchRow = rows.find((r) => r.customerId === c.id)!;
                 return (
                   <ListRow key={c.id} onClick={() => navigateToShell(matchRow)}>
                     <ListCell width="180px" className="font-medium text-text-primary">{c.name}</ListCell>
-                    <ListCell width="100px">{currency(c.arr)}</ListCell>
-                    <ListCell width="100px" className={c.openAr > 0 ? "text-red-600 font-medium" : ""}>{currency(c.openAr)}</ListCell>
-                    <ListCell width="80px">{c.activeContractCount}</ListCell>
-                    <ListCell width="80px">{c.openQuoteCount}</ListCell>
+                    <ListCell width="100px" align="right">
+                      {currency(c.arr)}
+                    </ListCell>
+                    <ListCell width="100px" align="right" className={c.openAr > 0 ? "text-red-600 font-medium" : ""}>
+                      {currency(c.openAr)}
+                    </ListCell>
+                    <ListCell width="80px" align="right">
+                      {c.activeContractCount}
+                    </ListCell>
+                    <ListCell width="80px" align="right">
+                      {c.openQuoteCount}
+                    </ListCell>
                     <ListCell width="110px">{c.nextRenewalDate ? shortDate(c.nextRenewalDate) : "—"}</ListCell>
-                    <ListCell width="120px">
+                    <ListCell width="120px" noTruncate>
                       {c.riskBadges.length > 0 ? <StatusBadge status={`${c.riskBadges.length} flags`} /> : <span className="text-emerald-600 text-[12px]">Healthy</span>}
                     </ListCell>
                     <ListCell width="120px">{c.billingOwner}</ListCell>
@@ -248,16 +304,24 @@ export function CustomersIndex() {
         </div>
         <div className="flex flex-col gap-3 pl-6 pr-[12px] pt-3 pb-5">
           <MetricStrip metrics={metrics} />
-          <ListTable columns={listColumns}>
-            {customers.map((c) => (
+          <ListTable columns={listColumns} resultCount={customersMerged.length}>
+            {customersMerged.map((c) => (
               <ListRow key={c.id} onClick={() => navigate(`/customers/${c.id}?tab=customer&from=customers`)}>
                 <ListCell width="180px" className="font-medium text-text-primary">{c.name}</ListCell>
-                <ListCell width="100px">{currency(c.arr)}</ListCell>
-                <ListCell width="100px" className={c.openAr > 0 ? "text-red-600 font-medium" : ""}>{currency(c.openAr)}</ListCell>
-                <ListCell width="80px">{c.activeContractCount}</ListCell>
-                <ListCell width="80px">{c.openQuoteCount}</ListCell>
+                <ListCell width="100px" align="right">
+                  {currency(c.arr)}
+                </ListCell>
+                <ListCell width="100px" align="right" className={c.openAr > 0 ? "text-red-600 font-medium" : ""}>
+                  {currency(c.openAr)}
+                </ListCell>
+                <ListCell width="80px" align="right">
+                  {c.activeContractCount}
+                </ListCell>
+                <ListCell width="80px" align="right">
+                  {c.openQuoteCount}
+                </ListCell>
                 <ListCell width="110px">{c.nextRenewalDate ? shortDate(c.nextRenewalDate) : "—"}</ListCell>
-                <ListCell width="120px">
+                <ListCell width="120px" noTruncate>
                   {c.riskBadges.length > 0 ? <StatusBadge status={`${c.riskBadges.length} flags`} /> : <span className="text-emerald-600 text-[12px]">Healthy</span>}
                 </ListCell>
                 <ListCell width="120px">{c.billingOwner}</ListCell>
@@ -286,10 +350,14 @@ export function CustomersIndex() {
                   <RowCell width="160px" className="font-medium text-text-primary">{row.customerName}</RowCell>
                   <RowCell width="200px" className="text-text-secondary">{row.reason}</RowCell>
                   <RowCell width="130px" className="font-medium text-blue-600">{row.relatedRecord}</RowCell>
-                  <RowCell width="100px" className="tabular-nums">{row.value}</RowCell>
+                  <RowCell width="100px" className="tabular-nums" align="right">
+                    {row.value}
+                  </RowCell>
                   <RowCell width="110px" className="text-text-secondary">{row.owner}</RowCell>
                   <RowCell width="100px" className="text-text-secondary">{row.dueDate}</RowCell>
-                  <RowCell width="100px"><StatusBadge status={row.status} /></RowCell>
+                  <RowCell width="100px" noTruncate>
+                    <StatusBadge status={row.status} />
+                  </RowCell>
                 </GroupedRow>
               ))}
             </GroupedSection>

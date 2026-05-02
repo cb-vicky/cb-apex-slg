@@ -1,4 +1,7 @@
-import type { Customer, Quote, Contract, Invoice, ContractClosure } from "@/data/mock-data";
+import type { Customer, Quote, Contract, Invoice, ContractClosure, InvoiceScheduleItem } from "@/data/mock-data";
+import type { ContractGraceExtension } from "@/data/contract-transition";
+import type { QueueItem } from "@/data/queue-data";
+import type { ApprovalRequest } from "@/data/ingest-data";
 import { getContractsForCustomer, getInvoices, getTasks } from "@/data/mock-data";
 import {
   getCollectionCasesForCustomer,
@@ -105,6 +108,7 @@ export function deriveContextMetrics(
   contract: Contract | null,
   invoice: Invoice | undefined,
   arrangement: RevenueArrangement | undefined,
+  invoiceStatusOverrides?: Record<string, string>,
 ): ContextMetric[] {
   const customerOverview: ContextMetric[] = [
     { label: "ARR", value: currency(customer.arr) },
@@ -141,8 +145,9 @@ export function deriveContextMetrics(
         { label: "CONTRACT", value: invoice.contractId || "—" },
       ];
     case "payment": {
-      const summary = getCustomerArSummary(customer.id);
-      const overdue = getInvoices(customer.id).filter((i) => i.status === "Overdue");
+      const mergedInv = mergeInvoiceStatuses(getInvoices(customer.id), invoiceStatusOverrides);
+      const summary = getCustomerArSummary(customer.id, mergedInv);
+      const overdue = mergedInv.filter((i) => i.status === "Overdue");
       const oldest = overdue[0] ? daysSince(overdue[0].dueDate) : null;
       return [
         { label: "OPEN AR", value: currency(summary.totalOpen) },
@@ -186,15 +191,29 @@ export function severityColor(severity: StatusSeverity): string {
   return severityToColor[severity];
 }
 
-export function deriveCustomerStatus(customer: Customer): StageStatus {
-  if (customer.riskBadges.length > 0) {
-    const hasOverdue = customer.riskBadges.some((b) => b.toLowerCase().includes("overdue"));
-    return {
-      text: `${customer.riskBadges.length} risk flag${customer.riskBadges.length > 1 ? "s" : ""}`,
-      severity: hasOverdue ? "red" : "amber",
-    };
+export function deriveCustomerStatus(
+  customer: Customer,
+  invoiceStatusOverrides?: Record<string, string>,
+): StageStatus {
+  const merged = mergeInvoiceStatuses(getInvoices(customer.id), invoiceStatusOverrides);
+  const liveOverdue = merged.some((i) => i.status === "Overdue");
+  const livePendingReview = merged.some((i) => i.status === "Pending Review");
+  const sessionAware = invoiceStatusOverrides !== undefined && Object.keys(invoiceStatusOverrides).length > 0;
+
+  if (customer.riskBadges.length === 0) {
+    if (liveOverdue) return { text: "Overdue invoices", severity: "red" };
+    if (livePendingReview) return { text: "Invoice review pending", severity: "amber" };
+    return { text: "Healthy", severity: "green" };
   }
-  return { text: "Healthy", severity: "green" };
+
+  const badgeOverdue = customer.riskBadges.some((b) => b.toLowerCase().includes("overdue"));
+  const hasEscalation = customer.riskBadges.some((b) => b.toLowerCase().includes("escalation"));
+  const overdueDrivesRed = sessionAware ? liveOverdue : badgeOverdue || liveOverdue;
+  const severity: StatusSeverity = overdueDrivesRed || hasEscalation ? "red" : "amber";
+  return {
+    text: `${customer.riskBadges.length} risk flag${customer.riskBadges.length > 1 ? "s" : ""}`,
+    severity,
+  };
 }
 
 export function deriveQuoteStatus(quote: Quote): StageStatus {
@@ -216,7 +235,12 @@ export function deriveQuoteStatus(quote: Quote): StageStatus {
   return { text: quote.status, severity: "blue" };
 }
 
-export function deriveContractStatus(contract: Contract): StageStatus {
+export function deriveContractStatus(
+  contract: Contract,
+  invoiceStatusOverrides?: Record<string, string>,
+): StageStatus {
+  const scheduleView = mergeBillingScheduleWithInvoiceOverrides(contract.billingSchedule, invoiceStatusOverrides);
+
   // Scheduled contracts (renewal not yet active — prior contract still closing)
   if (contract.status === "Scheduled") {
     const activationDate = contract.scheduledStartDate ?? contract.effectiveDate;
@@ -224,6 +248,10 @@ export function deriveContractStatus(contract: Contract): StageStatus {
       text: `Scheduled · activates ${shortDate(activationDate)}`,
       severity: "blue",
     };
+  }
+
+  if (contract.status === "Extended") {
+    return { text: "Grace extension active", severity: "amber" };
   }
 
   // Handle closure statuses
@@ -250,31 +278,41 @@ export function deriveContractStatus(contract: Contract): StageStatus {
     parts.push(`${contract.amendments.length} amendment${contract.amendments.length > 1 ? "s" : ""}`);
   }
   const hasBlocking = contract.enforcement.blockingIssues.length > 0;
-  const hasOverdueSchedule = contract.billingSchedule.some((s) => s.status === "Overdue");
+  const hasOverdueSchedule = scheduleView.some((s) => s.status === "Overdue");
   const severity: StatusSeverity = hasBlocking ? "red" : hasOverdueSchedule ? "amber" : "green";
   return { text: parts.join(" + "), severity };
 }
 
-/** Applies session `contractClosures` so list rows match CloseContractPane / Contract detail. */
+/**
+ * Applies session overlays: closure outcomes first, then open grace extensions
+ * (late renewal), so list + detail + index views match IngestContext.
+ */
 export function mergeContractsWithRuntimeClosures(
   contracts: Contract[],
   contractClosures: Record<string, ContractClosure>,
+  contractGraceExtensions?: Record<string, ContractGraceExtension>,
 ): Contract[] {
   return contracts.map((c) => {
     const runtimeClosure = contractClosures[c.id];
-    if (!runtimeClosure) return c;
-    const today = new Date().toISOString().slice(0, 10);
-    const effectiveDate = runtimeClosure.effectiveDate;
-    const isFuture = effectiveDate > today;
-    return {
-      ...c,
-      status: isFuture
-        ? "Closing"
-        : runtimeClosure.reason === "non_payment"
-          ? "Terminated"
-          : "Closed",
-      closure: runtimeClosure,
-    };
+    if (runtimeClosure) {
+      const today = new Date().toISOString().slice(0, 10);
+      const effectiveDate = runtimeClosure.effectiveDate;
+      const isFuture = effectiveDate > today;
+      return {
+        ...c,
+        status: isFuture
+          ? "Closing"
+          : runtimeClosure.reason === "non_payment"
+            ? "Terminated"
+            : "Closed",
+        closure: runtimeClosure,
+      };
+    }
+    const grace = contractGraceExtensions?.[c.id];
+    if (grace && !grace.resolved) {
+      return { ...c, status: "Extended" };
+    }
+    return c;
   });
 }
 
@@ -288,6 +326,55 @@ export function mergeInvoiceStatuses(
     const st = overrides[inv.id];
     return st !== undefined ? { ...inv, status: st } : inv;
   });
+}
+
+/** Applies session invoice status to contract billing schedule rows that reference an `invoiceId`. */
+export function mergeBillingScheduleWithInvoiceOverrides(
+  schedule: InvoiceScheduleItem[],
+  overrides: Record<string, string> | undefined,
+): InvoiceScheduleItem[] {
+  if (!overrides || Object.keys(overrides).length === 0) return schedule;
+  return schedule.map((row) => {
+    if (!row.invoiceId) return row;
+    const st = overrides[row.invoiceId];
+    return st !== undefined ? { ...row, status: st } : row;
+  });
+}
+
+/** Snapshot from `IngestContext` so NBA + insights match queue, closures, grace, and invoice overrides. */
+export type CustomerWorkspaceSession = {
+  queueItems: QueueItem[];
+  contractClosures: Record<string, ContractClosure>;
+  contractGraceExtensions: Record<string, ContractGraceExtension>;
+  invoiceStatusOverrides: Record<string, string>;
+  sessionContracts: Contract[];
+  /** In-session first-invoice approvals (ingest → approver gate before contract activates). */
+  approvalRequests?: ApprovalRequest[];
+};
+
+const QUEUE_NBA_STATUSES = new Set<string>(["Pending Review", "In Progress"]);
+
+function contractsSessionView(customerId: string, session?: CustomerWorkspaceSession): Contract[] {
+  const seed = getContractsForCustomer(customerId);
+  const mergedList =
+    session && session.sessionContracts.length > 0
+      ? (() => {
+          const byId = new Map(seed.map((c) => [c.id, c]));
+          for (const c of session.sessionContracts) {
+            if (c.customerId === customerId && !byId.has(c.id)) byId.set(c.id, c);
+          }
+          return [...byId.values()];
+        })()
+      : seed;
+  return mergeContractsWithRuntimeClosures(
+    mergedList,
+    session?.contractClosures ?? {},
+    session?.contractGraceExtensions,
+  );
+}
+
+function invoicesSessionView(customerId: string, session?: CustomerWorkspaceSession): Invoice[] {
+  return mergeInvoiceStatuses(getInvoices(customerId), session?.invoiceStatusOverrides);
 }
 
 export function deriveInvoicingStatus(
@@ -311,8 +398,12 @@ export function deriveInvoicingStatus(
   return { text: parts.join(" · "), severity };
 }
 
-export function derivePaymentStatus(customerId: string): StageStatus {
-  const summary = getCustomerArSummary(customerId);
+export function derivePaymentStatus(
+  customerId: string,
+  invoiceStatusOverrides?: Record<string, string>,
+): StageStatus {
+  const merged = mergeInvoiceStatuses(getInvoices(customerId), invoiceStatusOverrides);
+  const summary = getCustomerArSummary(customerId, merged);
   const payments = getPaymentsForCustomer(customerId);
   const unapplied = payments.filter((p) => p.matchStatus === "unapplied");
 
@@ -349,11 +440,11 @@ export function deriveAllStageStatuses(
   invoiceStatusOverrides?: Record<string, string>,
 ): Record<Stage, StageStatus> {
   return {
-    customer: deriveCustomerStatus(customer),
+    customer: deriveCustomerStatus(customer, invoiceStatusOverrides),
     quote: quote ? deriveQuoteStatus(quote) : { text: "No quote", severity: "blue" },
-    contract: contract ? deriveContractStatus(contract) : { text: "No contract yet", severity: "blue" },
+    contract: contract ? deriveContractStatus(contract, invoiceStatusOverrides) : { text: "No contract yet", severity: "blue" },
     invoicing: contract ? deriveInvoicingStatus(customer.id, invoiceStatusOverrides) : { text: "—", severity: "blue" },
-    payment: contract ? derivePaymentStatus(customer.id) : { text: "—", severity: "blue" },
+    payment: contract ? derivePaymentStatus(customer.id, invoiceStatusOverrides) : { text: "—", severity: "blue" },
     revrec: contract ? deriveRevRecStatus(contract.id) : { text: "—", severity: "blue" },
   };
 }
@@ -394,10 +485,55 @@ function openTasksCoverPhrases(customerId: string, phrases: string[]): boolean {
   });
 }
 
-export function getCustomerInsightsEnriched(customer: Customer): EnrichedCustomerInsight[] {
+export function getCustomerInsightsEnriched(
+  customer: Customer,
+  session?: CustomerWorkspaceSession,
+): EnrichedCustomerInsight[] {
   const base = customerWorkspacePath(customer.id);
-  const invoices = getInvoices(customer.id);
-  const contracts = getContractsForCustomer(customer.id);
+  const invoices = invoicesSessionView(customer.id, session);
+  const contracts = contractsSessionView(customer.id, session);
+  const sessionItems: EnrichedCustomerInsight[] = [];
+
+  if (session?.queueItems?.length) {
+    const mine = session.queueItems
+      .filter((q) => q.customerId === customer.id && QUEUE_NBA_STATUSES.has(q.status))
+      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+    for (const q of mine) {
+      sessionItems.push({
+        id: `ins-queue-${q.id}`,
+        severity: q.scenario === "Early Renewal" ? "warning" : "info",
+        text: `Ingestion queue: ${q.documentName} — ${q.status} (${q.scenario}, ${currency(q.tcv)} TCV).`,
+        ctas: [{ label: "Open queue", to: "/queue" }],
+        showAddToWorkbench: !openTasksCoverPhrases(customer.id, ["queue", "ingest", "ingestion"]),
+        workbenchPreviewTitle: `Process queued document: ${q.documentName}`,
+      });
+    }
+  }
+
+  for (const c of contracts) {
+    if (c.status === "Extended") {
+      const ext = session?.contractGraceExtensions?.[c.id];
+      sessionItems.push({
+        id: `ins-grace-${c.id}`,
+        severity: "warning",
+        text: `Grace period active on contract ${c.id}${ext?.until ? ` through ${shortDate(ext.until)}` : ""} — align billing and renewal.`,
+        ctas: [{ label: "Open contract", to: `${base}?tab=contract&contractId=${c.id}` }],
+        showAddToWorkbench: !openTasksCoverPhrases(customer.id, ["grace", "extension"]),
+        workbenchPreviewTitle: "Resolve grace extension and renewal timeline",
+      });
+    }
+    if (c.status === "Closing" && c.closure) {
+      sessionItems.push({
+        id: `ins-closing-${c.id}`,
+        severity: "warning",
+        text: `Contract ${c.id} is scheduled to close on ${shortDate(c.closure.effectiveDate)}.`,
+        ctas: [{ label: "Review contract", to: `${base}?tab=contract&contractId=${c.id}` }],
+        showAddToWorkbench: !openTasksCoverPhrases(customer.id, ["closure", "close"]),
+        workbenchPreviewTitle: "Confirm contract closure and downstream billing",
+      });
+    }
+  }
+
   const overdueList = invoices.filter((i) => i.status === "Overdue");
   const firstOverdue = [...overdueList].sort(
     (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
@@ -505,11 +641,16 @@ export function getCustomerInsightsEnriched(customer: Customer): EnrichedCustome
     });
   }
 
-  return items;
+  const combined = [...sessionItems, ...items];
+  const hasNonHealthy = combined.some((i) => i.id !== "ins-healthy");
+  if (hasNonHealthy) {
+    return combined.filter((i) => i.id !== "ins-healthy");
+  }
+  return combined;
 }
 
-export function getCustomerInsights(customer: Customer): InsightItem[] {
-  return getCustomerInsightsEnriched(customer).map(({ severity, text }) => ({ severity, text }));
+export function getCustomerInsights(customer: Customer, session?: CustomerWorkspaceSession): InsightItem[] {
+  return getCustomerInsightsEnriched(customer, session).map(({ severity, text }) => ({ severity, text }));
 }
 
 export type PrimaryCustomerActionKind =
@@ -519,6 +660,10 @@ export type PrimaryCustomerActionKind =
   | "renewal"
   | "prepaid_burn"
   | "support_escalated"
+  | "queue_ingest"
+  | "grace_extension"
+  | "contract_closing"
+  | "invoice_activation_pending"
   | "none";
 
 export interface PrimaryCustomerAction {
@@ -531,10 +676,13 @@ export interface PrimaryCustomerAction {
   learnMoreLabel: string;
 }
 
-export function getPrimaryCustomerAction(customer: Customer): PrimaryCustomerAction {
+export function getPrimaryCustomerAction(
+  customer: Customer,
+  session?: CustomerWorkspaceSession,
+): PrimaryCustomerAction {
   const base = customerWorkspacePath(customer.id);
-  const invoices = getInvoices(customer.id);
-  const contracts = getContractsForCustomer(customer.id);
+  const invoices = invoicesSessionView(customer.id, session);
+  const contracts = contractsSessionView(customer.id, session);
   const overdue = invoices.filter((i) => i.status === "Overdue");
   const overdueSorted = [...overdue].sort(
     (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
@@ -558,6 +706,83 @@ export function getPrimaryCustomerAction(customer: Customer): PrimaryCustomerAct
       executeLabel: "Review invoice",
       learnMoreLabel: "Why this matters",
     };
+  }
+
+  if (session?.queueItems?.length) {
+    const pendingQueue = session.queueItems
+      .filter((q) => q.customerId === customer.id && QUEUE_NBA_STATUSES.has(q.status))
+      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+    if (pendingQueue.length > 0) {
+      const q = pendingQueue[0];
+      return {
+        kind: "queue_ingest",
+        label: "Review queued contract document",
+        description: `${q.documentName} — ${q.scenario}, ${currency(q.tcv)} TCV (${q.status}).`,
+        learnMoreBody:
+          "Queue items represent signed commercial documents awaiting extraction and mapping. Clear the queue early so billing, renewals, and rev rec stay aligned with what was actually sold.",
+        executeTo: "/queue",
+        executeLabel: "Open queue",
+        learnMoreLabel: "Why queue matters",
+      };
+    }
+  }
+
+  const extended = contracts.find((c) => c.status === "Extended");
+  if (extended) {
+    const ext = session?.contractGraceExtensions?.[extended.id];
+    return {
+      kind: "grace_extension",
+      label: "Resolve grace extension",
+      description: `Contract ${extended.id} is in a grace period${ext?.until ? ` through ${shortDate(ext.until)}` : ""}.`,
+      learnMoreBody:
+        "Grace extensions usually follow late renewals or billing disputes. Confirm the new commercial dates, entitlement end, and invoice timing so downstream AR and rev rec do not drift.",
+      executeTo: `${base}?tab=contract&contractId=${extended.id}`,
+      executeLabel: "Open contract",
+      learnMoreLabel: "Operational impact",
+    };
+  }
+
+  const closing = contracts.find((c) => c.status === "Closing" && c.closure);
+  if (closing?.closure) {
+    return {
+      kind: "contract_closing",
+      label: "Confirm scheduled contract closure",
+      description: `Contract ${closing.id} closes on ${shortDate(closing.closure.effectiveDate)} — validate billing wind-down and replacement terms.`,
+      learnMoreBody:
+        "A scheduled closure affects renewal timing, true-ups, and revenue recognition. Review closure reason, credit notes, and any replacement quote or ingest before the effective date.",
+      executeTo: `${base}?tab=contract&contractId=${closing.id}`,
+      executeLabel: "Review contract",
+      learnMoreLabel: "Closure checklist",
+    };
+  }
+
+  const pendingApprovals = session?.approvalRequests?.filter(
+    (r) => r.customerId === customer.id && r.status === "Pending Approval",
+  );
+  if (pendingApprovals?.length) {
+    for (const c of contracts) {
+      if (c.status !== "Scheduled" || c.customerId !== customer.id) continue;
+      const invoiceIds = new Set(
+        (c.billingSchedule ?? [])
+          .map((row) => row.invoiceId)
+          .filter((id): id is string => Boolean(id)),
+      );
+      const approval = pendingApprovals.find((r) => invoiceIds.has(r.invoiceId));
+      if (approval) {
+        const qs = new URLSearchParams({ from: "customer" });
+        if (approval.ingestId) qs.set("ingestId", approval.ingestId);
+        return {
+          kind: "invoice_activation_pending",
+          label: "Invoice requires approval to activate contract",
+          description: `${approval.invoiceId} is pending approval — ${c.id} stays scheduled until an approver releases it.`,
+          learnMoreBody:
+            "First-invoice approval gates activation for ingested deals. The approver validates amounts and terms against the signed document; once approved, billing can run and the contract moves to active.",
+          executeTo: `/approvals/invoices/${approval.invoiceId}?${qs.toString()}`,
+          executeLabel: "Review approval",
+          learnMoreLabel: "Why this blocks activation",
+        };
+      }
+    }
   }
 
   if (customer.openAr > 0 && overdue.length === 0) {
@@ -763,9 +988,13 @@ export function getInvoicingInsights(invoice: Invoice, contract: Contract): Insi
   return items;
 }
 
-export function getPaymentInsights(customerId: string): InsightItem[] {
+export function getPaymentInsights(
+  customerId: string,
+  invoiceStatusOverrides?: Record<string, string>,
+): InsightItem[] {
   const items: InsightItem[] = [];
-  const summary = getCustomerArSummary(customerId);
+  const merged = mergeInvoiceStatuses(getInvoices(customerId), invoiceStatusOverrides);
+  const summary = getCustomerArSummary(customerId, merged);
   const payments = getPaymentsForCustomer(customerId);
   const cases = getCollectionCasesForCustomer(customerId);
 
@@ -863,9 +1092,12 @@ export function getInvoicingLinkedRecords(invoice: Invoice, customerId: string):
   return records;
 }
 
-export function getPaymentLinkedRecords(customerId: string): LinkedRecord[] {
+export function getPaymentLinkedRecords(
+  customerId: string,
+  invoiceStatusOverrides?: Record<string, string>,
+): LinkedRecord[] {
   const records: LinkedRecord[] = [];
-  const inv = getInvoices(customerId);
+  const inv = mergeInvoiceStatuses(getInvoices(customerId), invoiceStatusOverrides);
   const overdue = inv.filter((i) => i.status === "Overdue");
   for (const i of overdue.slice(0, 2)) records.push({ label: "Overdue Invoice", id: i.id });
   const held = inv.filter((i) => i.holdReason);
@@ -897,9 +1129,12 @@ export interface NextAction {
   description: string;
 }
 
-export function getCustomerActions(customer: Customer): NextAction[] {
+export function getCustomerActions(
+  customer: Customer,
+  invoiceStatusOverrides?: Record<string, string>,
+): NextAction[] {
   const actions: NextAction[] = [];
-  const invoices = getInvoices(customer.id);
+  const invoices = mergeInvoiceStatuses(getInvoices(customer.id), invoiceStatusOverrides);
   const overdue = invoices.filter((i) => i.status === "Overdue");
   if (overdue.length > 0) {
     const total = overdue.reduce((s, i) => s + i.amount, 0);
@@ -1028,11 +1263,15 @@ export function getInvoicingActions(invoice: Invoice): NextAction[] {
   return actions;
 }
 
-export function getPaymentActions(customerId: string): NextAction[] {
+export function getPaymentActions(
+  customerId: string,
+  invoiceStatusOverrides?: Record<string, string>,
+): NextAction[] {
   const actions: NextAction[] = [];
   const payments = getPaymentsForCustomer(customerId);
   const cases = getCollectionCasesForCustomer(customerId);
-  const summary = getCustomerArSummary(customerId);
+  const merged = mergeInvoiceStatuses(getInvoices(customerId), invoiceStatusOverrides);
+  const summary = getCustomerArSummary(customerId, merged);
 
   const unapplied = payments.filter((p) => p.matchStatus === "unapplied");
   if (unapplied.length > 0) {

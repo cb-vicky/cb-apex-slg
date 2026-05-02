@@ -107,7 +107,15 @@ export function CustomerContextBar({
   );
   const stageStatuses = deriveAllStageStatuses(customer, quote, contract, invoiceStatusOverrides);
   const chips = derivePriorityChips(customer, customerInvoices, contract);
-  const metrics = deriveContextMetrics(activeStage, customer, quote, contract, invoice, arrangement);
+  const metrics = deriveContextMetrics(
+    activeStage,
+    customer,
+    quote,
+    contract,
+    invoice,
+    arrangement,
+    invoiceStatusOverrides,
+  );
   const crumbs = buildCrumbs({ from, customerName: customer.name, customerId: customer.id, activeStage, recordId });
 
   return (

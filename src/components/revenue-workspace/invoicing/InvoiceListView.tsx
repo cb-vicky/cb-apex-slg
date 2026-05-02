@@ -14,11 +14,9 @@ export function InvoiceListView({ invoices, onSelect }: Props) {
   const { creditNoteStatusOverrides } = useIngestContext();
   // Get closure-related credit notes for the customer (if there are invoices, we have a customerId)
   const customerId = invoices[0]?.customerId;
-  const closureCreditNotesRaw = customerId ? getClosureCreditNotesForCustomer(customerId) : [];
-  const closureCreditNotes = closureCreditNotesRaw.map((cn) => {
-    const st = creditNoteStatusOverrides[cn.id];
-    return st !== undefined ? { ...cn, status: st } : cn;
-  });
+  const closureCreditNotes = customerId
+    ? getClosureCreditNotesForCustomer(customerId, creditNoteStatusOverrides)
+    : [];
 
   if (invoices.length === 0 && closureCreditNotes.length === 0) {
     return (

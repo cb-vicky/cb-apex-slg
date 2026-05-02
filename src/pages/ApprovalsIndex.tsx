@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { openDrawer } from "@/store/drawer-store";
 import { useScrolled } from "@/hooks/useScrolled";
 import { currency, shortDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/primitives";
@@ -6,15 +7,16 @@ import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStri
 import { ListTable, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
 import { PageHeader } from "@/components/index-page/PageHeader";
 import { useIngestContext } from "@/context/IngestContext";
+import { useDemoPersona } from "@/context/DemoPersonaContext";
 import { invoices, customers } from "@/data/mock-data";
 
 const columns: Column[] = [
-  { key: "id", label: "Approval ID", width: "150px" },
-  { key: "invoice", label: "Document", width: "140px" },
-  { key: "customer", label: "Customer", width: "160px" },
-  { key: "amount", label: "Amount", width: "110px" },
+  { key: "id", label: "Approval ID", width: "150px", sortable: true },
+  { key: "invoice", label: "Document", width: "140px", sortable: true },
+  { key: "customer", label: "Customer", width: "160px", sortable: true },
+  { key: "amount", label: "Amount", width: "110px", align: "right" },
   { key: "submitted", label: "Submitted By", width: "130px" },
-  { key: "date", label: "Submitted On", width: "120px" },
+  { key: "date", label: "Submitted On", width: "120px", sortable: true },
   { key: "status", label: "Status", width: "130px" },
 ];
 
@@ -22,6 +24,7 @@ export function ApprovalsIndex() {
   const navigate = useNavigate();
   const { ref: scrollRef, isScrolled } = useScrolled();
   const { approvalRequests, invoiceStatusOverrides } = useIngestContext();
+  const { persona } = useDemoPersona();
 
   // Enrich approval requests with invoice + customer data
   const enriched = approvalRequests.map((req) => {
@@ -57,6 +60,13 @@ export function ApprovalsIndex() {
       </div>
 
       <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
+        {persona === "operator" && pendingCount > 0 && (
+          <div className="rounded-lg border border-amber-200/80 bg-amber-50 px-4 py-3 text-[12px] leading-snug text-amber-950">
+            <span className="font-semibold">Operator view.</span> You can track submissions and status here.
+            To approve or reject, switch to <span className="font-semibold">Approver</span> in the top bar
+            (next to the bell).
+          </div>
+        )}
         <MetricStrip metrics={metrics} />
 
         {enriched.length === 0 ? (
@@ -67,35 +77,41 @@ export function ApprovalsIndex() {
             </p>
           </div>
         ) : (
-          <>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-              Approval queue
-            </p>
-            <ListTable columns={columns}>
-              {enriched.map((req) => (
-                <ListRow
-                  key={req.id}
-                  onClick={() =>
-                    navigate(
-                      req.ingestId
-                        ? `/approvals/invoices/${req.invoiceId}?ingestId=${encodeURIComponent(req.ingestId)}`
-                        : `/approvals/invoices/${req.invoiceId}`,
-                    )
+          <ListTable columns={columns} resultCount={enriched.length} resultLabel="approvals">
+            {enriched.map((req) => (
+              <ListRow
+                key={req.id}
+                onClick={() => {
+                  if (persona === "approver" && req.effectiveStatus === "Pending Approval") {
+                    openDrawer({
+                      entityType: "invoice",
+                      mode: "invoice_approval",
+                      entityId: req.invoiceId,
+                      context: req.ingestId ? { queueItemId: req.ingestId } : undefined,
+                    });
+                    return;
                   }
-                >
-                  <ListCell width="150px" className="font-medium text-blue-600">{req.id}</ListCell>
-                  <ListCell width="140px" className="font-medium text-text-primary">{req.invoiceId}</ListCell>
-                  <ListCell width="160px">{req.customerName}</ListCell>
-                  <ListCell width="110px" className="tabular-nums">{currency(req.amount)}</ListCell>
-                  <ListCell width="130px" className="text-text-secondary">{req.submittedBy}</ListCell>
-                  <ListCell width="120px" className="text-text-secondary">{shortDate(req.submittedAt)}</ListCell>
-                  <ListCell width="130px">
-                    <StatusBadge status={req.effectiveStatus} />
-                  </ListCell>
-                </ListRow>
-              ))}
-            </ListTable>
-          </>
+                  navigate(
+                    req.ingestId
+                      ? `/approvals/invoices/${req.invoiceId}?ingestId=${encodeURIComponent(req.ingestId)}`
+                      : `/approvals/invoices/${req.invoiceId}`,
+                  );
+                }}
+              >
+                <ListCell width="150px" className="font-medium text-blue-600">{req.id}</ListCell>
+                <ListCell width="140px" className="font-medium text-text-primary">{req.invoiceId}</ListCell>
+                <ListCell width="160px">{req.customerName}</ListCell>
+                <ListCell width="110px" align="right" className="tabular-nums">
+                  {currency(req.amount)}
+                </ListCell>
+                <ListCell width="130px" className="text-text-secondary">{req.submittedBy}</ListCell>
+                <ListCell width="120px" className="text-text-secondary">{shortDate(req.submittedAt)}</ListCell>
+                <ListCell width="130px" noTruncate>
+                  <StatusBadge status={req.effectiveStatus} />
+                </ListCell>
+              </ListRow>
+            ))}
+          </ListTable>
         )}
       </div>
     </div>

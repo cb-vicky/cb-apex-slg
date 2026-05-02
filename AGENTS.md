@@ -79,3 +79,5 @@ npm run lint      # eslint
 ## Status
 
 Prototype is ~70% complete functionally. Remaining work is mostly **UI finesse, layout reorganization, and visual rework** — treat `docs/02-design-system.md` and `docs/03-customer-workspace.md` as the primary references for most upcoming tasks.
+
+**Queue / ingest / approvals:** `docs/09-contract-ingestion.md`, `docs/06-routing.md`, `docs/08-mock-data.md`, and `docs/12-open-questions.md` reflect the **full-page ingest + approval** layout (25/25/50), **`ApprovalCommentsCard`** on queue ingest (with **`ensureQueueIngestDiscussion`** stub), **reduced `queue-data` seeds**, and a **Roadmap** section for **Early / Late renewal** follow-up work.

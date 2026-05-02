@@ -171,25 +171,30 @@ Added fields (from Customer tab work):
 - `IngestIssue` — blocking or warning issue on extracted contract
 - `IngestResult` — created/linked object log after Finish
 - `CreatedObject` — one logged object outcome (created / linked / reused)
-- `ApprovalRequest` — pending invoice approval record
+- `ApprovalRequest` — pending invoice approval record; optional **`ingestId`** (queue item id) links first-invoice approval to queue ingest; **`comments[]`** holds collaboration thread
 - `ApprovalComment` — single comment on an approval
+- **Queue-ingest discussion stub** (runtime only, not in static JSON): `id = APR-INGEST-<queueItemId>`, `invoiceId = INV-PENDING-<queueItemId>`, `ingestId = <queueItemId>`, empty comments until upgraded by **`submitInvoiceForApproval`** (see `ensureQueueIngestDiscussion` in `IngestContext`)
 
 ## Queue types (from `queue-data.ts`)
 
 - `QueueItem` — one document waiting in the Inbox > Queue
-  - `sampleId?` — `"sample1" | "sample2" | "sample3"` (which extracted data set to use)
-  - `activeContractId?` — for Early Renewal items: the ID of the active prior contract that must be closed first
+  - `sampleId?` — `"sample1" | "sample2" | "sample3"` (which extracted data set to use when ingestable)
+  - `ingestable` — when `false`, **`QueueIngestPage`** shows **`PlaceholderState`** instead of **`IngestDrawer`**
+  - `activeContractId?` — for **Early Renewal** and **Late Renewal** rows: prior/active contract the operator must align in workspace
 - `QueueSource` — `"PDF Upload" | "API" | "CPQ" | "Email"`
 - `QueueStatus` — `"Pending Review" | "In Progress" | "Ingested" | "Failed" | "Rejected"`
-- `QueueScenario` — `"New Business" | "Renewal" | "Amendment" | "Early Renewal"`
+- `QueueScenario` — `"New Business" | "Renewal" | "Amendment" | "Early Renewal" | "Late Renewal"`
 - `queueGroupMeta` — group definitions for the Queue index page
 
-Seeds 12 queue items (`QI-2026-0001` … `QI-2026-0012`):
-- Sample-backed (full ingest flow): Echo Corp renewal (`QI-2026-0001`, sample1), Zenith Analytics new business (`QI-2026-0002`, sample2), **Verdant Health Early Renewal (`QI-2026-0006`, sample3) — now fully ingestable**
-- Pending placeholders (PDF / API / CPQ): Helix Pharma renewal, Northwind Trading expansion (CPQ), Lumina AI Amendment (DocuSign)
-- In Progress: Aurora Robotics
-- Ingested history: Lumina AI MSA 2025, Northlane Labs renewal, Verdant Health new business
-- Failed / Rejected: BlackOak Enterprises (OCR low confidence), Untitled draft
+**Current seed (`queueItems`) — minimal demo set (3 rows):**
+
+| ID | Scenario | `sampleId` | `ingestable` | Purpose |
+|----|----------|------------|--------------|---------|
+| `QI-2026-0002` | New Business | `sample2` | `true` | Zenith-style exception path; standard **Ingest contract** completion |
+| `QI-2026-0006` | Early Renewal | `sample3` | `true` | Verdant; **Proceed to close prior contract** (no standard ingest finish) |
+| `QI-2026-0003` | Late Renewal | *(none)* | `false` | Northlane Labs; **placeholder** page only — **next** to evolve into a real flow |
+
+`getQueueItemBySample("sample2" | "sample3")` maps Upload modal choices to **`QI-2026-0002`** / **`QI-2026-0006`**. Components that list queue data should use **`useIngestContext().queueItems`** (merged overrides), not the static `queueItems` export alone, when overrides matter.
 
 ## Approval policy types (from `approval-policy.ts`)
 
@@ -211,7 +216,9 @@ Seeds 12 queue items (`QI-2026-0001` … `QI-2026-0012`):
 - `sessionContracts: Contract[]` — runtime contracts created by auto-ingest (e.g. Scheduled renewal after closure approval). Merged into `customerContracts` inside `CustomerRevenueWorkspace`.
 - `addSessionContract(contract)` — append a runtime contract (called during Early Renewal auto-ingest)
 - `ingestResult` — result of the last completed ingest
-- `approvalRequests` — list of all approval requests in session
+- `approvalRequests` — list of all approval requests in session (includes optional **pre-ingest stub** rows for queue full-page comments)
+- `ensureQueueIngestDiscussion(queueItemId, meta?)` — idempotent stub creator for **`ingestId`** thread
+- `submitInvoiceForApproval(invoiceId, meta?)` — creates or **merges stub → real** `APR-<invoiceId>` row; preserves **`comments`** when upgrading from stub
 - `submittedInvoiceIds` — set of invoice IDs submitted for approval
 - `invoiceStatusOverrides` — map of invoiceId → overridden status string
 - `invoiceFieldOverrides` — map of invoiceId → editable field overrides (amount, due date, payment terms, billing period, tax rate, PO, memo, invoice date)

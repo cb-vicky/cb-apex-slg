@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Task, Customer } from "@/data/mock-data";
 import { getQuotesForCustomer, getContractsForCustomer } from "@/data/mock-data";
+import { useIngestContext } from "@/context/IngestContext";
 import { cn, shortDate } from "@/lib/utils";
 import {
   ArrowUpRight,
@@ -14,6 +15,7 @@ import {
   type CustomerHealthData,
   deriveCustomerHealth,
   getCustomerExternalLinkedRecords,
+  mergeContractsWithRuntimeClosures,
 } from "./derive-stage-data";
 
 // ---------------------------------------------------------------------------
@@ -335,9 +337,18 @@ interface Props {
 
 export function InsightRail({ tasks, customer, sections, onSectionToggle }: Props) {
   const metrics = useRailMetrics();
+  const { contractClosures, contractGraceExtensions } = useIngestContext();
 
   const customerQuotes = getQuotesForCustomer(customer.id);
-  const customerContracts = getContractsForCustomer(customer.id);
+  const customerContracts = useMemo(
+    () =>
+      mergeContractsWithRuntimeClosures(
+        getContractsForCustomer(customer.id),
+        contractClosures,
+        contractGraceExtensions,
+      ),
+    [customer.id, contractClosures, contractGraceExtensions],
+  );
   const health = deriveCustomerHealth(customer);
   const linked = getCustomerExternalLinkedRecords(customer, customerQuotes, customerContracts);
 

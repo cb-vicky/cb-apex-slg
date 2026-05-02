@@ -72,9 +72,9 @@ The RevRec tab data and narrative must **never** state or imply that revenue is 
 
 ## Contract ingestion / approvals assumptions
 
-### Upload button
+### Upload / Import entry
 
-The Upload button in `ContractsIndex` (`createLabel="Upload"`) is the existing entry point. No new button added; the existing one is wired.
+**Queue > Import** is the primary entry (`UploadModal` from `QueueIndex`). The Contracts index does **not** carry the main upload CTA for ingestion demos (see `docs/09-contract-ingestion.md`). `UploadModal` resolves **`sample2` / `sample3`** to queue rows **`QI-2026-0002`** / **`QI-2026-0006`** via `getQueueItemBySample`.
 
 ### Contract document viewer
 
@@ -102,7 +102,11 @@ Live in React context (`IngestContext.invoiceStatusOverrides`). Navigating direc
 
 ### Ingest route scope
 
-`/contracts/ingest` is a **standalone route**, NOT inside the `CustomerRevenueWorkspace` shell. Has its own breadcrumb and layout.
+**`/queue/:queueItemId`** is the canonical ingest workspace (**standalone**, not inside `CustomerRevenueWorkspace`). Legacy **`/contracts/ingest?sample=`** style URLs are obsolete for the prototype narrative.
+
+### Queue row cardinality
+
+The **`queue-data.ts`** seed was reduced to **three** operational rows to speed iteration. Re-expand when building **Late Renewal** ingest, **Amendment**, failure buckets, or renewal (`sample1`) demos — update **`docs/09-contract-ingestion.md`** navigation examples whenever ids change.
 
 ---
 
@@ -129,3 +133,11 @@ Should contract documents be **downloadable (PDF export)** from the document vie
 ### Q5 — Multi-approver chains
 
 Should the approval detail page support **multi-approver chains** (sequential or parallel) in future iterations?
+
+### Q6 — Late Renewal vs contract workspace
+
+Should **Late Renewal** (`QI-2026-0003` today) ever become a **full `IngestDrawer` page** with extraction, or remain an **ops handoff** into **`late_extend`** / grace tooling in **`CustomerRevenueWorkspace`**? Decision drives whether to add `sampleId` + `ingestable: true` vs deepen placeholder CTAs.
+
+### Q7 — Early Renewal comments parity
+
+Should the **invoice approval drawer** gain a **comments column** (or inline rail) for **`QI-2026-0006`** threads, or is **full-page** (`/approvals/invoices/...` + optional `ingestId`) sufficient for approvers?

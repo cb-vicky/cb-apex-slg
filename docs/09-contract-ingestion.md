@@ -5,28 +5,64 @@ Covers the full pipeline from a signed contract entering the system to the first
 **Key files:**
 - `src/components/layout/Sidebar.tsx` — Desk > **Queue** entry
 - `src/pages/QueueIndex.tsx` — Queue landing (grouped + filtered)
-- `src/pages/QueueIngestPage.tsx` — extraction / verification workspace (also handles Early Renewal detection + finish gate)
+- `src/pages/QueueIngestPage.tsx` — **Full-page shell** for ingestable rows: renders `IngestDrawer` with `presentation="page"`; non-ingestable rows use `PlaceholderState` (Late Renewal today)
+- `src/components/transitions/IngestDrawer.tsx` — **Single implementation** for queue ingest (drawer + full page via `presentation`); body uses **25% / 25% / 50%** grid on full page (fields · comments · document preview)
+- `src/components/transitions/panels/*` — document preview panes (`IngestDocumentPreviewPane`, etc.)
+- `src/components/transitions/DrawerSelectShell.tsx` — includes `IngestDrawerIssueCallout` (customer-not-found and similar notices)
+- `src/components/transitions/ContractExtractDocumentBody.tsx` — monospace “extracted agreement” body in preview (customer-not-found copy when `!customerFound`)
 - `src/components/queue/QueueIntegrationsModal.tsx` — Connect modal
-- `src/components/contracts/UploadModal.tsx` — Import modal (drag-and-drop + sample picker)
-- `src/components/contracts/CloseContractPane.tsx` — left/right closure UI (replaces the old 2-step modal); used for both overflow-menu and queue-triggered closure
-- `src/components/contracts/ClosureSummaryCard.tsx` — closure details card (Contract tab)
-- `src/components/contracts/ClosureBanner.tsx` — wind-down banner (Contract tab)
-- `src/components/contracts/ScheduledBanner.tsx` — blue activation banner for Scheduled renewal contracts
-- `src/data/queue-data.ts` — queue mock items, sources, statuses
-- `src/data/ingest-data.ts` — extracted contract samples (`sample1`, `sample2`, `sample3`) + ingest results
-- `src/data/approval-policy.ts` — merchant policy types + non-standard conditions + `PendingRenewalIngestion`
-- `src/context/IngestContext.tsx` — session state for queue overrides, approval policy, invoice field overrides, first-approval flag, **contract closures**, **pendingRenewalIngestions**, **sessionContracts**, **renewalToast**
+- `src/components/contracts/UploadModal.tsx` — Import modal (drag-and-drop + sample picker → resolves queue row via `getQueueItemBySample`)
+- `src/components/contracts/CloseContractPane.tsx` — closure UI; queue-triggered Early Renewal handoff
+- `src/components/contracts/ClosureSummaryCard.tsx`, `ClosureBanner.tsx`, `ScheduledBanner.tsx`
+- `src/data/queue-data.ts` — **Reduced seed set** (see **Mock data** below); `QueueScenario` includes **Late Renewal**
+- `src/data/ingest-data.ts` — extracted contract samples (`sample2` new business, `sample3` early renewal) + `ApprovalRequest` / `ApprovalComment` types
+- `src/data/approval-policy.ts` — merchant policy + `PendingRenewalIngestion`
+- `src/context/IngestContext.tsx` — queue overrides, approvals, **`ensureQueueIngestDiscussion`**, **`submitInvoiceForApproval`** (merges pre-ingest stub), sessions, closures, renewal toasts
 - `src/pages/ApprovalsIndex.tsx`
-- `src/pages/ApprovalDetailPage.tsx` — editable critical fields, Invoice|Contract tabs, success state; handles post-closure auto-ingest for Early Renewal
-- `src/components/approvals/InvoiceHTMLPreview.tsx`
-- `src/components/approvals/ApprovalSettingsModal.tsx`
-- `src/pages/workbench/WorkbenchHome.tsx`, `WorkbenchTaskList.tsx` — **My Tasks** tab aggregates queue, approvals, and customer tasks from `IngestContext` (see `docs/10-workbench-home.md`, `src/data/workbench-tasks.ts`)
+- `src/pages/ApprovalDetailPage.tsx` — **Full-page** invoice / credit note / termination approval: same **25/25/50** grid as ingest page; `ApprovalDocumentPreviewPane` + `approval-doc-ui` helpers; `ApprovalCommentsCard`; post-closure Early Renewal auto-ingest
+- `src/components/approvals/InvoiceApprovalDrawer.tsx` — drawer parity; “Open comments” navigates to full approval page (optional `?ingestId=` / `?from=approvals`)
+- `src/components/approvals/approval-document-preview.tsx` — shared Invoice | Contract preview toolbar + body
+- `src/components/approvals/approval-doc-ui.ts` — shared doc kind + copy strings + preview variant
+- `src/components/approvals/approval-comments.tsx` — `ApprovalCommentsCard` + composer (@-mentions)
+- `src/components/approvals/InvoiceHTMLPreview.tsx`, `ApprovalSettingsModal.tsx`
+- `src/pages/workbench/WorkbenchHome.tsx`, `WorkbenchTaskList.tsx` — **My Tasks** (`docs/10-workbench-home.md`, `src/data/workbench-tasks.ts`)
+
+---
+
+## Implementation snapshot (layout & session)
+
+### Queue ingest — drawer vs full page
+
+| Surface | Layout | Comments | Document |
+|--------|--------|----------|----------|
+| **Drawer** (`EntityDrawer` / overlay, `presentation="default"`) | Fixed-width form rail (~420px) + preview (hidden `<md`, flex grow) | No middle column in drawer | `IngestDocumentPreviewPane` |
+| **Full page** (`QueueIngestPage` → `presentation="page"`) | CSS grid **`25%` · `25%` · `50%`** of the content shell (`grid-cols-[minmax(0,25%)_minmax(0,25%)_minmax(0,50%)]`) | Same **`ApprovalCommentsCard`** as approvals (thread + composer). Middle column **`#FAFAFA`** rail, `p-4` | Preview column keeps **half width** even when collapsed (empty canvas + expand strip) |
+
+### Pre–first-invoice collaboration (queue full page)
+
+Before **Ingest contract** creates the real invoice approval, the UI still shows the full **`ApprovalCommentsCard`**. That is backed by a **stub** `ApprovalRequest` created when the full-page ingest opens:
+
+- **`ensureQueueIngestDiscussion(queueItemId, { customerId?, customerName? })`** (`IngestContext`) — idempotent; creates row with `id: APR-INGEST-<queueItemId>`, placeholder `invoiceId: INV-PENDING-<queueItemId>`, `ingestId: <queueItemId>`, `comments: []`.
+- **`IngestDrawer`** calls it from **`useLayoutEffect`** when `presentation === "page"` so the thread exists before paint when possible.
+- **`submitInvoiceForApproval(invoiceId, { … ingestId })`** — if a stub exists for that `ingestId`, it is **replaced** by the real `APR-<invoiceId>` row and **user comments are preserved**; if no stub, behaviour is unchanged (new row with seeded thread from `seedApprovalComments`).
+
+The middle column always binds to `approvalRequests.find((r) => r.ingestId === queueItem.id)` — one logical thread from queue work through first-invoice approval.
+
+### Invoice approval — full page
+
+`/approvals/invoices/:invoiceId` uses the **same 25/25/50 grid**: critical fields (flat `CriticalFieldsCard`) · **`ApprovalCommentsCard`** · **`ApprovalDocumentPreviewPane`**. Styling of primary actions matches the drawer (blue Approve, neutral Reject). **`sessionInvoices` / `sessionCustomers` / `sessionContracts`** merge like the drawer for runtime-created records.
+
+If no `ApprovalRequest` exists yet for that invoice, the comments column shows the **dashed placeholder** (ingest page used to do the same; ingest is now aligned to the card via the stub above).
+
+### Customer “not found” presentation
+
+When extraction flags `customer_not_found`, **`CustomerMappingSection`** shows **`IngestDrawerIssueCallout`** (message from `ExtractedContract.issues`). Styling: **red text**, **red hairline border**, **no icon**. The extracted PDF body (`ContractExtractDocumentBody`) uses **red** “Customer not found in system” text **without** the prior warning glyph.
 
 ---
 
 ## Workbench handoff
 
-**My Workbench** (`/`, tab **My Tasks**) is the operator ↔ approver handoff surface: `deriveWorkbenchTasks` (in `src/data/workbench-tasks.ts`) reads **the same `IngestContext`** as this flow — merged queue rows, `approvalRequests`, `pendingRenewalIngestions`, and mock customer tasks. After **Finish Ingestion** (standard path), the pending first-invoice approval appears grouped by customer; after **Proceed to Close Prior Contract** (Early Renewal), the closure approval appears under **Verdant Health** with **Critical** severity and `?closureFor=&queueItemId=` when applicable. No extra session layer beyond `IngestContext`.
+**My Workbench** (`/`, tab **My Tasks**) is the operator ↔ approver handoff surface: `deriveWorkbenchTasks` (in `src/data/workbench-tasks.ts`) reads **the same `IngestContext`** as this flow — merged queue rows, `approvalRequests` (including **stub** `APR-INGEST-*` rows while queue ingest is open), `pendingRenewalIngestions`, and mock customer tasks. After **Ingest contract** (standard new business), the first-invoice approval appears grouped by customer; after **Proceed to close prior contract** (Early Renewal), the closure approval appears under **Verdant Health** with **Critical** severity and `?closureFor=&queueItemId=` when applicable. No extra session layer beyond `IngestContext`.
 
 ---
 
@@ -76,11 +112,12 @@ Same pattern as other module index pages (`docs/05-index-pages.md`). Default lan
 Queue ID · Document (with name + source detail subtitle) · Scenario · Customer · TCV · Source badge (PDF / via API / via CPQ / Email) · Uploaded · Status
 
 ### Row click behaviour
-- **Pending Review (sample-backed)** → `/queue/:queueItemId` for full ingest flow (Echo Corp QI-2026-0001 = happy path, Zenith Analytics QI-2026-0002 = exception path)
-- **Pending Review (placeholder)** → `/queue/:queueItemId` shows a placeholder panel
-- **In Progress** → `/queue/:queueItemId` placeholder
-- **Ingested** → `/contracts/:contractId?from=queue`
-- **Failed / Rejected** → `/queue/:queueItemId` shows the failure reason
+- **Pending Review + `ingestable: true` + `sampleId`** → `/queue/:queueItemId` opens **`IngestDrawer`** full page (`QI-2026-0002` Zenith new business, `QI-2026-0006` Verdant early renewal)
+- **Pending Review + not ingestable** (e.g. **Late Renewal** `QI-2026-0003`) → `/queue/:queueItemId` shows **`PlaceholderState`** (workspace handoff / “coming soon” copy — **no** 25/25/50 ingest workspace yet)
+- **Ingested** → `/contracts/:contractId?from=queue` (when wired from index)
+- **Failed / Rejected** → `/queue/:queueItemId` shows failure context in placeholder shell when applicable
+
+> **Seed note:** `src/data/queue-data.ts` currently ships a **minimal three-row** queue for focused demos (`QI-2026-0002`, `QI-2026-0006`, `QI-2026-0003`). Older docs that reference `QI-2026-0001` (Echo renewal) or a 12-row grid are **stale** unless those rows are reintroduced.
 
 ---
 
@@ -98,29 +135,19 @@ The file upload UI is non-functional — only the three sample documents drive t
 
 ## Ingest verification workspace (`/queue/:queueItemId`)
 
-**Breadcrumb:** Queue > Ingest Contract > {document name}
-**Layout:** Two-column workspace (standalone route, NOT inside `CustomerRevenueWorkspace`)
+**Route:** Standalone **outside** `CustomerRevenueWorkspace` (white canvas under app shell).
 
-### LEFT column (extracted fields, scrollable)
-1. Document Metadata — doc name, extracted date
-2. Customer Mapping — matched or unmatched (with inline create-customer form on exception path)
-3. Quote Match — linked quote or none (happy path only)
-4. Contract Terms — dates, term length, billing frequency, payment terms
-5. Financial Summary — TCV, ARR, min commit, prepaid credits
-6. Products / Plan Mapping — line items with catalog match status (with inline create-plan on exception path)
+**Ingestable rows** (`QueueIngestPage` when `ingestable && sampleId`): renders **`IngestDrawer`** with `entityType="queue_item"`, `mode="ingest"`, `presentation="page"`.
 
-### RIGHT validation aside (sticky, 260px)
-Pass / warn / fail rows that scroll-link back to the corresponding section.
+**Header (in drawer):** Queue crumb → queue item id → optional document name on full page; back chevron on full page navigates **`/queue`**; primary actions depend on `intent` / queue status (Save draft, Ingest contract, Open comments, Review invoice when ingested + approver persona, etc.).
 
-### RIGHT-most PDF viewer (collapsible, 460px)
-Grey canvas, paged, zoomable, with the rendered HTML contract document.
+**Body — full page (`presentation="page"`):**
 
-### Happy path — Sample 1 (Echo Corp renewal, QI-2026-0001)
+1. **Fields column (~25%)** — scrollable stack: optional non-ingestable banner, intent selector when needed, queue metadata, **`CustomerMappingSection`**, prepaid billing + processing summary, **`TransitionContractTermsSection`** (`variant="flat"`), non–new-deal **`ContractTransitionSection`** / **`FinancialPreviewSection`**, **`CatalogMappingSection`** when extracted.
+2. **Comments column (~25%)** — **`ApprovalCommentsCard`** bound to the approval row for `ingestId === queueItem.id` (stub before ingest, real `APR-<invoiceId>` after).
+3. **Document column (~50%)** — **`IngestDocumentPreviewPane`** (collapsible; column width preserved when collapsed).
 
-- Customer matched (`cust_echo_001`)
-- Quote `QT-2026-0042` confidence 94% — user clicks "Link to this Quote"
-- All products match catalog
-- All validation passes → "Finish Ingestion" enabled
+**Body — drawer:** Same sections in a **narrow rail + preview** split (no middle comments column).
 
 ### Exception path — Sample 2 (Zenith Analytics, QI-2026-0002)
 
@@ -140,68 +167,53 @@ Newly-created objects (customer, product) live in `IngestContext` for the sessio
 - `allBlockersResolved` is always true for this path — finish button is never blocked by SKU issues
 - Button text: **"Proceed to Close Prior Contract"**
 
-### On Finish Ingestion (standard path)
+### On Finish Ingestion — **Ingest contract** (standard new business path)
 
-The page automatically:
+`IngestDrawer.handleExecuteIngest` (non–early-renewal intercept):
 
-1. Builds and stores the `IngestResult`
-2. **Auto-submits the first invoice for approval** via `submitInvoiceForApproval`
-3. Marks the queue item as **Ingested** via `applyQueueItemOverride`
-4. Renders the **Completion State** with two CTAs:
-   - **Review First Invoice →** (primary, dark) — navigates to `/approvals/invoices/:invoiceId?ingestId=:queueItemId`
-   - **Open Contract** (secondary) — navigates to `/contracts/:contractId?from=queue`
-   - **Back to Queue** (tertiary)
+1. Builds session customer/contract/invoice (Zenith path uses `zenith-ingest-session` helpers).
+2. **`setIngestResult`** via `buildIngestResult`.
+3. **`submitInvoiceForApproval(invoiceId, { customerId, customerName, invoiceAmount, invoiceDate, ingestId: queueItem.id })`** — upgrades stub approval when present; otherwise creates approval with seeded comments.
+4. **`setInvoiceStatusOverride`** to pending approval as needed.
+5. **`applyQueueItemOverride`** → queue row **Ingested** + `contractId` / `invoiceId` / `customerId`.
+6. **Full page:** **`navigate(`/contracts/${contractId}`)`** — user lands in customer workspace on the contract; **drawer:** `onClose()` only.
 
-The completion log shows: Contract (created), Quote (linked, happy path), Customer (reused or created), Products, Invoice (created — with the same ID auto-submitted for approval).
+There is **no separate “completion state” page** anymore; the **queue + first-invoice** handoff is visible from Workbench / Approvals / customer shell. Operators can use **Open comments** (header) or the **middle column** on full page for collaboration before and after ingest.
 
-### On Finish Ingestion (Early Renewal path)
+### On Finish Ingestion / **Proceed to close prior contract** (Early Renewal path)
 
-When `isEarlyRenewal` is true:
+`handleExecuteIngest` short-circuits when **`!queueItem.sampleId || queueItem.sampleId === "sample3"`** (Verdant **Early Renewal**). It does **not** run the standard Zenith ingest builder.
 
-1. Calls `setPendingRenewalIngestion(activeContractId, { queueItemId, sampleId, renewalTcv, customerId, pendingContractId })` — stores the renewal waiting on the prior contract's closure
-2. Navigates to the customer workspace: `/customers/:customerId?closeIntent=:contractId&queueItemId=:queueItemId`
-3. `CustomerRevenueWorkspace` detects `closeIntent`, forces the Contract tab in **list view**, and auto-opens `CloseContractPane` for the prior active contract
-4. Queue item is **NOT** yet marked Ingested — it remains In Progress until the closure approval auto-ingests the renewal
+1. **`handleEarlyRenewalQueueFinish`** → `setPendingRenewalIngestion(activeContractId, { queueItemId, sampleId: "sample3", renewalTcv, customerId, pendingContractId })`.
+2. **`onClose()`** then **`navigate(\`/customers/${customerId}?tab=contract&contractId=${activeContractId}&closeIntent=early-renewal&queueItemId=${queueItemId}\`)`** (see `IngestDrawer.tsx`).
+3. **`CustomerRevenueWorkspace`** interprets `closeIntent` + `queueItemId`, forces Contract tab (list), and surfaces **`CloseContractPane`** for the prior contract.
+4. Queue row stays **not Ingested** until closure approval + auto-ingest (unchanged business story below).
 
 ---
 
 ## Approval Detail page (`/approvals/invoices/:invoiceId`)
 
-Restructured to reflect the full invoice review experience.
+Full-page invoice / credit note / termination review **matches the ingest full-page architecture**:
 
-### LEFT column (flex-1, scrollable)
+### Three-column body (same proportions as queue ingest full page)
 
-- Inline status banners (reject form, approved/rejected callouts)
-- **Critical fields card** — editable inputs that operators can adjust before sending:
-  - Invoice amount
-  - Tax rate (%)
-  - Invoice date (with `Backdated — will trigger non-standard approval` hint when date < today)
-  - Due date
-  - Payment terms (Net 0/15/30/45/60/90 dropdown)
-  - PO number
-  - Billing period — start / end
-  - Memo to customer
-- **Approval & Context card** — submitted by, submitted on, approver, contract, TCV
-- Field changes are persisted into `invoiceFieldOverrides` keyed by invoice ID. The right-pane Invoice preview reflects these overrides immediately.
+1. **~25% — Fields** — Reject form (when approver + pending), approved/rejected banners, **`CriticalFieldsCard`** with `layout="flat"`, **Context** block (contract link, TCV, submitted by/on) inside `DrawerRailIndent`.
+2. **~25% — Comments** — **`ApprovalCommentsCard`** (`@`-mentions, composer when an approval row exists). If there is **no** `ApprovalRequest` for this `invoiceId`, a **dashed placeholder** explains that a thread will appear once an approval exists.
+3. **~50% — Document** — **`ApprovalDocumentPreviewPane`** (Invoice | Contract tabs, zoom, contract paging, collapse with width preserved).
 
-### RIGHT comments rail (sticky, 300px)
-Unchanged — `@`-tagged comments and post box. Tag list: Jordan Kim, Priya Mehta, Alex Nguyen, Marcus Lee, Rachel Torres, Lena Schulz, Sarah Chen.
+**Header:** breadcrumb (Approvals → invoice id · customer · amount), `StatusBadge`, Reject / Approve (drawer-aligned styling: neutral reject, blue Approve).
 
-### RIGHT-most preview panel (collapsible, 480px)
-A single panel with **Invoice | Contract** tab toggle in the toolbar:
-- **Invoice tab** — `InvoiceHTMLPreview` rendered with the field overrides applied
-- **Contract tab** — paged contract source body with zoom + page controls (3-page mock)
+**Data merges:** `sessionInvoices` / `sessionCustomers` / `sessionContracts` layered over seed data like **`InvoiceApprovalDrawer`**. **`approval-doc-ui`** centralises doc kind, preview variant, and copy strings (`getApprovalDocUi`, `getApprovalDocKind`, `approvalPreviewVariant`).
 
-The toolbar adapts: zoom + collapse always present, page controls only when on the Contract tab.
+**Overrides:** `invoiceFieldOverrides` feed both critical fields and HTML preview.
 
-### Sticky header CTAs
-StatusBadge · Reject · Approve.
+**Closure docs:** Synthetic invoice from `ApprovalRequest` when id prefix `CN-CLOSE-` / `INV-TERM-` (see existing closure section below).
 
 ### On Approve
 
 1. `ApprovalRequest.status` → "Approved"
 2. Invoice status override → "Approved"
-3. Toast: **"Invoice sent to the customer"** (~2.4s)
+3. Toast copy from **`getApprovalDocUi`** (invoice vs credit note vs termination) (~2.4s)
 4. After toast:
    - If the URL has `?ingestId=…` AND `firstApprovalCompletedFor[ingestId]` is false → mark it true and **open `ApprovalSettingsModal`**
    - Else if no policy is set yet for the session → also open the modal (one-time merchant setup)
@@ -281,7 +293,7 @@ When `IngestContext.approvalPolicy.mode` is `"always-approve"` OR `"non-standard
 
 ### Flow (Early Renewal — from Queue)
 
-1. Operator reaches the customer workspace via `?closeIntent=:contractId&queueItemId=:queueItemId` (set by `QueueIngestPage.handleEarlyRenewalFinish`)
+1. Operator reaches the customer workspace via **`closeIntent=early-renewal`** + **`queueItemId`** (set by **`IngestDrawer.handleEarlyRenewalQueueFinish`** after **Proceed to close prior contract**)
 2. `CloseContractPane` auto-opens with the prior active contract; header shows **← Back to Queue** breadcrumb
 3. Right pane has a third tab: **Incoming Renewal** — preview of the new contract about to be ingested, including a proration/financial impact description
 4. Reason defaults to `replaced_by_new`; settlement type defaults to `credit_note` if `prepaidCreditBalance > 0`, else `no_financial_impact`
@@ -306,64 +318,75 @@ When the closure credit note / termination invoice is approved and `closureFor` 
 
 ---
 
+## Roadmap: Queue — Early Renewal & Late Renewal (next iteration)
+
+Use this section when extending **`IngestDrawer`** / **`QueueIngestPage`** / **`queue-data.ts`** so behaviour stays aligned with the **new business** full-page pattern (grid, comments stub, document column).
+
+### Early Renewal (`QI-2026-0006`, `sample3`)
+
+- **Today:** Full **25/25/50** ingest page + **stub discussion** + **Proceed to close prior contract** → customer workspace + `pendingRenewalIngestions` + closure approval chain (documented above). **`handleExecuteIngest`** does **not** create the Zenith-style session invoice when `sampleId === "sample3"` (early path only).
+- **Follow-ups to consider:** Drawer parity for a **narrow comments rail** vs always linking out; validation copy for early renewal-specific blockers; ensure Workbench / `deriveWorkbenchTasks` narratives mention the **same** `ingestId` thread where applicable; any **sample1** renewal row if you re-expand the queue seed.
+
+### Late Renewal (`QI-2026-0003`, Northlane Labs)
+
+- **Today:** `ingestable: false` → **`QueueIngestPage`** shows **`PlaceholderState`** (handoff / “no PDF extraction” style messaging) — **no** `IngestDrawer` grid, **no** extracted `sampleId`.
+- **Product direction:** Treat Late Renewal as **ops-first** (grace, extension, workspace alignment) before any “ingest PDF” story — likely **`late_extend`** / customer contract tab flows (`IngestDrawer` non-queue modes) rather than cloning the new-business extractor wholesale.
+- **Engineering checklist when you implement:** Add `sampleId` + `ingestable: true` **or** a dedicated mode; wire **`QueueIngestPage`** to `presentation="page"`; reuse **`ensureQueueIngestDiscussion`** for collaboration; decide how **`activeContractId`** + **`contractGraceExtensions`** surface in the fields column; keep **mock data** comments in `queue-data.ts` header in sync.
+
+---
+
 ## Implemented flows summary
 
-| Flow | Status | Entry point | Demo customer |
+| Flow | Status | Entry point | Notes |
 |---|---|---|---|
-| **Standard ingest (new business)** | ✅ Implemented | Upload → sample2 | Zenith Analytics |
-| **Standard ingest (renewal)** | ✅ Implemented | Upload → sample1 | Echo Corp |
-| **Contract Closing** | ✅ Implemented | Contract tab overflow menu | Lumina AI |
-| **Early Renewal** | ✅ Implemented | Upload → sample3 → `QI-2026-0006` | Verdant Health |
-| **Amendment** | 🔜 Placeholder | `QI-2026-0005` (Lumina AI, via DocuSign) | Lumina AI |
+| **Standard ingest (new business)** | ✅ Implemented | Queue row **`QI-2026-0002`** / Upload sample2 → same id | Full page grid + comments stub → **Ingest contract** → navigates to customer contract |
+| **Standard ingest (renewal)** | ⚠️ Not in current queue seed | Previously Echo / `sample1` | Re-add a `QueueItem` with `sampleId: "sample1"` + `ingestable: true` if you need this demo again |
+| **Contract Closing** | ✅ Implemented | Contract tab overflow | Unchanged |
+| **Early Renewal** | ✅ Implemented (queue) | **`QI-2026-0006`**, `sample3` | Full page + closure handoff; **no** standard ingest completion for `sample3` |
+| **Late Renewal** | 🔜 Queue placeholder | **`QI-2026-0003`** | **`PlaceholderState`** only |
+| **Amendment** | 🔜 Not in seed | — | Add row when building amendment ingest |
 
-The Amendment flow will follow the same Queue → ingest → first-invoice approval pattern, with its own field-override semantics for proration adjustments.
+Amendment / renewal rows should follow the same **Queue → `IngestDrawer` → `submitInvoiceForApproval`** pattern when ingestable, with scenario-specific sections and validation.
 
 ---
 
 ## Comments & collaboration
 
-Comments are scoped to the **Approval Detail page only** (not on Invoice Detail).
+### Where the UI appears
 
-### Comment thread
-- Author avatar (initials), name, role, timestamp, text
-- `@Name` mentions highlighted in blue
-- Comments stored in session state (part of the `ApprovalRequest` object)
-- Pre-seeded with two existing comments for realism
+| Surface | Component | Thread storage |
+|---------|-----------|----------------|
+| **Queue ingest full page** | `ApprovalCommentsCard` (middle column) | Same `ApprovalRequest` as post-ingest (`ingestId === queueItem.id`) — **stub** row before ingest, **`APR-<invoiceId>`** after |
+| **Invoice approval full page** | `ApprovalCommentsCard` | `ApprovalRequest` matched by **`invoiceId`** |
+| **Invoice approval drawer** | (no middle column) | Same row as full page when opened for same invoice |
 
-### Tagging
-- Type `@` to open the dropdown of taggable users (see list above)
-- Click a name to insert `@Name` into the textarea
+### Behaviour
+
+- Author initials, name, role, timestamp, body; **`@Name`** highlights; composer with mention picker (`APPROVAL_TAGGABLE_USERS`).
+- **`addApprovalComment(approvalId, comment)`** appends to the **`comments[]`** array on that `ApprovalRequest`.
+- **New approvals** created only via `submitInvoiceForApproval` (no stub) still get **`seedApprovalComments`** for demo realism.
+- **Stub → real** merge **keeps user-authored comments** from the queue phase.
+
+Comments are **not** on Invoice Detail; invoice approval **drawer** links to full page via **Open comments** (optional `?ingestId=` for first-cycle policy modal behaviour).
 
 ---
 
 ## Full navigation chains
 
-### Standard renewal (Echo Corp, sample1)
+### Standard new business (Zenith Analytics, `QI-2026-0002`, `sample2`)
 
 ```
  1. Sidebar > Desk > Queue                                        — /queue
- 2. Queue index, default grouped landing
- 3. Click Import → UploadModal opens
- 4. Click "Echo Corp — Renewal" sample
- 5. Loading animation (~3s)                                       — /queue (modal)
- 6. Auto-navigate to                                              — /queue/QI-2026-0001
- 7. Review extracted fields, click "Link to this Quote"
- 8. Click "Finish Ingestion"
-       → first invoice auto-submitted for approval
-       → queue item marked Ingested
- 9. Completion state shown with two CTAs
-10. Click "Review First Invoice →"                                — /approvals/invoices/INV-INGEST-001?ingestId=QI-2026-0001
-11. Approval Detail loaded with critical fields editable on LEFT
-       and Invoice | Contract tabs on RIGHT
-12. (Optional) tweak amount / due date / terms / memo / PO
-13. Click "Approve"
-14. Toast: "Invoice sent to the customer"                         (~2.4s)
-15. ApprovalSettingsModal opens automatically (first approval per ingest)
-16. Choose policy mode (and conditions for non-standard)
-17. Click "Save policy"
-18. Success state: "All set" panel replaces the page content
-19. Click "View Customer →"                                       — /customers/cust_echo_001?tab=customer
-20. Customer shell shows the new contract + new invoice across tabs
+ 2. Open row Zenith Analytics (QI-2026-0002)                       — /queue/QI-2026-0002
+      OR Import modal → sample2 → resolves same queue id
+ 3. Full-page IngestDrawer: fields | Comments (stub) | Document preview
+ 4. Resolve customer-not-found path if testing exception UX; map catalog SKUs as needed
+ 5. Click "Ingest contract"
+       → submitInvoiceForApproval (stub merge) + queue Ingested + navigate to contract shell
+ 6. Workbench / Approvals → open first invoice approval            — /approvals/invoices/<id>?ingestId=QI-2026-0002 (optional)
+ 7. Approval Detail: 25/25/50 layout — fields | same comment thread | preview
+ 8. Approve → toast → ApprovalSettingsModal when first cycle       — policy save → "All set" success panel
+ 9. View Customer / Open Invoice                                   — customer shell tabs
 ```
 
 ### Reject alternative (from step 13)
@@ -375,45 +398,31 @@ Comments are scoped to the **Approval Detail page only** (not on Invoice Detail)
 13e. Navigate back to /approvals (invoice status: Cancelled)
 ```
 
-### Early Renewal (Verdant Health, sample3)
+### Early Renewal (Verdant Health, `QI-2026-0006`, `sample3`)
 
 ```
  1. Sidebar > Desk > Queue                                        — /queue
- 2. Click Import → UploadModal opens
- 3. Click "Verdant Health — Early Renewal" sample
- 4. Loading animation (~3s)                                       — /queue (modal)
- 5. Auto-navigate to                                              — /queue/QI-2026-0006
- 6. Review extracted fields
-       → "Active contract detected — early renewal" callout appears on customer link
-       → Quote Match section hidden; validation shows "Prior contract closure required"
- 7. Click "Proceed to Close Prior Contract"
-       → setPendingRenewalIngestion("CON-2025-0034", { ... })
-       → navigate to                                              — /customers/cust_verdant_005?closeIntent=CON-2025-0034&queueItemId=QI-2026-0006
- 8. Customer workspace opens on Contract tab (list view)
-       → CloseContractPane auto-opens for CON-2025-0034
-       → Header shows "← Back to Queue"
-       → Right pane: Contract | Last Invoice | Incoming Renewal tabs
-       → Defaults: reason=replaced_by_new, settlement=credit_note
- 9. Review / adjust effective date, settlement amount
-10. Click "Send for approval & proceed to ingest"
-       → closure applied to CON-2025-0034
-       → navigate to                                              — /approvals/invoices/CN-CLOSE-xxx?closureFor=CON-2025-0034&queueItemId=QI-2026-0006
-11. Approval Detail: synthetic credit note displayed, standard edit controls
-12. Click "Approve"
-       → auto-creates CON-2026-0VH1 (Scheduled, activates on closure date)
-       → queue item QI-2026-0006 → Ingested
-       → navigate to                                              — /customers/cust_verdant_005?tab=contract
-13. Blue renewal toast: "Renewal scheduled to take effect on {date}"
-14. Contract tab list: CON-2025-0034 (Closing) + CON-2026-0VH1 (Scheduled) with lineage annotations
+ 2. Open row Verdant Health (QI-2026-0006)                         — /queue/QI-2026-0006
+      OR Import modal → sample3 → same id
+ 3. Full-page IngestDrawer: fields | Comments (stub) | Document preview
+ 4. Review extracted fields → early renewal callouts / validation as implemented
+ 5. Click "Proceed to close prior contract"
+       → setPendingRenewalIngestion(CON-2025-0034, { queueItemId: QI-2026-0006, ... })
+       → navigate to                                              — /customers/cust_verdant_005?tab=contract&contractId=CON-2025-0034&closeIntent=early-renewal&queueItemId=QI-2026-0006
+ 6. Customer workspace: CloseContractPane for prior contract (list view)
+ 7. Send closure for approval →                                  — /approvals/invoices/CN-CLOSE-xxx?closureFor=CON-2025-0034&queueItemId=QI-2026-0006
+ 8. Approve closure → auto-ingest renewal contract + queue Ingested + toast
+ 9. Contract tab shows prior Closing + scheduled renewal row
 ```
 
 ---
 
 ## Scope notes / stubs
 
-- File upload UI is non-functional — only the two sample documents drive the active prototype flow.
-- Other queue items (Helix Pharma, Northwind Trading, Lumina AI Amendment, Verdant Health Early Renewal, Aurora Robotics, BlackOak Enterprises) are placeholders for visual variety only.
-- Session-created objects (customer, product plan, queue overrides, approval policy, invoice field overrides) live in `IngestContext` only — refresh resets.
-- The approval approver is always hardcoded to "Sarah Chen, VP Revenue".
-- The Approvals module only shows **invoice** approvals in this pass (quote approvals are not migrated).
-- The `ApprovalSettingsModal` writes its policy to context but doesn't currently gate subsequent invoices in any computed way — it's representational. Wiring that into a real per-invoice routing decision is a follow-up.
+- File upload UI is non-functional — **sample2** / **sample3** map to **queue ids** via `getQueueItemBySample` (`QI-2026-0002`, `QI-2026-0006`).
+- Queue seed is **intentionally small** (three rows); expand in `queue-data.ts` when adding scenarios (renewal, amendment, failure rows, etc.).
+- Session-created objects (customer, product plan, queue overrides, approval policy, invoice field overrides, **discussion stub approvals**) live in `IngestContext` only — refresh resets.
+- Stub approvals use placeholder **`INV-PENDING-<queueItemId>`** until real ingest — they should not appear in production-style invoice lists; safe for this prototype.
+- The approval approver label remains **"Sarah Chen, VP Revenue"** on synthetic rows.
+- The Approvals module only surfaces **invoice / closure document** approvals in this pass.
+- The `ApprovalSettingsModal` policy does not yet gate computed routing for later invoices — representational.

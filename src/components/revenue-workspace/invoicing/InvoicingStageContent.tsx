@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { useMemo, useCallback } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { ChevronRight, LayoutList } from "lucide-react";
 import type { Invoice, Contract } from "@/data/mock-data";
 import { customers } from "@/data/mock-data";
@@ -19,29 +20,31 @@ interface Props {
 }
 
 const pendingReviewPrimaryBtnClass =
-  "inline-flex items-center justify-center gap-1 rounded-lg px-4 py-2 text-center text-[13px] font-semibold text-white shadow-sm transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-cb-orange)] bg-[color:var(--color-cb-orange)]";
+  "inline-flex items-center justify-center gap-1 rounded-lg px-4 py-2 text-center text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-info)] bg-[color:var(--color-info)]";
 
 export function InvoicingStageContent({ invoice, contract, onBack }: Props) {
-  const enrichment = getInvoiceEnrichment(invoice.id);
-  const creditNotes = getCreditNotesForInvoice(invoice.id);
-  const schedule = getInvoiceSchedule(invoice.customerId);
-
+  const navigate = useNavigate();
   const {
     submittedInvoiceIds,
     submitInvoiceForApproval,
     addApprovalRequest,
     invoiceStatusOverrides,
+    creditNoteStatusOverrides,
+    approvalRequests,
   } = useIngestContext();
+
+  const enrichment = getInvoiceEnrichment(invoice.id);
+  const creditNotes = getCreditNotesForInvoice(invoice.id, creditNoteStatusOverrides);
+  const schedule = getInvoiceSchedule(invoice.customerId);
 
   const effectiveStatus = invoiceStatusOverrides[invoice.id] ?? invoice.status;
   const isPendingReview = effectiveStatus === "Pending Review";
   const isSubmitted = submittedInvoiceIds.has(invoice.id);
   const showBanner = isPendingReview;
 
-  function handleSendForApproval() {
+  const handleSendForApproval = useCallback(() => {
     const customer = customers.find((c) => c.id === invoice.customerId);
     submitInvoiceForApproval(invoice.id);
-    // Enrich the approval request with real invoice data
     addApprovalRequest({
       id: `APR-${invoice.id}`,
       invoiceId: invoice.id,
@@ -55,12 +58,104 @@ export function InvoicingStageContent({ invoice, contract, onBack }: Props) {
       approver: "Sarah Chen, VP Revenue",
       comments: [],
     });
-  }
+  }, [
+    addApprovalRequest,
+    invoice.amount,
+    invoice.customerId,
+    invoice.date,
+    invoice.id,
+    submitInvoiceForApproval,
+  ]);
 
   // Determine effective invoice for display (override status if needed)
   const displayInvoice: Invoice = effectiveStatus !== invoice.status
     ? { ...invoice, status: effectiveStatus }
     : invoice;
+
+  const approvalForInvoice = approvalRequests.find((r) => r.invoiceId === invoice.id);
+  const approvalsHref = `/approvals/invoices/${invoice.id}${
+    approvalForInvoice?.ingestId
+      ? `?ingestId=${encodeURIComponent(approvalForInvoice.ingestId)}`
+      : ""
+  }`;
+
+  const headerActions = useMemo(() => {
+    const preview = <ActionButton key="preview" label="Preview" />;
+    const regenerate = <ActionButton key="regen" label="Regenerate" />;
+    const creditNote = <ActionButton key="cn" label="Issue credit note" />;
+
+    if (effectiveStatus === "Cancelled") {
+      return <>{preview}</>;
+    }
+    if (displayInvoice.holdReason) {
+      return (
+        <>
+          {preview}
+          <ActionButton label="Clear hold" />
+          {regenerate}
+        </>
+      );
+    }
+    if (displayInvoice.disputeReason) {
+      return (
+        <>
+          {preview}
+          <ActionButton label="Review dispute" />
+          {creditNote}
+        </>
+      );
+    }
+    if (effectiveStatus === "Pending Review") {
+      if (isSubmitted) {
+        return (
+          <>
+            {preview}
+            {regenerate}
+            <ActionButton label="View in Approvals" onClick={() => navigate(approvalsHref)} />
+          </>
+        );
+      }
+      return (
+        <>
+          {preview}
+          {regenerate}
+          <ActionButton label="Send for approval" onClick={handleSendForApproval} />
+        </>
+      );
+    }
+    if (effectiveStatus === "Overdue") {
+      return (
+        <>
+          {preview}
+          <ActionButton label="Record payment" />
+          {creditNote}
+        </>
+      );
+    }
+    if (effectiveStatus === "Paid") {
+      return (
+        <>
+          {preview}
+          {creditNote}
+        </>
+      );
+    }
+    return (
+      <>
+        {preview}
+        {regenerate}
+        {creditNote}
+      </>
+    );
+  }, [
+    approvalsHref,
+    displayInvoice.disputeReason,
+    displayInvoice.holdReason,
+    effectiveStatus,
+    handleSendForApproval,
+    isSubmitted,
+    navigate,
+  ]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -71,14 +166,7 @@ export function InvoicingStageContent({ invoice, contract, onBack }: Props) {
         leadingAction={
           onBack ? <ActionButton icon={LayoutList} label="All invoices" onClick={onBack} /> : undefined
         }
-        actions={
-          <>
-            <ActionButton label="Preview" />
-            <ActionButton label="Approve & Send" />
-            <ActionButton label="Regenerate" />
-            <ActionButton label="Issue credit note" />
-          </>
-        }
+        actions={headerActions}
       />
 
       {/* Pending review — same visual approach as Account 360 “Next best action” */}

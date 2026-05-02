@@ -1,9 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { Customer } from "@/data/mock-data";
+import { useIngestContext } from "@/context/IngestContext";
 import {
   getCustomerInsightsEnriched,
   getPrimaryCustomerAction,
+  type CustomerWorkspaceSession,
   type EnrichedCustomerInsight,
 } from "@/components/revenue-workspace/derive-stage-data";
 import { cn } from "@/lib/utils";
@@ -59,8 +61,27 @@ function insightDotClass(severity: EnrichedCustomerInsight["severity"]) {
 }
 
 export function CustomerNbaAiRow({ customer }: Props) {
-  const action = getPrimaryCustomerAction(customer);
-  const insights = getCustomerInsightsEnriched(customer);
+  const {
+    queueItems,
+    contractClosures,
+    contractGraceExtensions,
+    invoiceStatusOverrides,
+    sessionContracts,
+    approvalRequests,
+  } = useIngestContext();
+  const workspaceSession = useMemo<CustomerWorkspaceSession>(
+    () => ({
+      queueItems,
+      contractClosures,
+      contractGraceExtensions,
+      invoiceStatusOverrides,
+      sessionContracts,
+      approvalRequests,
+    }),
+    [queueItems, contractClosures, contractGraceExtensions, invoiceStatusOverrides, sessionContracts, approvalRequests],
+  );
+  const action = getPrimaryCustomerAction(customer, workspaceSession);
+  const insights = getCustomerInsightsEnriched(customer, workspaceSession);
   const nbaSectionRef = useRef<HTMLElement>(null);
   const nbaPathDrawRef = useRef<SVGPathElement>(null);
   const metricsRef = useRef<{ perim: number; d: string } | null>(null);
@@ -100,14 +121,17 @@ export function CustomerNbaAiRow({ customer }: Props) {
     }
 
     const sectionEl = nbaSectionRef.current;
-    if (!sectionEl) return;
+    if (!sectionEl) {
+      setBorderReady(false);
+      return;
+    }
 
     applyBorderMetrics();
     requestAnimationFrame(() => applyBorderMetrics());
     const ro = new ResizeObserver(() => applyBorderMetrics());
     ro.observe(sectionEl);
     return () => ro.disconnect();
-  }, []);
+  }, [action.kind]);
 
   useEffect(() => {
     if (!borderReady || nbaIntroComplete) return;
@@ -147,7 +171,7 @@ export function CustomerNbaAiRow({ customer }: Props) {
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [borderReady, nbaIntroComplete]);
+  }, [borderReady, nbaIntroComplete, action.kind]);
 
   function runGenerateAnimation() {
     setAiPhase("loading");
@@ -168,6 +192,7 @@ export function CustomerNbaAiRow({ customer }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
+      {action.kind !== "none" && (
       <section
         ref={nbaSectionRef}
         className={cn(
@@ -234,6 +259,7 @@ export function CustomerNbaAiRow({ customer }: Props) {
           </div>
         </div>
       </section>
+      )}
 
       {aiPhase !== "ready" ? (
         <div

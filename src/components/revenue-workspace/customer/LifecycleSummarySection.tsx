@@ -1,6 +1,9 @@
+import { useMemo } from "react";
 import { RecordIdLink, SectionCard, StatusBadge } from "@/components/ui/primitives";
 import { getQuotesForCustomer, getContractsForCustomer, getInvoices } from "@/data/mock-data";
 import { currency, shortDate } from "@/lib/utils";
+import { useIngestContext } from "@/context/IngestContext";
+import { mergeContractsWithRuntimeClosures, mergeInvoiceStatuses } from "@/components/revenue-workspace/derive-stage-data";
 
 interface Props {
   customerId: string;
@@ -16,9 +19,21 @@ function statusPair(status: string) {
 }
 
 export function LifecycleSummarySection({ customerId }: Props) {
+  const { contractClosures, contractGraceExtensions, invoiceStatusOverrides } = useIngestContext();
   const customerQuotes = getQuotesForCustomer(customerId);
-  const customerContracts = getContractsForCustomer(customerId);
-  const customerInvoices = getInvoices(customerId);
+  const customerContracts = useMemo(
+    () =>
+      mergeContractsWithRuntimeClosures(
+        getContractsForCustomer(customerId),
+        contractClosures,
+        contractGraceExtensions,
+      ),
+    [customerId, contractClosures, contractGraceExtensions],
+  );
+  const customerInvoices = useMemo(
+    () => mergeInvoiceStatuses(getInvoices(customerId), invoiceStatusOverrides),
+    [customerId, invoiceStatusOverrides],
+  );
 
   const attentionInvoices = customerInvoices.filter(
     (i) => i.status === "Pending Review" || i.status === "Overdue",
@@ -61,7 +76,10 @@ export function LifecycleSummarySection({ customerId }: Props) {
               >
                 <RecordIdLink to={`/contracts/${c.id}`}>{c.id}</RecordIdLink>
                 <span className="text-text-secondary tabular-nums">RENEWAL: {shortDate(c.renewalDate)}</span>
-                {statusPair(c.enforcement.enforcementStatus)}
+                <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                  <StatusBadge status={c.status} />
+                  <StatusBadge status={c.enforcement.enforcementStatus} />
+                </span>
               </div>
             ))}
           </div>

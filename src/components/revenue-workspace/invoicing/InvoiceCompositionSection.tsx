@@ -1,4 +1,5 @@
 import { SectionCard } from "@/components/ui/primitives";
+import { WorkspaceTableShell, WTable, WThead, WTh, WTbody, WTr, WTd } from "@/components/ui/data-table";
 import { currency } from "@/lib/utils";
 import type { InvoiceDetailLine, InvoiceEnrichment } from "@/data/billing-data";
 import type { Invoice } from "@/data/mock-data";
@@ -34,58 +35,82 @@ function LineTypeBadge({ lineType }: { lineType: string }) {
 
 function EnrichedTable({ lines }: { lines: InvoiceDetailLine[] }) {
   return (
-    <table className="w-full text-[13px]">
-      <thead>
-        <tr className="border-b border-border-subtle text-left text-[10px] uppercase tracking-wider text-text-muted">
-          <th className="pb-2 pr-2 font-medium">Line Item</th>
-          <th className="pb-2 pr-2 font-medium">Type</th>
-          <th className="pb-2 pr-2 font-medium text-right">Qty</th>
-          <th className="pb-2 pr-2 font-medium text-right">Unit Price</th>
-          <th className="pb-2 pr-2 font-medium text-right">Discount</th>
-          <th className="pb-2 pr-2 font-medium text-right">Tax</th>
-          <th className="pb-2 font-medium text-right">Net Amount</th>
-        </tr>
-      </thead>
-      <tbody>
-        {lines.map((line, idx) => (
-          <tr key={idx} className="border-b border-border-subtle last:border-0">
-            <td className="py-2 pr-2">
-              <div className="flex flex-col gap-1">
-                <span className="font-medium text-text-primary">{line.name}</span>
-                <span className="text-[11px] text-text-muted">{line.sku}</span>
-              </div>
-            </td>
-            <td className="py-2 pr-2"><LineTypeBadge lineType={line.lineType} /></td>
-            <td className="py-2 pr-2 text-right tabular-nums text-text-secondary">{line.quantity.toLocaleString()}</td>
-            <td className="py-2 pr-2 text-right tabular-nums text-text-secondary">${line.unitPrice < 1 ? line.unitPrice.toFixed(3) : line.unitPrice.toLocaleString()}</td>
-            <td className="py-2 pr-2 text-right tabular-nums text-text-secondary">{line.discount > 0 ? `${line.discount}%` : "—"}</td>
-            <td className="py-2 pr-2 text-right tabular-nums text-text-secondary">{currency(line.tax)}</td>
-            <td className="py-2 text-right tabular-nums font-semibold text-text-primary">{currency(line.netAmount)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <WorkspaceTableShell className="rounded-none border-0 shadow-none">
+      <WTable>
+        <WThead>
+          <WTh>Line Item</WTh>
+          <WTh>Type</WTh>
+          <WTh align="right" sortable>
+            Qty
+          </WTh>
+          <WTh align="right" sortable>
+            Unit Price
+          </WTh>
+          <WTh align="right" sortable>
+            Discount
+          </WTh>
+          <WTh align="right" sortable>
+            Tax
+          </WTh>
+          <WTh align="right" sortable>
+            Net Amount
+          </WTh>
+        </WThead>
+        <WTbody>
+          {lines.map((line, idx) => (
+            <WTr key={idx}>
+              <WTd>
+                <span className="font-medium">{line.name}</span>
+                <span className="text-text-muted"> · {line.sku}</span>
+              </WTd>
+              <WTd truncate={false}>
+                <LineTypeBadge lineType={line.lineType} />
+              </WTd>
+              <WTd align="right" className="text-text-secondary">
+                {line.quantity.toLocaleString()}
+              </WTd>
+              <WTd align="right" className="text-text-secondary">
+                ${line.unitPrice < 1 ? line.unitPrice.toFixed(3) : line.unitPrice.toLocaleString()}
+              </WTd>
+              <WTd align="right" className="text-text-secondary">
+                {line.discount > 0 ? `${line.discount}%` : "—"}
+              </WTd>
+              <WTd align="right" className="text-text-secondary">
+                {currency(line.tax)}
+              </WTd>
+              <WTd align="right" className="font-semibold text-text-primary">
+                {currency(line.netAmount)}
+              </WTd>
+            </WTr>
+          ))}
+        </WTbody>
+      </WTable>
+    </WorkspaceTableShell>
   );
 }
 
 function SimpleTable({ lines }: { lines: { description: string; amount: number }[] }) {
   return (
-    <table className="w-full text-[13px]">
-      <thead>
-        <tr className="border-b border-border-subtle text-left text-[10px] uppercase tracking-wider text-text-muted">
-          <th className="pb-2 pr-2 font-medium">Description</th>
-          <th className="pb-2 font-medium text-right">Amount</th>
-        </tr>
-      </thead>
-      <tbody>
-        {lines.map((line, idx) => (
-          <tr key={idx} className="border-b border-border-subtle last:border-0">
-            <td className="py-2 pr-2 font-medium text-text-primary">{line.description}</td>
-            <td className="py-2 text-right tabular-nums font-semibold text-text-primary">{currency(line.amount)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <WorkspaceTableShell className="rounded-none border-0 shadow-none">
+      <WTable>
+        <WThead>
+          <WTh>Description</WTh>
+          <WTh align="right" sortable>
+            Amount
+          </WTh>
+        </WThead>
+        <WTbody>
+          {lines.map((line, idx) => (
+            <WTr key={idx}>
+              <WTd className="font-medium">{line.description}</WTd>
+              <WTd align="right" className="font-semibold text-text-primary">
+                {currency(line.amount)}
+              </WTd>
+            </WTr>
+          ))}
+        </WTbody>
+      </WTable>
+    </WorkspaceTableShell>
   );
 }
 
@@ -96,13 +121,13 @@ interface Props {
 
 export function InvoiceCompositionSection({ invoice, enrichment }: Props) {
   return (
-    <SectionCard title="Invoice Composition / Line Items">
+    <SectionCard title="Invoice Composition / Line Items" bodyClassName="p-0">
       {enrichment?.detailedLineItems ? (
         <EnrichedTable lines={enrichment.detailedLineItems} />
       ) : (
         <SimpleTable lines={invoice.lineItems} />
       )}
-      <div className="mt-3 flex justify-end border-t border-border-subtle pt-2 text-[13px]">
+      <div className="flex justify-end border-t border-border-subtle px-4 py-3 text-[13px]">
         <div className="flex items-center gap-4">
           {enrichment && <span className="text-text-muted">Tax: {currency(enrichment.taxTotal)}</span>}
           <span className="text-base font-bold text-text-primary">Total: {currency(invoice.amount)}</span>

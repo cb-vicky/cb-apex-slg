@@ -62,18 +62,19 @@ These render through the same shell, **not** redirect. They resolve the customer
 /queue                                    — QueueIndex (Inbox > Queue, replaces /contracts/ingest entry point)
 /queue?group=pending-review               — pending review group filter
 /queue/:queueItemId                       — QueueIngestPage (standalone, not in workspace shell)
-                                            • Echo Corp sample  → QI-2026-0001
-                                            • Zenith Analytics  → QI-2026-0002
-                                            • Other items render the placeholder state
+                                            • Ingestable (`ingestable` + `sampleId`): renders `IngestDrawer` `presentation="page"` (25% fields · 25% comments · 50% document)
+                                            • Zenith new business → **QI-2026-0002** (`sample2`)
+                                            • Verdant early renewal → **QI-2026-0006** (`sample3`)
+                                            • Northlane late renewal → **QI-2026-0003** (placeholder shell today)
+                                            • Unknown id → not-found state
 /approvals                                — ApprovalsIndex
 /approvals/invoices/:invoiceId            — ApprovalDetailPage
-/approvals/invoices/:invoiceId?ingestId=… — Approval Detail entered from a fresh ingest cycle.
-                                            The `ingestId` triggers the merchant Approval Settings
-                                            modal after the first-invoice approve toast and
-                                            terminates with the "All set" success state.
+/approvals/invoices/:invoiceId?ingestId=… — Approval Detail (full page) entered from a fresh ingest cycle.
+                                            Optional `?from=approvals` when opened from drawer **Open comments**.
+                                            The `ingestId` triggers the merchant **Approval Settings** modal after the first-invoice approve toast when `firstApprovalCompletedFor[ingestId]` is still false; saving/skipping leads to the **Setup complete** success panel.
 ```
 
-The `/queue/:queueItemId` route replaces the legacy `/contracts/ingest?sample=N` URL. The breadcrumb for the ingest page reads **Queue > Ingest Contract > {document}**. There is no longer any route order constraint with `/contracts/:contractId` because the path no longer starts with `/contracts/`.
+The `/queue/:queueItemId` route replaces the legacy `/contracts/ingest?sample=N` URL. Ingest UI breadcrumb (inside **`IngestDrawer`**) reads **Queue > {id}** and may append **> {documentName}** on full page. There is no route-order constraint with `/contracts/:contractId`.
 
 ## Stage / tab type
 
@@ -118,20 +119,12 @@ See `docs/09-contract-ingestion.md` for the end-to-end flow. Key route transitio
 /queue                                                  — click Import
   → upload modal opens
   → click sample → loading animation
-/queue/QI-2026-0001                                     — verification page
-  → click Finish → first invoice auto-submitted for approval
-                 → completion state with two CTAs:
-                   • "Review First Invoice →" (primary)
-                   • "Open Contract" (secondary)
-/approvals/invoices/INV-INGEST-001?ingestId=QI-2026-0001 — approval detail page
-  → critical fields editable on the LEFT
-  → Invoice | Contract tabs in the RIGHT preview panel
-  → click Approve
-  → toast "Invoice sent to the customer"
-  → ApprovalSettingsModal opens (because ingestId is fresh and policy is unset)
-  → save policy → final "All set" success state
-  → click "View Customer →"
-/customers/cust_echo_001?tab=customer                   — customer shell with new contract + invoice visible
+/queue/QI-2026-0002                                     — full-page ingest (Zenith)
+  → Ingest contract → session contract + invoice + navigate to `/contracts/CON-…`
+/approvals/invoices/<sessionInvoiceId>?ingestId=QI-2026-0002 — approval detail (25/25/50)
+  → Approve → toast → ApprovalSettingsModal when first cycle
+  → save / skip policy → "All set" success panel
+/customers/<customerId>?tab=…                         — customer shell (contract / invoicing tabs)
 ```
 
 For non-ingest approvals (where there is no `ingestId` query param), the toast is followed by a direct navigation to `/invoices/:invoiceId?from=approvals` and no settings modal appears.

@@ -25,9 +25,10 @@ export function ContractListView({ contracts, onSelect }: Props) {
   const sorted = [...contracts].sort((a, b) => {
     const priority = (c: Contract) => {
       if (c.status === "Active") return 0;
-      if (c.status === "Closing") return 1;
-      if (c.status === "Scheduled") return 2;
-      return 3;
+      if (c.status === "Extended") return 1;
+      if (c.status === "Closing") return 2;
+      if (c.status === "Scheduled") return 3;
+      return 4;
     };
     const p = priority(a) - priority(b);
     if (p !== 0) return p;

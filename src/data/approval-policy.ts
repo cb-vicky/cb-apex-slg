@@ -72,6 +72,8 @@ export interface QueueItemOverride {
   status?: QueueStatus;
   contractId?: string;
   invoiceId?: string;
+  /** Set after ingest so queue row + drawer resolve the runtime customer. */
+  customerId?: string;
 }
 
 // ---------------------------------------------------------------------------

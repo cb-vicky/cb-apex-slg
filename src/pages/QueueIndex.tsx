@@ -13,7 +13,9 @@ import { ViewToggle, type ViewMode } from "@/components/index-page/ViewToggle";
 import { UploadModal } from "@/components/contracts/UploadModal";
 import { QueueIntegrationsModal } from "@/components/queue/QueueIntegrationsModal";
 import { useIngestContext } from "@/context/IngestContext";
+import { useDemoPersona } from "@/context/DemoPersonaContext";
 import { queueGroupMeta, type QueueItem, type QueueSource } from "@/data/queue-data";
+import { openDrawer } from "@/store/drawer-store";
 
 // ---------------------------------------------------------------------------
 // Source badge — small inline indicator for PDF / API / CPQ / Email
@@ -89,13 +91,13 @@ function rowSubtitle(q: QueueItem): string {
 // ---------------------------------------------------------------------------
 
 const listColumns: Column[] = [
-  { key: "id", label: "Queue ID", width: "120px" },
-  { key: "doc", label: "Document", width: "260px" },
+  { key: "id", label: "Queue ID", width: "120px", sortable: true },
+  { key: "doc", label: "Document", width: "260px", sortable: true },
   { key: "scenario", label: "Scenario", width: "120px" },
-  { key: "customer", label: "Customer", width: "150px" },
-  { key: "tcv", label: "TCV", width: "110px" },
+  { key: "customer", label: "Customer", width: "150px", sortable: true },
+  { key: "tcv", label: "TCV", width: "110px", align: "right" },
   { key: "source", label: "Source", width: "110px" },
-  { key: "uploaded", label: "Uploaded", width: "110px" },
+  { key: "uploaded", label: "Uploaded", width: "110px", sortable: true },
   { key: "status", label: "Status", width: "120px" },
 ];
 
@@ -103,7 +105,8 @@ export function QueueIndex() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { ref: scrollRef, isScrolled } = useScrolled();
-  const { queueItems } = useIngestContext();
+  const { queueItems, approvalRequests } = useIngestContext();
+  const { persona } = useDemoPersona();
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
@@ -125,14 +128,33 @@ export function QueueIndex() {
   }
 
   function handleRowClick(q: QueueItem) {
-    if (q.status === "Ingested" && q.contractId) {
-      navigate(`/contracts/${q.contractId}?from=queue`);
+    const pendingInvoiceApproval = approvalRequests.find(
+      (r) => r.ingestId === q.id && r.status === "Pending Approval",
+    );
+    if (q.status === "Ingested" && persona === "approver" && q.invoiceId && pendingInvoiceApproval) {
+      openDrawer({
+        entityType: "invoice",
+        mode: "invoice_approval",
+        entityId: q.invoiceId,
+        context: { queueItemId: q.id },
+      });
+      return;
+    }
+    if (q.status === "Ingested" && q.customerId && q.contractId) {
+      navigate(`/customers/${q.customerId}?tab=contract&contractId=${q.contractId}`);
       return;
     }
     if (q.status === "Failed" || q.status === "Rejected") {
       // No-op: rendered with disabled visual, but rows are still clickable
       // for parity. Navigate to the queue detail to show the failure state.
       navigate(`/queue/${q.id}`);
+      return;
+    }
+    if (
+      q.ingestable &&
+      (q.status === "Pending Review" || q.status === "In Progress")
+    ) {
+      openDrawer({ entityType: "queue_item", mode: "ingest", entityId: q.id });
       return;
     }
     navigate(`/queue/${q.id}`);
@@ -207,25 +229,29 @@ export function QueueIndex() {
           </div>
           <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
             <MetricStrip metrics={metrics} />
-            <ListTable columns={listColumns}>
+            <ListTable columns={listColumns} resultCount={rows.length}>
               {rows.map((q) => (
                 <ListRow key={q.id} onClick={() => handleRowClick(q)}>
                   <ListCell width="120px" className="font-medium text-blue-600">{q.id}</ListCell>
-                  <ListCell width="260px">
-                    <div className="flex min-w-0 items-start gap-2">
-                      <FileText size={12} className="mt-0.5 shrink-0 text-text-muted" />
-                      <div className="min-w-0">
-                        <p className="truncate font-medium text-text-primary">{q.documentName}</p>
-                        <p className="truncate text-[11px] text-text-muted">{rowSubtitle(q)}</p>
-                      </div>
-                    </div>
+                  <ListCell width="260px" noTruncate className="text-[13px]">
+                    <FileText size={14} className="shrink-0 text-text-muted" strokeWidth={2} />
+                    <span className="min-w-0 truncate font-medium text-text-primary">
+                      {q.documentName}
+                      <span className="font-normal text-text-muted"> · {rowSubtitle(q)}</span>
+                    </span>
                   </ListCell>
                   <ListCell width="120px" className="text-text-secondary">{q.scenario}</ListCell>
                   <ListCell width="150px" className="font-medium">{q.customerName}</ListCell>
-                  <ListCell width="110px" className="tabular-nums">{q.tcv > 0 ? currency(q.tcv) : "—"}</ListCell>
-                  <ListCell width="110px"><SourceBadge source={q.source} detail={q.sourceDetail} /></ListCell>
+                  <ListCell width="110px" align="right" className="tabular-nums">
+                    {q.tcv > 0 ? currency(q.tcv) : "—"}
+                  </ListCell>
+                  <ListCell width="110px" noTruncate>
+                    <SourceBadge source={q.source} detail={q.sourceDetail} />
+                  </ListCell>
                   <ListCell width="110px" className="text-text-secondary">{shortDate(q.uploadedAt)}</ListCell>
-                  <ListCell width="120px"><StatusBadge status={q.status} /></ListCell>
+                  <ListCell width="120px" noTruncate>
+                    <StatusBadge status={q.status} />
+                  </ListCell>
                 </ListRow>
               ))}
             </ListTable>
@@ -257,25 +283,29 @@ export function QueueIndex() {
           </div>
           <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
             <MetricStrip metrics={metrics} />
-            <ListTable columns={listColumns}>
+            <ListTable columns={listColumns} resultCount={queueItems.length}>
               {queueItems.map((q) => (
                 <ListRow key={q.id} onClick={() => handleRowClick(q)}>
                   <ListCell width="120px" className="font-medium text-blue-600">{q.id}</ListCell>
-                  <ListCell width="260px">
-                    <div className="flex min-w-0 items-start gap-2">
-                      <FileText size={12} className="mt-0.5 shrink-0 text-text-muted" />
-                      <div className="min-w-0">
-                        <p className="truncate font-medium text-text-primary">{q.documentName}</p>
-                        <p className="truncate text-[11px] text-text-muted">{rowSubtitle(q)}</p>
-                      </div>
-                    </div>
+                  <ListCell width="260px" noTruncate className="text-[13px]">
+                    <FileText size={14} className="shrink-0 text-text-muted" strokeWidth={2} />
+                    <span className="min-w-0 truncate font-medium text-text-primary">
+                      {q.documentName}
+                      <span className="font-normal text-text-muted"> · {rowSubtitle(q)}</span>
+                    </span>
                   </ListCell>
                   <ListCell width="120px" className="text-text-secondary">{q.scenario}</ListCell>
                   <ListCell width="150px" className="font-medium">{q.customerName}</ListCell>
-                  <ListCell width="110px" className="tabular-nums">{q.tcv > 0 ? currency(q.tcv) : "—"}</ListCell>
-                  <ListCell width="110px"><SourceBadge source={q.source} detail={q.sourceDetail} /></ListCell>
+                  <ListCell width="110px" align="right" className="tabular-nums">
+                    {q.tcv > 0 ? currency(q.tcv) : "—"}
+                  </ListCell>
+                  <ListCell width="110px" noTruncate>
+                    <SourceBadge source={q.source} detail={q.sourceDetail} />
+                  </ListCell>
                   <ListCell width="110px" className="text-text-secondary">{shortDate(q.uploadedAt)}</ListCell>
-                  <ListCell width="120px"><StatusBadge status={q.status} /></ListCell>
+                  <ListCell width="120px" noTruncate>
+                    <StatusBadge status={q.status} />
+                  </ListCell>
                 </ListRow>
               ))}
             </ListTable>
@@ -319,19 +349,21 @@ export function QueueIndex() {
                 {rows.slice(0, 5).map((q) => (
                   <GroupedRow key={q.id} onClick={() => handleRowClick(q)}>
                     <RowCell width="120px" className="font-medium text-blue-600">{q.id}</RowCell>
-                    <RowCell width="240px">
-                      <div className="flex min-w-0 items-start gap-2">
-                        <FileText size={12} className="mt-0.5 shrink-0 text-text-muted" />
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-text-primary">{q.documentName}</p>
-                          <p className="truncate text-[11px] text-text-muted">{rowSubtitle(q)}</p>
-                        </div>
-                      </div>
+                    <RowCell width="240px" noTruncate className="text-[13px]">
+                      <FileText size={14} className="shrink-0 text-text-muted" strokeWidth={2} />
+                      <span className="min-w-0 truncate font-medium text-text-primary">
+                        {q.documentName}
+                        <span className="font-normal text-text-muted"> · {rowSubtitle(q)}</span>
+                      </span>
                     </RowCell>
                     <RowCell width="110px" className="text-text-secondary">{q.scenario}</RowCell>
                     <RowCell width="140px" className="font-medium text-text-primary">{q.customerName}</RowCell>
-                    <RowCell width="110px" className="tabular-nums">{q.tcv > 0 ? currency(q.tcv) : "—"}</RowCell>
-                    <RowCell width="110px"><SourceBadge source={q.source} detail={q.sourceDetail} /></RowCell>
+                    <RowCell width="110px" className="tabular-nums" align="right">
+                      {q.tcv > 0 ? currency(q.tcv) : "—"}
+                    </RowCell>
+                    <RowCell width="110px" noTruncate>
+                      <SourceBadge source={q.source} detail={q.sourceDetail} />
+                    </RowCell>
                     <RowCell width="110px" className="text-text-secondary">{shortDate(q.uploadedAt)}</RowCell>
                   </GroupedRow>
                 ))}

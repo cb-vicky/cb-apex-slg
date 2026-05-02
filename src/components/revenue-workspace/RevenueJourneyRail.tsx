@@ -58,7 +58,14 @@ export function RevenueJourneyRail({ activeStage, onStageChange, stageStatuses, 
             {disabled ? (
               <span className="text-[11px] text-text-muted">Not available</span>
             ) : status.text ? (
-              <span className={cn("text-[11px]", active ? severityColor(status.severity) : "text-text-muted")}>
+              <span
+                className={cn(
+                  "text-[11px]",
+                  /* Severity is meaningful even when the tab is not selected — keeps rail aligned with session + record state */
+                  severityColor(status.severity),
+                  active && !disabled ? "font-medium" : "opacity-90",
+                )}
+              >
                 {status.text}
               </span>
             ) : null}

@@ -15,7 +15,7 @@ When editing a module index page or its primitives, read:
 
 ## Key rules
 
-1. Default landing = **grouped priority page**, not a flat table.
+1. Default landing = **All list** (flat table). **Focus** (grouped priority) is opt-in via toggle or `?view=groups`.
 2. Groups show top 5 rows sorted by: urgency → value → date.
 3. Same component handles both grouped and filtered list modes, toggled by `?group=…` query param.
 4. Every row click navigates to the customer shell with the right tab + record ID.

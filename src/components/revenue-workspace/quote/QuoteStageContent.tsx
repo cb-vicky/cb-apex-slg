@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { LayoutList } from "lucide-react";
 import type { Quote } from "@/data/mock-data";
 import { RecordHeader } from "../RecordHeader";
@@ -18,9 +20,73 @@ interface Props {
 }
 
 export function QuoteStageContent({ quote, quoteVersions, onQuoteVersionChange, onBack }: Props) {
+  const navigate = useNavigate();
   const approvalStatus = quote.approval.status === "pending" ? "Pending Approval" : quote.approval.status;
   const approvalTagline =
     approvalStatus !== quote.status && approvalStatus !== "not_required" ? approvalStatus : undefined;
+
+  const headerActions = useMemo(() => {
+    const approvalPending = quote.approval.status === "pending" || quote.status === "Pending Approval";
+    const rejected = quote.approval.status === "rejected" || quote.status === "Rejected";
+    const accepted = quote.status === "Accepted";
+    const sent = quote.status === "Sent";
+    const draftLike = quote.status === "Draft" || quote.status === "In Progress";
+
+    if (approvalPending) {
+      return (
+        <>
+          <ActionButton label="Edit quote" />
+          <ActionButton label="View in Approvals" onClick={() => navigate("/approvals")} />
+        </>
+      );
+    }
+    if (rejected) {
+      return (
+        <>
+          <ActionButton label="Edit quote" />
+          <ActionButton label="Resubmit for approval" />
+        </>
+      );
+    }
+    if (accepted) {
+      return (
+        <>
+          <ActionButton label="Edit quote" />
+          {quote.relatedContractId ? (
+            <ActionButton
+              label="Open contract"
+              onClick={() => navigate(`/contracts/${quote.relatedContractId}`)}
+            />
+          ) : (
+            <ActionButton label="Create contract" />
+          )}
+        </>
+      );
+    }
+    if (sent) {
+      return (
+        <>
+          <ActionButton label="Edit quote" />
+          <ActionButton label="Send reminder" />
+        </>
+      );
+    }
+    if (draftLike) {
+      return (
+        <>
+          <ActionButton label="Edit quote" />
+          <ActionButton label="Submit for approval" />
+        </>
+      );
+    }
+    return (
+      <>
+        <ActionButton label="Edit quote" />
+        <ActionButton label="Submit for approval" />
+      </>
+    );
+  }, [navigate, quote]);
+
   return (
     <div className="flex flex-col gap-4">
       <RecordHeader
@@ -33,15 +99,10 @@ export function QuoteStageContent({ quote, quoteVersions, onQuoteVersionChange, 
         onVersionChange={onQuoteVersionChange}
         leadingAction={
           onBack ? (
-            <ActionButton variant="default" icon={LayoutList} label="All quotes" onClick={onBack} />
+            <ActionButton icon={LayoutList} label="All quotes" onClick={onBack} />
           ) : undefined
         }
-        actions={
-          <>
-            <ActionButton variant="default" label="Edit quote" />
-            <ActionButton variant="default" label="Submit for Approval" />
-          </>
-        }
+        actions={headerActions}
       />
       <QuoteOverviewSection quote={quote} />
       <QuoteApprovalsSection

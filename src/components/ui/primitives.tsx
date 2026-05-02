@@ -51,6 +51,12 @@ const statusColors: Record<string, string> = {
   closing: "bg-amber-50 text-amber-700 border-amber-200",
   terminated: "bg-red-50 text-red-700 border-red-200",
   closed: "bg-gray-100 text-gray-500 border-gray-200",
+  extended: "bg-red-50 text-red-700 border-red-200",
+  expiring: "bg-amber-50 text-amber-700 border-amber-200",
+  superseded: "bg-gray-100 text-gray-500 border-gray-200",
+  draft: "bg-gray-100 text-gray-600 border-gray-200",
+  executed: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  mapping: "bg-blue-50 text-blue-700 border-blue-200",
 };
 
 export function StatusBadge({ status, className }: { status: string; className?: string }) {
@@ -129,16 +135,37 @@ export function SectionCard({
 }
 
 // ---------------------------------------------------------------------------
-// KeyValue Row
+// Key–value (stacked label / value — default; optional horizontal row)
 // ---------------------------------------------------------------------------
-export function KV({ label, value, className }: { label: string; value: ReactNode; className?: string }) {
+export function KV({
+  label,
+  value,
+  className,
+  layout = "stacked",
+}: {
+  label: string;
+  value: ReactNode;
+  className?: string;
+  /** `inline` = label and value on one row (legacy dense rows); prefer `stacked` for detail surfaces. */
+  layout?: "stacked" | "inline";
+}) {
+  if (layout === "inline") {
+    return (
+      <div className={cn("flex min-w-0 items-baseline justify-between gap-4 py-1.5 text-[13px]", className)}>
+        <span className="shrink-0 text-text-secondary">{label}</span>
+        <span className="min-w-0 truncate text-right font-medium text-text-primary">{value}</span>
+      </div>
+    );
+  }
   return (
-    <div className={cn("flex min-w-0 items-baseline justify-between gap-4 py-1.5 text-[13px]", className)}>
-      <span className="shrink-0 text-text-secondary">{label}</span>
-      <span className="min-w-0 break-words text-right font-medium text-text-primary">{typeof value === "string" ? value : value}</span>
+    <div className={cn("flex min-w-0 flex-col gap-0.5 py-2 text-left", className)}>
+      <span className="text-[11px] font-medium leading-tight text-text-muted">{label}</span>
+      <div className="min-w-0 truncate text-[13px] font-semibold leading-tight text-text-primary">{value}</div>
     </div>
   );
 }
+
+export { DataField, DataFieldGrid } from "@/components/ui/data-field";
 
 // ---------------------------------------------------------------------------
 // Clickable record ID (quotes, contracts, invoices — alias detail routes)

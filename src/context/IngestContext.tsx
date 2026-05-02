@@ -1,5 +1,14 @@
-import { createContext, useContext, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
-import type { Customer, Contract, ContractClosure } from "@/data/mock-data";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+  type MutableRefObject,
+  type ReactNode,
+} from "react";
+import type { Customer, Contract, ContractClosure, Invoice } from "@/data/mock-data";
 import type { IngestResult, ApprovalRequest, ApprovalComment } from "@/data/ingest-data";
 import { seedApprovalComments } from "@/data/ingest-data";
 import {
@@ -13,14 +22,15 @@ import {
   type QueueItemOverride,
   type PendingRenewalIngestion,
 } from "@/data/approval-policy";
+import type { ContractGraceExtension } from "@/data/contract-transition";
 
 // ---------------------------------------------------------------------------
 // Context value
 // ---------------------------------------------------------------------------
 
 interface IngestContextValue {
-  selectedSample: "sample1" | "sample2" | null;
-  setSelectedSample: (s: "sample1" | "sample2" | null) => void;
+  selectedSample: "sample2" | "sample3" | null;
+  setSelectedSample: (s: "sample2" | "sample3" | null) => void;
 
   sessionCustomers: Customer[];
   addSessionCustomer: (c: Customer) => void;
@@ -46,6 +56,15 @@ interface IngestContextValue {
       /** Queue item id for first-invoice-from-ingest (Workbench / deep links use `?ingestId=`). */
       ingestId?: string;
     },
+  ) => void;
+
+  /**
+   * Ensures an `ApprovalRequest` exists for this queue item so the ingest full-page Comments rail
+   * can use `ApprovalCommentsCard` before ingest completes; merged into the real invoice approval on submit.
+   */
+  ensureQueueIngestDiscussion: (
+    queueItemId: string,
+    meta?: { customerId?: string; customerName?: string },
   ) => void;
 
   invoiceStatusOverrides: Record<string, string>;
@@ -95,10 +114,17 @@ interface IngestContextValue {
   sessionContracts: Contract[];
   addSessionContract: (c: Contract) => void;
 
+  sessionInvoices: Invoice[];
+  addSessionInvoice: (inv: Invoice) => void;
+
   // General renewal toast (separate from closure toast, for "Renewal scheduled" message)
   renewalToast: { message: string; customerId: string } | null;
   showRenewalToast: (message: string, customerId: string) => void;
   clearRenewalToast: () => void;
+
+  /** Late renewal — grace extension metadata keyed by contract id */
+  contractGraceExtensions: Record<string, ContractGraceExtension>;
+  setContractGraceExtension: (contractId: string, ext: ContractGraceExtension | null) => void;
 
   /**
    * Last Workbench task-id snapshot (session-scoped), used to detect rows that
@@ -116,7 +142,7 @@ export function useIngestContext(): IngestContextValue {
 }
 
 export function IngestProvider({ children }: { children: ReactNode }) {
-  const [selectedSample, setSelectedSample] = useState<"sample1" | "sample2" | null>(null);
+  const [selectedSample, setSelectedSample] = useState<"sample2" | "sample3" | null>(null);
   const [sessionCustomers, setSessionCustomers] = useState<Customer[]>([]);
   const [sessionProductSkus, setSessionProductSkus] = useState<string[]>([]);
   const [ingestResult, setIngestResult] = useState<IngestResult | null>(null);
@@ -136,7 +162,11 @@ export function IngestProvider({ children }: { children: ReactNode }) {
   const [closureToast, setClosureToast] = useState<{ message: string; contractId: string } | null>(null);
   const [pendingRenewalIngestions, setPendingRenewalIngestionsState] = useState<Record<string, PendingRenewalIngestion>>({});
   const [sessionContracts, setSessionContracts] = useState<Contract[]>([]);
+  const [sessionInvoices, setSessionInvoices] = useState<Invoice[]>([]);
   const [renewalToast, setRenewalToast] = useState<{ message: string; customerId: string } | null>(null);
+  const [contractGraceExtensions, setContractGraceExtensionsState] = useState<
+    Record<string, ContractGraceExtension>
+  >({});
   const workbenchTaskSnapshotRef = useRef<string[]>([]);
 
   function addSessionCustomer(c: Customer) {
@@ -165,36 +195,77 @@ export function IngestProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  function submitInvoiceForApproval(
-    invoiceId: string,
-    meta?: {
-      customerId?: string;
-      customerName?: string;
-      invoiceAmount?: number;
-      invoiceDate?: string;
-      ingestId?: string;
+  const ensureQueueIngestDiscussion = useCallback(
+    (queueItemId: string, meta?: { customerId?: string; customerName?: string }) => {
+      setApprovalRequests((prev) => {
+        if (prev.some((r) => r.ingestId === queueItemId)) return prev;
+        const stub: ApprovalRequest = {
+          id: `APR-INGEST-${queueItemId}`,
+          invoiceId: `INV-PENDING-${queueItemId}`,
+          customerId: meta?.customerId ?? "",
+          customerName: meta?.customerName ?? "—",
+          invoiceAmount: 0,
+          invoiceDate: new Date().toISOString().slice(0, 10),
+          status: "Pending Approval",
+          submittedBy: "Alex Nguyen",
+          submittedAt: new Date().toISOString(),
+          approver: "Sarah Chen, VP Revenue",
+          comments: [],
+          ingestId: queueItemId,
+        };
+        return [...prev, stub];
+      });
     },
-  ) {
-    setSubmittedInvoiceIds((prev) => new Set([...prev, invoiceId]));
-    const approvalId = `APR-${invoiceId}`;
-    const existing = approvalRequests.find((r) => r.invoiceId === invoiceId);
-    if (existing) return;
-    const newRequest: ApprovalRequest = {
-      id: approvalId,
-      invoiceId,
-      customerId: meta?.customerId ?? "",
-      customerName: meta?.customerName ?? "",
-      invoiceAmount: meta?.invoiceAmount ?? 0,
-      invoiceDate: meta?.invoiceDate ?? new Date().toISOString().slice(0, 10),
-      status: "Pending Approval",
-      submittedBy: "Alex Nguyen",
-      submittedAt: new Date().toISOString(),
-      approver: "Sarah Chen, VP Revenue",
-      comments: [...seedApprovalComments],
-      ...(meta?.ingestId ? { ingestId: meta.ingestId } : {}),
-    };
-    addApprovalRequest(newRequest);
-  }
+    [],
+  );
+
+  const submitInvoiceForApproval = useCallback(
+    (
+      invoiceId: string,
+      meta?: {
+        customerId?: string;
+        customerName?: string;
+        invoiceAmount?: number;
+        invoiceDate?: string;
+        ingestId?: string;
+      },
+    ) => {
+      setSubmittedInvoiceIds((prev) => new Set([...prev, invoiceId]));
+      setApprovalRequests((prev) => {
+        const existingByInvoice = prev.find((r) => r.invoiceId === invoiceId);
+        if (existingByInvoice) return prev;
+
+        const ingestId = meta?.ingestId;
+        const stub = ingestId
+          ? prev.find(
+              (r) =>
+                r.ingestId === ingestId &&
+                (r.id === `APR-INGEST-${ingestId}` || r.invoiceId === `INV-PENDING-${ingestId}`),
+            )
+          : undefined;
+
+        const approvalId = `APR-${invoiceId}`;
+        const newRequest: ApprovalRequest = {
+          id: approvalId,
+          invoiceId,
+          customerId: meta?.customerId ?? "",
+          customerName: meta?.customerName ?? "",
+          invoiceAmount: meta?.invoiceAmount ?? 0,
+          invoiceDate: meta?.invoiceDate ?? new Date().toISOString().slice(0, 10),
+          status: "Pending Approval",
+          submittedBy: "Alex Nguyen",
+          submittedAt: new Date().toISOString(),
+          approver: "Sarah Chen, VP Revenue",
+          comments: stub ? [...stub.comments] : [...seedApprovalComments],
+          ...(ingestId ? { ingestId } : {}),
+        };
+
+        const withoutStub = stub ? prev.filter((r) => r.id !== stub.id) : prev;
+        return [...withoutStub.filter((r) => r.id !== approvalId), newRequest];
+      });
+    },
+    [],
+  );
 
   function setInvoiceStatusOverride(invoiceId: string, status: string) {
     setInvoiceStatusOverrides((prev) => ({ ...prev, [invoiceId]: status }));
@@ -250,12 +321,25 @@ export function IngestProvider({ children }: { children: ReactNode }) {
     setSessionContracts((prev) => [...prev.filter((x) => x.id !== c.id), c]);
   }
 
+  function addSessionInvoice(inv: Invoice) {
+    setSessionInvoices((prev) => [...prev.filter((x) => x.id !== inv.id), inv]);
+  }
+
   function showRenewalToast(message: string, customerId: string) {
     setRenewalToast({ message, customerId });
   }
 
   function clearRenewalToast() {
     setRenewalToast(null);
+  }
+
+  function setContractGraceExtension(contractId: string, ext: ContractGraceExtension | null) {
+    setContractGraceExtensionsState((prev) => {
+      const next = { ...prev };
+      if (ext === null) delete next[contractId];
+      else next[contractId] = ext;
+      return next;
+    });
   }
 
   // Merge seed queue items with runtime overrides
@@ -284,6 +368,7 @@ export function IngestProvider({ children }: { children: ReactNode }) {
         addApprovalComment,
         submittedInvoiceIds,
         submitInvoiceForApproval,
+        ensureQueueIngestDiscussion,
         invoiceStatusOverrides,
         setInvoiceStatusOverride,
         invoiceFieldOverrides,
@@ -306,9 +391,13 @@ export function IngestProvider({ children }: { children: ReactNode }) {
         clearPendingRenewalIngestion,
         sessionContracts,
         addSessionContract,
+        sessionInvoices,
+        addSessionInvoice,
         renewalToast,
         showRenewalToast,
         clearRenewalToast,
+        contractGraceExtensions,
+        setContractGraceExtension,
         workbenchTaskSnapshotRef,
       }}
     >

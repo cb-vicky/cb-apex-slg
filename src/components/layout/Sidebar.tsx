@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useLocation, useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
@@ -15,6 +16,8 @@ import {
 import { customers } from "@/data/mock-data";
 import { useRecentCustomerIds } from "@/lib/recent-customers";
 import { useIngestContext } from "@/context/IngestContext";
+import { useDemoPersona } from "@/context/DemoPersonaContext";
+import { deriveWorkbenchTasks } from "@/data/workbench-tasks";
 
 interface NavItem {
   label: string;
@@ -163,15 +166,46 @@ export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const recentIds = useRecentCustomerIds();
-  const { approvalRequests, pendingRenewalIngestions } = useIngestContext();
+  const {
+    approvalRequests,
+    pendingRenewalIngestions,
+    queueItems,
+    contractClosures,
+    contractGraceExtensions,
+  } = useIngestContext();
+  const { persona } = useDemoPersona();
 
-  // Dot notification counts — driven by dynamic ingest/approval state
+  const taskContext = useMemo(
+    () => ({
+      queueItems,
+      approvalRequests,
+      contractClosures,
+      pendingRenewalIngestions,
+      contractGraceExtensions,
+    }),
+    [
+      queueItems,
+      approvalRequests,
+      contractClosures,
+      pendingRenewalIngestions,
+      contractGraceExtensions,
+    ],
+  );
+
   const pendingApprovalCount = approvalRequests.filter(
     (r) => r.status === "Pending Approval",
   ).length;
   const inflightClosures = Object.keys(pendingRenewalIngestions).length;
-  const workbenchHasDot = pendingApprovalCount > 0 || inflightClosures > 0;
-  const approvalsHasDot = pendingApprovalCount > 0;
+
+  const workbenchTaskCount = useMemo(
+    () => deriveWorkbenchTasks(taskContext, { persona }).length,
+    [taskContext, persona],
+  );
+
+  /** Persona-scoped: Operator = queue/lifecycle work + renewal pipeline; Approver = items in their task list. */
+  const workbenchHasDot =
+    workbenchTaskCount > 0 || (persona === "operator" && inflightClosures > 0);
+  const approvalsHasDot = persona === "approver" && pendingApprovalCount > 0;
 
   function isActive(path: string) {
     if (path === "/") {

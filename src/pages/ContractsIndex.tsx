@@ -1,6 +1,9 @@
+import { useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useScrolled } from "@/hooks/useScrolled";
 import { contracts, customers } from "@/data/mock-data";
+import { useIngestContext } from "@/context/IngestContext";
+import { mergeContractsWithRuntimeClosures } from "@/components/revenue-workspace/derive-stage-data";
 import { currency, shortDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/primitives";
 import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStrip";
@@ -26,8 +29,8 @@ interface ContractGroupRow {
   owner: string;
 }
 
-function toRow(c: typeof contracts[0]): ContractGroupRow {
-  const cu = customers.find((x) => x.id === c.customerId);
+function toRow(c: typeof contracts[0], customerLookup: typeof customers): ContractGroupRow {
+  const cu = customerLookup.find((x) => x.id === c.customerId);
   return {
     contractId: c.id,
     customerId: c.customerId,
@@ -41,7 +44,7 @@ function toRow(c: typeof contracts[0]): ContractGroupRow {
   };
 }
 
-function buildGroups() {
+function buildGroups(source: typeof contracts, customerLookup: typeof customers) {
   const now = Date.now();
   const sixtyDays = 60 * 86400000;
 
@@ -55,8 +58,8 @@ function buildGroups() {
     "amendments-in-progress": [],
   };
 
-  for (const c of contracts) {
-    const row = toRow(c);
+  for (const c of source) {
+    const row = toRow(c, customerLookup);
 
     if (c.enforcement.enforcementStatus !== "Enforced") groups["pending-enforcement"].push(row);
     if (c.billingSchedule.some((b) => b.status === "Pending Review")) groups["invoice-review-pending"].push(row);
@@ -84,11 +87,11 @@ const groupMeta = [
 ];
 
 const listColumns: Column[] = [
-  { key: "id", label: "Contract ID", width: "140px" },
-  { key: "customer", label: "Customer", width: "150px" },
-  { key: "tcv", label: "TCV", width: "100px" },
+  { key: "id", label: "Contract ID", width: "140px", sortable: true },
+  { key: "customer", label: "Customer", width: "150px", sortable: true },
+  { key: "tcv", label: "TCV", width: "100px", align: "right" },
   { key: "term", label: "Term", width: "90px" },
-  { key: "renewal", label: "Renewal", width: "110px" },
+  { key: "renewal", label: "Renewal", width: "110px", sortable: true },
   { key: "enforcement", label: "Enforcement", width: "110px" },
   { key: "status", label: "Status", width: "90px" },
   { key: "owner", label: "Owner", width: "110px" },
@@ -101,18 +104,41 @@ const listColumns: Column[] = [
 export function ContractsIndex() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { contractClosures, contractGraceExtensions, sessionContracts, sessionCustomers } = useIngestContext();
+
+  const customersMerged = useMemo(() => {
+    const byId = new Map(customers.map((c) => [c.id, c]));
+    for (const c of sessionCustomers) {
+      byId.set(c.id, c);
+    }
+    return [...byId.values()];
+  }, [sessionCustomers]);
+
+  const contractsWithSession = useMemo(() => {
+    const byId = new Map(contracts.map((c) => [c.id, c]));
+    for (const c of sessionContracts) {
+      byId.set(c.id, c);
+    }
+    return [...byId.values()];
+  }, [sessionContracts]);
+
+  const contractsView = useMemo(
+    () => mergeContractsWithRuntimeClosures(contractsWithSession, contractClosures, contractGraceExtensions),
+    [contractsWithSession, contractClosures, contractGraceExtensions],
+  );
+
   const groupFilter = searchParams.get("group");
-  const viewMode = (searchParams.get("view") as ViewMode) || "groups";
-  const groups = buildGroups();
+  const viewMode = (searchParams.get("view") as ViewMode) || "all";
+  const groups = useMemo(() => buildGroups(contractsView, customersMerged), [contractsView, customersMerged]);
   const { ref: scrollRef, isScrolled } = useScrolled();
 
   function handleViewChange(mode: ViewMode) {
     const params = new URLSearchParams(searchParams);
     if (mode === "groups") {
-      params.delete("view");
+      params.set("view", "groups");
       params.delete("group");
     } else {
-      params.set("view", mode);
+      params.delete("view");
       params.delete("group");
     }
     setSearchParams(params);
@@ -129,11 +155,15 @@ export function ContractsIndex() {
   const renewalCount = groups["approaching-renewal"].length;
   const pendingEnf = groups["pending-enforcement"].length;
 
+  const operationalCount = contractsView.filter((c) =>
+    ["Active", "Extended", "Closing", "Scheduled"].includes(c.status),
+  ).length;
+
   const metrics: MetricCard[] = [
-    { label: "Active contracts", value: contracts.length },
+    { label: "Operational contracts", value: operationalCount },
     { label: "Pending enforcement", value: pendingEnf, variant: pendingEnf > 0 ? "warning" : "default" },
     { label: "Renewals in 60 days", value: renewalCount, variant: renewalCount > 0 ? "warning" : "default" },
-    { label: "Active TCV", value: currency(contracts.reduce((s, c) => s + c.tcv, 0)) },
+    { label: "Active TCV", value: currency(contractsView.reduce((s, c) => s + c.tcv, 0)) },
     { label: "Amendments in progress", value: groups["amendments-in-progress"].length },
   ];
 
@@ -145,7 +175,7 @@ export function ContractsIndex() {
   if (groupFilter) {
     const gm = groupMeta.find((g) => g.slug === groupFilter);
     const rows = groups[groupFilter] ?? [];
-    const filtered = contracts.filter((c) => rows.some((r) => r.contractId === c.id));
+    const filtered = contractsView.filter((c) => rows.some((r) => r.contractId === c.id));
     return (
       <>
         <div className="flex flex-1 w-full flex-col">
@@ -159,18 +189,24 @@ export function ContractsIndex() {
           </div>
           <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
             <MetricStrip metrics={metrics} />
-            <ListTable columns={listColumns}>
+            <ListTable columns={listColumns} resultCount={filtered.length}>
               {filtered.map((c) => {
-                const cu = customers.find((x) => x.id === c.customerId);
+                const cu = customersMerged.find((x) => x.id === c.customerId);
                 return (
-                  <ListRow key={c.id} onClick={() => goToShell(toRow(c))}>
+                  <ListRow key={c.id} onClick={() => goToShell(toRow(c, customersMerged))}>
                     <ListCell width="140px" className="font-medium text-blue-600">{c.id}</ListCell>
                     <ListCell width="150px" className="font-medium">{cu?.name ?? "—"}</ListCell>
-                    <ListCell width="100px" className="tabular-nums">{currency(c.tcv)}</ListCell>
+                    <ListCell width="100px" align="right" className="tabular-nums">
+                      {currency(c.tcv)}
+                    </ListCell>
                     <ListCell width="90px">{c.term}</ListCell>
                     <ListCell width="110px">{c.renewalDate ? shortDate(c.renewalDate) : "—"}</ListCell>
-                    <ListCell width="110px"><StatusBadge status={c.enforcement.enforcementStatus} /></ListCell>
-                    <ListCell width="90px"><StatusBadge status={c.status} /></ListCell>
+                    <ListCell width="110px" noTruncate>
+                      <StatusBadge status={c.enforcement.enforcementStatus} />
+                    </ListCell>
+                    <ListCell width="90px" noTruncate>
+                      <StatusBadge status={c.status} />
+                    </ListCell>
                     <ListCell width="110px" className="text-text-secondary">{c.owner}</ListCell>
                   </ListRow>
                 );
@@ -192,18 +228,24 @@ export function ContractsIndex() {
           </div>
           <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
             <MetricStrip metrics={metrics} />
-            <ListTable columns={listColumns}>
-              {contracts.map((c) => {
-                const cu = customers.find((x) => x.id === c.customerId);
+            <ListTable columns={listColumns} resultCount={contractsView.length}>
+              {contractsView.map((c) => {
+                const cu = customersMerged.find((x) => x.id === c.customerId);
                 return (
                   <ListRow key={c.id} onClick={() => navigate(`/customers/${c.customerId}?tab=contract&contractId=${c.id}&from=contracts`)}>
                     <ListCell width="140px" className="font-medium text-blue-600">{c.id}</ListCell>
                     <ListCell width="150px" className="font-medium">{cu?.name ?? "—"}</ListCell>
-                    <ListCell width="100px" className="tabular-nums">{currency(c.tcv)}</ListCell>
+                    <ListCell width="100px" align="right" className="tabular-nums">
+                      {currency(c.tcv)}
+                    </ListCell>
                     <ListCell width="90px">{c.term}</ListCell>
                     <ListCell width="110px">{c.renewalDate ? shortDate(c.renewalDate) : "—"}</ListCell>
-                    <ListCell width="110px"><StatusBadge status={c.enforcement.enforcementStatus} /></ListCell>
-                    <ListCell width="90px"><StatusBadge status={c.status} /></ListCell>
+                    <ListCell width="110px" noTruncate>
+                      <StatusBadge status={c.enforcement.enforcementStatus} />
+                    </ListCell>
+                    <ListCell width="90px" noTruncate>
+                      <StatusBadge status={c.status} />
+                    </ListCell>
                     <ListCell width="110px" className="text-text-secondary">{c.owner}</ListCell>
                   </ListRow>
                 );
@@ -232,9 +274,13 @@ export function ContractsIndex() {
                   <GroupedRow key={`${row.contractId}-${idx}`} onClick={() => goToShell(row)}>
                     <RowCell width="130px" className="font-medium text-blue-600">{row.contractId}</RowCell>
                     <RowCell width="140px" className="font-medium text-text-primary">{row.customerName}</RowCell>
-                    <RowCell width="100px" className="tabular-nums">{currency(row.tcv)}</RowCell>
+                    <RowCell width="100px" className="tabular-nums" align="right">
+                      {currency(row.tcv)}
+                    </RowCell>
                     <RowCell width="90px">{row.term}</RowCell>
-                    <RowCell width="100px"><StatusBadge status={row.enforcementStatus} /></RowCell>
+                    <RowCell width="100px" noTruncate>
+                      <StatusBadge status={row.enforcementStatus} />
+                    </RowCell>
                     <RowCell width="100px" className="text-text-secondary">{row.renewalDate ? shortDate(row.renewalDate) : "—"}</RowCell>
                     <RowCell width="110px" className="text-text-secondary">{row.owner}</RowCell>
                   </GroupedRow>

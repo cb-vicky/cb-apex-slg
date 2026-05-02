@@ -3,12 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { ChevronRight, Inbox } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIngestContext } from "@/context/IngestContext";
+import { useDemoPersona } from "@/context/DemoPersonaContext";
 import {
   deriveWorkbenchTasks,
   computeWorkbenchStats,
   sortWorkbenchTasksBySeverity,
 } from "@/data/workbench-tasks";
 import type { WorkbenchTask } from "@/data/workbench-tasks";
+import { openDrawer } from "@/store/drawer-store";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -57,6 +59,10 @@ function typeLabel(type: WorkbenchTask["type"]): string {
       return "Closure approval";
     case "billing-task":
       return "Billing task";
+    case "late-renewal-extension":
+      return "Grace extension";
+    case "late-renewal":
+      return "Late renewal (queue)";
   }
 }
 
@@ -183,19 +189,24 @@ function EmptyState() {
 // Main
 // ---------------------------------------------------------------------------
 
-export function WorkbenchTaskList({ role: _role }: WorkbenchTaskListProps) {
+export function WorkbenchTaskList({ role }: WorkbenchTaskListProps) {
   const navigate = useNavigate();
   const ctx = useIngestContext();
+  const { persona } = useDemoPersona();
   const { workbenchTaskSnapshotRef } = ctx;
 
   const [highlightNewIds, setHighlightNewIds] = useState<Set<string>>(() => new Set());
 
-  const tasks = deriveWorkbenchTasks({
-    queueItems: ctx.queueItems,
-    approvalRequests: ctx.approvalRequests,
-    contractClosures: ctx.contractClosures,
-    pendingRenewalIngestions: ctx.pendingRenewalIngestions,
-  });
+  const tasks = deriveWorkbenchTasks(
+    {
+      queueItems: ctx.queueItems,
+      approvalRequests: ctx.approvalRequests,
+      contractClosures: ctx.contractClosures,
+      pendingRenewalIngestions: ctx.pendingRenewalIngestions,
+      contractGraceExtensions: ctx.contractGraceExtensions,
+    },
+    { persona },
+  );
 
   const sortedIds = useMemo(() => tasks.map((t) => t.id).sort(), [tasks]);
 
@@ -224,6 +235,7 @@ export function WorkbenchTaskList({ role: _role }: WorkbenchTaskListProps) {
     approvalRequests: ctx.approvalRequests,
     contractClosures: ctx.contractClosures,
     pendingRenewalIngestions: ctx.pendingRenewalIngestions,
+    contractGraceExtensions: ctx.contractGraceExtensions,
   });
 
   const totalTasks = tasks.length;
@@ -236,12 +248,20 @@ export function WorkbenchTaskList({ role: _role }: WorkbenchTaskListProps) {
       next.delete(task.id);
       return next;
     });
+    if (task.drawer) {
+      openDrawer(task.drawer);
+      return;
+    }
     navigate(task.destination);
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="grid grid-cols-4 gap-3">
+    <div
+      className="flex flex-col gap-5"
+      data-workbench-role={role}
+      data-demo-persona={persona}
+    >
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <StatCard
           label="Pending approvals"
           value={stats.pendingApprovalCount}
@@ -260,6 +280,11 @@ export function WorkbenchTaskList({ role: _role }: WorkbenchTaskListProps) {
           label="In-flight closures"
           value={stats.inflightClosures}
           warning={stats.inflightClosures > 0}
+        />
+        <StatCard
+          label="Grace extensions"
+          value={stats.openGraceExtensions}
+          warning={stats.openGraceExtensions > 0}
         />
       </div>
 

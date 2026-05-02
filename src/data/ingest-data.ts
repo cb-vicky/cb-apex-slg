@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 export interface SampleDoc {
-  id: "sample1" | "sample2" | "sample3";
+  id: "sample2" | "sample3";
   label: string;
   subtitle: string;
   path: "happy" | "exception";
@@ -103,13 +103,6 @@ export interface ApprovalRequest {
 // ---------------------------------------------------------------------------
 
 export const sampleDocs: SampleDoc[] = [
-  {
-    id: "sample1",
-    label: "Echo Corp — Renewal",
-    subtitle: "Happy path: existing customer + matched quote",
-    path: "happy",
-    documentName: "EchoCorp_MSA_Renewal_2026_Signed.pdf",
-  },
   {
     id: "sample2",
     label: "Zenith Analytics — New Business",
@@ -340,7 +333,16 @@ export function getExtractedContract(sampleId: "sample1" | "sample2" | "sample3"
   return extractedSample2;
 }
 
-export function buildIngestResult(docId: "sample1" | "sample2" | "sample3", resolvedCustomerId: string): IngestResult {
+export function buildIngestResult(
+  docId: "sample1" | "sample2" | "sample3",
+  resolvedCustomerId: string,
+  meta?: {
+    customerLabel?: string;
+    contractId?: string;
+    invoiceId?: string;
+    customerAction?: "created" | "reused";
+  },
+): IngestResult {
   if (docId === "sample1") {
     return {
       docId,
@@ -369,15 +371,19 @@ export function buildIngestResult(docId: "sample1" | "sample2" | "sample3", reso
       ],
     };
   }
+  const label = meta?.customerLabel?.trim() || "New account";
+  const contractId = meta?.contractId ?? "CON-INGEST-002";
+  const invoiceId = meta?.invoiceId ?? "INV-INGEST-002";
+  const customerAction = meta?.customerAction ?? "created";
   return {
     docId,
-    contractId: "CON-INGEST-002",
-    customerId: resolvedCustomerId || "cust_zenith_006",
-    invoiceId: "INV-INGEST-002",
+    contractId,
+    customerId: resolvedCustomerId,
+    invoiceId,
     createdObjects: [
-      { type: "customer", id: resolvedCustomerId || "cust_zenith_006", label: "Customer: Zenith Analytics", action: "created" },
+      { type: "customer", id: resolvedCustomerId, label: `Customer: ${label}`, action: customerAction },
       { type: "product", id: "APEX-ANALYTICS-PRO", label: "Plan: APEX-ANALYTICS-PRO", action: "created" },
-      { type: "contract", id: "CON-INGEST-002", label: "Contract CON-INGEST-002", action: "created" },
+      { type: "contract", id: contractId, label: `Contract ${contractId}`, action: "created" },
     ],
   };
 }

@@ -32,7 +32,7 @@ export function GroupedSection({ title, count, viewAllPath, children }: Props) {
           <ChevronRight size={12} strokeWidth={2} />
         </button>
       </div>
-      <div className="divide-y divide-border-subtle">{children}</div>
+      <div className="divide-y divide-border-subtle [&>button:nth-child(even)]:bg-[#F9FAFB]">{children}</div>
     </div>
   );
 }

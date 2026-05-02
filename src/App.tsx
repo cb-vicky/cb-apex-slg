@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { WorkbenchRoleProvider } from "@/context/WorkbenchRoleContext";
+import { DemoPersonaProvider } from "@/context/DemoPersonaContext";
 import { IngestProvider } from "@/context/IngestContext";
 import { AppShell } from "@/components/layout/AppShell";
 import { WorkbenchHome } from "@/pages/workbench/WorkbenchHome";
@@ -15,12 +16,15 @@ import { QueueIndex } from "@/pages/QueueIndex";
 import { QueueIngestPage } from "@/pages/QueueIngestPage";
 import { ApprovalsIndex } from "@/pages/ApprovalsIndex";
 import { ApprovalDetailPage } from "@/pages/ApprovalDetailPage";
+import { EntityDrawer } from "@/components/common/EntityDrawer";
 
 export default function App() {
   return (
     <WorkbenchRoleProvider>
       <IngestProvider>
+        <DemoPersonaProvider>
         <AppShell>
+          <>
           <Routes>
             {/* Workbench home */}
             <Route path="/" element={<WorkbenchHome />} />
@@ -50,7 +54,10 @@ export default function App() {
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          <EntityDrawer />
+          </>
         </AppShell>
+        </DemoPersonaProvider>
       </IngestProvider>
     </WorkbenchRoleProvider>
   );

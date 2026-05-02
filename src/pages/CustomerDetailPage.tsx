@@ -1,13 +1,22 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { getCustomer, getQuotesForCustomer, getContractsForCustomer, getQuote, getContract, getTasks } from "@/data/mock-data";
+import {
+  getCustomer,
+  getQuotesForCustomer,
+  getContractsForCustomer,
+  getQuote,
+  getContract,
+  getTasks,
+} from "@/data/mock-data";
 import { CustomerRevenueWorkspace } from "@/components/revenue-workspace/CustomerRevenueWorkspace";
 import type { Stage } from "@/components/revenue-workspace/RevenueJourneyRail";
 import { recordCustomerVisit } from "@/lib/recent-customers";
+import { useIngestContext } from "@/context/IngestContext";
 
 export function CustomerDetailPage() {
   const { customerId } = useParams<{ customerId: string }>();
   const [searchParams] = useSearchParams();
+  const { sessionCustomers, sessionContracts } = useIngestContext();
 
   useEffect(() => {
     if (customerId) recordCustomerVisit(customerId);
@@ -21,20 +30,29 @@ export function CustomerDetailPage() {
   const closeIntent = searchParams.get("closeIntent") ?? undefined;
   const queueItemId = searchParams.get("queueItemId") ?? undefined;
 
-  const customer = getCustomer(customerId ?? "");
+  const customer = useMemo(() => {
+    return sessionCustomers.find((c) => c.id === customerId) ?? getCustomer(customerId ?? "");
+  }, [customerId, sessionCustomers]);
+
   const customerQuotes = getQuotesForCustomer(customer.id);
-  const customerContracts = getContractsForCustomer(customer.id);
+  const customerContractsMerged = useMemo(() => {
+    const seed = getContractsForCustomer(customer.id);
+    const extra = sessionContracts.filter((c) => c.customerId === customer.id);
+    return [
+      ...seed,
+      ...extra.filter((e) => !seed.some((s) => s.id === e.id)),
+    ];
+  }, [customer.id, sessionContracts]);
+
   const tasks = getTasks(customer.id);
 
   // Resolve quote — null when customer has no quotes (e.g. Zenith Analytics)
-  const quote = quoteId
-    ? getQuote(quoteId)
-    : customerQuotes[0] ?? null;
+  const quote = quoteId ? getQuote(quoteId) : customerQuotes[0] ?? null;
 
-  // Resolve contract — null when customer has no contracts yet (e.g. Pioneer Systems)
+  // Resolve contract — merge session so ingested Scheduled / Active rows resolve
   const contractRecord = contractId
-    ? getContract(contractId)
-    : customerContracts[0] ?? null;
+    ? sessionContracts.find((c) => c.id === contractId) ?? getContract(contractId)
+    : customerContractsMerged[0] ?? null;
 
   const activeRecordId = quoteId ?? contractId ?? invoiceId ?? undefined;
 
