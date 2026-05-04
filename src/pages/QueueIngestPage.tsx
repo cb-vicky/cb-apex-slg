@@ -135,7 +135,7 @@ export function QueueIngestPage() {
         <div
           ref={stickyRef}
           className={cn(
-            "sticky top-0 z-10 flex w-full items-center justify-between gap-4 border-b border-[#F0F1F3] bg-white px-6 py-3 rounded-tl-[24px] transition-shadow duration-200",
+            "sticky top-0 z-10 flex w-full items-center justify-between gap-4 border-b border-gray-100 bg-white px-6 py-3 rounded-tl-[24px] transition-shadow duration-200",
             isScrolled && "shadow-[0_2px_8px_rgba(0,0,0,0.08)]",
           )}
         >

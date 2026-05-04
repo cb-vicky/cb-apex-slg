@@ -23,6 +23,7 @@ import {
   type PendingRenewalIngestion,
 } from "@/data/approval-policy";
 import type { ContractGraceExtension } from "@/data/contract-transition";
+import { ZENITH_CUSTOMER_ID } from "@/data/zenith-ingest-session";
 
 // ---------------------------------------------------------------------------
 // Context value
@@ -80,6 +81,29 @@ interface IngestContextValue {
   // Queue items (merged seed + runtime overrides)
   queueItems: QueueItem[];
   applyQueueItemOverride: (id: string, override: QueueItemOverride) => void;
+  /** Clears runtime queue overrides for an id (e.g. reject → operator starts from seed row). */
+  clearQueueItemOverride: (id: string) => void;
+
+  removeSessionInvoice: (invoiceId: string) => void;
+  removeSessionContract: (contractId: string) => void;
+  removeSessionCustomer: (customerId: string) => void;
+  clearInvoiceFieldOverrides: (invoiceId: string) => void;
+  clearInvoiceStatusOverride: (invoiceId: string) => void;
+  removeSubmittedInvoiceId: (invoiceId: string) => void;
+  removeApprovalsForInvoiceAndIngest: (invoiceId: string, ingestId?: string) => void;
+
+  /**
+   * Approver rejected an ingest-linked invoice: strip approval + session artifacts
+   * so the operator can re-run the full ingest flow from the queue seed row.
+   */
+  returnIngestToOperatorAfterReject: (input: {
+    queueItemId?: string;
+    invoiceId: string;
+    /** Session contract created during ingest (optional; removed with invoice). */
+    contractId?: string;
+    /** Shown on the queue row after return. */
+    returnReason?: string;
+  }) => void;
 
   // Per-ingest flag: true once the first invoice has been approved through
   // an ingestion cycle. Used to trigger the Approval Settings modal.
@@ -285,6 +309,84 @@ export function IngestProvider({ children }: { children: ReactNode }) {
     setQueueOverrides((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), ...override } }));
   }
 
+  function clearQueueItemOverride(id: string) {
+    setQueueOverrides((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }
+
+  function removeSessionInvoice(invoiceId: string) {
+    setSessionInvoices((prev) => prev.filter((x) => x.id !== invoiceId));
+  }
+
+  function removeSessionContract(contractId: string) {
+    setSessionContracts((prev) => prev.filter((x) => x.id !== contractId));
+  }
+
+  function removeSessionCustomer(customerId: string) {
+    setSessionCustomers((prev) => prev.filter((x) => x.id !== customerId));
+  }
+
+  function clearInvoiceFieldOverrides(invoiceId: string) {
+    setInvoiceFieldOverrides((prev) => {
+      const next = { ...prev };
+      delete next[invoiceId];
+      return next;
+    });
+  }
+
+  function clearInvoiceStatusOverride(invoiceId: string) {
+    setInvoiceStatusOverrides((prev) => {
+      const next = { ...prev };
+      delete next[invoiceId];
+      return next;
+    });
+  }
+
+  function removeSubmittedInvoiceId(invoiceId: string) {
+    setSubmittedInvoiceIds((prev) => {
+      const next = new Set(prev);
+      next.delete(invoiceId);
+      return next;
+    });
+  }
+
+  function removeApprovalsForInvoiceAndIngest(invoiceId: string, ingestId?: string) {
+    setApprovalRequests((prev) =>
+      prev.filter(
+        (r) =>
+          !(r.invoiceId === invoiceId || Boolean(ingestId && r.ingestId === ingestId)),
+      ),
+    );
+  }
+
+  function returnIngestToOperatorAfterReject(input: {
+    queueItemId?: string;
+    invoiceId: string;
+    contractId?: string;
+    returnReason?: string;
+  }) {
+    const { queueItemId, invoiceId, contractId, returnReason } = input;
+    removeApprovalsForInvoiceAndIngest(invoiceId, queueItemId);
+    removeSubmittedInvoiceId(invoiceId);
+    clearInvoiceFieldOverrides(invoiceId);
+    clearInvoiceStatusOverride(invoiceId);
+    removeSessionInvoice(invoiceId);
+    if (contractId) {
+      removeSessionContract(contractId);
+    }
+    if (queueItemId) {
+      clearQueueItemOverride(queueItemId);
+      applyQueueItemOverride(queueItemId, {
+        status: "Returned",
+        ...(returnReason ? { returnReason } : {}),
+      });
+    }
+    removeSessionCustomer(ZENITH_CUSTOMER_ID);
+  }
+
   function markFirstApprovalCompleted(ingestId: string) {
     setFirstApprovalCompletedFor((prev) => ({ ...prev, [ingestId]: true }));
   }
@@ -375,6 +477,15 @@ export function IngestProvider({ children }: { children: ReactNode }) {
         setInvoiceFieldOverride,
         queueItems: mergedQueueItems,
         applyQueueItemOverride,
+        clearQueueItemOverride,
+        removeSessionInvoice,
+        removeSessionContract,
+        removeSessionCustomer,
+        clearInvoiceFieldOverrides,
+        clearInvoiceStatusOverride,
+        removeSubmittedInvoiceId,
+        removeApprovalsForInvoiceAndIngest,
+        returnIngestToOperatorAfterReject,
         firstApprovalCompletedFor,
         markFirstApprovalCompleted,
         approvalPolicy,

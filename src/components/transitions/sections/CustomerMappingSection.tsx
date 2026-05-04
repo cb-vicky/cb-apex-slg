@@ -1,6 +1,7 @@
 import type { Customer } from "@/data/mock-data";
 import { cn } from "@/lib/utils";
 import { KV } from "@/components/ui/primitives";
+import { formInputClass } from "@/components/ui/form-field";
 import {
   DrawerNativeSelect,
   DrawerSelectShell,
@@ -52,11 +53,10 @@ export function CustomerMappingSection({
 }: Props) {
   const isCreate = selectedCustomerId === INGEST_DRAWER_NEW_CUSTOMER_ID;
 
-  const inputClass =
-    "w-full rounded-md border border-border-default bg-white px-2.5 py-2 text-[13px] text-text-primary outline-none focus:border-neutral-300 focus:ring-1 focus:ring-neutral-200/90";
+  const inputClass = formInputClass;
 
   return (
-    <div className={cn("flex flex-col gap-1.5", className)}>
+    <div className={cn("flex flex-col gap-2", className)}>
       <DrawerSelectShell id="ingest-customer-select" label="Customer details">
         <DrawerNativeSelect
           id="ingest-customer-select"
@@ -77,7 +77,7 @@ export function CustomerMappingSection({
       {isCreate && (
         <DrawerRailIndent>
           {showNewCustomerKvSummary ? (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
               <div className="flex flex-col divide-y divide-border-subtle">
                 <KV label="Company name" value={newCustomer.name || "—"} />
                 <KV label="Billing legal entity" value={newCustomer.billingLegalEntity || "—"} />
@@ -88,7 +88,7 @@ export function CustomerMappingSection({
                   type="button"
                   onClick={onEditNewCustomer}
                   className={cn(
-                    "self-start rounded-md border border-blue-200 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-[color:var(--color-info)] shadow-sm transition-colors",
+                    "self-start rounded-md border border-blue-200 bg-white px-3 py-2 text-[13px] font-semibold text-[color:var(--color-info)] shadow-sm transition-colors",
                     "hover:bg-blue-50/60",
                   )}
                 >
@@ -97,9 +97,9 @@ export function CustomerMappingSection({
               ) : null}
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
               {createCustomerIssue ? <IngestDrawerIssueCallout title={createCustomerIssue.message} /> : null}
-              <div className="flex flex-col gap-2.5">
+              <div className="flex flex-col gap-4">
                 <DrawerStackedField label="Company name">
                   <input
                     type="text"
@@ -132,7 +132,7 @@ export function CustomerMappingSection({
                   onClick={onConfirmCreateCustomer}
                   disabled={createCustomerConfirmDisabled}
                   className={cn(
-                    "self-start rounded-md border border-blue-200 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-[color:var(--color-info)] shadow-sm transition-colors",
+                    "self-start rounded-md border border-blue-200 bg-white px-3 py-2 text-[13px] font-semibold text-[color:var(--color-info)] shadow-sm transition-colors",
                     "hover:bg-blue-50/60 disabled:cursor-not-allowed disabled:opacity-50",
                   )}
                 >
@@ -145,7 +145,7 @@ export function CustomerMappingSection({
       )}
 
       {activeContractSummary && !isCreate && (
-        <p className="text-[11px] leading-snug text-text-secondary">
+        <p className="mt-1 text-[12px] leading-snug text-text-secondary">
           Active contract: {activeContractSummary}
         </p>
       )}

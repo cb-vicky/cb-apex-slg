@@ -3,17 +3,18 @@ import { useState } from "react";
 import type { ExtractedProduct } from "@/data/ingest-data";
 import { SectionCard } from "@/components/ui/primitives";
 import { WorkspaceTableShell, WTable, WThead, WTh, WTbody, WTr, WTd } from "@/components/ui/data-table";
+import { formInputClass, formLabelClass } from "@/components/ui/form-field";
 import { currency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { Plus } from "lucide-react";
 import { DrawerRailIndent } from "../DrawerSelectShell";
 
 const drawerActionLinkClass =
-  "text-[11px] font-semibold text-[color:var(--color-info)] hover:text-blue-700 hover:underline";
-const drawerActionLinkClass12 =
   "text-[12px] font-semibold text-[color:var(--color-info)] hover:text-blue-700 hover:underline";
+const drawerActionLinkClass12 =
+  "text-[13px] font-semibold text-[color:var(--color-info)] hover:text-blue-700 hover:underline";
 const drawerPrimaryPillClass =
-  "rounded-md border border-blue-200 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-[color:var(--color-info)] shadow-sm transition-colors hover:bg-blue-50/60";
+  "rounded-md border border-blue-200 bg-white px-3 py-2 text-[13px] font-semibold text-[color:var(--color-info)] shadow-sm transition-colors hover:bg-blue-50/60";
 
 interface Props {
   products: ExtractedProduct[];
@@ -64,8 +65,8 @@ function DrawerStackedField({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">{label}</span>
+    <div className="flex flex-col gap-1.5">
+      <span className={formLabelClass}>{label}</span>
       {children}
     </div>
   );
@@ -101,8 +102,7 @@ function CatalogDrawerRows({
     return d ? { ...p, ...d } : p;
   }
 
-  const inputClass =
-    "w-full rounded-md border border-border-default bg-white px-2.5 py-2 text-[13px] text-text-primary outline-none focus:border-neutral-300 focus:ring-1 focus:ring-neutral-200/90";
+  const inputClass = formInputClass;
 
   function closePanel() {
     setOpenSku(null);
@@ -202,7 +202,7 @@ function CatalogDrawerRows({
             </div>
             {open && !editing && (
               <DrawerRailIndent className="mt-3">
-                <div className="flex flex-col gap-2.5 text-[13px]">
+                <div className="flex flex-col gap-3 text-[14px]">
                   <DrawerStackedField label="Catalog SKU">
                     <span className="text-text-primary">{e.catalogSku ?? "—"}</span>
                   </DrawerStackedField>
@@ -242,7 +242,7 @@ function CatalogDrawerRows({
             )}
             {open && editing && editForm && (
               <DrawerRailIndent className="mt-3">
-                <div className="flex flex-col gap-2.5 text-[13px]">
+                <div className="flex flex-col gap-4 text-[14px]">
                   <DrawerStackedField label="Product name">
                     <input
                       type="text"
@@ -352,8 +352,8 @@ export function CatalogMappingSection({
 }: Props) {
   if (layout === "drawer") {
     return (
-      <div className={cn("flex flex-col gap-1.5", className)}>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Catalog mapping</p>
+      <div className={cn("flex flex-col gap-2", className)}>
+        <p className={formLabelClass}>Catalog mapping</p>
         <DrawerRailIndent>
           <CatalogDrawerRows
             products={products}

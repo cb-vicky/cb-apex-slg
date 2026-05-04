@@ -69,11 +69,45 @@ export type DrawerEntityType = "queue_item" | "contract" | "invoice" | "transiti
 
 export type DrawerMode = "ingest" | "transition" | "late_renewal" | "invoice_approval";
 
+/** Unified ingest → invoice review → approval (and deep-linkable steps). */
+export type FlowScenario = "ingest_invoice" | "invoice_only" | "late_grace";
+
+export type FlowStepId =
+  | "ingest"
+  /** Early renewal: close prior active contract before renewal invoice review */
+  | "close_prior"
+  /** Late renewal: configure grace extension before policy approval */
+  | "grace_extend"
+  | "invoice_review"
+  | "approval";
+
+export type TransitionFlowSession = {
+  /** Stable React key when switching queue items / steps quickly (filled by `openDrawer` if omitted). */
+  key?: string;
+  scenario: FlowScenario;
+  step: FlowStepId;
+  queueItemId?: string;
+  invoiceId?: string;
+  contractId?: string;
+  customerId?: string;
+  /** When false, hide the horizontal stepper (invoice-only / minimal). */
+  showStepper?: boolean;
+  /** Approver viewing prior ingest step without editing */
+  ingestReadOnly?: boolean;
+  /**
+   * Furthest ingest-flow step the user may open via the stepper (Map & terms → Invoice review).
+   * Starts at `ingest` until operator clicks **Next** (commit + advance).
+   */
+  furthestUnlockedStep?: FlowStepId;
+};
+
 export type DrawerState = {
   isOpen: boolean;
   entityType: DrawerEntityType;
   entityId?: string;
   mode?: DrawerMode;
+  /** When set, `EntityDrawer` renders the unified transition shell (ingest / review / approval). */
+  flow?: TransitionFlowSession | null;
   context?: {
     customerId?: string;
     contractId?: string;

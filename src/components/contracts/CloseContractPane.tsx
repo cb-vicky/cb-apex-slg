@@ -85,7 +85,7 @@ function ContractTab({ contract }: { contract: Contract }) {
           { label: "Min annual commit", value: currency(contract.minAnnualCommit) },
           { label: "Prepaid balance", value: currency(contract.prepaidCreditBalance) },
         ].map((row) => (
-          <div key={row.label} className="rounded-md border border-border-default bg-[#FAFAFA] px-2.5 py-2">
+          <div key={row.label} className="rounded-md border border-border-default bg-gray-50 px-2.5 py-2">
             <p className="text-[10px] uppercase tracking-wider text-text-muted">{row.label}</p>
             <p className="mt-0.5 text-[12px] font-semibold text-text-primary">{row.value}</p>
           </div>
@@ -164,7 +164,7 @@ function LastInvoiceTab({ contract }: { contract: Contract }) {
           { label: "Amount", value: currency(lastInvoice.amount) },
           { label: "Contract", value: lastInvoice.contractId },
         ].map((row) => (
-          <div key={row.label} className="rounded-md border border-border-default bg-[#FAFAFA] px-2.5 py-2">
+          <div key={row.label} className="rounded-md border border-border-default bg-gray-50 px-2.5 py-2">
             <p className="text-[10px] uppercase tracking-wider text-text-muted">{row.label}</p>
             <p className="mt-0.5 text-[12px] font-semibold text-text-primary">{row.value}</p>
           </div>
@@ -181,7 +181,7 @@ function LastInvoiceTab({ contract }: { contract: Contract }) {
                 <p className="tabular-nums text-[12px] font-medium text-text-primary">{currency(li.amount)}</p>
               </div>
             ))}
-            <div className="flex items-center justify-between bg-[#FAFAFA] px-3 py-2">
+            <div className="flex items-center justify-between bg-gray-50 px-3 py-2">
               <p className="text-[12px] font-semibold text-text-primary">Total</p>
               <p className="tabular-nums text-[13px] font-semibold text-text-primary">{currency(lastInvoice.amount)}</p>
             </div>
@@ -240,7 +240,7 @@ function IncomingRenewalTab({
           { label: "Min commit", value: currency(renewal.minCommit) },
           { label: "Prepaid credits", value: renewal.prepaidCredits > 0 ? currency(renewal.prepaidCredits) : "None" },
         ].map((row) => (
-          <div key={row.label} className="rounded-md border border-border-default bg-[#FAFAFA] px-2.5 py-2">
+          <div key={row.label} className="rounded-md border border-border-default bg-gray-50 px-2.5 py-2">
             <p className="text-[10px] uppercase tracking-wider text-text-muted">{row.label}</p>
             <p className="mt-0.5 text-[12px] font-semibold text-text-primary">{row.value}</p>
           </div>
@@ -650,7 +650,7 @@ export function CloseContractPane({
                   <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-text-secondary">
                     {settlementType === "termination_charge" ? "Termination charge" : "Credit note"} calculation
                   </label>
-                  <div className="rounded-lg border border-border-default bg-[#FAFAFA] p-3">
+                  <div className="rounded-lg border border-border-default bg-gray-50 p-3">
                     <div className="mb-2 flex items-start gap-2">
                       {settlementType === "credit_note"
                         ? <CreditCard size={13} className="mt-0.5 shrink-0 text-text-muted" />
@@ -716,7 +716,7 @@ export function CloseContractPane({
             </div>
 
             {/* Summary */}
-            <div className="rounded-lg border border-border-default bg-[#F7F7F8] p-3">
+            <div className="rounded-lg border border-border-default bg-gray-50 p-3">
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-text-secondary">Summary</p>
               <ul className="space-y-1.5 text-[12px] text-text-primary">
                 <li className="flex items-start gap-1.5">
@@ -756,7 +756,7 @@ export function CloseContractPane({
         </div>
 
         {/* RIGHT — contract preview panel (fixed width like approval page) */}
-        <div className="w-[440px] shrink-0 flex flex-col border-l border-border-default bg-[#F7F7F8]">
+        <div className="w-[440px] shrink-0 flex flex-col border-l border-border-default bg-gray-50">
           {/* Tab bar */}
           <div className="flex shrink-0 items-center gap-1 border-b border-border-default bg-white px-4">
             {rightTabs.map((tab) => (
@@ -773,7 +773,7 @@ export function CloseContractPane({
               >
                 {tab.label}
                 {tab.id === "renewal" && (
-                  <span className="ml-1.5 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">New</span>
+                  <span className="ml-1.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[12px] font-medium leading-4 text-blue-700">New</span>
                 )}
               </button>
             ))}

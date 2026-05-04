@@ -27,7 +27,7 @@ export function MilestoneCard({ milestone }: Props) {
         <span className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">
           {milestone.eyebrow}
         </span>
-        <span className={cn("inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium leading-4", statusStyles[milestone.status])}>
+        <span className={cn("inline-flex items-center rounded-md border px-2 py-0.5 text-[12px] font-medium leading-4", statusStyles[milestone.status])}>
           {milestone.status}
         </span>
       </div>

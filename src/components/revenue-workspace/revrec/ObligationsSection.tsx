@@ -35,7 +35,7 @@ export function ObligationsSection({ obligations }: Props) {
               <tr key={idx} className="border-b border-border-subtle last:border-0">
                 <td className="py-2 pr-2 font-medium text-text-primary">{ob.product}</td>
                 <td className="py-2 pr-2">
-                  <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium ${typeColors}`}>
+                  <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[12px] font-medium leading-4 ${typeColors}`}>
                     {ob.obligationType}
                   </span>
                 </td>

@@ -27,7 +27,7 @@ const lineTypeBg: Record<string, string> = {
 function LineTypeBadge({ lineType }: { lineType: string }) {
   const colors = lineTypeBg[lineType] ?? "bg-gray-100 text-gray-600 border-gray-200";
   return (
-    <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium ${colors}`}>
+    <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[12px] font-medium leading-4 ${colors}`}>
       {lineTypeLabels[lineType] ?? lineType}
     </span>
   );

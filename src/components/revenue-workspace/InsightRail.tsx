@@ -54,28 +54,28 @@ function RailSection({
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-surface-muted/60"
+        className="flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-surface-muted/60"
       >
-        <Icon size={13} className="shrink-0 text-text-secondary" />
-        <h4 className="flex-1 text-[11px] font-semibold uppercase tracking-wider text-text-primary">
+        <Icon size={14} className="shrink-0 text-text-secondary" />
+        <h4 className="flex-1 text-[12px] font-semibold uppercase tracking-wider text-text-primary">
           {title}
         </h4>
         <ChevronDown
-          size={13}
+          size={14}
           className={cn(
             "shrink-0 text-text-muted transition-transform duration-200",
             open && "rotate-180",
           )}
         />
       </button>
-      {open && <div className="px-3 pb-3 pt-3">{children}</div>}
+      {open && <div className="px-4 pb-4 pt-3">{children}</div>}
     </div>
   );
 }
 
 function DetailRow({ label, value, valueClassName }: { label: string; value: React.ReactNode; valueClassName?: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 text-[13px]">
+    <div className="flex items-center justify-between gap-3 py-0.5 text-[14px]">
       <span className="text-text-secondary">{label}</span>
       <span className={cn("truncate text-right font-medium text-text-primary", valueClassName)}>{value}</span>
     </div>
@@ -158,7 +158,7 @@ function OpenTasksSection({
       onToggle={onToggle}
     >
       {openTasks.length === 0 ? (
-        <p className="text-[12px] text-text-muted">No open tasks.</p>
+        <p className="text-[13px] text-text-muted">No open tasks.</p>
       ) : (
         <div className="divide-y divide-border-subtle">
           {openTasks.map((task) => (
@@ -176,14 +176,14 @@ function OpenTasksSection({
                   )}
                   aria-hidden
                 />
-                <span className="min-w-0 truncate text-[13px] font-medium leading-snug text-text-primary">
+                <span className="min-w-0 truncate text-[14px] font-medium leading-snug text-text-primary">
                   {task.title}
                 </span>
               </div>
               {/* Meta aligned with title text (same inset as dot + gap) */}
-              <div className="mt-0.5 flex gap-2">
+              <div className="mt-1 flex gap-2">
                 <span className="inline-block w-2 shrink-0" aria-hidden />
-                <span className="text-[12px] leading-snug text-text-secondary">
+                <span className="text-[13px] leading-snug text-text-secondary">
                   {task.assignee} &middot; Due {shortDate(task.dueDate)}
                 </span>
               </div>
@@ -212,7 +212,7 @@ function LinkedRecordsSection({
       onToggle={onToggle}
     >
       {records.length === 0 ? (
-        <p className="text-[12px] text-text-muted">No external records linked.</p>
+        <p className="text-[13px] text-text-muted">No external records linked.</p>
       ) : (
         <div className="divide-y divide-border-subtle">
           {records.map((r, idx) => (
@@ -230,12 +230,12 @@ function LinkedRecordRow({ record }: { record: ExternalLinkedRecord }) {
   const inner = (
     <>
       <div className="min-w-0 flex-1">
-        <p className="text-[12px] leading-snug text-text-secondary">{record.label}</p>
-        <p className="mt-0.5 truncate text-[13px] font-medium leading-snug text-blue-600">
+        <p className="text-[13px] leading-snug text-text-secondary">{record.label}</p>
+        <p className="mt-0.5 truncate text-[14px] font-medium leading-snug text-blue-600">
           {record.value}
         </p>
         {record.sublabel && (
-          <p className="mt-0.5 truncate text-[11px] leading-snug text-text-muted">{record.sublabel}</p>
+          <p className="mt-0.5 truncate text-[12px] leading-snug text-text-muted">{record.sublabel}</p>
         )}
       </div>
       {record.href && (

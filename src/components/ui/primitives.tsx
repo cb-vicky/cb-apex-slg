@@ -64,7 +64,7 @@ export function StatusBadge({ status, className }: { status: string; className?:
   const key = status.toLowerCase();
   const colors = statusColors[key] ?? "bg-gray-100 text-gray-600 border-gray-200";
   return (
-    <span className={cn("inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium leading-4", colors, className)}>
+    <span className={cn("inline-flex items-center rounded-md border px-2 py-0.5 text-[12px] font-medium leading-4", colors, className)}>
       {status}
     </span>
   );
@@ -83,7 +83,7 @@ export function RiskBadge({ label }: { label: string }) {
       ? "bg-amber-50 text-amber-700 border-amber-200"
       : "bg-gray-50 text-gray-600 border-gray-200";
   return (
-    <span className={cn("inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium leading-4 whitespace-nowrap", color)}>
+    <span className={cn("inline-flex items-center rounded-md border px-2 py-0.5 text-[12px] font-medium leading-4 whitespace-nowrap", color)}>
       {label}
     </span>
   );
@@ -101,8 +101,8 @@ export function MetricPill({ label, value, variant }: { label: string; value: st
   };
   return (
     <div className="flex flex-col items-end gap-0.5">
-      <span className="text-[10px] uppercase tracking-wider text-text-muted">{label}</span>
-      <span className={cn("text-sm font-semibold tabular-nums", variantClasses[variant ?? "default"])}>{value}</span>
+      <span className="text-[11px] uppercase tracking-wider text-text-muted">{label}</span>
+      <span className={cn("text-base font-semibold tabular-nums", variantClasses[variant ?? "default"])}>{value}</span>
     </div>
   );
 }
@@ -125,11 +125,11 @@ export function SectionCard({
 }) {
   return (
     <div className={cn("overflow-hidden rounded-lg border border-border-default bg-white", className)}>
-      <div className="flex items-center justify-between border-b border-border-subtle bg-[#F7F7F8] px-4 py-2.5">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-primary">{title}</h3>
+      <div className="flex items-center justify-between gap-3 border-b border-border-subtle bg-gray-50 px-5 py-3">
+        <h3 className="text-[14px] font-semibold leading-tight tracking-normal text-text-primary">{title}</h3>
         {actions}
       </div>
-      <div className={cn("px-4 py-3", bodyClassName)}>{children}</div>
+      <div className={cn("px-5 py-4", bodyClassName)}>{children}</div>
     </div>
   );
 }
@@ -151,16 +151,16 @@ export function KV({
 }) {
   if (layout === "inline") {
     return (
-      <div className={cn("flex min-w-0 items-baseline justify-between gap-4 py-1.5 text-[13px]", className)}>
+      <div className={cn("flex min-w-0 items-baseline justify-between gap-4 py-2 text-[14px]", className)}>
         <span className="shrink-0 text-text-secondary">{label}</span>
         <span className="min-w-0 truncate text-right font-medium text-text-primary">{value}</span>
       </div>
     );
   }
   return (
-    <div className={cn("flex min-w-0 flex-col gap-0.5 py-2 text-left", className)}>
-      <span className="text-[11px] font-medium leading-tight text-text-muted">{label}</span>
-      <div className="min-w-0 truncate text-[13px] font-semibold leading-tight text-text-primary">{value}</div>
+    <div className={cn("flex min-w-0 flex-col gap-1 py-2.5 text-left", className)}>
+      <span className="text-[12px] leading-tight text-text-muted">{label}</span>
+      <div className="min-w-0 truncate text-[14px] font-medium leading-snug text-text-primary">{value}</div>
     </div>
   );
 }
@@ -183,9 +183,9 @@ export function RecordIdLink({ to, children, className }: { to: string; children
 // ---------------------------------------------------------------------------
 export function EntityChip({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center gap-1.5 rounded-md border border-border-default bg-surface-muted px-2 py-1">
-      <span className="text-[10px] uppercase tracking-wider text-text-muted">{label}</span>
-      <span className="text-[12px] font-medium text-text-primary">{value}</span>
+    <div className="flex items-center gap-1.5 rounded-md border border-border-default bg-surface-muted px-2.5 py-1">
+      <span className="text-[11px] uppercase tracking-wider text-text-muted">{label}</span>
+      <span className="text-[13px] font-medium text-text-primary">{value}</span>
     </div>
   );
 }
@@ -200,12 +200,12 @@ export function TimelineRow({ date, action, actor, detail, isLast }: { date: str
         <div className="mt-1.5 h-2 w-2 rounded-full bg-border-default" />
         {!isLast && <div className="w-px flex-1 bg-border-default" />}
       </div>
-      <div className="pb-4">
-        <p className="text-[13px] font-medium text-text-primary">{action}</p>
-        <p className="text-[12px] text-text-secondary">
+      <div className="pb-5">
+        <p className="text-[14px] font-medium leading-snug text-text-primary">{action}</p>
+        <p className="mt-0.5 text-[13px] leading-snug text-text-secondary">
           {actor} &middot; {date}
         </p>
-        {detail && <p className="mt-0.5 text-[12px] text-text-muted">{detail}</p>}
+        {detail && <p className="mt-1 text-[13px] leading-snug text-text-muted">{detail}</p>}
       </div>
     </div>
   );

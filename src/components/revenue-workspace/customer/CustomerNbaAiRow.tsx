@@ -315,7 +315,7 @@ export function CustomerNbaAiRow({ customer }: Props) {
         </div>
       ) : (
         <div className="overflow-hidden rounded-lg border border-border-default bg-white">
-          <div className="flex items-center justify-between border-b border-border-subtle bg-[#F7F7F8] px-4 py-2.5">
+          <div className="flex items-center justify-between border-b border-border-subtle bg-gray-50 px-5 py-3">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-text-primary">AI Insights</h3>
             <div className="flex items-center gap-1">
               <button

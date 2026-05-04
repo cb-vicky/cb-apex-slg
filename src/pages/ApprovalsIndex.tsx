@@ -27,7 +27,9 @@ export function ApprovalsIndex() {
   const { persona } = useDemoPersona();
 
   // Enrich approval requests with invoice + customer data
-  const enriched = approvalRequests.map((req) => {
+  const enriched = approvalRequests
+    .filter((req) => !req.invoiceId.startsWith("INV-PENDING"))
+    .map((req) => {
     const inv = invoices.find((i) => i.id === req.invoiceId);
     const cust = customers.find((c) => c.id === (inv?.customerId ?? req.customerId));
     const effectiveStatus = invoiceStatusOverrides[req.invoiceId] ?? req.status;
@@ -54,12 +56,12 @@ export function ApprovalsIndex() {
     <div className="flex flex-1 w-full flex-col">
       <div
         ref={scrollRef}
-        className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}
+        className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-gray-100 transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}
       >
         <PageHeader title="Approvals" />
       </div>
 
-      <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
+      <div className="flex flex-col gap-5 px-6 pt-5 pb-7">
         {persona === "operator" && pendingCount > 0 && (
           <div className="rounded-lg border border-amber-200/80 bg-amber-50 px-4 py-3 text-[12px] leading-snug text-amber-950">
             <span className="font-semibold">Operator view.</span> You can track submissions and status here.
@@ -88,6 +90,17 @@ export function ApprovalsIndex() {
                       mode: "invoice_approval",
                       entityId: req.invoiceId,
                       context: req.ingestId ? { queueItemId: req.ingestId } : undefined,
+                      ...(req.ingestId
+                        ? {
+                            flow: {
+                              scenario: "ingest_invoice",
+                              step: "invoice_review",
+                              furthestUnlockedStep: "invoice_review",
+                              invoiceId: req.invoiceId,
+                              queueItemId: req.ingestId,
+                            },
+                          }
+                        : {}),
                     });
                     return;
                   }

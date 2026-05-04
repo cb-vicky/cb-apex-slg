@@ -33,16 +33,16 @@ export function ApprovalCommentItem({ comment }: { comment: ApprovalComment }) {
     .join("")
     .slice(0, 2);
   return (
-    <div className="flex gap-2.5 border-b border-border-subtle py-2.5 last:border-0">
-      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#012A38] text-[9px] font-bold text-white">
+    <div className="flex gap-3.5 border-b border-border-subtle py-4 last:border-0">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#012A38] text-[11px] font-bold text-white">
         {initials}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
-          <span className="truncate text-[11px] font-semibold text-text-primary">{comment.author}</span>
-          <span className="ml-auto shrink-0 text-[10px] text-text-muted">{shortDate(comment.timestamp)}</span>
+          <span className="truncate text-[13px] font-semibold text-text-primary">{comment.author}</span>
+          <span className="ml-auto shrink-0 text-[12px] text-text-muted">{shortDate(comment.timestamp)}</span>
         </div>
-        <p className="mt-0.5 text-[12px] leading-relaxed text-text-secondary">{highlightMentions(comment.text)}</p>
+        <p className="mt-1.5 text-[14px] leading-relaxed text-text-secondary">{highlightMentions(comment.text)}</p>
       </div>
     </div>
   );
@@ -66,23 +66,23 @@ export function ApprovalCommentsCard({
 }) {
   return (
     <div id={id} className={cn("overflow-hidden rounded-lg border border-border-default bg-white", className)}>
-      <div className="flex items-center gap-2 border-b border-border-subtle bg-[#F7F7F8] px-3 py-2">
-        <MessageSquare size={12} className="text-text-muted" aria-hidden />
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-text-primary">Comments</h3>
-        <span className="ml-auto rounded-full bg-white px-1.5 py-0.5 text-[10px] font-medium text-text-muted ring-1 ring-border-default">
+      <div className="flex items-center gap-2.5 border-b border-border-subtle bg-gray-50 px-5 py-3">
+        <MessageSquare size={15} className="text-text-muted" aria-hidden />
+        <h3 className="text-[13px] font-semibold uppercase tracking-wider text-text-primary">Comments</h3>
+        <span className="ml-auto rounded-md border border-gray-200 bg-gray-100 px-2 py-0.5 text-[12px] font-medium leading-4 text-gray-600">
           {comments.length}
         </span>
       </div>
-      <div className={cn("overflow-y-auto px-3", listMaxHeightClass)}>
+      <div className={cn("overflow-y-auto px-5", listMaxHeightClass)}>
         {comments.map((c) => (
           <ApprovalCommentItem key={c.id} comment={c} />
         ))}
         {comments.length === 0 && (
-          <p className="py-6 text-center text-[12px] text-text-muted lg:py-8">No comments yet.</p>
+          <p className="py-8 text-center text-[14px] text-text-muted lg:py-10">No comments yet.</p>
         )}
       </div>
       {onSubmitComment ? (
-        <div className="border-t border-border-subtle p-2.5">
+        <div className="border-t border-border-subtle p-4">
           <ApprovalCommentInput onSubmit={onSubmitComment} />
         </div>
       ) : null}
@@ -137,10 +137,10 @@ export function ApprovalCommentInput({ onSubmit }: { onSubmit: (text: string) =>
         onChange={handleChange}
         rows={3}
         placeholder="Add a comment... Use @ to tag"
-        className="w-full resize-none rounded-md border border-border-default bg-white px-2.5 py-2 text-[12px] leading-relaxed text-text-primary outline-none placeholder:text-text-muted focus:border-cb-orange"
+        className="w-full resize-none rounded-md border border-border-default bg-white px-4 py-3 text-[14px] leading-relaxed text-text-primary outline-none placeholder:text-text-muted focus:border-cb-orange"
       />
       {showTagDropdown && filteredUsers.length > 0 && (
-        <div className="absolute bottom-[calc(100%+4px)] left-0 z-20 w-56 rounded-lg border border-border-default bg-white py-1 shadow-lg">
+        <div className="absolute bottom-[calc(100%+4px)] left-0 z-20 w-64 rounded-lg border border-border-default bg-white py-1.5 shadow-lg">
           {filteredUsers.map((u) => (
             <button
               key={u.name}
@@ -149,18 +149,18 @@ export function ApprovalCommentInput({ onSubmit }: { onSubmit: (text: string) =>
                 e.preventDefault();
                 insertTag(u.name);
               }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-surface-muted"
+              className="flex w-full items-center gap-2.5 px-4 py-3 text-left hover:bg-surface-muted"
             >
-              <User size={12} className="shrink-0 text-text-muted" />
+              <User size={15} className="shrink-0 text-text-muted" />
               <div>
-                <p className="text-[12px] font-medium text-text-primary">{u.name}</p>
-                <p className="text-[10px] text-text-muted">{u.role}</p>
+                <p className="text-[14px] font-medium text-text-primary">{u.name}</p>
+                <p className="text-[12px] text-text-muted">{u.role}</p>
               </div>
             </button>
           ))}
         </div>
       )}
-      <div className="mt-1.5 flex items-center justify-between">
+      <div className="mt-3 flex items-center justify-between">
         <button
           type="button"
           onClick={() => {
@@ -169,14 +169,14 @@ export function ApprovalCommentInput({ onSubmit }: { onSubmit: (text: string) =>
             setShowTagDropdown(true);
             setTagQuery("");
           }}
-          className="flex items-center gap-1 text-[11px] text-text-muted transition-colors hover:text-text-secondary"
+          className="flex items-center gap-1.5 text-[13px] text-text-muted transition-colors hover:text-text-secondary"
         >
-          <AtSign size={11} /> Tag
+          <AtSign size={14} /> Tag
         </button>
         <button
           type="button"
           onClick={handleSubmit}
-          className="rounded-md bg-[#012A38] px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-[#01374a]"
+          className="rounded-md bg-[#012A38] px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#01374a]"
         >
           Post
         </button>

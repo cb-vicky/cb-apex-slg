@@ -97,11 +97,19 @@ export function ContractStageContent({ contract, graceExtension, onBack, onOpenC
         onClick={() =>
           openDrawer({
             entityType: "transition",
-            mode: "transition",
+            mode: "late_renewal",
             context: {
               customerId: contract.customerId,
               contractId: contract.id,
               latePhase: "extend",
+            },
+            flow: {
+              scenario: "late_grace",
+              step: "grace_extend",
+              furthestUnlockedStep: "grace_extend",
+              customerId: contract.customerId,
+              contractId: contract.id,
+              showStepper: true,
             },
           })
         }
@@ -119,6 +127,14 @@ export function ContractStageContent({ contract, graceExtension, onBack, onOpenC
               customerId: contract.customerId,
               contractId: contract.id,
               latePhase: "resolve",
+            },
+            flow: {
+              scenario: "late_grace",
+              step: "grace_extend",
+              furthestUnlockedStep: "grace_extend",
+              customerId: contract.customerId,
+              contractId: contract.id,
+              showStepper: true,
             },
           })
         }
@@ -185,7 +201,7 @@ export function ContractStageContent({ contract, graceExtension, onBack, onOpenC
           "inline-flex h-7 w-7 items-center justify-center rounded-full border transition-colors",
           menuOpen
             ? "border-border-default bg-surface-muted text-text-primary"
-            : "border-[#E4E5E8] bg-[#F0F1F3] text-text-secondary hover:border-border-default hover:bg-[#E8E9EC] hover:text-text-primary",
+            : "border-gray-200 bg-gray-100 text-text-secondary hover:border-border-default hover:bg-gray-200 hover:text-text-primary",
         )}
         aria-label="More actions"
       >
@@ -214,7 +230,7 @@ export function ContractStageContent({ contract, graceExtension, onBack, onOpenC
   ) : null;
 
   return (
-    <div className="relative flex flex-col gap-4">
+    <div className="relative flex flex-col gap-6">
       <RecordHeader
         stickyBar
         id={contract.id}
@@ -260,6 +276,14 @@ export function ContractStageContent({ contract, graceExtension, onBack, onOpenC
                   customerId: contract.customerId,
                   contractId: contract.id,
                   latePhase: "resolve",
+                },
+                flow: {
+                  scenario: "late_grace",
+                  step: "grace_extend",
+                  furthestUnlockedStep: "grace_extend",
+                  customerId: contract.customerId,
+                  contractId: contract.id,
+                  showStepper: true,
                 },
               })
             }

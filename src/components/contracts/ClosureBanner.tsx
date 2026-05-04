@@ -49,8 +49,8 @@ export function ClosureBanner({ closure }: Props) {
           <h3 className="text-[14px] font-semibold text-amber-900">
             Contract closing on {formatDate(closure.effectiveDate)}
           </h3>
-          <span className="flex items-center gap-1 rounded-full bg-amber-200 px-2 py-0.5 text-[11px] font-medium text-amber-800">
-            <Clock size={10} />
+          <span className="flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[12px] font-medium leading-4 text-amber-700">
+            <Clock size={12} />
             {daysRemaining} day{daysRemaining !== 1 ? "s" : ""} remaining
           </span>
         </div>

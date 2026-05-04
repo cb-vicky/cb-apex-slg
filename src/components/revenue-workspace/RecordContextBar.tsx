@@ -32,7 +32,7 @@ function ActionButton({ icon: Icon, label }: { icon?: LucideIcon; label: string 
     <button
       type="button"
       className={cn(
-        "inline-flex h-7 shrink-0 items-center rounded-full border border-[#E4E5E8] bg-[#F0F1F3] px-3 text-[12px] font-medium leading-none text-text-secondary transition-colors hover:border-border-default hover:bg-[#E8E9EC] hover:text-text-primary",
+        "inline-flex h-7 shrink-0 items-center rounded-full border border-gray-200 bg-gray-100 px-3 text-[13px] font-medium leading-none text-text-secondary transition-colors hover:border-border-default hover:bg-gray-200 hover:text-text-primary",
         Icon ? "gap-1.5" : undefined,
       )}
     >
@@ -47,7 +47,7 @@ function BackButton({ onBack }: { onBack: () => void }) {
     <button
       type="button"
       onClick={onBack}
-      className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full border border-[#E4E5E8] bg-[#F0F1F3] px-3 text-[12px] font-medium leading-none text-text-secondary transition-colors hover:border-border-default hover:bg-[#E8E9EC] hover:text-text-primary"
+      className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-3 text-[13px] font-medium leading-none text-text-secondary transition-colors hover:border-border-default hover:bg-gray-200 hover:text-text-primary"
     >
       <LayoutList size={12} className="shrink-0" />
       All

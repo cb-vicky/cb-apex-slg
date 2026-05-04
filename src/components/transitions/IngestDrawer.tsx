@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useUnifiedDrawerChrome } from "@/context/UnifiedDrawerChromeContext";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, MessageSquare, PanelRightOpen, X } from "lucide-react";
 import type { DrawerEntityType, DrawerMode, EntityState, TransitionDrawerIntent } from "@/data/contract-transition";
@@ -51,7 +52,8 @@ import {
 } from "./ingest-drawer-derive";
 import { ApprovalPanelOverlay } from "./ApprovalPanelOverlay";
 import { IngestDocumentPreviewPane } from "./IngestDocumentPreviewPane";
-import { openDrawer } from "@/store/drawer-store";
+import { getDrawerState, openDrawer, patchFlowSession } from "@/store/drawer-store";
+import { useDrawerStore } from "@/store/useDrawerStore";
 
 function addDays(isoDate: string, days: number): string {
   const d = new Date(isoDate + "T12:00:00");
@@ -90,6 +92,10 @@ export interface IngestDrawerProps {
   onClose: () => void;
   /** Full-page queue ingest: wider layout with comments column (used from `/queue/:id`). */
   presentation?: "drawer" | "page";
+  /** When true, the sticky chrome is rendered by `UnifiedFlowShell` instead. */
+  omitHeader?: boolean;
+  /** Unified flow: approver recap on Map & terms — same layout, fields non-editable. */
+  readOnly?: boolean;
 }
 
 export function IngestDrawer({
@@ -99,6 +105,8 @@ export function IngestDrawer({
   context,
   onClose,
   presentation = "drawer",
+  omitHeader = false,
+  readOnly = false,
 }: IngestDrawerProps) {
   const navigate = useNavigate();
   const ingestCtx = useIngestContext();
@@ -113,23 +121,30 @@ export function IngestDrawer({
     addSessionContract,
     addSessionInvoice,
     setIngestResult,
-    submitInvoiceForApproval,
     setPendingRenewalIngestion,
     contractGraceExtensions,
     setContractGraceExtension,
     showRenewalToast,
-    setInvoiceStatusOverride,
     approvalRequests,
     addApprovalComment,
     ensureQueueIngestDiscussion,
+    submitInvoiceForApproval,
   } = ingestCtx;
 
   const { persona } = useDemoPersona();
+  const { flow: drawerFlow } = useDrawerStore();
+  const { setTrailingActions } = useUnifiedDrawerChrome();
 
   const queueItem = useMemo(
     () => (entityId ? queueItems.find((q) => q.id === entityId) : undefined),
     [entityId, queueItems],
   );
+
+  /** Unified ingest shell: Early Renewal queue rows stay on the renewal intent (same IA as operator mapping). */
+  useEffect(() => {
+    if (!omitHeader || !queueItem || queueItem.scenario !== "Early Renewal") return;
+    setIntent("early_renewal");
+  }, [omitHeader, queueItem?.id, queueItem?.scenario]);
 
   const mergedCustomers = useMemo(() => {
     const byId = new Map(seedCustomers.map((c) => [c.id, c]));
@@ -189,8 +204,8 @@ export function IngestDrawer({
   });
   const [entityStatus, setEntityStatus] = useState<EntityState>(() => {
     const q = entityId ? ingestCtx.queueItems.find((x) => x.id === entityId) : undefined;
-    if (q?.status === "Ingested") return "executed";
-    if (q?.status === "Pending Review") return "queued";
+    if (q?.status === "Ingested" || q?.status === "Invoice review") return "executed";
+    if (q?.status === "Pending Review" || q?.status === "Returned") return "queued";
     if (q?.status === "In Progress") return "in_progress";
     return "draft";
   });
@@ -239,6 +254,10 @@ export function IngestDrawer({
 
   const isQueueIngest = entityType === "queue_item" && mode === "ingest";
   const isPageWorkspace = presentation === "page" && isQueueIngest;
+  const useUnifiedIngestGrid = Boolean(
+    omitHeader && presentation === "drawer" && isQueueIngest && drawerFlow?.scenario === "ingest_invoice",
+  );
+  const triColQueueIngest = isQueueIngest && (isPageWorkspace || useUnifiedIngestGrid);
 
   const pageApproval = useMemo(
     () => (queueItem ? approvalRequests.find((r) => r.ingestId === queueItem.id) : undefined),
@@ -246,18 +265,12 @@ export function IngestDrawer({
   );
 
   useLayoutEffect(() => {
-    if (!isPageWorkspace || !queueItem) return;
+    if (!triColQueueIngest || !queueItem) return;
     ensureQueueIngestDiscussion(queueItem.id, {
       customerId: queueItem.customerId,
       customerName: queueItem.customerName,
     });
-  }, [
-    isPageWorkspace,
-    queueItem?.id,
-    queueItem?.customerId,
-    queueItem?.customerName,
-    ensureQueueIngestDiscussion,
-  ]);
+  }, [triColQueueIngest, queueItem, ensureQueueIngestDiscussion]);
 
   useEffect(() => {
     if (isQueueIngest) {
@@ -364,6 +377,20 @@ export function IngestDrawer({
       ? { message: productMismatchIssue.message, detail: productMismatchIssue.detail }
       : null;
 
+  const showUnifiedOperatorFooter =
+    Boolean(
+      omitHeader &&
+        drawerFlow?.scenario === "ingest_invoice" &&
+        drawerFlow.step === "ingest" &&
+        persona === "operator" &&
+        isQueueIngest &&
+        (intent === "new_deal" || intent === "early_renewal") &&
+        queueItem &&
+        (queueItem.status === "Pending Review" ||
+          queueItem.status === "In Progress" ||
+          queueItem.status === "Returned"),
+    );
+
   const transitionType = transitionTypeFromIntent(intent) ?? "new_deal";
   const summaryType =
     intent === "late_extend" && latePhase === "resolve" ? "late_renewal" : transitionType;
@@ -415,6 +442,17 @@ export function IngestDrawer({
 
   function openLinkedInvoiceApproval() {
     if (!queueItem?.invoiceId) return;
+    const { flow } = getDrawerState();
+    if (flow?.scenario === "ingest_invoice") {
+      patchFlowSession({
+        step: "invoice_review",
+        furthestUnlockedStep: "invoice_review",
+        invoiceId: queueItem.invoiceId,
+        queueItemId: queueItem.id,
+        ingestReadOnly: false,
+      });
+      return;
+    }
     onClose();
     openDrawer({
       entityType: "invoice",
@@ -437,6 +475,14 @@ export function IngestDrawer({
       customerId: q.customerId,
       pendingContractId: "CON-2026-0VH1",
     });
+    const { flow } = getDrawerState();
+    if (flow?.scenario === "ingest_invoice") {
+      patchFlowSession({
+        step: "close_prior",
+        furthestUnlockedStep: "close_prior",
+      });
+      return;
+    }
     onClose();
     navigate(
       `/customers/${q.customerId}?tab=contract&contractId=${q.activeContractId}&closeIntent=early-renewal&queueItemId=${q.id}`,
@@ -504,7 +550,7 @@ export function IngestDrawer({
         contractId,
         date: startDate,
         amount: invoiceAmount,
-        status: "Pending Approval",
+        status: "Pending Review",
       }),
     );
 
@@ -516,29 +562,74 @@ export function IngestDrawer({
     });
     setIngestResult(result);
 
-    submitInvoiceForApproval(invoiceId, {
-      customerId: resolvedCustomerId,
-      customerName: sessionCustomer.name,
-      invoiceAmount,
-      invoiceDate: startDate,
-      ingestId: q.id,
-    });
-    setInvoiceStatusOverride(invoiceId, "Pending Approval");
-
     applyQueueItemOverride(q.id, {
-      status: "Ingested",
+      status: "Invoice review",
       contractId,
       invoiceId,
       customerId: resolvedCustomerId,
     });
-    setEntityStatus("pending_approval");
+    setEntityStatus("executed");
     if (isPageWorkspace) {
       navigate(`/contracts/${contractId}`);
+      openDrawer({
+        entityType: "queue_item",
+        mode: "ingest",
+        entityId: q.id,
+        flow: {
+          scenario: "ingest_invoice",
+          step: "invoice_review",
+          furthestUnlockedStep: "invoice_review",
+          queueItemId: q.id,
+          invoiceId,
+          contractId,
+          customerId: resolvedCustomerId,
+        },
+      });
       return;
     }
-    // Drawer: close overlay; user stays on the underlying page (no redirect / no chained drawer).
+    const { flow } = getDrawerState();
+    if (flow?.scenario === "ingest_invoice") {
+      patchFlowSession({
+        step: "invoice_review",
+        furthestUnlockedStep: "invoice_review",
+        invoiceId,
+        contractId,
+        customerId: resolvedCustomerId,
+        queueItemId: q.id,
+      });
+      return;
+    }
     onClose();
   }
+
+  const runIngestRef = useRef(handleExecuteIngest);
+  runIngestRef.current = handleExecuteIngest;
+
+  useEffect(() => {
+    if (!showUnifiedOperatorFooter || !queueItem) {
+      setTrailingActions(null);
+      return;
+    }
+    setTrailingActions(
+      <button
+        type="button"
+        disabled={!queueItem.ingestable || !queueItem.sampleId || validation.flags.hasBlockingErrors}
+        onClick={() => runIngestRef.current(queueItem)}
+        className="inline-flex items-center gap-1.5 rounded-md bg-[color:var(--color-info)] px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        Next
+        <ChevronRight size={14} className="opacity-90" aria-hidden />
+      </button>,
+    );
+    return () => setTrailingActions(null);
+  }, [
+    showUnifiedOperatorFooter,
+    queueItem,
+    queueItem?.ingestable,
+    queueItem?.sampleId,
+    validation.flags.hasBlockingErrors,
+    setTrailingActions,
+  ]);
 
   function handleConfigureExtension() {
     if (!context?.contractId || !context.customerId) return;
@@ -553,6 +644,25 @@ export function IngestDrawer({
     });
     setEntityStatus("executed");
     showRenewalToast("Grace extension recorded — resolve before period ends.", context.customerId);
+    const { flow } = getDrawerState();
+    if (flow?.scenario === "late_grace") {
+      const graceInvId = `INV-GRACE-${context.contractId.replace(/[^A-Z0-9]/gi, "").slice(-8)}`;
+      submitInvoiceForApproval(graceInvId, {
+        customerId: context.customerId,
+        customerName:
+          mergedCustomers.find((c) => c.id === context.customerId)?.name ?? "Customer",
+        invoiceAmount: Math.round(extensionCharge),
+        invoiceDate: TODAY,
+      });
+      patchFlowSession({
+        step: "approval",
+        furthestUnlockedStep: "approval",
+        invoiceId: graceInvId,
+        contractId: context.contractId,
+        customerId: context.customerId,
+      });
+      return;
+    }
     onClose();
     navigate(`/customers/${context.customerId}?tab=contract&contractId=${context.contractId}`);
   }
@@ -569,6 +679,25 @@ export function IngestDrawer({
       }),
       resolved: true,
     });
+    const { flow } = getDrawerState();
+    if (flow?.scenario === "late_grace") {
+      const resInvId = `INV-GRACE-RESOLVE-${context.contractId.replace(/[^A-Z0-9]/gi, "").slice(-8)}`;
+      submitInvoiceForApproval(resInvId, {
+        customerId: context.customerId,
+        customerName:
+          mergedCustomers.find((c) => c.id === context.customerId)?.name ?? "Customer",
+        invoiceAmount: 0,
+        invoiceDate: TODAY,
+      });
+      patchFlowSession({
+        step: "approval",
+        furthestUnlockedStep: "approval",
+        invoiceId: resInvId,
+        contractId: context.contractId,
+        customerId: context.customerId,
+      });
+      return;
+    }
     onClose();
     navigate(`/customers/${context.customerId}?tab=contract&contractId=${context.contractId}`);
   }
@@ -583,9 +712,15 @@ export function IngestDrawer({
           : `Scheduled to activate on ${startDate} (${invoiceTiming === "on_activation" ? "invoice held until activation" : "invoice on approval"}).`;
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col bg-white">
+    <div
+      className={cn(
+        "relative flex min-h-0 flex-col bg-white",
+        omitHeader ? "min-h-0 flex-1 overflow-hidden" : "h-full",
+      )}
+    >
       {/* Sticky header + primary actions (top-right only) */}
-      <header className="sticky top-0 z-20 shrink-0 border-b border-[#F0F1F3] bg-white">
+      {!omitHeader ? (
+      <header className="sticky top-0 z-20 shrink-0 border-b border-gray-100 bg-white">
         {queueItem ? (
           <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-2.5">
             <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -633,9 +768,9 @@ export function IngestDrawer({
               <button
                 type="button"
                 onClick={openIngestCommentsPage}
-                className="inline-flex items-center gap-1 rounded-md border border-border-default px-2.5 py-1.5 text-[12px] font-medium text-text-secondary hover:bg-surface-muted"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border-default px-3 py-2 text-[13px] font-medium text-text-secondary hover:bg-surface-muted"
               >
-                <MessageSquare size={12} />
+                <MessageSquare size={14} />
                 Open comments
               </button>
               {isQueueIngest &&
@@ -646,25 +781,30 @@ export function IngestDrawer({
                   <button
                     type="button"
                     onClick={openLinkedInvoiceApproval}
-                    className="rounded-md bg-emerald-600 px-4 py-1.5 text-[12px] font-semibold text-white shadow-sm hover:bg-emerald-500"
+                    className="rounded-md bg-emerald-600 px-4 py-2 text-[13px] font-semibold text-white shadow-sm hover:bg-emerald-500"
                   >
                     Review invoice
                   </button>
                 )}
               {isQueueIngest && intent === "new_deal" && !(queueItem.status === "Ingested" && persona === "approver") && (
                 <>
-                  {queueItem.status !== "Ingested" && (
+                  {queueItem.status !== "Ingested" &&
+                    queueItem.status !== "Invoice review" && (
                     <button
                       type="button"
                       onClick={handleSaveDraft}
-                      className="rounded-md border border-border-default px-3 py-1.5 text-[12px] font-medium text-text-secondary hover:bg-surface-muted"
+                      className="rounded-md border border-border-default px-3.5 py-2 text-[13px] font-medium text-text-secondary hover:bg-surface-muted"
                     >
                       Save draft
                     </button>
                   )}
                   {queueItem.status === "Ingested" ? (
-                    <span className="rounded-md border border-border-subtle bg-surface-muted px-3 py-1.5 text-[12px] font-medium text-text-secondary">
-                      Ingested · invoice pending approval
+                    <span className="rounded-md border border-border-subtle bg-surface-muted px-3.5 py-2 text-[13px] font-medium text-text-secondary">
+                      Ingested · awaiting approver
+                    </span>
+                  ) : queueItem.status === "Invoice review" ? (
+                    <span className="rounded-md border border-amber-200 bg-amber-50 px-3.5 py-2 text-[13px] font-medium text-amber-950">
+                      Invoice review · send for approval
                     </span>
                   ) : (
                     <button
@@ -675,7 +815,7 @@ export function IngestDrawer({
                         validation.flags.hasBlockingErrors
                       }
                       onClick={() => queueItem && handleExecuteIngest(queueItem)}
-                      className="rounded-md bg-[color:var(--color-info)] px-4 py-1.5 text-[12px] font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="rounded-md bg-[color:var(--color-info)] px-4 py-2 text-[13px] font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Ingest contract
                     </button>
@@ -687,7 +827,7 @@ export function IngestDrawer({
                   <button
                     type="button"
                     onClick={handleSaveDraft}
-                    className="rounded-md border border-border-default px-3 py-1.5 text-[12px] font-medium text-text-secondary hover:bg-surface-muted"
+                    className="rounded-md border border-border-default px-3.5 py-2 text-[13px] font-medium text-text-secondary hover:bg-surface-muted"
                   >
                     Save draft
                   </button>
@@ -695,7 +835,7 @@ export function IngestDrawer({
                     <button
                       type="button"
                       onClick={() => queueItem && handleEarlyRenewalQueueFinish(queueItem)}
-                      className="rounded-md bg-[color:var(--color-info)] px-4 py-1.5 text-[12px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
+                      className="rounded-md bg-[color:var(--color-info)] px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
                     >
                       Proceed to close prior contract
                     </button>
@@ -711,7 +851,7 @@ export function IngestDrawer({
                           );
                         }
                       }}
-                      className="rounded-md bg-[color:var(--color-info)] px-4 py-1.5 text-[12px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
+                      className="rounded-md bg-[color:var(--color-info)] px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
                     >
                       Continue in workspace
                     </button>
@@ -805,45 +945,58 @@ export function IngestDrawer({
           </div>
         )}
       </header>
+      ) : null}
 
-      {/* Body — queue ingest: drawer = rail + preview; full page = 25% / 25% / 50% (fields · comments · document). */}
+      {/* Body — queue ingest: tri-column (comments · fields · preview) or narrow rail + preview. */}
       <div
         className={cn(
-          "relative min-h-0 flex-1",
-          isPageWorkspace
-            ? "grid min-w-0 auto-rows-[minmax(0,1fr)] grid-cols-[minmax(0,25%)_minmax(0,25%)_minmax(0,50%)]"
+          "relative min-h-0 flex-1 overflow-hidden",
+          triColQueueIngest
+            ? "grid min-h-0 min-w-0 grid-cols-[minmax(0,25%)_minmax(0,35%)_minmax(0,40%)] [grid-template-rows:minmax(0,1fr)]"
             : "flex min-w-0",
         )}
       >
         {isQueueIngest ? (
-          <>
-            <div
-              className={cn(
-                "flex min-h-0 min-w-0 flex-col overflow-hidden",
-                isPageWorkspace
-                  ? "border-r border-border-default"
-                  : "w-full sm:w-[420px] sm:min-w-[420px] sm:max-w-[420px] sm:shrink-0",
-              )}
-            >
-              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-[13px] leading-snug">
-                {queueItem && !queueItem.ingestable && (
-                  <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-[12px] text-amber-900">
-                    This queue item is not ingestable in the prototype. Use{" "}
-                    <button type="button" className="font-semibold underline" onClick={openIngestCommentsPage}>
-                      Open comments
-                    </button>{" "}
-                    for manual handling.
-                  </div>
-                )}
+          triColQueueIngest ? (
+            <>
+              <div className="min-h-0 max-h-full min-w-0 overflow-y-auto overscroll-y-contain border-r border-border-default bg-gray-50">
+                <div className="p-4">
+                  <ApprovalCommentsCard
+                    id="ingest-comments-tricol"
+                    comments={pageApproval?.comments ?? []}
+                    onSubmitComment={readOnly || !queueItem ? undefined : handlePageIngestComment}
+                    listMaxHeightClass="max-h-[calc(100vh-260px)]"
+                  />
+                </div>
+              </div>
+              <div className="min-h-0 max-h-full min-w-0 overflow-y-auto overscroll-y-contain border-r border-border-default">
+                <div className="px-6 py-5 text-[14px] leading-snug">
+                  {queueItem && !queueItem.ingestable && (
+                    <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3 text-[13px] text-amber-900">
+                      This queue item is not ingestable in the prototype. Use{" "}
+                      {readOnly ? (
+                        <span className="font-semibold">Open comments</span>
+                      ) : (
+                        <button type="button" className="font-semibold underline" onClick={openIngestCommentsPage}>
+                          Open comments
+                        </button>
+                      )}{" "}
+                      for manual handling.
+                    </div>
+                  )}
 
-                <div className="flex flex-col gap-6">
-                  {showIntentSelector && (
+                  <fieldset
+                    disabled={readOnly}
+                    className="min-w-0 border-0 p-0 disabled:opacity-[0.92]"
+                  >
+                    <div className="flex min-w-0 flex-col gap-6">
+                  {showIntentSelector && !readOnly && (
                     <TransitionIntentSelector value={intent} onChange={setIntent} allowed={allowedIntents} />
                   )}
 
                   {queueItem && (
                     <div className="border-b border-border-subtle pb-6">
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[12px]">
+                      <div className="grid grid-cols-2 gap-x-5 gap-y-3 text-[13px]">
                         <span className="text-text-muted">Source</span>
                         <span className="text-right font-medium text-text-primary">{queueItem.source}</span>
                         <span className="text-text-muted">Uploaded</span>
@@ -872,7 +1025,7 @@ export function IngestDrawer({
                     showNewCustomerKvSummary={showNewCustomerKvSummary}
                     onEditNewCustomer={() => setNewCustomerAcknowledged(false)}
                   />
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-col gap-2">
                     <PrepaidOnlyBillingSelect kind={billingKind} onKindChange={setBillingKind} />
                     <DrawerRailIndent>
                       <ContractProcessingSummarySection tcv={tcv} startDate={startDate} />
@@ -931,25 +1084,11 @@ export function IngestDrawer({
                     </>
                   )}
                   {extracted && <div className="border-t border-border-default" />}
+                    </div>
+                  </fieldset>
                 </div>
               </div>
-            </div>
-
-            {isPageWorkspace && (
-              <div className="flex min-h-0 min-w-0 flex-col border-r border-border-default bg-[#FAFAFA]">
-                <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                  <ApprovalCommentsCard
-                    id="ingest-comments"
-                    comments={pageApproval?.comments ?? []}
-                    onSubmitComment={queueItem ? handlePageIngestComment : undefined}
-                    listMaxHeightClass="max-h-[calc(100vh-220px)]"
-                  />
-                </div>
-              </div>
-            )}
-
-            {isPageWorkspace ? (
-              <div className="flex min-h-0 min-w-0 flex-col overflow-hidden border-l border-border-default">
+              <div className="flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden border-l border-border-default">
                 {!ingestPreviewCollapsed ? (
                   <IngestDocumentPreviewPane
                     extracted={extracted}
@@ -957,7 +1096,7 @@ export function IngestDrawer({
                     onCollapse={() => setIngestPreviewCollapsed(true)}
                   />
                 ) : (
-                  <div className="flex min-h-0 flex-1 flex-row bg-[#EEF0F2]">
+                  <div className="flex min-h-0 flex-1 flex-row bg-gray-100">
                     <div className="min-h-0 min-w-0 flex-1" aria-hidden />
                     <div className="flex shrink-0 border-l border-border-default bg-white">
                       <button
@@ -973,7 +1112,120 @@ export function IngestDrawer({
                   </div>
                 )}
               </div>
-            ) : (
+            </>
+          ) : (
+            <>
+              <div className="flex min-h-0 min-w-0 w-full flex-col overflow-hidden sm:w-[420px] sm:min-w-[420px] sm:max-w-[420px] sm:shrink-0">
+                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-[13px] leading-snug">
+                  {queueItem && !queueItem.ingestable && (
+                    <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-[12px] text-amber-900">
+                      This queue item is not ingestable in the prototype. Use{" "}
+                      <button type="button" className="font-semibold underline" onClick={openIngestCommentsPage}>
+                        Open comments
+                      </button>{" "}
+                      for manual handling.
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-6">
+                    {showIntentSelector && (
+                      <TransitionIntentSelector value={intent} onChange={setIntent} allowed={allowedIntents} />
+                    )}
+
+                    {queueItem && (
+                      <div className="border-b border-border-subtle pb-6">
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[12px]">
+                          <span className="text-text-muted">Source</span>
+                          <span className="text-right font-medium text-text-primary">{queueItem.source}</span>
+                          <span className="text-text-muted">Uploaded</span>
+                          <span className="text-right font-medium text-text-primary">
+                            {shortDate(queueItem.uploadedAt)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    <CustomerMappingSection
+                      customers={mergedCustomers}
+                      selectedCustomerId={customerId}
+                      onSelectCustomer={setCustomerId}
+                      allowCreateNew={Boolean(queueItem && !queueItem.customerId)}
+                      newCustomer={newCustomer}
+                      onNewCustomerChange={(p) => setNewCustomer((prev) => ({ ...prev, ...p }))}
+                      activeContractSummary={
+                        activeContract ? `${activeContract.id} · ${currency(activeContract.tcv)} TCV` : null
+                      }
+                      createCustomerIssue={createCustomerIssueForDrawer}
+                      onConfirmCreateCustomer={() => {
+                        if (newCustomerComplete) setNewCustomerAcknowledged(true);
+                      }}
+                      createCustomerConfirmDisabled={!newCustomerComplete}
+                      showNewCustomerKvSummary={showNewCustomerKvSummary}
+                      onEditNewCustomer={() => setNewCustomerAcknowledged(false)}
+                    />
+                    <div className="flex flex-col gap-1.5">
+                      <PrepaidOnlyBillingSelect kind={billingKind} onKindChange={setBillingKind} />
+                      <DrawerRailIndent>
+                        <ContractProcessingSummarySection tcv={tcv} startDate={startDate} />
+                      </DrawerRailIndent>
+                    </div>
+                    <TransitionContractTermsSection
+                      variant="flat"
+                      startDate={startDate}
+                      endDate={endDate}
+                      onStartChange={setStartDate}
+                      onEndChange={setEndDate}
+                      billingFrequency={billingFrequency}
+                      onFrequencyChange={setBillingFrequency}
+                      autoRenew={autoRenew}
+                      onAutoRenewChange={setAutoRenew}
+                      activationSummary={activationSummary}
+                    />
+                    {intent !== "new_deal" && (
+                      <ContractTransitionSection
+                        variant="drawer"
+                        intent={intent}
+                        executionDate={executionDate}
+                        onExecutionDateChange={setExecutionDate}
+                        settlementMethod={settlementMethod}
+                        onSettlementMethodChange={setSettlementMethod}
+                        amendmentDelta={tcv * 0.04}
+                        graceDays={graceDays}
+                        onGraceDaysChange={setGraceDays}
+                        graceBilling={graceBilling}
+                        onGraceBillingChange={setGraceBilling}
+                        resolution={resolution}
+                        onResolutionChange={setResolution}
+                        latePhase={latePhase}
+                      />
+                    )}
+                    {intent !== "new_deal" && (
+                      <FinancialPreviewSection
+                        variant="drawer"
+                        intent={intent}
+                        tcv={tcv}
+                        settlementAmount={settlementAmount}
+                        extensionCharge={extensionCharge}
+                        billingKind={billingKind}
+                      />
+                    )}
+                    {extracted && (
+                      <>
+                        <div className="border-t border-border-default pt-2" />
+                        <CatalogMappingSection
+                          layout="drawer"
+                          products={extracted.products}
+                          onMarkMapped={(sku) => addSessionProductSku(sku)}
+                          catalogMappingIssue={catalogMappingIssueForDrawer}
+                          sessionMappedSkus={sessionProductSkus}
+                        />
+                      </>
+                    )}
+                    {extracted && <div className="border-t border-border-default" />}
+                  </div>
+                </div>
+              </div>
+
               <>
                 <div
                   className={cn(
@@ -1002,8 +1254,8 @@ export function IngestDrawer({
                   </div>
                 )}
               </>
-            )}
-          </>
+            </>
+          )
         ) : (
           <>
             <div className="min-w-0 flex-1 overflow-y-auto px-4 py-3">

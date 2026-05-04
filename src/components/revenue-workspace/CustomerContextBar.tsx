@@ -289,7 +289,7 @@ function Breadcrumbs({
 
 function SearchInput() {
   return (
-    <div className="flex h-8 w-[280px] shrink-0 items-center gap-2 rounded-full border border-border-default bg-[#F7F7F8] px-3 text-[13px] text-text-muted">
+    <div className="flex h-8 w-[280px] shrink-0 items-center gap-2 rounded-full border border-border-default bg-gray-50 px-3 text-[13px] text-text-muted">
       <Search size={14} className="shrink-0 opacity-80" strokeWidth={2.2} aria-hidden />
       <span className="flex-1 truncate">Search anything...</span>
       <kbd className="inline-flex shrink-0 items-center gap-0.5 font-medium text-blue-600">
@@ -303,12 +303,12 @@ function SearchInput() {
 function PriorityChipBadge({ chip }: { chip: PriorityChip }) {
   const classes =
     chip.severity === "red"
-      ? "bg-red-50 text-red-700 border border-red-100 border-l-2 border-l-red-400"
-      : "bg-amber-50 text-amber-700 border border-amber-100 border-l-2 border-l-amber-400";
+      ? "bg-red-50 text-red-700 border border-red-200"
+      : "bg-amber-50 text-amber-700 border border-amber-200";
   return (
     <span
       className={cn(
-        "inline-flex h-6 items-center gap-1 rounded-md px-2 text-[11px] uppercase tracking-wide leading-none",
+        "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[12px] font-medium leading-4",
         classes,
       )}
     >
@@ -320,8 +320,8 @@ function PriorityChipBadge({ chip }: { chip: PriorityChip }) {
 
 function MetricInline({ metric }: { metric: ContextMetric }) {
   return (
-    <div className="inline-flex h-6 items-center gap-1.5 whitespace-nowrap rounded-md border border-border-default bg-surface-muted/40 px-2 leading-none">
-      <span className="text-[10px] font-medium uppercase tracking-wider text-text-muted">{metric.label}</span>
+    <div className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-gray-200 bg-gray-100 px-2 py-0.5 leading-4">
+      <span className="text-[11px] font-medium uppercase tracking-wider text-text-muted">{metric.label}</span>
       <span className="text-[12px] font-semibold tabular-nums text-text-primary">{metric.value}</span>
     </div>
   );

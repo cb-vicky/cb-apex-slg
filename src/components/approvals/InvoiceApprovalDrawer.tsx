@@ -26,9 +26,9 @@ function Toast({ message, onDone }: { message: string; onDone: () => void }) {
   }, [onDone]);
 
   return (
-    <div className="fixed bottom-6 right-6 z-[70] flex items-center gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 shadow-lg">
-      <CheckCircle2 size={16} className="shrink-0 text-emerald-600" />
-      <p className="text-[13px] font-medium text-emerald-700">{message}</p>
+    <div className="fixed bottom-6 right-6 z-[70] flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-3.5 shadow-lg">
+      <CheckCircle2 size={18} className="shrink-0 text-emerald-600" />
+      <p className="text-[14px] font-medium text-emerald-700">{message}</p>
     </div>
   );
 }
@@ -44,22 +44,22 @@ function RejectForm({
 }) {
   const [reason, setReason] = useState("");
   return (
-    <div className="rounded-lg border border-red-200 bg-red-50/50 p-4">
-      <p className="mb-2 text-[12px] font-semibold text-red-700">Rejection Reason</p>
+    <div className="rounded-lg border border-red-200 bg-red-50/50 p-5">
+      <p className="mb-3 text-[13px] font-medium text-red-700">Rejection reason</p>
       <textarea
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         rows={3}
         placeholder={rejectPlaceholder}
-        className="w-full resize-none rounded-lg border border-red-200 bg-white px-3 py-2 text-[12px] text-text-primary outline-none placeholder:text-text-muted focus:border-red-400"
+        className="w-full resize-none rounded-md border border-red-200 bg-white px-3 py-2.5 text-[14px] leading-relaxed text-text-primary shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none transition-colors placeholder:text-text-muted focus:border-red-400 focus:ring-2 focus:ring-red-100"
       />
-      <div className="mt-2 flex gap-2">
+      <div className="mt-4 flex gap-3">
         <button
           type="button"
           onClick={() => onConfirm(reason)}
           disabled={!reason.trim()}
           className={cn(
-            "rounded-md px-3 py-1.5 text-[12px] font-medium text-white transition-colors",
+            "rounded-md px-4 py-2.5 text-[14px] font-medium text-white transition-colors",
             reason.trim() ? "bg-red-600 hover:bg-red-500" : "cursor-not-allowed bg-gray-300",
           )}
         >
@@ -68,7 +68,7 @@ function RejectForm({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md border border-border-default px-3 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:bg-surface-muted"
+          className="rounded-md border border-border-default px-4 py-2.5 text-[14px] font-medium text-text-secondary transition-colors hover:bg-surface-muted"
         >
           Cancel
         </button>
@@ -82,9 +82,16 @@ export interface InvoiceApprovalDrawerProps {
   /** Queue item that produced this ingest-linked approval (optional). */
   queueItemId?: string;
   onClose: () => void;
+  /** Unified shell provides its own chrome. */
+  omitHeader?: boolean;
 }
 
-export function InvoiceApprovalDrawer({ invoiceId, queueItemId, onClose }: InvoiceApprovalDrawerProps) {
+export function InvoiceApprovalDrawer({
+  invoiceId,
+  queueItemId,
+  onClose,
+  omitHeader = false,
+}: InvoiceApprovalDrawerProps) {
   const navigate = useNavigate();
   const { persona } = useDemoPersona();
   const viewerIsApprover = persona === "approver";
@@ -105,6 +112,7 @@ export function InvoiceApprovalDrawer({ invoiceId, queueItemId, onClose }: Invoi
     sessionCustomers,
     addSessionContract,
     addSessionCustomer,
+    returnIngestToOperatorAfterReject,
   } = useIngestContext();
 
   const ingestId = queueItemId ?? "";
@@ -218,17 +226,27 @@ export function InvoiceApprovalDrawer({ invoiceId, queueItemId, onClose }: Invoi
 
   function handleReject(reason: string) {
     if (!approval || !invoiceId) return;
-    updateApprovalStatus(approval.id, "Rejected");
-    setInvoiceStatusOverride(invoiceId, "Cancelled");
+    const note = reason.includes("@") ? reason : `${reason} @Alex Nguyen`;
+    if (approval.ingestId) {
+      returnIngestToOperatorAfterReject({
+        queueItemId: approval.ingestId,
+        invoiceId,
+        contractId: contract?.id,
+        returnReason: note,
+      });
+    } else {
+      updateApprovalStatus(approval.id, "Rejected");
+      setInvoiceStatusOverride(invoiceId, "Cancelled");
+      addApprovalComment(approval.id, {
+        id: `ac-rej-${Date.now()}`,
+        author: "You",
+        role: "Billing Ops",
+        text: `${docUi.rejectCommentPrefix}. Reason: ${note}`,
+        timestamp: new Date().toISOString(),
+      });
+    }
     setRejected(true);
     setShowRejectForm(false);
-    addApprovalComment(approval.id, {
-      id: `ac-rej-${Date.now()}`,
-      author: "You",
-      role: "Billing Ops",
-      text: `${docUi.rejectCommentPrefix}. Reason: ${reason}`,
-      timestamp: new Date().toISOString(),
-    });
     setTimeout(() => {
       onClose();
     }, 1200);
@@ -254,7 +272,8 @@ export function InvoiceApprovalDrawer({ invoiceId, queueItemId, onClose }: Invoi
 
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-white">
-      <header className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#F0F1F3] bg-white px-5 py-2.5">
+      {!omitHeader ? (
+      <header className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-gray-100 bg-white px-5 py-2.5">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <button
             type="button"
@@ -286,7 +305,7 @@ export function InvoiceApprovalDrawer({ invoiceId, queueItemId, onClose }: Invoi
             <button
               type="button"
               onClick={handleOpenCommentsFullPage}
-              className="rounded-md border border-border-default bg-surface-muted px-3 py-1.5 text-[12px] font-medium text-text-secondary shadow-sm transition-colors hover:border-neutral-300 hover:bg-neutral-100/90 hover:text-text-primary"
+              className="rounded-md border border-border-default bg-surface-muted px-3.5 py-2 text-[13px] font-medium text-text-secondary shadow-sm transition-colors hover:border-neutral-300 hover:bg-neutral-100/90 hover:text-text-primary"
             >
               Open comments
             </button>
@@ -297,7 +316,7 @@ export function InvoiceApprovalDrawer({ invoiceId, queueItemId, onClose }: Invoi
                 type="button"
                 onClick={() => setShowRejectForm((v) => !v)}
                 className={cn(
-                  "rounded-md border px-3 py-1.5 text-[12px] font-medium transition-colors",
+                  "rounded-md border px-3.5 py-2 text-[13px] font-medium transition-colors",
                   showRejectForm
                     ? "border-neutral-300 bg-neutral-100 text-text-primary"
                     : "border-border-default bg-surface-muted text-text-secondary hover:bg-neutral-100/90 hover:text-text-primary",
@@ -308,7 +327,7 @@ export function InvoiceApprovalDrawer({ invoiceId, queueItemId, onClose }: Invoi
               <button
                 type="button"
                 onClick={handleApprove}
-                className="rounded-md bg-[color:var(--color-info)] px-4 py-1.5 text-[12px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
+                className="rounded-md bg-[color:var(--color-info)] px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
               >
                 Approve
               </button>
@@ -316,9 +335,10 @@ export function InvoiceApprovalDrawer({ invoiceId, queueItemId, onClose }: Invoi
           )}
         </div>
       </header>
+      ) : null}
 
       {awaitingApproverDecision && !viewerIsApprover && (
-        <div className="border-b border-amber-200/70 bg-amber-50 px-5 py-2 text-[12px] leading-snug text-amber-950">
+        <div className="border-b border-amber-200/70 bg-amber-50 px-5 py-2.5 text-[13px] leading-snug text-amber-950">
           <span className="font-semibold">Operator view.</span> Switch to <span className="font-semibold">Approver</span>{" "}
           to approve or reject this invoice.
         </div>
@@ -326,9 +346,9 @@ export function InvoiceApprovalDrawer({ invoiceId, queueItemId, onClose }: Invoi
 
       <div className="flex min-h-0 flex-1">
         <div className="flex min-h-0 min-w-0 w-full max-w-[min(100%,420px)] shrink-0 flex-col overflow-hidden border-r border-border-default sm:w-[420px] sm:min-w-[420px] sm:max-w-[420px]">
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-[13px] leading-snug">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6 text-[14px] leading-snug">
             {showRejectForm && canDecide && (
-              <div className="mb-4">
+              <div className="mb-5">
                 <RejectForm
                   onConfirm={handleReject}
                   onCancel={() => setShowRejectForm(false)}
@@ -337,19 +357,19 @@ export function InvoiceApprovalDrawer({ invoiceId, queueItemId, onClose }: Invoi
               </div>
             )}
             {approved && (
-              <div className="mb-4 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5">
-                <CheckCircle2 size={14} className="text-emerald-600" />
-                <p className="text-[12px] font-medium text-emerald-700">{docUi.approvedBanner}</p>
+              <div className="mb-5 flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-4">
+                <CheckCircle2 size={18} className="text-emerald-600" />
+                <p className="text-[14px] font-medium text-emerald-700">{docUi.approvedBanner}</p>
               </div>
             )}
             {rejected && (
-              <div className="mb-4 flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
-                <XCircle size={14} className="text-gray-500" />
-                <p className="text-[12px] font-medium text-gray-600">{docUi.rejectedBanner}</p>
+              <div className="mb-5 flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-5 py-4">
+                <XCircle size={18} className="text-gray-500" />
+                <p className="text-[14px] font-medium text-gray-600">{docUi.rejectedBanner}</p>
               </div>
             )}
 
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-6">
               <CriticalFieldsCard
                 layout="flat"
                 invoice={invoice}
@@ -368,9 +388,9 @@ export function InvoiceApprovalDrawer({ invoiceId, queueItemId, onClose }: Invoi
                 dateFieldLabel={docUi.dateField}
               />
 
-              <div className="border-t border-border-default pt-4">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Context</p>
-                <DrawerRailIndent className="mt-2">
+              <div className="border-t border-border-default pt-5">
+                <p className="text-[12px] font-semibold uppercase tracking-wide text-text-secondary">Context</p>
+                <DrawerRailIndent className="mt-3">
                   <div className="flex flex-col divide-y divide-border-subtle">
                     {contract ? (
                       <KV

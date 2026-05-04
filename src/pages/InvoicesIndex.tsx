@@ -168,10 +168,10 @@ export function InvoicesIndex() {
     const filtered = invoicesView.filter((inv) => rows.some((r) => r.invoiceId === inv.id));
     return (
       <div className="flex flex-1 w-full flex-col">
-        <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
+        <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-gray-100 transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
           <PageHeader title="Invoices" backLabel="Back to overview" backPath="/invoices" filterLabel={gm?.label} />
         </div>
-        <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
+        <div className="flex flex-col gap-5 px-6 pt-5 pb-7">
           <MetricStrip metrics={metrics} />
           <ListTable columns={listColumns} resultCount={filtered.length}>
             {filtered.map((inv) => {
@@ -203,10 +203,10 @@ export function InvoicesIndex() {
   if (viewMode === "all") {
     return (
       <div className="flex flex-1 w-full flex-col">
-        <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
+        <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-gray-100 transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
           <PageHeader title="Invoices" viewToggle={viewToggle} />
         </div>
-        <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
+        <div className="flex flex-col gap-5 px-6 pt-5 pb-7">
           <MetricStrip metrics={metrics} />
           <ListTable columns={listColumns} resultCount={invoicesView.length}>
             {invoicesView.map((inv) => {
@@ -237,10 +237,10 @@ export function InvoicesIndex() {
   // Grouped landing (default)
   return (
     <div className="flex flex-1 w-full flex-col">
-      <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
+      <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-gray-100 transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
         <PageHeader title="Invoices" viewToggle={viewToggle} />
       </div>
-      <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
+      <div className="flex flex-col gap-5 px-6 pt-5 pb-7">
         <MetricStrip metrics={metrics} />
         {groupMeta.map((gm) => {
           const rows = groups[gm.key] ?? [];

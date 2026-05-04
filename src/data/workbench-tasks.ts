@@ -9,7 +9,12 @@ import type { QueueItem } from "@/data/queue-data";
 import type { ApprovalRequest } from "@/data/ingest-data";
 import type { ContractClosure } from "@/data/mock-data";
 import type { PendingRenewalIngestion } from "@/data/approval-policy";
-import type { ContractGraceExtension, DrawerEntityType, DrawerMode } from "@/data/contract-transition";
+import type {
+  ContractGraceExtension,
+  DrawerEntityType,
+  DrawerMode,
+  TransitionFlowSession,
+} from "@/data/contract-transition";
 import { customers, tasks as customerTasks } from "@/data/mock-data";
 import type { DemoPersona } from "@/types/demo-persona";
 
@@ -21,6 +26,8 @@ export interface WorkbenchTaskDrawerLaunch {
   entityType: DrawerEntityType;
   mode?: DrawerMode;
   entityId?: string;
+  /** When opening the drawer for a specific unified-flow step (e.g. invoice review). */
+  flow?: TransitionFlowSession | null;
   context?: {
     customerId?: string;
     contractId?: string;
@@ -147,14 +154,38 @@ export function deriveWorkbenchTasks(
   // ── Queue source ──────────────────────────────────────────────────────────
   // context.queueItems already has runtime overrides applied (from IngestContext).
   for (const q of context.queueItems) {
-    if (q.status !== "Pending Review" && q.status !== "In Progress") continue;
+    if (
+      q.status !== "Pending Review" &&
+      q.status !== "In Progress" &&
+      q.status !== "Invoice review" &&
+      q.status !== "Returned"
+    ) {
+      continue;
+    }
     const isLateRenewal = q.scenario === "Late Renewal";
     const destination =
       isLateRenewal && q.customerId && q.activeContractId
         ? `/customers/${q.customerId}?tab=contract&contractId=${q.activeContractId}`
         : `/queue/${q.id}`;
     const drawer: WorkbenchTaskDrawerLaunch | undefined = q.ingestable
-      ? { entityType: "queue_item", mode: "ingest", entityId: q.id }
+      ? {
+          entityType: "queue_item",
+          mode: "ingest",
+          entityId: q.id,
+          ...(q.status === "Invoice review" && q.invoiceId
+            ? {
+                flow: {
+                  scenario: "ingest_invoice",
+                  step: "invoice_review",
+                  furthestUnlockedStep: "invoice_review",
+                  queueItemId: q.id,
+                  invoiceId: q.invoiceId,
+                  contractId: q.contractId,
+                  customerId: q.customerId,
+                } satisfies TransitionFlowSession,
+              }
+            : {}),
+        }
       : isLateRenewal && q.customerId && q.activeContractId
         ? {
             entityType: "transition",
@@ -163,6 +194,14 @@ export function deriveWorkbenchTasks(
               customerId: q.customerId,
               contractId: q.activeContractId,
               latePhase: "extend",
+            },
+            flow: {
+              scenario: "late_grace",
+              step: "grace_extend",
+              furthestUnlockedStep: "grace_extend",
+              customerId: q.customerId,
+              contractId: q.activeContractId,
+              showStepper: true,
             },
           }
         : undefined;
@@ -203,6 +242,14 @@ export function deriveWorkbenchTasks(
           contractId: ext.contractId,
           latePhase: "resolve",
         },
+        flow: {
+          scenario: "late_grace",
+          step: "grace_extend",
+          furthestUnlockedStep: "grace_extend",
+          customerId: ext.customerId,
+          contractId: ext.contractId,
+          showStepper: true,
+        },
       },
       source: "contract-lifecycle",
     });
@@ -211,6 +258,7 @@ export function deriveWorkbenchTasks(
   // ── Approval source ───────────────────────────────────────────────────────
   for (const req of context.approvalRequests) {
     if (req.status !== "Pending Approval") continue;
+    if (req.invoiceId.startsWith("INV-PENDING")) continue;
 
     const isClosureDoc =
       req.invoiceId.startsWith("CN-CLOSE-") ||
@@ -246,6 +294,14 @@ export function deriveWorkbenchTasks(
           : "Contract closure document",
         severity: "critical",
         destination,
+        drawer: {
+          entityType: "invoice",
+          mode: "invoice_approval",
+          entityId: req.invoiceId,
+          context: {
+            queueItemId: pendingRenewal?.queueItemId,
+          },
+        },
         assignee: req.approver,
         source: "approval",
       });
@@ -259,6 +315,17 @@ export function deriveWorkbenchTasks(
         mode: "invoice_approval",
         entityId: req.invoiceId,
         context: req.ingestId ? { queueItemId: req.ingestId } : undefined,
+        ...(req.ingestId
+          ? {
+              flow: {
+                scenario: "ingest_invoice",
+                step: "invoice_review",
+                furthestUnlockedStep: "invoice_review",
+                invoiceId: req.invoiceId,
+                queueItemId: req.ingestId,
+              } satisfies TransitionFlowSession,
+            }
+          : {}),
       };
       derived.push({
         id: `approval-${req.id}`,
@@ -369,7 +436,11 @@ export function computeWorkbenchStats(context: WorkbenchTaskContext) {
     (r) => r.status === "Pending Approval",
   );
   const needsReviewQueue = context.queueItems.filter(
-    (q) => q.status === "Pending Review",
+    (q) =>
+      q.status === "Pending Review" ||
+      q.status === "In Progress" ||
+      q.status === "Invoice review" ||
+      q.status === "Returned",
   );
   const tcvPending =
     needsReviewQueue.reduce((sum, q) => sum + q.tcv, 0) +

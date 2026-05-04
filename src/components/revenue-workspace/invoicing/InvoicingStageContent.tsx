@@ -1,5 +1,4 @@
 import { useMemo, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import { ChevronRight, LayoutList } from "lucide-react";
 import type { Invoice, Contract } from "@/data/mock-data";
 import { customers } from "@/data/mock-data";
@@ -12,6 +11,7 @@ import { InvoiceCompositionSection } from "./InvoiceCompositionSection";
 import { BillingBasisSection } from "./BillingBasisSection";
 import { InvoiceDeliverySection } from "./InvoiceDeliverySection";
 import { InvoicingScheduleSection } from "./InvoicingScheduleSection";
+import { openDrawer } from "@/store/drawer-store";
 
 interface Props {
   invoice: Invoice;
@@ -23,7 +23,6 @@ const pendingReviewPrimaryBtnClass =
   "inline-flex items-center justify-center gap-1 rounded-lg px-4 py-2 text-center text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-info)] bg-[color:var(--color-info)]";
 
 export function InvoicingStageContent({ invoice, contract, onBack }: Props) {
-  const navigate = useNavigate();
   const {
     submittedInvoiceIds,
     submitInvoiceForApproval,
@@ -73,11 +72,17 @@ export function InvoicingStageContent({ invoice, contract, onBack }: Props) {
     : invoice;
 
   const approvalForInvoice = approvalRequests.find((r) => r.invoiceId === invoice.id);
-  const approvalsHref = `/approvals/invoices/${invoice.id}${
-    approvalForInvoice?.ingestId
-      ? `?ingestId=${encodeURIComponent(approvalForInvoice.ingestId)}`
-      : ""
-  }`;
+
+  const openApprovalDrawer = useCallback(() => {
+    openDrawer({
+      entityType: "invoice",
+      mode: "invoice_approval",
+      entityId: invoice.id,
+      context: approvalForInvoice?.ingestId
+        ? { queueItemId: approvalForInvoice.ingestId }
+        : undefined,
+    });
+  }, [approvalForInvoice, invoice.id]);
 
   const headerActions = useMemo(() => {
     const preview = <ActionButton key="preview" label="Preview" />;
@@ -111,7 +116,7 @@ export function InvoicingStageContent({ invoice, contract, onBack }: Props) {
           <>
             {preview}
             {regenerate}
-            <ActionButton label="View in Approvals" onClick={() => navigate(approvalsHref)} />
+            <ActionButton label="View in Approvals" onClick={openApprovalDrawer} />
           </>
         );
       }
@@ -148,17 +153,16 @@ export function InvoicingStageContent({ invoice, contract, onBack }: Props) {
       </>
     );
   }, [
-    approvalsHref,
     displayInvoice.disputeReason,
     displayInvoice.holdReason,
     effectiveStatus,
     handleSendForApproval,
     isSubmitted,
-    navigate,
+    openApprovalDrawer,
   ]);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <RecordHeader
         stickyBar
         id={displayInvoice.id}
@@ -206,10 +210,10 @@ export function InvoicingStageContent({ invoice, contract, onBack }: Props) {
 
             <div className="flex shrink-0 flex-col gap-2 self-start sm:flex-row sm:items-center md:flex-col md:items-stretch lg:flex-row lg:items-center">
               {isSubmitted ? (
-                <Link to="/approvals" className={pendingReviewPrimaryBtnClass}>
+                <button type="button" onClick={openApprovalDrawer} className={pendingReviewPrimaryBtnClass}>
                   View in Approvals
                   <ChevronRight className="h-4 w-4 opacity-90" aria-hidden />
-                </Link>
+                </button>
               ) : (
                 <button type="button" onClick={handleSendForApproval} className={pendingReviewPrimaryBtnClass}>
                   Send for Approval

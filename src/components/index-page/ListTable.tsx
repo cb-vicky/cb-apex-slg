@@ -27,21 +27,21 @@ export function ListTable({ columns, children, toolbarLeft, toolbarRight, result
   const showToolbar = toolbarLeft != null || toolbarRight != null || resultCount !== undefined;
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border-default bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+    <div className="border-y border-border-default bg-white">
       {showToolbar && (
-        <div className="flex min-h-[40px] items-center justify-between gap-3 border-b border-border-subtle bg-white px-4 py-2">
+        <div className="flex min-h-[44px] items-center justify-between gap-3 border-b border-border-subtle bg-white py-2.5 pl-3 pr-4">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{toolbarLeft}</div>
           <div className="flex shrink-0 items-center gap-2">
             {toolbarRight}
             {resultCount !== undefined && (
-              <span className="text-[12px] tabular-nums text-text-muted">
+              <span className="text-[13px] tabular-nums text-text-muted">
                 {resultCount} {resultLabel}
               </span>
             )}
           </div>
         </div>
       )}
-      <div className="flex min-h-[36px] shrink-0 items-center gap-4 border-b border-border-subtle bg-[#F7F7F8] px-4 py-2">
+      <div className="flex min-h-[40px] shrink-0 items-center gap-3 border-b border-border-subtle bg-gray-50 py-2 pl-3 pr-4">
         {columns.map((col) => (
           <span
             key={col.key}
@@ -63,7 +63,7 @@ export function ListTable({ columns, children, toolbarLeft, toolbarRight, result
           </span>
         ))}
       </div>
-      <div className="divide-y divide-border-subtle [&>button:nth-child(even)]:bg-[#F9FAFB]">{children}</div>
+      <div className="divide-y divide-border-subtle">{children}</div>
     </div>
   );
 }
@@ -73,7 +73,7 @@ export function ListRow({ onClick, children }: { onClick: () => void; children: 
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-4 px-4 py-3 text-left text-[13px] leading-none transition-colors hover:bg-[#f0f2f5]/90"
+      className="flex w-full items-center gap-3 py-3 pl-3 pr-4 text-left text-[13px] leading-snug transition-colors hover:bg-surface-muted/60"
     >
       {children}
     </button>
@@ -103,7 +103,7 @@ export function ListCell({
   return (
     <span
       className={cn(
-        "flex min-h-[20px] min-w-0 items-center text-[13px] leading-tight",
+        "flex min-h-[20px] min-w-0 items-center text-[13px] leading-snug",
         noTruncate && "min-w-0",
         align === "right" && "justify-end text-right tabular-nums",
         align === "center" && "justify-center text-center",

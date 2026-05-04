@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, Inbox } from "lucide-react";
+import { Inbox } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIngestContext } from "@/context/IngestContext";
 import { useDemoPersona } from "@/context/DemoPersonaContext";
@@ -13,23 +13,15 @@ import type { WorkbenchTask } from "@/data/workbench-tasks";
 import { openDrawer } from "@/store/drawer-store";
 
 // ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
-
-interface WorkbenchTaskListProps {
-  role: "admin" | "operator";
-}
-
-// ---------------------------------------------------------------------------
 // Severity pill
 // ---------------------------------------------------------------------------
 
 function SeverityPill({ severity }: { severity: WorkbenchTask["severity"] }) {
   const styles: Record<WorkbenchTask["severity"], string> = {
-    critical: "bg-red-50 text-red-700 border border-red-200",
-    high: "bg-amber-50 text-amber-700 border border-amber-200",
-    medium: "bg-blue-50 text-blue-700 border border-blue-200",
-    low: "bg-gray-100 text-gray-500 border border-gray-200",
+    critical: "bg-red-50 text-red-700 border-red-200",
+    high: "bg-amber-50 text-amber-700 border-amber-200",
+    medium: "bg-blue-50 text-blue-700 border-blue-200",
+    low: "bg-gray-100 text-gray-600 border-gray-200",
   };
   const labels: Record<WorkbenchTask["severity"], string> = {
     critical: "Critical",
@@ -40,7 +32,7 @@ function SeverityPill({ severity }: { severity: WorkbenchTask["severity"] }) {
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none",
+        "inline-flex shrink-0 items-center whitespace-nowrap rounded-md border px-2 py-0.5 text-[12px] font-medium leading-4",
         styles[severity],
       )}
     >
@@ -84,90 +76,59 @@ interface StatCardProps {
 
 function StatCard({ label, value, warning }: StatCardProps) {
   return (
-    <div className="flex flex-col gap-0.5 rounded-lg border border-border-default bg-white px-4 py-3">
+    <div className="flex flex-col gap-1 rounded-lg border border-border-default bg-white px-5 py-4">
       <span
         className={cn(
-          "text-[22px] font-semibold leading-tight tabular-nums",
+          "text-[26px] font-semibold leading-tight tracking-tight tabular-nums",
           warning ? "text-amber-600" : "text-text-primary",
         )}
       >
         {value}
       </span>
-      <span className="text-[11px] text-text-secondary">{label}</span>
+      <span className="text-[13px] text-text-secondary">{label}</span>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Task row — single horizontal band
+// Task table — one row per task (no stacked lines in cells)
 // ---------------------------------------------------------------------------
+
+/** Shared column template: customer · subject · severity · type · detail */
+const TASK_TABLE_GRID =
+  "grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_90px_minmax(110px,0.95fr)_minmax(0,1.1fr)] items-center gap-3 pl-3 pr-4";
 
 function TaskRow({
   task,
-  isNew,
   onNavigate,
 }: {
   task: WorkbenchTask;
-  isNew: boolean;
   onNavigate: (task: WorkbenchTask) => void;
 }) {
   return (
     <button
       type="button"
       onClick={() => onNavigate(task)}
-      className="group grid w-full grid-cols-[12px_76px_minmax(120px,0.85fr)_minmax(0,1.15fr)_minmax(88px,110px)_20px] items-center gap-x-3 gap-y-0.5 border-t border-border-default/70 px-3 py-2.5 text-left transition-colors first:border-t-0 hover:bg-surface-muted/60"
+      className={cn(
+        "group w-full border-t border-border-subtle py-3 text-left transition-colors first:border-t-0 hover:bg-surface-muted/60",
+        TASK_TABLE_GRID,
+      )}
     >
-      <span className="flex h-full items-start justify-center pt-1.5" aria-hidden>
-        {isNew ? (
-          <span
-            className="h-2 w-2 shrink-0 rounded-full bg-red-500 shadow-[0_0_0_1px_rgba(255,255,255,0.9)]"
-            title="New since you last viewed this list"
-          />
-        ) : (
-          <span className="h-2 w-2 shrink-0" />
-        )}
+      <div className="min-w-0 truncate text-[13px] font-medium leading-snug text-text-primary">
+        {task.customerName}
+      </div>
+
+      <div className="min-w-0 truncate text-[13px] leading-snug text-text-primary">{task.title}</div>
+
+      <span className="flex justify-start">
+        <SeverityPill severity={task.severity} />
       </span>
 
-      <SeverityPill severity={task.severity} />
+      <div className="min-w-0 truncate text-[12px] leading-snug text-text-secondary">{typeLabel(task.type)}</div>
 
-      <div className="min-w-0">
-        <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-text-secondary">
-          {task.customerName}
-        </p>
-        <p className="truncate text-[13px] font-medium text-text-primary">{task.title}</p>
+      <div className="min-w-0 truncate text-[12px] leading-snug text-text-muted">
+        {task.subtitle ?? "—"}
       </div>
-
-      <div className="min-w-0">
-        <p className="truncate text-[11px] font-medium text-text-secondary">{typeLabel(task.type)}</p>
-        {task.subtitle ? (
-          <p className="truncate text-[11px] text-text-muted">{task.subtitle}</p>
-        ) : (
-          <p className="truncate text-[11px] text-text-muted opacity-60">—</p>
-        )}
-      </div>
-
-      <div className="min-w-0 text-right">
-        {task.assignee ? (
-          <p className="truncate text-[11px] text-text-muted">{task.assignee}</p>
-        ) : (
-          <p className="text-[11px] text-text-muted">—</p>
-        )}
-        {task.dueDate && (
-          <p className="truncate text-[11px] text-text-muted">
-            Due{" "}
-            {new Date(task.dueDate).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-            })}
-          </p>
-        )}
-      </div>
-
-      <ChevronRight
-        size={12}
-        strokeWidth={2}
-        className="shrink-0 justify-self-end text-text-muted opacity-50 transition-opacity group-hover:opacity-100"
-      />
     </button>
   );
 }
@@ -180,7 +141,7 @@ function EmptyState() {
         strokeWidth={1.5}
         className="mb-3 text-text-muted opacity-40"
       />
-      <p className="text-[13px] text-text-secondary">You're all caught up.</p>
+      <p className="text-[14px] text-text-secondary">You're all caught up.</p>
     </div>
   );
 }
@@ -189,7 +150,7 @@ function EmptyState() {
 // Main
 // ---------------------------------------------------------------------------
 
-export function WorkbenchTaskList({ role }: WorkbenchTaskListProps) {
+export function WorkbenchTaskList() {
   const navigate = useNavigate();
   const ctx = useIngestContext();
   const { persona } = useDemoPersona();
@@ -257,11 +218,11 @@ export function WorkbenchTaskList({ role }: WorkbenchTaskListProps) {
 
   return (
     <div
-      className="flex flex-col gap-5"
-      data-workbench-role={role}
+      className="flex flex-col gap-7"
+      data-workbench-role={persona === "approver" ? "admin" : "operator"}
       data-demo-persona={persona}
     >
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
         <StatCard
           label="Pending approvals"
           value={stats.pendingApprovalCount}
@@ -290,7 +251,7 @@ export function WorkbenchTaskList({ role }: WorkbenchTaskListProps) {
 
       {totalTasks > 0 && (
         <div className="flex items-center justify-between">
-          <p className="text-[12px] text-text-secondary">
+          <p className="text-[13px] text-text-secondary">
             {totalTasks} {totalTasks === 1 ? "task" : "tasks"}
             {criticalCount > 0 && (
               <span className="ml-2 font-semibold text-red-600">
@@ -298,7 +259,7 @@ export function WorkbenchTaskList({ role }: WorkbenchTaskListProps) {
               </span>
             )}
           </p>
-          <span className="text-[11px] text-text-muted">
+          <span className="text-[12px] text-text-muted">
             Sorted by severity (Critical → Low)
           </span>
         </div>
@@ -307,23 +268,24 @@ export function WorkbenchTaskList({ role }: WorkbenchTaskListProps) {
       {sortedTasks.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="overflow-hidden rounded-lg border border-border-default bg-white">
+        <div className="border-y border-border-default bg-white">
           <div
-            className="grid grid-cols-[12px_76px_minmax(120px,0.85fr)_minmax(0,1.15fr)_minmax(88px,110px)_20px] items-center gap-x-3 border-b border-border-subtle bg-surface-muted px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-muted"
+            className={cn(
+              "border-b border-border-subtle bg-gray-50 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-muted",
+              TASK_TABLE_GRID,
+            )}
             aria-hidden
           >
-            <span />
+            <span className="min-w-0 truncate">Customer</span>
+            <span className="min-w-0 truncate">Subject</span>
             <span>Severity</span>
-            <span>Customer / Subject</span>
-            <span>Type / Detail</span>
-            <span className="text-right">Source</span>
-            <span />
+            <span className="min-w-0 truncate">Type</span>
+            <span className="min-w-0 truncate">Detail</span>
           </div>
           {sortedTasks.map((task) => (
             <TaskRow
               key={task.id}
               task={task}
-              isNew={highlightNewIds.has(task.id)}
               onNavigate={handleNavigate}
             />
           ))}

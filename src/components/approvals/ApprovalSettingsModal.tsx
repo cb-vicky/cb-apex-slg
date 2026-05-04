@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Settings, ChevronDown, ChevronUp, Info } from "lucide-react";
+import { X, ChevronDown, ChevronUp, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
   ApprovalPolicy,
@@ -42,8 +42,12 @@ const MODE_OPTIONS: ModeOption[] = [
   },
 ];
 
+const selectedOptionClass =
+  "border-[color:var(--color-info)] bg-blue-50/80 ring-1 ring-[color:var(--color-info)]/20";
+const selectedRadioClass = "border-[color:var(--color-info)] bg-[color:var(--color-info)]";
+
 export function ApprovalSettingsModal({ initial, onSave, onSkip }: Props) {
-  const [mode, setMode] = useState<ApprovalPolicyMode>(initial.mode ?? "non-standard");
+  const [mode, setMode] = useState<ApprovalPolicyMode>(initial.mode ?? "auto-approve");
   const [conditions, setConditions] = useState<NonStandardConditions>(initial.conditions);
   const [conditionsExpanded, setConditionsExpanded] = useState(true);
 
@@ -62,22 +66,14 @@ export function ApprovalSettingsModal({ initial, onSave, onSkip }: Props) {
       <div className="relative z-10 flex max-h-[90vh] w-[640px] flex-col rounded-xl bg-white shadow-2xl">
         {/* Header */}
         <div className="flex items-start justify-between border-b border-border-default px-6 py-4">
-          <div className="flex items-start gap-2.5">
-            <div className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-md bg-cb-orange/10">
-              <Settings size={14} className="text-cb-orange" />
-            </div>
-            <div>
-              <h2 className="text-[15px] font-semibold text-text-primary">
-                Set invoice approval policy
-              </h2>
-              <p className="mt-0.5 text-[12px] text-text-muted">
-                One-time merchant setting. Decides which invoices need approval before sending to customers.
-              </p>
-            </div>
+          <div className="min-w-0 pr-3">
+            <h2 className="text-[15px] font-semibold text-text-primary">
+              Approval settings for subsequent invoices?
+            </h2>
           </div>
           <button
             onClick={onSkip}
-            className="rounded-md p-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
+            className="shrink-0 rounded-md p-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
             aria-label="Close"
           >
             <X size={16} />
@@ -96,15 +92,13 @@ export function ApprovalSettingsModal({ initial, onSave, onSkip }: Props) {
                   onClick={() => setMode(opt.id)}
                   className={cn(
                     "flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
-                    selected
-                      ? "border-cb-orange bg-cb-orange/5"
-                      : "border-border-default bg-white hover:bg-surface-muted",
+                    selected ? selectedOptionClass : "border-border-default bg-white hover:bg-surface-muted",
                   )}
                 >
                   <span
                     className={cn(
                       "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
-                      selected ? "border-cb-orange bg-cb-orange" : "border-border-default bg-white",
+                      selected ? selectedRadioClass : "border-border-default bg-white",
                     )}
                   >
                     {selected && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
@@ -113,7 +107,7 @@ export function ApprovalSettingsModal({ initial, onSave, onSkip }: Props) {
                     <div className="flex items-center gap-2">
                       <p className="text-[13px] font-semibold text-text-primary">{opt.title}</p>
                       {opt.badge && (
-                        <span className="rounded-md border border-cb-orange/30 bg-cb-orange/5 px-1.5 py-0.5 text-[10px] font-semibold text-cb-orange">
+                        <span className="rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800">
                           {opt.badge}
                         </span>
                       )}
@@ -216,7 +210,7 @@ export function ApprovalSettingsModal({ initial, onSave, onSkip }: Props) {
             <button
               type="button"
               onClick={handleSave}
-              className="rounded-md bg-[#012A38] px-4 py-1.5 text-[13px] font-semibold text-white transition-colors hover:bg-[#01374a]"
+              className="rounded-md bg-[color:var(--color-info)] px-4 py-1.5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
             >
               Save policy
             </button>
@@ -248,7 +242,7 @@ function ConditionRow({
     <div
       className={cn(
         "flex items-start gap-3 rounded-md border bg-white px-3 py-2.5 transition-colors",
-        enabled ? "border-cb-orange/40" : "border-border-default",
+        enabled ? "border-[color:var(--color-info)]/35" : "border-border-default",
       )}
     >
       <button
@@ -256,7 +250,7 @@ function ConditionRow({
         onClick={() => onToggle(!enabled)}
         className={cn(
           "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors",
-          enabled ? "border-cb-orange bg-cb-orange" : "border-border-default bg-white",
+          enabled ? selectedRadioClass : "border-border-default bg-white",
         )}
         aria-pressed={enabled}
       >
@@ -293,11 +287,13 @@ function ThresholdInput({
   return (
     <div
       className={cn(
-        "flex items-center rounded-md border bg-white px-2 py-1 transition-colors",
-        disabled ? "border-border-default opacity-50" : "border-border-default focus-within:border-cb-orange",
+        "flex h-9 items-center rounded-md border bg-white px-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-colors",
+        disabled
+          ? "border-border-default opacity-50"
+          : "border-border-default hover:border-gray-300 focus-within:border-[color:var(--color-info)] focus-within:ring-2 focus-within:ring-blue-100",
       )}
     >
-      {prefix && <span className="mr-0.5 text-[11px] text-text-muted">{prefix}</span>}
+      {prefix && <span className="mr-1 text-[13px] text-text-muted">{prefix}</span>}
       <input
         type="number"
         value={value}
@@ -306,9 +302,9 @@ function ThresholdInput({
           onChange(max ? Math.min(v, max) : v);
         }}
         disabled={disabled}
-        className="w-24 bg-transparent text-right text-[12px] font-medium tabular-nums text-text-primary outline-none disabled:cursor-not-allowed"
+        className="w-24 bg-transparent text-right text-[14px] font-medium tabular-nums text-text-primary outline-none disabled:cursor-not-allowed"
       />
-      {suffix && <span className="ml-0.5 text-[11px] text-text-muted">{suffix}</span>}
+      {suffix && <span className="ml-1 text-[13px] text-text-muted">{suffix}</span>}
     </div>
   );
 }

@@ -13,7 +13,7 @@ export function GroupedRow({ onClick, children, className }: Props) {
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-4 px-4 py-3 text-left text-[13px] leading-tight transition-colors hover:bg-[#f0f2f5]/90",
+        "flex w-full items-center gap-3 py-3 pl-3 pr-4 text-left text-[13px] leading-snug transition-colors hover:bg-surface-muted/60",
         className,
       )}
     >
@@ -43,13 +43,13 @@ export function RowCell({
   return (
     <span
       className={cn(
-        "flex min-w-0 items-center",
+        "flex min-h-[20px] min-w-0 items-center text-[13px] leading-snug",
         noTruncate && "min-w-0",
         align === "right" && "justify-end text-right tabular-nums",
         align === "center" && "justify-center text-center",
         className,
       )}
-      style={width ? { width, minWidth: width, maxWidth: width } : undefined}
+      style={width ? { width, minWidth: width, maxWidth: width } : { flex: 1 }}
     >
       {inner}
     </span>

@@ -1,5 +1,4 @@
 import { Routes, Route, Navigate } from "react-router-dom";
-import { WorkbenchRoleProvider } from "@/context/WorkbenchRoleContext";
 import { DemoPersonaProvider } from "@/context/DemoPersonaContext";
 import { IngestProvider } from "@/context/IngestContext";
 import { AppShell } from "@/components/layout/AppShell";
@@ -20,9 +19,8 @@ import { EntityDrawer } from "@/components/common/EntityDrawer";
 
 export default function App() {
   return (
-    <WorkbenchRoleProvider>
-      <IngestProvider>
-        <DemoPersonaProvider>
+    <IngestProvider>
+      <DemoPersonaProvider>
         <AppShell>
           <>
           <Routes>
@@ -59,6 +57,5 @@ export default function App() {
         </AppShell>
         </DemoPersonaProvider>
       </IngestProvider>
-    </WorkbenchRoleProvider>
   );
 }

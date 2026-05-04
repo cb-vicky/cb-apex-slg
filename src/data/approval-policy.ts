@@ -38,7 +38,7 @@ export const DEFAULT_NON_STANDARD: NonStandardConditions = {
 };
 
 export const DEFAULT_POLICY: ApprovalPolicy = {
-  mode: null,
+  mode: "auto-approve",
   conditions: DEFAULT_NON_STANDARD,
 };
 
@@ -74,6 +74,8 @@ export interface QueueItemOverride {
   invoiceId?: string;
   /** Set after ingest so queue row + drawer resolve the runtime customer. */
   customerId?: string;
+  /** Approver rejection note (operator queue). */
+  returnReason?: string;
 }
 
 // ---------------------------------------------------------------------------

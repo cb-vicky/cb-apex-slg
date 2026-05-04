@@ -133,7 +133,7 @@ export function UploadModal({ onClose }: Props) {
                       </div>
                       <span
                         className={cn(
-                          "mt-0.5 shrink-0 rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
+                          "mt-0.5 shrink-0 rounded-md border px-2 py-0.5 text-[12px] font-medium leading-4",
                           doc.path === "happy"
                             ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                             : "border-amber-200 bg-amber-50 text-amber-700"

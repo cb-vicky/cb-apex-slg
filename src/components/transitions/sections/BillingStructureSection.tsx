@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { SectionCard } from "@/components/ui/primitives";
+import { formInputClass, formLabelClass } from "@/components/ui/form-field";
 import { cn } from "@/lib/utils";
 import type { BillingKind } from "@/components/transitions/ingest-drawer-derive";
 
@@ -62,31 +63,37 @@ export function BillingStructureSection({
 }: Props) {
   const [detailsOpen, setDetailsOpen] = useState(true);
 
+  const radioClass =
+    "h-4 w-4 border-border-default text-[color:var(--color-info)] focus:ring-2 focus:ring-blue-100";
+
   return (
     <SectionCard title="Billing structure" className={cn(className)} bodyClassName="py-3">
-      <div className="flex flex-wrap gap-4 text-[13px]">
-        <label className="inline-flex cursor-pointer items-center gap-1.5">
+      <div className="flex flex-wrap gap-5 text-[14px]">
+        <label className="inline-flex cursor-pointer items-center gap-2">
           <input
             type="radio"
             name="billing-kind"
+            className={radioClass}
             checked={kind === "prepaid"}
             onChange={() => onKindChange("prepaid")}
           />
           Prepaid
         </label>
-        <label className="inline-flex cursor-pointer items-center gap-1.5">
+        <label className="inline-flex cursor-pointer items-center gap-2">
           <input
             type="radio"
             name="billing-kind"
+            className={radioClass}
             checked={kind === "postpaid"}
             onChange={() => onKindChange("postpaid")}
           />
           Postpaid
         </label>
-        <label className="inline-flex cursor-pointer items-center gap-1.5">
+        <label className="inline-flex cursor-pointer items-center gap-2">
           <input
             type="radio"
             name="billing-kind"
+            className={radioClass}
             checked={kind === "hybrid"}
             onChange={() => onKindChange("hybrid")}
           />
@@ -97,10 +104,10 @@ export function BillingStructureSection({
       <LogicSummary kind={kind} />
 
       {(kind === "prepaid" || kind === "hybrid") && (
-        <label className="mt-3 block text-[12px] font-medium text-text-primary">
-          Invoice timing (commit / prepaid portion)
+        <label className={cn("mt-4 flex max-w-md flex-col gap-1.5", formLabelClass)}>
+          <span>Invoice timing (commit / prepaid portion)</span>
           <select
-            className="mt-1 w-full max-w-xs rounded-md border border-border-default px-2 py-1.5 text-[12px]"
+            className={cn(formInputClass, "cursor-pointer")}
             value={invoiceTiming}
             onChange={(e) =>
               onInvoiceTimingChange(e.target.value as "on_approval" | "on_activation")
@@ -115,13 +122,13 @@ export function BillingStructureSection({
       <button
         type="button"
         onClick={() => setDetailsOpen((o) => !o)}
-        className="mt-3 flex w-full items-center gap-1 text-left text-[11px] font-semibold uppercase tracking-wide text-text-muted hover:text-text-secondary"
+        className="mt-4 flex w-full items-center gap-1 text-left text-[12px] font-medium text-text-muted hover:text-text-secondary"
       >
-        {detailsOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        {detailsOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
         Billing logic detail
       </button>
       {detailsOpen && (
-        <div className="mt-2 rounded-md border border-border-subtle bg-surface-muted/50 px-3 py-2 text-[11px] leading-relaxed text-text-secondary">
+        <div className="mt-2 rounded-md border border-border-subtle bg-gray-50 px-3 py-2.5 text-[12px] leading-relaxed text-text-secondary">
           {kind === "prepaid" && (
             <p>
               Prepaid contracts materialize a draft invoice aligned to commercial terms. When{" "}

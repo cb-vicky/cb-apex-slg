@@ -16,6 +16,10 @@ export type QueueSource = "PDF Upload" | "API" | "CPQ" | "Email";
 export type QueueStatus =
   | "Pending Review"
   | "In Progress"
+  /** Contract + draft invoice created; operator must review invoice before approval is submitted. */
+  | "Invoice review"
+  /** Approver rejected; operator can change everything and re-run ingest. */
+  | "Returned"
   | "Ingested"
   | "Failed"
   | "Rejected";
@@ -46,6 +50,8 @@ export interface QueueItem {
   ingestable: boolean;
   /** For Early Renewal items: the ID of the active prior contract that must be closed first. */
   activeContractId?: string;
+  /** Set when an approver rejects and the row returns to the operator. */
+  returnReason?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -113,7 +119,12 @@ export function getQueueItemBySample(sampleId: "sample2" | "sample3"): QueueItem
 }
 
 export function isPendingStatus(s: QueueStatus): boolean {
-  return s === "Pending Review" || s === "In Progress";
+  return (
+    s === "Pending Review" ||
+    s === "In Progress" ||
+    s === "Invoice review" ||
+    s === "Returned"
+  );
 }
 
 // Group keys for the Queue index page
@@ -122,13 +133,19 @@ export const queueGroupMeta = [
     key: "pending-review",
     label: "Pending review",
     slug: "pending-review",
-    match: (q: QueueItem) => q.status === "Pending Review",
+    match: (q: QueueItem) => q.status === "Pending Review" || q.status === "Returned",
   },
   {
     key: "in-progress",
     label: "In progress",
     slug: "in-progress",
     match: (q: QueueItem) => q.status === "In Progress",
+  },
+  {
+    key: "invoice-review",
+    label: "Invoice review",
+    slug: "invoice-review",
+    match: (q: QueueItem) => q.status === "Invoice review",
   },
   {
     key: "ingested",

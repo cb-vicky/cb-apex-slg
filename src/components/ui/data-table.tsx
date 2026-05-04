@@ -5,7 +5,7 @@ import type { ReactNode, ThHTMLAttributes, TdHTMLAttributes } from "react";
 /** Shared table shell for workspace tabular data — zebra rows, single-line cells, calm enterprise header. */
 export function WorkspaceTableShell({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn("overflow-hidden rounded-lg border border-border-default bg-white", className)}>
+    <div className={cn("border-y border-border-default bg-white", className)}>
       <div className="overflow-x-auto">{children}</div>
     </div>
   );
@@ -20,7 +20,7 @@ export function WThead({ children, className }: { children: ReactNode; className
     <thead>
       <tr
         className={cn(
-          "border-b border-border-subtle bg-[#F7F7F8] text-[11px] font-semibold uppercase tracking-wider text-text-muted",
+          "border-b border-border-subtle bg-gray-50 text-[11px] font-semibold uppercase tracking-wider text-text-muted",
           className,
         )}
       >
@@ -64,10 +64,10 @@ export function WTh({
   );
 }
 
-export function WTbody({ children, striped = true }: { children: ReactNode; striped?: boolean }) {
+export function WTbody({ children, striped = false }: { children: ReactNode; striped?: boolean }) {
   return (
     <tbody
-      className={cn("divide-y divide-border-subtle", striped && "[&>tr:nth-child(even)]:bg-[#F9FAFB]")}
+      className={cn("divide-y divide-border-subtle", striped && "[&>tr:nth-child(even)]:bg-gray-50/60")}
     >
       {children}
     </tbody>

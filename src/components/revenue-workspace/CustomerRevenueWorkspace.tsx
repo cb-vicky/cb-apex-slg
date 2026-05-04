@@ -7,6 +7,7 @@ import { extractedSample3 } from "@/data/ingest-data";
 import { getCollectionCasesForCustomer } from "@/data/billing-data";
 import { getRevenueArrangement } from "@/data/revrec-data";
 import { useIngestContext } from "@/context/IngestContext";
+import { openDrawer } from "@/store/drawer-store";
 import { CustomerContextBar } from "./CustomerContextBar";
 import { type Stage } from "./RevenueJourneyRail";
 import { QuoteStageContent } from "./quote/QuoteStageContent";
@@ -196,10 +197,12 @@ export function CustomerRevenueWorkspace({
     const approvalText = closure.approvalRequired ? " pending approval." : ".";
 
     if (queueItemId && approvalDocumentId) {
-      // Early renewal path — navigate to the approval page with queueItemId context.
-      navigate(
-        `/approvals/invoices/${approvalDocumentId}?closureFor=${activeContract.id}&queueItemId=${queueItemId}`
-      );
+      openDrawer({
+        entityType: "invoice",
+        mode: "invoice_approval",
+        entityId: approvalDocumentId,
+        context: { queueItemId },
+      });
     } else if (queueItemId && closure.settlementType === "no_financial_impact") {
       // No financial impact — there's nothing to approve, but we still need to
       // process the renewal. Navigate to the queue item so the user can proceed.
@@ -395,8 +398,8 @@ export function CustomerRevenueWorkspace({
       />
 
       {/* Main content — always rendered */}
-      <div className="flex-1 px-6 pt-4 pb-6">
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="flex-1 px-8 pt-6 pb-8">
+        <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_320px]">
           <div>{renderContent()}</div>
           <InsightRail
             tasks={tasks}
@@ -450,7 +453,7 @@ export function CustomerRevenueWorkspace({
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="rounded-lg border border-border-default bg-surface-muted px-6 py-10 text-center text-[13px] text-text-muted">
+    <div className="rounded-lg border border-border-default bg-surface-muted px-6 py-12 text-center text-[14px] text-text-muted">
       {message}
     </div>
   );

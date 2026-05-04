@@ -11,19 +11,19 @@ interface Props {
   pill?: boolean;
 }
 
-export function ActionButton({ icon: Icon, label, onClick, variant = "default", pill = true }: Props) {
+export function ActionButton({ icon: Icon, label, onClick, variant = "default", pill = false }: Props) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex h-7 shrink-0 items-center text-[12px] font-medium leading-none transition-colors",
-        pill ? "rounded-full px-3" : "rounded-md px-2",
-        Icon ? (pill ? "gap-1.5" : "gap-1") : undefined,
+        "inline-flex shrink-0 items-center text-[12px] font-medium leading-4 transition-colors",
+        pill ? "rounded-full px-3 py-1.5" : "rounded-md px-2 py-0.5",
+        Icon ? "gap-1" : undefined,
         variant === "primary" &&
-          "border border-blue-200 bg-white text-blue-700 hover:border-blue-300 hover:bg-blue-50/70 hover:text-blue-800",
+          "border border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 hover:bg-blue-100 hover:text-blue-800",
         (variant === "default" || variant === "muted") &&
-          "border border-[#E4E5E8] bg-[#F0F1F3] text-text-secondary hover:border-border-default hover:bg-[#E8E9EC] hover:text-text-primary",
+          "border border-gray-200 bg-gray-100 text-gray-600 hover:border-gray-300 hover:bg-gray-200 hover:text-text-primary",
       )}
     >
       {Icon ? <Icon size={12} className="shrink-0" /> : null}

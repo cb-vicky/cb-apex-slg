@@ -13,13 +13,13 @@ export function CustomerWorkspaceHeader({ customer }: Props) {
   );
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3.5">
       {/* Title row */}
       <div className="flex items-end justify-between gap-4">
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           <div className="flex items-center gap-3">
-            <h1 className="text-lg font-semibold text-text-primary">{customer.name}</h1>
-            <span className="rounded-md border border-border-default bg-surface-muted px-2 py-0.5 text-[11px] font-medium text-text-secondary">
+            <h1 className="text-[22px] font-semibold leading-tight tracking-tight text-text-primary">{customer.name}</h1>
+            <span className="rounded-md border border-gray-200 bg-gray-100 px-2 py-0.5 text-[12px] font-medium leading-4 text-gray-600">
               {customer.segment} &middot; {customer.tier}
             </span>
           </div>
@@ -31,7 +31,7 @@ export function CustomerWorkspaceHeader({ customer }: Props) {
         </div>
 
         {/* Metric ribbon */}
-        <div className="flex shrink-0 items-center gap-5">
+        <div className="flex shrink-0 items-center gap-6">
           <MetricPill label="ARR" value={currency(customer.arr)} />
           <MetricPill label="TCV" value={currency(customer.tcv)} />
           <MetricPill label="Prepaid Credits" value={`${currency(customer.prepaidCreditBalance)} (${burnPct}% used)`} variant={burnPct > 70 ? "warning" : "default"} />
@@ -42,11 +42,11 @@ export function CustomerWorkspaceHeader({ customer }: Props) {
 
       {/* Ownership + risk row */}
       <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4 text-[12px] text-text-secondary">
-          <span className="inline-flex items-center gap-1"><User size={12} /> AE: {customer.ae}</span>
-          <span className="inline-flex items-center gap-1"><User size={12} /> CSM: {customer.csm}</span>
-          <span className="inline-flex items-center gap-1"><Building2 size={12} /> Billing: {customer.billingOwner}</span>
-          <span className="inline-flex items-center gap-1"><Calendar size={12} /> Customer since {shortDate(customer.createdAt)}</span>
+        <div className="flex items-center gap-4 text-[13px] text-text-secondary">
+          <span className="inline-flex items-center gap-1"><User size={13} /> AE: {customer.ae}</span>
+          <span className="inline-flex items-center gap-1"><User size={13} /> CSM: {customer.csm}</span>
+          <span className="inline-flex items-center gap-1"><Building2 size={13} /> Billing: {customer.billingOwner}</span>
+          <span className="inline-flex items-center gap-1"><Calendar size={13} /> Customer since {shortDate(customer.createdAt)}</span>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {customer.riskBadges.map((badge) => (

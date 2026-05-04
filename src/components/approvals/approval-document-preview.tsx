@@ -272,7 +272,7 @@ export function ApprovalDocumentPreviewPane({
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col bg-[#EEF0F2]">
+    <div className="flex h-full min-h-0 flex-1 flex-col bg-gray-100">
       <PreviewToolbar
         active={tab}
         onChange={setTab}

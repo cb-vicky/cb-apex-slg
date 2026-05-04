@@ -61,9 +61,9 @@ export function QuoteListView({ quotes, onSelect }: Props) {
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border-default bg-white">
+    <div className="border-y border-border-default bg-white">
       {/* Column header */}
-      <div className="grid grid-cols-[auto_1fr_120px_100px_80px_110px] items-center gap-3 border-b border-border-subtle bg-surface-muted px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+      <div className="grid grid-cols-[auto_1fr_120px_100px_80px_110px] items-center gap-3 border-b border-border-subtle bg-gray-50 py-2 pl-3 pr-4 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
         <span className="w-4" />
         <span>Deal</span>
         <span>Type</span>
@@ -81,7 +81,7 @@ export function QuoteListView({ quotes, onSelect }: Props) {
           return (
             <div key={group.lineageId}>
               {/* Primary row — latest version */}
-              <div className="grid grid-cols-[auto_1fr_120px_100px_80px_110px] items-center gap-3 px-4 py-3 hover:bg-surface-muted/60 transition-colors">
+              <div className="grid grid-cols-[auto_1fr_120px_100px_80px_110px] items-center gap-3 py-3 pl-3 pr-4 transition-colors hover:bg-surface-muted/60">
                 {/* Expand toggle */}
                 <button
                   type="button"
@@ -109,7 +109,7 @@ export function QuoteListView({ quotes, onSelect }: Props) {
                     </span>
                     <span className="text-[11px] text-text-muted">v{group.latestQuote.version}</span>
                     {hasVersions && (
-                      <span className="rounded-full bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium text-text-muted">
+                      <span className="rounded-md border border-gray-200 bg-gray-100 px-2 py-0.5 text-[12px] font-medium leading-4 text-gray-600">
                         {group.versions.length} versions
                       </span>
                     )}
@@ -131,13 +131,13 @@ export function QuoteListView({ quotes, onSelect }: Props) {
 
               {/* Expanded older versions */}
               {isExpanded && hasVersions && (
-                <div className="border-t border-border-subtle bg-[#fafafa]">
+                <div className="border-t border-border-subtle bg-gray-50">
                   {olderVersions.map((vq) => (
                     <button
                       key={vq.id}
                       type="button"
                       onClick={() => onSelect(vq)}
-                      className="grid w-full grid-cols-[auto_1fr_120px_100px_80px_110px] items-center gap-3 border-b border-border-subtle px-4 py-2.5 text-left last:border-0 hover:bg-white transition-colors"
+                      className="grid w-full grid-cols-[auto_1fr_120px_100px_80px_110px] items-center gap-3 border-b border-border-subtle py-2.5 pl-3 pr-4 text-left transition-colors last:border-0 hover:bg-white"
                     >
                       <span className="w-4" />
                       <div className="flex flex-col gap-0.5 pl-2">

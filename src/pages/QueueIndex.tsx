@@ -25,7 +25,7 @@ function SourceBadge({ source, detail }: { source: QueueSource; detail?: string 
   const config: Record<QueueSource, { icon: typeof FileText; tone: string; label: string }> = {
     "PDF Upload": {
       icon: Upload,
-      tone: "border-border-default bg-surface-muted text-text-secondary",
+      tone: "border-gray-200 bg-gray-100 text-gray-600",
       label: "PDF",
     },
     API: {
@@ -40,7 +40,7 @@ function SourceBadge({ source, detail }: { source: QueueSource; detail?: string 
     },
     Email: {
       icon: Mail,
-      tone: "border-border-default bg-surface-muted text-text-secondary",
+      tone: "border-gray-200 bg-gray-100 text-gray-600",
       label: "Email",
     },
   };
@@ -48,9 +48,9 @@ function SourceBadge({ source, detail }: { source: QueueSource; detail?: string 
   return (
     <span
       title={detail}
-      className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium leading-4 ${tone}`}
+      className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[12px] font-medium leading-4 ${tone}`}
     >
-      <Icon size={10} strokeWidth={2.25} />
+      <Icon size={12} strokeWidth={2} />
       {label}
     </span>
   );
@@ -64,6 +64,7 @@ function buildGroups(items: QueueItem[]): Record<string, QueueItem[]> {
   const groups: Record<string, QueueItem[]> = {
     "pending-review": [],
     "in-progress": [],
+    "invoice-review": [],
     ingested: [],
     failed: [],
   };
@@ -81,6 +82,9 @@ function buildGroups(items: QueueItem[]): Record<string, QueueItem[]> {
 function rowSubtitle(q: QueueItem): string {
   // For ingested / failed items show context that matters
   if (q.status === "Ingested") return q.contractId ?? q.documentName;
+  if (q.status === "Invoice review") return q.invoiceId ?? q.documentName;
+  if (q.status === "Returned")
+    return q.returnReason ? q.returnReason.slice(0, 80) : "Returned for revision";
   if (q.status === "Failed" || q.status === "Rejected")
     return q.failureReason ? q.failureReason.slice(0, 80) : q.documentName;
   return q.sourceDetail ?? q.documentName;
@@ -131,12 +135,42 @@ export function QueueIndex() {
     const pendingInvoiceApproval = approvalRequests.find(
       (r) => r.ingestId === q.id && r.status === "Pending Approval",
     );
+    if (q.status === "Invoice review" && q.invoiceId) {
+      openDrawer({
+        entityType: "queue_item",
+        mode: "ingest",
+        entityId: q.id,
+        flow: {
+          scenario: "ingest_invoice",
+          step: "invoice_review",
+          furthestUnlockedStep: "invoice_review",
+          queueItemId: q.id,
+          invoiceId: q.invoiceId,
+          contractId: q.contractId,
+          customerId: q.customerId,
+        },
+      });
+      return;
+    }
+    if (q.status === "Returned" && q.ingestable) {
+      openDrawer({ entityType: "queue_item", mode: "ingest", entityId: q.id });
+      return;
+    }
     if (q.status === "Ingested" && persona === "approver" && q.invoiceId && pendingInvoiceApproval) {
       openDrawer({
         entityType: "invoice",
         mode: "invoice_approval",
         entityId: q.invoiceId,
         context: { queueItemId: q.id },
+        flow: {
+          scenario: "ingest_invoice",
+          step: "invoice_review",
+          furthestUnlockedStep: "invoice_review",
+          invoiceId: q.invoiceId,
+          queueItemId: q.id,
+          contractId: q.contractId,
+          customerId: q.customerId,
+        },
       });
       return;
     }
@@ -154,7 +188,11 @@ export function QueueIndex() {
       q.ingestable &&
       (q.status === "Pending Review" || q.status === "In Progress")
     ) {
-      openDrawer({ entityType: "queue_item", mode: "ingest", entityId: q.id });
+      openDrawer({
+        entityType: "queue_item",
+        mode: "ingest",
+        entityId: q.id,
+      });
       return;
     }
     navigate(`/queue/${q.id}`);
@@ -171,13 +209,21 @@ export function QueueIndex() {
   // Metrics
   const pendingCount = groups["pending-review"].length;
   const inProgressCount = groups["in-progress"].length;
+  const invoiceReviewCount = groups["invoice-review"].length;
   const ingestedCount = groups["ingested"].length;
   const failedCount = groups["failed"].length;
-  const tcvPending = groups["pending-review"].reduce((s, q) => s + q.tcv, 0);
+  const tcvPending =
+    groups["pending-review"].reduce((s, q) => s + q.tcv, 0) +
+    groups["invoice-review"].reduce((s, q) => s + q.tcv, 0);
 
   const metrics: MetricCard[] = [
     { label: "Pending review", value: pendingCount, variant: pendingCount > 0 ? "warning" : "default" },
     { label: "In progress", value: inProgressCount },
+    {
+      label: "Invoice review",
+      value: invoiceReviewCount,
+      variant: invoiceReviewCount > 0 ? "warning" : "default",
+    },
     { label: "TCV in queue", value: currency(tcvPending), variant: tcvPending > 0 ? "warning" : "default" },
     { label: "Recently ingested", value: ingestedCount },
     { label: "Failed / Rejected", value: failedCount, variant: failedCount > 0 ? "danger" : "default" },
@@ -213,7 +259,7 @@ export function QueueIndex() {
         <div className="flex flex-1 w-full flex-col">
           <div
             ref={scrollRef}
-            className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${
+            className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-gray-100 transition-shadow duration-200${
               isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""
             }`}
           >
@@ -227,7 +273,7 @@ export function QueueIndex() {
               secondaryActions={secondaryActions}
             />
           </div>
-          <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
+          <div className="flex flex-col gap-5 px-6 pt-5 pb-7">
             <MetricStrip metrics={metrics} />
             <ListTable columns={listColumns} resultCount={rows.length}>
               {rows.map((q) => (
@@ -269,7 +315,7 @@ export function QueueIndex() {
         <div className="flex flex-1 w-full flex-col">
           <div
             ref={scrollRef}
-            className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${
+            className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-gray-100 transition-shadow duration-200${
               isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""
             }`}
           >
@@ -281,7 +327,7 @@ export function QueueIndex() {
               secondaryActions={secondaryActions}
             />
           </div>
-          <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
+          <div className="flex flex-col gap-5 px-6 pt-5 pb-7">
             <MetricStrip metrics={metrics} />
             <ListTable columns={listColumns} resultCount={queueItems.length}>
               {queueItems.map((q) => (
@@ -322,7 +368,7 @@ export function QueueIndex() {
       <div className="flex flex-1 w-full flex-col">
         <div
           ref={scrollRef}
-          className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-[#F0F1F3] transition-shadow duration-200${
+          className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-gray-100 transition-shadow duration-200${
             isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""
           }`}
         >
@@ -334,7 +380,7 @@ export function QueueIndex() {
             secondaryActions={secondaryActions}
           />
         </div>
-        <div className="flex flex-col gap-3 px-6 pt-3 pb-5">
+        <div className="flex flex-col gap-5 px-6 pt-5 pb-7">
           <MetricStrip metrics={metrics} />
 
           {queueGroupMeta.map((gm) => {

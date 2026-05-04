@@ -20,12 +20,12 @@ export function DataField({
   actions?: ReactNode;
 }) {
   return (
-    <div className={cn("flex min-w-0 flex-col gap-0.5 py-2.5 text-left", className)}>
-      <span className="text-[11px] font-medium leading-tight text-text-muted">{label}</span>
+    <div className={cn("flex min-w-0 flex-col gap-1 py-2.5 text-left", className)}>
+      <span className="text-[12px] leading-tight text-text-muted">{label}</span>
       <div className="flex min-w-0 items-center gap-1.5">
         <div
           className={cn(
-            "min-w-0 flex-1 truncate text-[13px] font-semibold leading-tight text-text-primary",
+            "min-w-0 flex-1 truncate text-[14px] font-medium leading-snug text-text-primary",
             valueClassName,
           )}
         >

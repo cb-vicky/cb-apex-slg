@@ -36,9 +36,9 @@ export function ContractListView({ contracts, onSelect }: Props) {
   });
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border-default bg-white">
+    <div className="border-y border-border-default bg-white">
       {/* Column header */}
-      <div className="grid grid-cols-[1fr_100px_100px_110px_120px_100px] items-center gap-3 border-b border-border-subtle bg-surface-muted px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+      <div className="grid grid-cols-[1fr_100px_100px_110px_120px_100px] items-center gap-3 border-b border-border-subtle bg-gray-50 py-2 pl-3 pr-4 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
         <span>Contract</span>
         <span>Effective</span>
         <span>Ends</span>
@@ -61,7 +61,7 @@ export function ContractListView({ contracts, onSelect }: Props) {
               key={contract.id}
               type="button"
               onClick={() => onSelect(contract)}
-              className="grid w-full grid-cols-[1fr_100px_100px_110px_120px_100px] items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-muted/60"
+              className="grid w-full grid-cols-[1fr_100px_100px_110px_120px_100px] items-center gap-3 py-3 pl-3 pr-4 text-left transition-colors hover:bg-surface-muted/60"
             >
               <div className="flex flex-col gap-0.5">
                 <span className="text-[13px] font-semibold text-text-primary hover:text-cb-orange transition-colors">
