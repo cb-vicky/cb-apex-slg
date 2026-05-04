@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from "react";
-import { ChevronLeft, ChevronRight, FileText, Minus, PanelRightClose, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Minus, PanelRightClose, Plus } from "lucide-react";
 import type { ExtractedContract } from "@/data/ingest-data";
 import { ContractExtractDocumentBody } from "./ContractExtractDocumentBody";
 
@@ -24,13 +24,10 @@ export function IngestDocumentPreviewPane({
     <div className="flex min-h-0 flex-1 flex-col bg-gray-100">
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border-default bg-white px-3 py-2">
         <div
-          className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-border-default bg-surface-muted px-2 py-1"
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-border-default bg-surface-muted px-2.5 py-1"
           title={documentTitle}
         >
-          <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold text-text-secondary">
-            <FileText size={11} className="shrink-0 opacity-70" aria-hidden />
-            Contract
-          </span>
+          <span className="shrink-0 text-[11px] font-semibold text-text-secondary">Contract</span>
           <span className="min-w-0 truncate text-[11px] font-medium text-text-primary">{documentTitle}</span>
         </div>
 

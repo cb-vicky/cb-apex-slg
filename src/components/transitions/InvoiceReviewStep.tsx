@@ -6,8 +6,8 @@ import { useDemoPersona } from "@/context/DemoPersonaContext";
 import { invoices, customers, contracts } from "@/data/mock-data";
 import type { Invoice } from "@/data/mock-data";
 import { getInvoiceEnrichment } from "@/data/billing-data";
-import { ApprovalCommentsCard } from "@/components/approvals/approval-comments";
 import { ApprovalDocumentPreviewPane } from "@/components/approvals/approval-document-preview";
+import { FieldSummaryPanel, type FieldSummaryItem } from "@/components/transitions/ValidationPanel";
 import {
   approvalPreviewVariant,
   getApprovalDocKind,
@@ -111,6 +111,9 @@ export function InvoiceReviewStep({
     addSessionContract,
     addSessionCustomer,
     returnIngestToOperatorAfterReject,
+    queueItems,
+    pendingRenewalIngestions,
+    contractGraceExtensions,
   } = useIngestContext();
 
   const { setTrailingActions } = useUnifiedDrawerChrome();
@@ -124,6 +127,8 @@ export function InvoiceReviewStep({
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [discountPercent, setDiscountPercent] = useState(0);
+  const [includeGraceCharges, setIncludeGraceCharges] = useState(false);
 
   const staticInvoice = invoices.find((i) => i.id === invoiceId);
   const sessionInvoice = sessionInvoices.find((i) => i.id === invoiceId);
@@ -139,10 +144,34 @@ export function InvoiceReviewStep({
 
   const contract = useMemo(() => {
     if (!invoice) return undefined;
-    return (
-      sessionContracts.find((c) => c.id === invoice.contractId) ?? contracts.find((c) => c.id === invoice.contractId)
-    );
-  }, [invoice, sessionContracts]);
+    
+    const fromSession = sessionContracts.find((c) => c.id === invoice.contractId);
+    if (fromSession) return fromSession;
+    
+    const fromStatic = contracts.find((c) => c.id === invoice.contractId);
+    if (fromStatic) return fromStatic;
+    
+    const queueItem = queueItems.find((q) => q.id === queueItemId);
+    if (queueItem?.contractId) {
+      const queueContract = sessionContracts.find((c) => c.id === queueItem.contractId) ?? 
+                            contracts.find((c) => c.id === queueItem.contractId);
+      if (queueContract) return queueContract;
+    }
+    
+    if (queueItem?.activeContractId) {
+      const pending = pendingRenewalIngestions[queueItem.activeContractId];
+      if (pending?.pendingContractId) {
+        const pendingContract = sessionContracts.find((c) => c.id === pending.pendingContractId) ??
+                                contracts.find((c) => c.id === pending.pendingContractId);
+        if (pendingContract) return pendingContract;
+      }
+    }
+    
+    const latestSessionContract = sessionContracts.length > 0 
+      ? sessionContracts[sessionContracts.length - 1]
+      : undefined;
+    return latestSessionContract;
+  }, [invoice, sessionContracts, queueItems, queueItemId, pendingRenewalIngestions]);
 
   const approval = useMemo(() => {
     if (isApprover) {
@@ -150,6 +179,28 @@ export function InvoiceReviewStep({
     }
     return approvalRequests.find((r) => r.ingestId === queueItemId);
   }, [approvalRequests, invoiceId, queueItemId, isApprover]);
+
+  // Late renewal grace period info
+  const graceInfo = useMemo(() => {
+    const queueItem = queueItems.find((q) => q.id === queueItemId);
+    if (!queueItem?.activeContractId) return null;
+    const ext = contractGraceExtensions[queueItem.activeContractId];
+    if (!ext) return null;
+    const priorContract = contracts.find((c) => c.id === queueItem.activeContractId);
+    if (!priorContract) return null;
+    const endDate = new Date(priorContract.endDate);
+    const graceEndDate = new Date(ext.until);
+    const graceDays = Math.ceil((graceEndDate.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24));
+    const dailyRate = priorContract.tcv / 365;
+    const proratedAmount = Math.round(dailyRate * graceDays);
+    return {
+      graceDays,
+      proratedAmount,
+      billingMode: ext.billingMode,
+      graceEndDate: ext.until,
+      priorContractId: priorContract.id,
+    };
+  }, [queueItems, queueItemId, contractGraceExtensions]);
 
   useEffect(() => {
     if (isApprover || !mergedCustomer) return;
@@ -162,6 +213,52 @@ export function InvoiceReviewStep({
   const docUi = useMemo(() => getApprovalDocUi(getApprovalDocKind(invoiceId)), [invoiceId]);
   const enrichment = getInvoiceEnrichment(invoiceId);
   const overrides = invoiceFieldOverrides[invoiceId] ?? {};
+
+  const baseAmount = invoice?.amount ?? 0;
+  const graceChargeAmount = includeGraceCharges && graceInfo ? graceInfo.proratedAmount : 0;
+  const subtotalWithGrace = baseAmount + graceChargeAmount;
+  const discountAmount = Math.round(subtotalWithGrace * (discountPercent / 100));
+  const computedAmount = subtotalWithGrace - discountAmount;
+  const taxRate = overrides.taxRate ?? 8;
+  const taxAmount = Math.round(computedAmount * (taxRate / 100));
+  const totalAmount = computedAmount + taxAmount;
+
+  const fieldSummaryItems: FieldSummaryItem[] = useMemo(() => {
+    if (!invoice) return [];
+    const items: FieldSummaryItem[] = [
+      { id: "subtotal", label: "Contract charges", value: currency(baseAmount), status: "computed" },
+    ];
+    if (includeGraceCharges && graceInfo) {
+      items.push({
+        id: "graceCharge",
+        label: `Grace period (${graceInfo.graceDays} days)`,
+        value: currency(graceChargeAmount),
+        status: "edited",
+      });
+    }
+    if (discountPercent > 0) {
+      items.push({
+        id: "discount",
+        label: `Discount (${discountPercent}%)`,
+        value: `-${currency(discountAmount)}`,
+        status: "edited",
+      });
+    }
+    items.push(
+      { id: "tax", label: `Tax (${taxRate}%)`, value: currency(taxAmount), status: "computed" },
+      { id: "total", label: "Total", value: currency(totalAmount), status: (discountPercent > 0 || includeGraceCharges) ? "edited" : "normal" },
+    );
+    const paymentTerms = overrides.paymentTerms ?? enrichment?.paymentTerms ?? "Net 30";
+    const dueDate = overrides.dueDate ?? invoice.dueDate;
+    items.push(
+      { id: "terms", label: "Payment terms", value: paymentTerms },
+      { id: "due", label: "Due date", value: shortDate(dueDate) },
+    );
+    if (overrides.poNumber || enrichment?.poNumber) {
+      items.push({ id: "po", label: "PO number", value: overrides.poNumber ?? enrichment?.poNumber ?? "" });
+    }
+    return items;
+  }, [invoice, baseAmount, discountPercent, discountAmount, taxRate, taxAmount, totalAmount, overrides, enrichment, includeGraceCharges, graceInfo, graceChargeAmount]);
 
   const todayIso = new Date().toISOString().slice(0, 10);
   const effectiveInvoiceDate = overrides.invoiceDate ?? invoice?.date ?? "";
@@ -182,10 +279,13 @@ export function InvoiceReviewStep({
 
   function handleSendForApproval() {
     if (!invoice || !mergedCustomer) return;
+    const finalAmount = includeGraceCharges && graceInfo
+      ? (overrides.amount ?? invoice.amount) + graceInfo.proratedAmount
+      : overrides.amount ?? invoice.amount;
     submitInvoiceForApproval(invoice.id, {
       customerId: mergedCustomer.id,
       customerName: mergedCustomer.name,
-      invoiceAmount: overrides.amount ?? invoice.amount,
+      invoiceAmount: finalAmount,
       invoiceDate: overrides.invoiceDate ?? invoice.date,
       ingestId: queueItemId,
     });
@@ -363,18 +463,14 @@ export function InvoiceReviewStep({
           </div>
         ) : null}
         <div className={invoiceReviewGridClass}>
-          <div className="min-h-0 max-h-full min-w-0 overflow-y-auto overscroll-y-contain border-r border-border-default bg-gray-50">
-            <div className="p-5">
-              {approval ? (
-                <ApprovalCommentsCard
-                  id="approver-invoice-review-comments"
-                  comments={approval.comments}
-                  listMaxHeightClass="max-h-[calc(100vh-260px)]"
-                />
-              ) : (
-                <p className="text-[13px] text-text-muted">No approval thread for this document.</p>
-              )}
-            </div>
+          <div className="min-h-0 max-h-full min-w-0 overflow-hidden border-r border-border-default bg-gray-50">
+            <FieldSummaryPanel
+              title="Invoice summary"
+              items={fieldSummaryItems}
+              comments={approval?.comments ?? []}
+              onSubmitComment={handleAddComment}
+              commentsTitle="Discussion"
+            />
           </div>
 
           <div className="min-h-0 max-h-full min-w-0 overflow-y-auto overscroll-y-contain border-r border-border-default">
@@ -491,19 +587,14 @@ export function InvoiceReviewStep({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
       <div className={invoiceReviewGridClass}>
-        <div className="min-h-0 max-h-full min-w-0 overflow-y-auto overscroll-y-contain border-r border-border-default bg-gray-50">
-          <div className="p-5">
-            {approval ? (
-              <ApprovalCommentsCard
-                id="invoice-review-comments"
-                comments={approval.comments}
-                onSubmitComment={handleAddComment}
-                listMaxHeightClass="max-h-[calc(100vh-260px)]"
-              />
-            ) : (
-              <p className="text-[13px] text-text-muted">Loading discussion…</p>
-            )}
-          </div>
+        <div className="min-h-0 max-h-full min-w-0 overflow-hidden border-r border-border-default bg-gray-50">
+          <FieldSummaryPanel
+            title="Invoice summary"
+            items={fieldSummaryItems}
+            comments={approval?.comments ?? []}
+            onSubmitComment={handleAddComment}
+            commentsTitle="Discussion"
+          />
         </div>
 
         <div className="min-h-0 max-h-full min-w-0 overflow-y-auto overscroll-y-contain border-r border-border-default">
@@ -512,6 +603,27 @@ export function InvoiceReviewStep({
               <span className="font-semibold text-text-primary">Review the generated invoice</span> before it is
               submitted for approval. Fields below update the preview.
             </div>
+            {graceInfo && !sent && (
+              <div className="mb-5 rounded-lg border border-blue-200 bg-blue-50/80 px-4 py-3">
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={includeGraceCharges}
+                    onChange={(e) => setIncludeGraceCharges(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <div>
+                    <p className="text-[13px] font-semibold text-blue-950">
+                      Include prorated usage charges for grace period
+                    </p>
+                    <p className="mt-0.5 text-[12px] text-blue-900">
+                      Add {currency(graceInfo.proratedAmount)} for {graceInfo.graceDays} days of grace period usage
+                      (prior contract {graceInfo.priorContractId})
+                    </p>
+                  </div>
+                </label>
+              </div>
+            )}
             {sent ? (
               <p className="text-[14px] font-medium text-emerald-700">Sent for approval — closing…</p>
             ) : (
@@ -536,6 +648,10 @@ export function InvoiceReviewStep({
                 }
                 amountFieldLabel={docUi.amountField}
                 dateFieldLabel={docUi.dateField}
+                amountComputed
+                discountPercent={discountPercent}
+                onDiscountChange={setDiscountPercent}
+                showDiscountControl
               />
             )}
           </div>

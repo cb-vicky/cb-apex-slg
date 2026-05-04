@@ -1,18 +1,39 @@
-import { cn } from "@/lib/utils";
 import { currency, shortDate } from "@/lib/utils";
 import type { ExtractedContract } from "@/data/ingest-data";
 
-/** Monospace “signed agreement” body — same sample style as Queue ingest + Approval contract tab. */
+/** Monospace "signed agreement" body — same sample style as Queue ingest + Approval contract tab. */
 export function ContractExtractDocumentBody({ doc }: { doc: ExtractedContract }) {
   const isEarlyRenewal = doc.docId === "sample3";
+  const isLateRenewal = doc.docId === "sample4";
+  const orderFormLabel = isLateRenewal
+    ? "Late renewal"
+    : isEarlyRenewal
+      ? "Early renewal"
+      : "New Business";
   const products = doc.products;
+
+  const signatoryName = isLateRenewal
+    ? "Michael Torres"
+    : isEarlyRenewal
+      ? "Sandra Kim"
+      : "David Chen";
+  const signatoryCompany = isLateRenewal
+    ? "Northlane Labs"
+    : isEarlyRenewal
+      ? "Verdant Health"
+      : "Zenith Analytics Inc.";
+  const signatoryDate = isLateRenewal
+    ? "2026-04-18"
+    : isEarlyRenewal
+      ? "2026-04-19"
+      : "2026-04-12";
 
   return (
     <div className="space-y-4 font-mono text-[12px] leading-relaxed text-text-secondary">
       <div className="text-center">
         <p className="text-[13px] font-bold uppercase tracking-widest text-text-primary">Master Subscription Agreement</p>
         <p className="mt-1 text-[10px] uppercase tracking-wider text-text-muted">
-          Order Form — {isEarlyRenewal ? "Early renewal" : "New Business"}
+          Order Form — {orderFormLabel}
         </p>
         <p className="mt-0.5 text-[10px] text-text-muted">Document: {doc.documentName}</p>
       </div>
@@ -27,12 +48,8 @@ export function ContractExtractDocumentBody({ doc }: { doc: ExtractedContract })
         </p>
         <p className="mt-0.5">
           <span className="text-text-muted">Customer: </span>
-          <span className={cn(!doc.customerFound && "text-red-700 underline decoration-dotted")}>
-            {doc.customerLegalEntity}
-          </span>{" "}
-          ("Customer")
+          {doc.customerLegalEntity} ("Customer")
         </p>
-        {!doc.customerFound && <p className="mt-1 font-medium text-red-700">Customer not found in system</p>}
       </div>
 
       <hr className="border-border-subtle" />
@@ -64,9 +81,8 @@ export function ContractExtractDocumentBody({ doc }: { doc: ExtractedContract })
             {products.map((p, i) => (
               <tr key={i} className="border-b border-border-subtle last:border-0">
                 <td className="py-1 pr-2">
-                  <span className={cn(!p.matched && "text-amber-700 underline decoration-dotted")}>{p.extractedName}</span>
+                  {p.extractedName}
                   <span className="ml-1 text-text-muted">({p.extractedSku})</span>
-                  {!p.matched && <span className="ml-1 text-amber-600">⚠ unmatched</span>}
                 </td>
                 <td className="py-1 text-right">{p.quantity || "—"}</td>
                 <td className="py-1 text-right">
@@ -136,10 +152,10 @@ export function ContractExtractDocumentBody({ doc }: { doc: ExtractedContract })
           <div>
             <p className="text-text-muted">For Customer:</p>
             <p className="mt-3 border-b border-border-default pb-1 font-semibold text-text-primary">
-              {isEarlyRenewal ? "Sandra Kim" : "David Chen"}
+              {signatoryName}
             </p>
-            <p className="text-text-muted">CFO, {isEarlyRenewal ? "Verdant Health" : "Zenith Analytics Inc."}</p>
-            <p className="text-text-muted">Date: {shortDate(isEarlyRenewal ? "2026-04-19" : "2026-04-12")}</p>
+            <p className="text-text-muted">CFO, {signatoryCompany}</p>
+            <p className="text-text-muted">Date: {shortDate(signatoryDate)}</p>
           </div>
         </div>
       </div>

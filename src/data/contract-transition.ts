@@ -70,7 +70,7 @@ export type DrawerEntityType = "queue_item" | "contract" | "invoice" | "transiti
 export type DrawerMode = "ingest" | "transition" | "late_renewal" | "invoice_approval";
 
 /** Unified ingest → invoice review → approval (and deep-linkable steps). */
-export type FlowScenario = "ingest_invoice" | "invoice_only" | "late_grace";
+export type FlowScenario = "ingest_invoice" | "invoice_only" | "late_grace" | "late_renewal_resolve";
 
 export type FlowStepId =
   | "ingest"

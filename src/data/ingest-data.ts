@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 export interface SampleDoc {
-  id: "sample2" | "sample3";
+  id: "sample2" | "sample3" | "sample4";
   label: string;
   subtitle: string;
   path: "happy" | "exception";
@@ -43,7 +43,7 @@ export interface IngestIssue {
 }
 
 export interface ExtractedContract {
-  docId: "sample1" | "sample2" | "sample3";
+  docId: "sample1" | "sample2" | "sample3" | "sample4";
   documentName: string;
   extractedAt: string;
   extractionConfidence: number;
@@ -66,7 +66,7 @@ export interface CreatedObject {
 }
 
 export interface IngestResult {
-  docId: "sample1" | "sample2" | "sample3";
+  docId: "sample1" | "sample2" | "sample3" | "sample4";
   contractId: string;
   customerId: string;
   invoiceId: string;
@@ -311,6 +311,68 @@ export const extractedSample3: ExtractedContract = {
 };
 
 // ---------------------------------------------------------------------------
+// EXTRACTED CONTRACT DATA — Sample 4 (Northlane Labs Late Renewal)
+// ---------------------------------------------------------------------------
+
+export const extractedSample4: ExtractedContract = {
+  docId: "sample4",
+  documentName: "NorthlaneLabs_LateRenewal_Commercial_2026.pdf",
+  extractedAt: "2026-04-20T10:15:00Z",
+  extractionConfidence: 96,
+  customerName: "Northlane Labs",
+  customerLegalEntity: "Northlane Labs Inc.",
+  customerId: "cust_northlane_003",
+  customerFound: true,
+  quoteMatchId: undefined,
+  quoteMatchConfidence: undefined,
+  products: [
+    {
+      extractedName: "Apex Platform – Enterprise",
+      extractedSku: "APEX-PLATFORM",
+      catalogSku: "APEX-PLATFORM",
+      matched: true,
+      quantity: 350,
+      unitPrice: 48,
+      discount: 12,
+      billingModel: "Per seat / month",
+    },
+    {
+      extractedName: "AI Agent Credits – Prepaid Block",
+      extractedSku: "APEX-AI-CREDITS",
+      catalogSku: "APEX-AI-CREDITS",
+      matched: true,
+      quantity: 1,
+      unitPrice: 85000,
+      discount: 0,
+      billingModel: "Prepaid drawdown",
+    },
+    {
+      extractedName: "Premium Support – 24/7",
+      extractedSku: "APEX-SUPPORT",
+      catalogSku: "APEX-SUPPORT",
+      matched: true,
+      quantity: 1,
+      unitPrice: 2200,
+      discount: 0,
+      billingModel: "Flat / month",
+    },
+  ],
+  terms: {
+    term: "24 months",
+    startDate: "2026-05-01",
+    endDate: "2028-04-30",
+    billingFrequency: "Annual upfront",
+    paymentTerms: "Net 30",
+    tcv: 312000,
+    arr: 156000,
+    minCommit: 140000,
+    prepaidCredits: 85000,
+    autoRenew: true,
+  },
+  issues: [],
+};
+
+// ---------------------------------------------------------------------------
 // ANALYSIS LOADING MESSAGES
 // ---------------------------------------------------------------------------
 
@@ -327,14 +389,15 @@ export const analysisMessages = [
 // HELPERS
 // ---------------------------------------------------------------------------
 
-export function getExtractedContract(sampleId: "sample1" | "sample2" | "sample3"): ExtractedContract {
+export function getExtractedContract(sampleId: "sample1" | "sample2" | "sample3" | "sample4"): ExtractedContract {
   if (sampleId === "sample1") return extractedSample1;
   if (sampleId === "sample3") return extractedSample3;
+  if (sampleId === "sample4") return extractedSample4;
   return extractedSample2;
 }
 
 export function buildIngestResult(
-  docId: "sample1" | "sample2" | "sample3",
+  docId: "sample1" | "sample2" | "sample3" | "sample4",
   resolvedCustomerId: string,
   meta?: {
     customerLabel?: string;
@@ -368,6 +431,19 @@ export function buildIngestResult(
         { type: "customer", id: "cust_verdant_005", label: "Customer: Verdant Health", action: "reused" },
         { type: "product", id: "APEX-PLATFORM", label: "APEX-PLATFORM, APEX-AI-CREDITS", action: "reused" },
         { type: "contract", id: "CON-2026-0VH1", label: "Contract CON-2026-0VH1 (Scheduled)", action: "created" },
+      ],
+    };
+  }
+  if (docId === "sample4") {
+    return {
+      docId,
+      contractId: "CON-2026-0NL1",
+      customerId: "cust_northlane_003",
+      invoiceId: "",
+      createdObjects: [
+        { type: "customer", id: "cust_northlane_003", label: "Customer: Northlane Labs", action: "reused" },
+        { type: "product", id: "APEX-PLATFORM", label: "APEX-PLATFORM, APEX-AI-CREDITS, APEX-SUPPORT", action: "reused" },
+        { type: "contract", id: "CON-2026-0NL1", label: "Contract CON-2026-0NL1 (Scheduled)", action: "created" },
       ],
     };
   }

@@ -2,8 +2,6 @@ import { useState, type CSSProperties } from "react";
 import {
   ChevronLeft,
   ChevronRight,
-  FileEdit,
-  FileText,
   Minus,
   PanelRightClose,
   Plus,
@@ -44,26 +42,24 @@ function PreviewToolbar({
           type="button"
           onClick={() => onChange("invoice")}
           className={cn(
-            "flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition-colors",
+            "rounded px-2.5 py-1 text-[11px] font-medium transition-colors",
             active === "invoice"
               ? "bg-white text-text-primary shadow-sm"
               : "text-text-muted hover:text-text-secondary",
           )}
         >
-          <FileEdit size={11} />
           {documentTabLabel}
         </button>
         <button
           type="button"
           onClick={() => onChange("contract")}
           className={cn(
-            "flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition-colors",
+            "rounded px-2.5 py-1 text-[11px] font-medium transition-colors",
             active === "contract"
               ? "bg-white text-text-primary shadow-sm"
               : "text-text-muted hover:text-text-secondary",
           )}
         >
-          <FileText size={11} />
           Contract
         </button>
       </div>

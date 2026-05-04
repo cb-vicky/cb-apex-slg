@@ -1672,11 +1672,7 @@ export const invoices: Invoice[] = [
 // TASKS
 // ---------------------------------------------------------------------------
 
-export const tasks: Task[] = [
-  { id: "TSK-006", customerId: "cust_northlane_003", title: "Fix overage SKU mapping for CON-2025-0022", type: "Enforcement", priority: "High", status: "Open", dueDate: "2026-04-08", assignee: "Lena Schulz" },
-  { id: "TSK-007", customerId: "cust_northlane_003", title: "Resolve overdue invoice INV-2026-0040", type: "Billing", priority: "High", status: "Open", dueDate: "2026-04-05", assignee: "Lena Schulz" },
-  { id: "TSK-008", customerId: "cust_verdant_005", title: "Obtain PO number for INV-2026-0042", type: "Billing", priority: "Medium", status: "Open", dueDate: "2026-04-10", assignee: "Lena Schulz" },
-];
+export const tasks: Task[] = [];
 
 // ---------------------------------------------------------------------------
 // LOOKUP HELPERS

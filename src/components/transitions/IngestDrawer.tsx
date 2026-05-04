@@ -1,11 +1,11 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useUnifiedDrawerChrome } from "@/context/UnifiedDrawerChromeContext";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, MessageSquare, PanelRightOpen, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, MessageSquare, PanelRightOpen, X } from "lucide-react";
 import type { DrawerEntityType, DrawerMode, EntityState, TransitionDrawerIntent } from "@/data/contract-transition";
 import { transitionTypeFromIntent } from "@/data/contract-transition";
 import { useIngestContext } from "@/context/IngestContext";
-import { ApprovalCommentsCard } from "@/components/approvals/approval-comments";
+import { ValidationPanel, type ValidationItem } from "./ValidationPanel";
 import type { ApprovalComment } from "@/data/ingest-data";
 import { useDemoPersona } from "@/context/DemoPersonaContext";
 import { buildIngestResult, getExtractedContract } from "@/data/ingest-data";
@@ -13,6 +13,7 @@ import {
   customers as seedCustomers,
   contracts,
   getContractsForCustomer,
+  type Contract,
 } from "@/data/mock-data";
 import {
   buildZenithScheduledContract,
@@ -26,8 +27,7 @@ import { INGEST_DRAWER_NEW_CUSTOMER_ID } from "./ingest-drawer-constants";
 import { DrawerRailIndent } from "./DrawerSelectShell";
 import type { QueueItem } from "@/data/queue-data";
 import { StatusBadge } from "@/components/ui/primitives";
-import { currency, shortDate } from "@/lib/utils";
-import { cn } from "@/lib/utils";
+import { currency, cn, shortDate } from "@/lib/utils";
 import { TransitionIntentSelector } from "./TransitionIntentSelector";
 import {
   CustomerMappingSection,
@@ -245,6 +245,10 @@ export function IngestDrawer({
   const [approvalOpen, setApprovalOpen] = useState(false);
   const [approvalVariant, setApprovalVariant] = useState<"approve_activate" | "approve_transition" | "submit">("submit");
   const [ingestPreviewCollapsed, setIngestPreviewCollapsed] = useState(false);
+  const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const fieldsContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (billingKind === "postpaid") {
@@ -311,6 +315,17 @@ export function IngestDrawer({
   }, [context]);
 
   const graceForPrior = context?.contractId ? contractGraceExtensions[context.contractId] : undefined;
+  
+  // Late renewal: detect if prior contract is in extension
+  const isLateRenewal = queueItem?.scenario === "Late Renewal";
+  const priorContractId = queueItem?.activeContractId;
+  const priorContractForLateRenewal = priorContractId 
+    ? contracts.find((c) => c.id === priorContractId) 
+    : undefined;
+  const graceExtensionForLateRenewal = priorContractId 
+    ? contractGraceExtensions[priorContractId] 
+    : undefined;
+  const showLateRenewalBanner = isLateRenewal && priorContractForLateRenewal && graceExtensionForLateRenewal;
 
   const customerLabel =
     customerId === INGEST_DRAWER_NEW_CUSTOMER_ID
@@ -360,6 +375,48 @@ export function IngestDrawer({
     !newCustomerAcknowledged
       ? { message: customerNotFoundIssue.message }
       : null;
+
+  const validationItems: ValidationItem[] = useMemo(() => {
+    const hasCustomerIssue = validation.businessIssues.some((i) => i.id === "biz-customer");
+    const hasDateIssue = validation.businessIssues.some((i) => i.id === "biz-dates");
+    const hasCatalogIssue = validation.extractedRemaining.some((i) => i.type === "product_mismatch");
+    const hasLineIssue = validation.businessIssues.some((i) => i.id === "biz-lines");
+
+    return [
+      {
+        id: "customer",
+        label: "Customer",
+        status: hasCustomerIssue ? "error" : customerId ? "valid" : "pending",
+        hint: customerId ? customerLabel : "Not selected",
+      },
+      {
+        id: "billing",
+        label: "Billing",
+        status: "valid",
+        hint: billingKind === "prepaid" ? "Prepaid" : billingKind === "hybrid" ? "Hybrid" : "Postpaid",
+      },
+      {
+        id: "terms",
+        label: "Contract terms",
+        status: hasDateIssue ? "error" : "valid",
+        hint: `${startDate} — ${endDate}`,
+      },
+      {
+        id: "catalog",
+        label: "Catalog mapping",
+        status: hasCatalogIssue || hasLineIssue ? "warning" : "valid",
+        hint: `${extracted?.products.length ?? 0} line items`,
+      },
+    ];
+  }, [validation, customerId, customerLabel, billingKind, startDate, endDate, extracted]);
+
+  const scrollToSection = useCallback((sectionId: string) => {
+    setActiveSectionId(sectionId);
+    const el = sectionRefs.current[sectionId];
+    if (el && fieldsContainerRef.current) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
 
   const showNewCustomerKvSummary =
     !!queueItem &&
@@ -489,6 +546,125 @@ export function IngestDrawer({
     );
   }
 
+  function handleLateRenewalQueueFinish(q: QueueItem) {
+    if (!q.activeContractId || !q.customerId) return;
+    
+    // Create the scheduled renewal contract
+    const renewalContract: Contract = {
+      id: "CON-2026-0NL1",
+      customerId: q.customerId,
+      sourceQuoteId: "",
+      status: "Scheduled",
+      tcv: q.tcv,
+      term: "24 months",
+      effectiveDate: "2026-05-01",
+      endDate: "2028-04-30",
+      signedDate: "2026-04-18",
+      renewalDate: "2028-04-30",
+      billingFrequency: "Annual upfront",
+      paymentTerms: "Net 30",
+      prepaidCreditTotal: 85000,
+      prepaidCreditBalance: 85000,
+      minAnnualCommit: 140000,
+      owner: "Alex Nguyen",
+      products: [
+        {
+          name: "Apex Platform – Enterprise",
+          sku: "APEX-PLATFORM",
+          type: "recurring",
+          quantity: 350,
+          unitPrice: 48,
+          discountApplied: 12,
+          minimumCommit: 0,
+          prepaidCredits: 0,
+          overageRate: 0,
+          billingCadence: "Monthly",
+        },
+        {
+          name: "AI Agent Credits – Prepaid Block",
+          sku: "APEX-AI-CREDITS",
+          type: "one-time",
+          quantity: 1,
+          unitPrice: 85000,
+          discountApplied: 0,
+          minimumCommit: 0,
+          prepaidCredits: 85000,
+          overageRate: 0.018,
+          billingCadence: "Upfront",
+        },
+        {
+          name: "Premium Support – 24/7",
+          sku: "APEX-SUPPORT",
+          type: "recurring",
+          quantity: 1,
+          unitPrice: 2200,
+          discountApplied: 0,
+          minimumCommit: 0,
+          prepaidCredits: 0,
+          overageRate: 0,
+          billingCadence: "Monthly",
+        },
+      ],
+      enforcement: {
+        sourceType: "API",
+        linkedQuoteId: "",
+        saleOrderStatus: "Pending",
+        enforcementStatus: "Pending",
+        productMappingIssues: [],
+        missingFields: [],
+        provisioningStatus: "Not started",
+        entitlementStatus: "Not started",
+        manualOverrides: [],
+        blockingIssues: [],
+      },
+      billingSchedule: [],
+      amendments: [],
+      comparisonToQuote: [],
+      invoicesGenerated: 0,
+      creditNotes: 0,
+      openAr: 0,
+      paymentsReceived: 0,
+      unappliedCash: 0,
+      revRecSummary: { recognized: 0, deferred: q.tcv, status: "Not started" },
+      signedDocumentUrl: "",
+      ingestionTimestamp: new Date().toISOString(),
+      extractionConfidence: 96,
+      quoteMatchConfidence: 0,
+      importantClauses: [],
+      timeline: [],
+      coTermBehavior: "Standard",
+      replacesContractId: q.activeContractId,
+    };
+    addSessionContract(renewalContract);
+    
+    setPendingRenewalIngestion(q.activeContractId, {
+      queueItemId: q.id,
+      sampleId: "sample4",
+      renewalTcv: q.tcv,
+      customerId: q.customerId,
+      pendingContractId: "CON-2026-0NL1",
+    });
+
+    // Late Renewal reuses the same `ingest_invoice` scenario as Early Renewal,
+    // so the drawer/steps/components are identical. Just advance to close_prior.
+    const { flow } = getDrawerState();
+    if (flow?.scenario === "ingest_invoice" || flow?.scenario === "late_renewal_resolve") {
+      patchFlowSession({
+        scenario: "ingest_invoice",
+        step: "close_prior",
+        furthestUnlockedStep: "close_prior",
+        queueItemId: q.id,
+        customerId: q.customerId,
+        contractId: q.activeContractId,
+      });
+      return;
+    }
+    onClose();
+    navigate(
+      `/customers/${q.customerId}?tab=contract&contractId=${q.activeContractId}&closeIntent=late-renewal&queueItemId=${q.id}`,
+    );
+  }
+
   function handleExecuteIngest(q: QueueItem) {
     if (validation.flags.hasBlockingErrors) return;
     const needsRiskConfirm =
@@ -502,7 +678,15 @@ export function IngestDrawer({
     ) {
       return;
     }
-    if (!q.sampleId || q.sampleId === "sample3") {
+    if (q.sampleId === "sample3") {
+      handleEarlyRenewalQueueFinish(q);
+      return;
+    }
+    if (q.sampleId === "sample4") {
+      handleLateRenewalQueueFinish(q);
+      return;
+    }
+    if (!q.sampleId) {
       handleEarlyRenewalQueueFinish(q);
       return;
     }
@@ -959,17 +1143,18 @@ export function IngestDrawer({
         {isQueueIngest ? (
           triColQueueIngest ? (
             <>
-              <div className="min-h-0 max-h-full min-w-0 overflow-y-auto overscroll-y-contain border-r border-border-default bg-gray-50">
-                <div className="p-4">
-                  <ApprovalCommentsCard
-                    id="ingest-comments-tricol"
-                    comments={pageApproval?.comments ?? []}
-                    onSubmitComment={readOnly || !queueItem ? undefined : handlePageIngestComment}
-                    listMaxHeightClass="max-h-[calc(100vh-260px)]"
-                  />
-                </div>
+              <div className="min-h-0 max-h-full min-w-0 overflow-hidden border-r border-border-default bg-gray-50">
+                <ValidationPanel
+                  title="Validations"
+                  items={validationItems}
+                  onItemClick={scrollToSection}
+                  activeItemId={activeSectionId ?? undefined}
+                  comments={pageApproval?.comments ?? []}
+                  onSubmitComment={readOnly || !queueItem ? undefined : handlePageIngestComment}
+                  commentsTitle="Discussion"
+                />
               </div>
-              <div className="min-h-0 max-h-full min-w-0 overflow-y-auto overscroll-y-contain border-r border-border-default">
+              <div ref={fieldsContainerRef} className="min-h-0 max-h-full min-w-0 overflow-y-auto overscroll-y-contain border-r border-border-default">
                 <div className="px-6 py-5 text-[14px] leading-snug">
                   {queueItem && !queueItem.ingestable && (
                     <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3 text-[13px] text-amber-900">
@@ -994,55 +1179,62 @@ export function IngestDrawer({
                     <TransitionIntentSelector value={intent} onChange={setIntent} allowed={allowedIntents} />
                   )}
 
-                  {queueItem && (
-                    <div className="border-b border-border-subtle pb-6">
-                      <div className="grid grid-cols-2 gap-x-5 gap-y-3 text-[13px]">
-                        <span className="text-text-muted">Source</span>
-                        <span className="text-right font-medium text-text-primary">{queueItem.source}</span>
-                        <span className="text-text-muted">Uploaded</span>
-                        <span className="text-right font-medium text-text-primary">
-                          {shortDate(queueItem.uploadedAt)}
-                        </span>
+                  {showLateRenewalBanner && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3">
+                      <div className="flex items-start gap-2">
+                        <Clock size={16} className="mt-0.5 shrink-0 text-amber-600" />
+                        <div>
+                          <p className="text-[13px] font-semibold text-amber-950">This customer has a contract in extension</p>
+                          <p className="mt-0.5 text-[12px] text-amber-900">
+                            Contract {priorContractForLateRenewal?.id} is in grace period through {shortDate(graceExtensionForLateRenewal?.until ?? "")} ·
+                            billing {graceExtensionForLateRenewal?.billingMode === "continue" ? "continued" : "paused"}.
+                            Closing it will resolve the grace extension automatically as part of this renewal.
+                          </p>
+                        </div>
                       </div>
                     </div>
                   )}
 
-                  <CustomerMappingSection
-                    customers={mergedCustomers}
-                    selectedCustomerId={customerId}
-                    onSelectCustomer={setCustomerId}
-                    allowCreateNew={Boolean(queueItem && !queueItem.customerId)}
-                    newCustomer={newCustomer}
-                    onNewCustomerChange={(p) => setNewCustomer((prev) => ({ ...prev, ...p }))}
-                    activeContractSummary={
-                      activeContract ? `${activeContract.id} · ${currency(activeContract.tcv)} TCV` : null
-                    }
-                    createCustomerIssue={createCustomerIssueForDrawer}
-                    onConfirmCreateCustomer={() => {
-                      if (newCustomerComplete) setNewCustomerAcknowledged(true);
-                    }}
-                    createCustomerConfirmDisabled={!newCustomerComplete}
-                    showNewCustomerKvSummary={showNewCustomerKvSummary}
-                    onEditNewCustomer={() => setNewCustomerAcknowledged(false)}
-                  />
-                  <div className="flex flex-col gap-2">
+                  <div ref={(el) => { sectionRefs.current["customer"] = el; }}>
+                    <CustomerMappingSection
+                      customers={mergedCustomers}
+                      selectedCustomerId={customerId}
+                      onSelectCustomer={setCustomerId}
+                      allowCreateNew={Boolean(queueItem && !queueItem.customerId)}
+                      newCustomer={newCustomer}
+                      onNewCustomerChange={(p) => setNewCustomer((prev) => ({ ...prev, ...p }))}
+                      activeContractSummary={
+                        activeContract ? `${activeContract.id} · ${currency(activeContract.tcv)} TCV` : null
+                      }
+                      createCustomerIssue={createCustomerIssueForDrawer}
+                      onConfirmCreateCustomer={() => {
+                        if (newCustomerComplete) setNewCustomerAcknowledged(true);
+                      }}
+                      createCustomerConfirmDisabled={!newCustomerComplete}
+                      showNewCustomerKvSummary={showNewCustomerKvSummary}
+                      onEditNewCustomer={() => setNewCustomerAcknowledged(false)}
+                    />
+                  </div>
+                  <div ref={(el) => { sectionRefs.current["billing"] = el; }} className="flex flex-col gap-2">
                     <PrepaidOnlyBillingSelect kind={billingKind} onKindChange={setBillingKind} />
                     <DrawerRailIndent>
                       <ContractProcessingSummarySection tcv={tcv} startDate={startDate} />
                     </DrawerRailIndent>
                   </div>
-                  <TransitionContractTermsSection
-                    variant="flat"
-                    startDate={startDate}
-                    endDate={endDate}
-                    onStartChange={setStartDate}
-                    onEndChange={setEndDate}
-                    billingFrequency={billingFrequency}
-                    onFrequencyChange={setBillingFrequency}
-                    autoRenew={autoRenew}
-                    onAutoRenewChange={setAutoRenew}
-                    activationSummary={activationSummary}
-                  />
+                  <div ref={(el) => { sectionRefs.current["terms"] = el; }}>
+                    <TransitionContractTermsSection
+                      variant="flat"
+                      startDate={startDate}
+                      endDate={endDate}
+                      onStartChange={setStartDate}
+                      onEndChange={setEndDate}
+                      billingFrequency={billingFrequency}
+                      onFrequencyChange={setBillingFrequency}
+                      autoRenew={autoRenew}
+                      onAutoRenewChange={setAutoRenew}
+                      activationSummary={activationSummary}
+                    />
+                  </div>
                   {intent !== "new_deal" && (
                     <ContractTransitionSection
                       variant="drawer"
@@ -1072,7 +1264,7 @@ export function IngestDrawer({
                     />
                   )}
                   {extracted && (
-                    <>
+                    <div ref={(el) => { sectionRefs.current["catalog"] = el; }}>
                       <div className="border-t border-border-default pt-2" />
                       <CatalogMappingSection
                         layout="drawer"
@@ -1081,7 +1273,7 @@ export function IngestDrawer({
                         catalogMappingIssue={catalogMappingIssueForDrawer}
                         sessionMappedSkus={sessionProductSkus}
                       />
-                    </>
+                    </div>
                   )}
                   {extracted && <div className="border-t border-border-default" />}
                     </div>
@@ -1130,19 +1322,6 @@ export function IngestDrawer({
                   <div className="flex flex-col gap-6">
                     {showIntentSelector && (
                       <TransitionIntentSelector value={intent} onChange={setIntent} allowed={allowedIntents} />
-                    )}
-
-                    {queueItem && (
-                      <div className="border-b border-border-subtle pb-6">
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[12px]">
-                          <span className="text-text-muted">Source</span>
-                          <span className="text-right font-medium text-text-primary">{queueItem.source}</span>
-                          <span className="text-text-muted">Uploaded</span>
-                          <span className="text-right font-medium text-text-primary">
-                            {shortDate(queueItem.uploadedAt)}
-                          </span>
-                        </div>
-                      </div>
                     )}
 
                     <CustomerMappingSection

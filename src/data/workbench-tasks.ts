@@ -163,29 +163,55 @@ export function deriveWorkbenchTasks(
       continue;
     }
     const isLateRenewal = q.scenario === "Late Renewal";
+    // Ingestable late renewal opens the 3-step drawer (ingest_invoice scenario).
+    // Non-ingestable late renewal routes to the customer workspace for grace handling.
     const destination =
-      isLateRenewal && q.customerId && q.activeContractId
+      isLateRenewal && !q.ingestable && q.customerId && q.activeContractId
         ? `/customers/${q.customerId}?tab=contract&contractId=${q.activeContractId}`
         : `/queue/${q.id}`;
     const drawer: WorkbenchTaskDrawerLaunch | undefined = q.ingestable
-      ? {
-          entityType: "queue_item",
-          mode: "ingest",
-          entityId: q.id,
-          ...(q.status === "Invoice review" && q.invoiceId
-            ? {
-                flow: {
-                  scenario: "ingest_invoice",
-                  step: "invoice_review",
-                  furthestUnlockedStep: "invoice_review",
-                  queueItemId: q.id,
-                  invoiceId: q.invoiceId,
-                  contractId: q.contractId,
-                  customerId: q.customerId,
-                } satisfies TransitionFlowSession,
-              }
-            : {}),
-        }
+      ? isLateRenewal && q.customerId && q.activeContractId
+        ? {
+            entityType: "queue_item",
+            mode: "ingest",
+            entityId: q.id,
+            // Reuse the same `ingest_invoice` scenario as Early Renewal so the
+            // drawer/components/steps are identical. The only differences are the
+            // small "contract in extension" banners shown in IngestDrawer + close-prior step.
+            flow: {
+              scenario: "ingest_invoice",
+              step: q.status === "Invoice review" && q.invoiceId ? "invoice_review" : "ingest",
+              furthestUnlockedStep:
+                q.status === "Invoice review" && q.invoiceId ? "invoice_review" : "ingest",
+              queueItemId: q.id,
+              customerId: q.customerId,
+              contractId: q.activeContractId,
+              ...(q.status === "Invoice review" && q.invoiceId ? { invoiceId: q.invoiceId } : {}),
+            } satisfies TransitionFlowSession,
+            context: {
+              customerId: q.customerId,
+              contractId: q.activeContractId,
+              queueItemId: q.id,
+            },
+          }
+        : {
+            entityType: "queue_item",
+            mode: "ingest",
+            entityId: q.id,
+            ...(q.status === "Invoice review" && q.invoiceId
+              ? {
+                  flow: {
+                    scenario: "ingest_invoice",
+                    step: "invoice_review",
+                    furthestUnlockedStep: "invoice_review",
+                    queueItemId: q.id,
+                    invoiceId: q.invoiceId,
+                    contractId: q.contractId,
+                    customerId: q.customerId,
+                  } satisfies TransitionFlowSession,
+                }
+              : {}),
+          }
       : isLateRenewal && q.customerId && q.activeContractId
         ? {
             entityType: "transition",
@@ -207,13 +233,21 @@ export function deriveWorkbenchTasks(
         : undefined;
     const type: WorkbenchTask["type"] =
       isLateRenewal && !q.ingestable ? "late-renewal" : "contract-ingest";
+    
+    let subtitle = `${q.scenario} · ${q.source}`;
+    if (isLateRenewal) {
+      subtitle = q.ingestable
+        ? "Renewal contract received — ingest and close prior"
+        : "Contract expired — extend grace or renew";
+    }
+    
     derived.push({
       id: `queue-${q.id}`,
       customerId: q.customerId,
       customerName: q.customerName,
       type,
       title: q.documentName,
-      subtitle: `${q.scenario} · ${q.source}`,
+      subtitle,
       severity: scenarioToSeverity(q.scenario),
       destination,
       drawer,
@@ -222,38 +256,10 @@ export function deriveWorkbenchTasks(
     });
   }
 
-  for (const ext of Object.values(context.contractGraceExtensions)) {
-    if (ext.resolved) continue;
-    const cust = customers.find((x) => x.id === ext.customerId);
-    derived.push({
-      id: `grace-${ext.contractId}`,
-      customerId: ext.customerId,
-      customerName: cust?.name ?? "Unknown",
-      type: "late-renewal-extension",
-      title: `Resolve grace extension — ${ext.contractId}`,
-      subtitle: `Grace through ${ext.until} · billing ${ext.billingMode}`,
-      severity: "critical",
-      destination: `/customers/${ext.customerId}?tab=contract&contractId=${ext.contractId}`,
-      drawer: {
-        entityType: "transition",
-        mode: "late_renewal",
-        context: {
-          customerId: ext.customerId,
-          contractId: ext.contractId,
-          latePhase: "resolve",
-        },
-        flow: {
-          scenario: "late_grace",
-          step: "grace_extend",
-          furthestUnlockedStep: "grace_extend",
-          customerId: ext.customerId,
-          contractId: ext.contractId,
-          showStepper: true,
-        },
-      },
-      source: "contract-lifecycle",
-    });
-  }
+  // Note: Grace extension tasks are now handled through the queue item status.
+  // When grace is extended, the queue item moves to "Grace Extended" status (hidden).
+  // When the renewal contract becomes ingestable, the queue item moves back to
+  // "Pending Review" with ingestable=true and shows as "Renewal contract received".
 
   // ── Approval source ───────────────────────────────────────────────────────
   for (const req of context.approvalRequests) {

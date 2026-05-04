@@ -6,31 +6,31 @@ import { IngestDrawer } from "@/components/transitions/IngestDrawer";
 import { InvoiceReviewStep } from "@/components/transitions/InvoiceReviewStep";
 import { InvoiceApprovalDrawer } from "@/components/approvals/InvoiceApprovalDrawer";
 import { EarlyRenewalClosePriorStep } from "@/components/transitions/EarlyRenewalClosePriorStep";
+import { ExtendGraceStep } from "@/components/transitions/ExtendGraceStep";
 import { useDemoPersona } from "@/context/DemoPersonaContext";
 import { UnifiedDrawerChromeProvider, useUnifiedDrawerChrome } from "@/context/UnifiedDrawerChromeContext";
 import { useIngestContext } from "@/context/IngestContext";
 import type { FlowScenario, FlowStepId, TransitionFlowSession } from "@/data/contract-transition";
-import { cn } from "@/lib/utils";
+import { cn, shortDate } from "@/lib/utils";
 
 type StepDef = { id: FlowStepId; label: string; short: string };
 
 function buildIngestInvoiceSteps(queueScenario?: string): StepDef[] {
-  if (queueScenario === "Early Renewal") {
+  if (queueScenario === "Early Renewal" || queueScenario === "Late Renewal") {
     return [
-      { id: "ingest", label: "Map & terms", short: "1" },
+      { id: "ingest", label: "Contract extraction", short: "1" },
       { id: "close_prior", label: "Close prior", short: "2" },
       { id: "invoice_review", label: "Invoice review", short: "3" },
     ];
   }
   return [
-    { id: "ingest", label: "Map & terms", short: "1" },
+    { id: "ingest", label: "Contract extraction", short: "1" },
     { id: "invoice_review", label: "Invoice review", short: "2" },
   ];
 }
 
 const LATE_GRACE_STEPS: StepDef[] = [
-  { id: "grace_extend", label: "Grace period", short: "1" },
-  { id: "approval", label: "Send for approval", short: "2" },
+  { id: "grace_extend", label: "Extend grace", short: "1" },
 ];
 
 function stepRank(step: FlowStepId, ordered: StepDef[]): number {
@@ -45,6 +45,7 @@ function UnifiedFlowShellHeader({
   scenario,
   contractId,
   latePhase,
+  sourceInfo,
 }: {
   onClose: () => void;
   queueId?: string;
@@ -52,6 +53,7 @@ function UnifiedFlowShellHeader({
   scenario: FlowScenario;
   contractId?: string;
   latePhase?: "extend" | "resolve";
+  sourceInfo?: { source: string; uploadedAt: string };
 }) {
   const navigate = useNavigate();
 
@@ -65,8 +67,8 @@ function UnifiedFlowShellHeader({
         : "Contract ingest";
 
   return (
-    <header className="shrink-0 border-b border-gray-100 bg-white px-4 py-2.5 sm:px-5">
-      <div className="flex min-h-[36px] items-center justify-between gap-3">
+    <header className="shrink-0 border-b border-gray-100 bg-white px-4 py-1.5 sm:px-5">
+      <div className="flex min-h-[28px] items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <button
             type="button"
@@ -103,11 +105,25 @@ function UnifiedFlowShellHeader({
             ) : null}
           </nav>
         </div>
-        {invoiceId ? (
-          <span className="shrink-0 rounded border border-border-subtle bg-surface-muted px-2 py-1 font-mono text-[11px] leading-tight text-text-secondary">
-            {invoiceId}
-          </span>
-        ) : null}
+        <div className="flex shrink-0 items-center gap-3">
+          {sourceInfo ? (
+            <div className="flex items-center gap-3 text-[11px] leading-tight">
+              <div className="flex items-center gap-1.5">
+                <span className="text-text-muted">Source</span>
+                <span className="font-medium text-text-primary">{sourceInfo.source}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-text-muted">Uploaded</span>
+                <span className="font-medium text-text-primary">{sourceInfo.uploadedAt}</span>
+              </div>
+            </div>
+          ) : null}
+          {invoiceId ? (
+            <span className="rounded border border-border-subtle bg-surface-muted px-2 py-1 font-mono text-[11px] leading-tight text-text-secondary">
+              {invoiceId}
+            </span>
+          ) : null}
+        </div>
       </div>
     </header>
   );
@@ -130,9 +146,9 @@ function UnifiedFlowStepper({
   if (currentRank < 0) return null;
 
   return (
-    <div className="shrink-0 border-b border-border-subtle bg-[linear-gradient(180deg,#FAFBFC_0%,#F4F5F7_100%)] px-4 py-3 sm:px-5">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-        <div className="flex min-w-0 flex-1 items-center justify-center gap-0 sm:justify-start sm:gap-3">
+    <div className="shrink-0 border-t border-border-subtle border-b border-gray-200 bg-gray-50 px-4 py-1.5 sm:px-5">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+        <div className="flex min-w-0 flex-1 items-center justify-center gap-0 sm:justify-start sm:gap-1">
           {orderedSteps.map((s, idx) => {
             const stepRankVal = stepRank(s.id, orderedSteps);
             const active = activeFlow.step === s.id;
@@ -145,7 +161,7 @@ function UnifiedFlowStepper({
                 {idx > 0 ? (
                   <div
                     className={cn(
-                      "mx-1.5 hidden h-px w-8 shrink-0 sm:mx-2.5 sm:block sm:w-12",
+                      "mx-1.5 hidden h-px w-5 shrink-0 sm:mx-2 sm:block sm:w-8",
                       completed ? "bg-emerald-500/70" : "bg-border-default",
                     )}
                     aria-hidden
@@ -157,32 +173,32 @@ function UnifiedFlowStepper({
                   onClick={() => goStep(s.id)}
                   title={lockedForward ? "Complete the previous step first" : `Go to ${s.label}`}
                   className={cn(
-                    "group flex min-w-0 max-w-[140px] flex-col items-center gap-1.5 rounded-lg px-2.5 py-2 text-left transition-colors sm:max-w-none sm:flex-row sm:items-center sm:gap-2.5 sm:px-4 sm:py-2.5",
-                    clickable && "hover:bg-white/80",
-                    !clickable && "cursor-not-allowed opacity-45",
-                    active && "bg-white shadow-sm ring-1 ring-border-default",
+                    "group flex min-w-0 max-w-[140px] flex-col items-center gap-1 rounded-md px-2 py-1 text-left transition-colors sm:max-w-none sm:flex-row sm:items-center sm:gap-2 sm:px-2.5 sm:py-1",
+                    clickable && "hover:bg-white",
+                    !clickable && "cursor-not-allowed opacity-50",
+                    active && "bg-white ring-1 ring-border-default",
                   )}
                 >
                   <span
                     className={cn(
-                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[12px] font-bold transition-colors",
-                      active && "bg-[color:var(--color-info)] text-white ring-2 ring-[color:var(--color-info)]/25",
+                      "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold transition-colors",
+                      active && "bg-[color:var(--color-info)] text-white",
                       !active && completed && "bg-emerald-600 text-white",
                       !active && !completed && !lockedForward && "border border-border-default bg-white text-text-secondary",
                       lockedForward && "border border-dashed border-text-muted/40 bg-surface-muted text-text-muted",
                     )}
                   >
                     {lockedForward ? (
-                      <Lock size={13} strokeWidth={2.5} className="opacity-80" aria-hidden />
+                      <Lock size={11} strokeWidth={2.5} className="opacity-80" aria-hidden />
                     ) : completed ? (
-                      <Check size={15} strokeWidth={2.5} aria-hidden />
+                      <Check size={12} strokeWidth={2.75} aria-hidden />
                     ) : (
                       <span aria-hidden>{s.short}</span>
                     )}
                   </span>
                   <span
                     className={cn(
-                      "max-w-[100px] truncate text-center text-[11px] font-semibold uppercase tracking-wide sm:max-w-none sm:text-left sm:text-[12px]",
+                      "max-w-[100px] truncate text-center text-[12px] font-medium sm:max-w-none sm:text-left",
                       active ? "text-text-primary" : "text-text-muted group-hover:text-text-secondary",
                     )}
                   >
@@ -194,7 +210,7 @@ function UnifiedFlowStepper({
           })}
         </div>
         {trailingActions ? (
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">{trailingActions}</div>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">{trailingActions}</div>
         ) : null}
       </div>
     </div>
@@ -270,7 +286,6 @@ function UnifiedFlowShellInner({ onClose }: { onClose: () => void }) {
 
   const ingestReadOnly = Boolean(activeFlow.ingestReadOnly);
 
-  const lateCustomerId = flow.customerId ?? context?.customerId;
   const lateContractId = flow.contractId ?? context?.contractId;
 
   return (
@@ -282,6 +297,11 @@ function UnifiedFlowShellInner({ onClose }: { onClose: () => void }) {
         scenario={activeFlow.scenario}
         contractId={contractIdForHeader}
         latePhase={latePhase}
+        sourceInfo={
+          queueItem
+            ? { source: queueItem.source, uploadedAt: shortDate(queueItem.uploadedAt) }
+            : undefined
+        }
       />
 
       {showStepper ? (
@@ -334,31 +354,11 @@ function UnifiedFlowShellInner({ onClose }: { onClose: () => void }) {
 
         {flow.scenario === "late_grace" &&
         flow.step === "grace_extend" &&
-        lateCustomerId &&
         lateContractId ? (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-            <IngestDrawer
-              entityType="transition"
-              mode="late_renewal"
-              context={{
-                customerId: lateCustomerId,
-                contractId: lateContractId,
-                latePhase: latePhase ?? "extend",
-              }}
-              onClose={onClose}
-              presentation="drawer"
-              omitHeader
-            />
-          </div>
-        ) : null}
-
-        {flow.scenario === "late_grace" && flow.step === "approval" && flow.invoiceId ? (
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-            <InvoiceApprovalDrawer
-              invoiceId={flow.invoiceId}
-              queueItemId={queueId}
-              onClose={onClose}
-              omitHeader
+            <ExtendGraceStep
+              queueItemId={queueId ?? ""}
+              contractId={lateContractId}
             />
           </div>
         ) : null}

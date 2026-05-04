@@ -30,8 +30,8 @@ import { ZENITH_CUSTOMER_ID } from "@/data/zenith-ingest-session";
 // ---------------------------------------------------------------------------
 
 interface IngestContextValue {
-  selectedSample: "sample2" | "sample3" | null;
-  setSelectedSample: (s: "sample2" | "sample3" | null) => void;
+  selectedSample: "sample2" | "sample3" | "sample4" | null;
+  setSelectedSample: (s: "sample2" | "sample3" | "sample4" | null) => void;
 
   sessionCustomers: Customer[];
   addSessionCustomer: (c: Customer) => void;
@@ -166,7 +166,7 @@ export function useIngestContext(): IngestContextValue {
 }
 
 export function IngestProvider({ children }: { children: ReactNode }) {
-  const [selectedSample, setSelectedSample] = useState<"sample2" | "sample3" | null>(null);
+  const [selectedSample, setSelectedSample] = useState<"sample2" | "sample3" | "sample4" | null>(null);
   const [sessionCustomers, setSessionCustomers] = useState<Customer[]>([]);
   const [sessionProductSkus, setSessionProductSkus] = useState<string[]>([]);
   const [ingestResult, setIngestResult] = useState<IngestResult | null>(null);
@@ -444,14 +444,33 @@ export function IngestProvider({ children }: { children: ReactNode }) {
     });
   }
 
+  // Check if late renewal should be unlocked:
+  // - Zenith (QI-2026-0002) is Ingested
+  // - Verdant (QI-2026-0006) is Ingested
+  // - Northlane grace has been extended (contractGraceExtensions["CON-2025-0022"] exists)
+  const lateRenewalUnlocked = useMemo(() => {
+    const zenithOverride = queueOverrides["QI-2026-0002"];
+    const verdantOverride = queueOverrides["QI-2026-0006"];
+    const zenithDone = zenithOverride?.status === "Ingested";
+    const verdantDone = verdantOverride?.status === "Ingested";
+    const northlaneGraceExtended = Boolean(contractGraceExtensions["CON-2025-0022"]);
+    return zenithDone && verdantDone && northlaneGraceExtended;
+  }, [queueOverrides, contractGraceExtensions]);
+
   // Merge seed queue items with runtime overrides
   const mergedQueueItems = useMemo<QueueItem[]>(() => {
     return seedQueueItems.map((q) => {
       const ov = queueOverrides[q.id];
-      if (!ov) return q;
-      return { ...q, ...ov };
+      let merged = ov ? { ...q, ...ov } : q;
+      
+      // Special handling for late renewal: make ingestable and restore to Pending Review when unlocked
+      if (q.id === "QI-2026-0003" && lateRenewalUnlocked) {
+        merged = { ...merged, ingestable: true, status: "Pending Review" };
+      }
+      
+      return merged;
     });
-  }, [queueOverrides]);
+  }, [queueOverrides, lateRenewalUnlocked]);
 
   return (
     <IngestContext.Provider

@@ -20,6 +20,8 @@ export type QueueStatus =
   | "Invoice review"
   /** Approver rejected; operator can change everything and re-run ingest. */
   | "Returned"
+  /** Late renewal: grace period has been extended, waiting for renewal contract to become ingestable. */
+  | "Grace Extended"
   | "Ingested"
   | "Failed"
   | "Rejected";
@@ -43,7 +45,7 @@ export interface QueueItem {
   tcv: number;
   uploadedAt: string;
   uploadedBy: string;
-  sampleId?: "sample1" | "sample2" | "sample3";
+  sampleId?: "sample1" | "sample2" | "sample3" | "sample4";
   contractId?: string;
   invoiceId?: string;
   failureReason?: string;
@@ -101,6 +103,7 @@ export const queueItems: QueueItem[] = [
     tcv: 312000,
     uploadedAt: "2026-04-20T10:05:00Z",
     uploadedBy: "Salesforce CLM (auto)",
+    sampleId: "sample4",
     ingestable: false,
     activeContractId: "CON-2025-0022",
   },
@@ -114,7 +117,7 @@ export function getQueueItem(id: string): QueueItem | undefined {
   return queueItems.find((q) => q.id === id);
 }
 
-export function getQueueItemBySample(sampleId: "sample2" | "sample3"): QueueItem | undefined {
+export function getQueueItemBySample(sampleId: "sample2" | "sample3" | "sample4"): QueueItem | undefined {
   return queueItems.find((q) => q.sampleId === sampleId);
 }
 

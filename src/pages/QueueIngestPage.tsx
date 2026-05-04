@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AlertCircle, ChevronRight, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -6,6 +7,9 @@ import { useScrolled } from "@/hooks/useScrolled";
 import { getQueueItem } from "@/data/queue-data";
 import type { QueueItem } from "@/data/queue-data";
 import { IngestDrawer } from "@/components/transitions/IngestDrawer";
+import { UnifiedFlowShell } from "@/components/transitions/UnifiedFlowShell";
+import { useIngestContext } from "@/context/IngestContext";
+import { getDrawerState, setDrawerState, closeDrawer } from "@/store/drawer-store";
 
 // ---------------------------------------------------------------------------
 // Placeholder / non-ingestable state
@@ -113,10 +117,65 @@ export function QueueIngestPage() {
   const navigate = useNavigate();
   const { queueItemId } = useParams<{ queueItemId: string }>();
   const { ref: stickyRef, isScrolled } = useScrolled();
+  const { queueItems } = useIngestContext();
 
-  const queueItem = queueItemId ? getQueueItem(queueItemId) : undefined;
+  // Get the live queue item (with overrides applied)
+  const queueItem = queueItemId
+    ? queueItems.find((q) => q.id === queueItemId) ?? getQueueItem(queueItemId)
+    : undefined;
   const sampleId = queueItem?.sampleId ?? null;
   const ingestable = Boolean(queueItem?.ingestable && sampleId);
+
+  // Late renewal that's ingestable uses the SAME 3-step `ingest_invoice` flow
+  // (Contract extraction → Close prior → Invoice review) as Early Renewal — driven by
+  // UnifiedFlowShell. This guarantees the queue and workbench paths render identically.
+  const isLateRenewalIngestable = Boolean(
+    queueItem?.scenario === "Late Renewal" &&
+      queueItem.ingestable &&
+      queueItem.customerId &&
+      queueItem.activeContractId,
+  );
+
+  // Set drawer flow state inline (without `isOpen`) so the global EntityDrawer
+  // overlay does NOT show — UnifiedFlowShell is rendered directly into the page.
+  // We only initialize once per queue item; subsequent step changes are driven by
+  // the in-flow components via `patchFlowSession` and must not be overwritten here.
+  const queueItemKey = queueItem?.id;
+  useEffect(() => {
+    if (!isLateRenewalIngestable || !queueItem?.customerId || !queueItem.activeContractId) return;
+    const existing = getDrawerState();
+    const sameQueueItem = existing.flow?.queueItemId === queueItem.id;
+    if (sameQueueItem) {
+      // Already initialized for this queue item — leave the flow state alone so
+      // step progression (close_prior / invoice_review) is preserved.
+      return;
+    }
+    setDrawerState({
+      isOpen: false,
+      entityType: "queue_item",
+      entityId: queueItem.id,
+      mode: "ingest",
+      flow: {
+        scenario: "ingest_invoice",
+        step: "ingest",
+        furthestUnlockedStep: "ingest",
+        queueItemId: queueItem.id,
+        customerId: queueItem.customerId,
+        contractId: queueItem.activeContractId,
+        key: `queue-late-${queueItem.id}`,
+      },
+      context: {
+        customerId: queueItem.customerId,
+        contractId: queueItem.activeContractId,
+        queueItemId: queueItem.id,
+      },
+    });
+    return () => {
+      // Clear flow state on unmount so it doesn't leak into the next view.
+      closeDrawer();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queueItemKey, isLateRenewalIngestable]);
 
   if (!queueItem) {
     return (
@@ -155,6 +214,15 @@ export function QueueIngestPage() {
         <div className="px-6 py-5">
           <PlaceholderState item={queueItem} onBack={() => navigate("/queue")} />
         </div>
+      </div>
+    );
+  }
+
+  // Late renewal ingestable: drive the 3-step flow via UnifiedFlowShell (matches Workbench).
+  if (isLateRenewalIngestable) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col bg-white">
+        <UnifiedFlowShell onClose={() => navigate("/queue")} />
       </div>
     );
   }

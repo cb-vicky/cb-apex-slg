@@ -89,7 +89,7 @@ export interface QueueItemOverride {
 
 export interface PendingRenewalIngestion {
   queueItemId: string;
-  sampleId: "sample3";
+  sampleId: "sample3" | "sample4";
   renewalTcv: number;
   /** The customer ID the renewal is for. */
   customerId: string;
