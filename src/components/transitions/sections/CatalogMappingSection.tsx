@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import type { ExtractedProduct } from "@/data/ingest-data";
-import { SectionCard } from "@/components/ui/primitives";
 import { WorkspaceTableShell, WTable, WThead, WTh, WTbody, WTr, WTd } from "@/components/ui/data-table";
 import { formInputClass, formLabelClass } from "@/components/ui/form-field";
 import { currency } from "@/lib/utils";
@@ -352,27 +351,27 @@ export function CatalogMappingSection({
 }: Props) {
   if (layout === "drawer") {
     return (
-      <div className={cn("flex flex-col gap-2", className)}>
-        <p className={formLabelClass}>Catalog mapping</p>
-        <DrawerRailIndent>
-          <CatalogDrawerRows
-            products={products}
-            onMarkMapped={onMarkMapped}
-            catalogLineIssueMessage={catalogMappingIssue?.message ?? null}
-            sessionMappedSkus={sessionMappedSkus}
-          />
-        </DrawerRailIndent>
+      <div className={cn("flex flex-col", className)}>
+        <CatalogDrawerRows
+          products={products}
+          onMarkMapped={onMarkMapped}
+          catalogLineIssueMessage={catalogMappingIssue?.message ?? null}
+          sessionMappedSkus={sessionMappedSkus}
+        />
       </div>
     );
   }
 
+  if (products.length === 0) {
+    return (
+      <p className={cn("text-[14px] text-text-muted", className)}>No line items extracted.</p>
+    );
+  }
+
   return (
-    <SectionCard title="Catalog mapping" className={cn(className)} bodyClassName="p-0">
-      {products.length === 0 ? (
-        <p className="px-4 py-4 text-[14px] text-text-muted">No line items extracted.</p>
-      ) : (
-        <WorkspaceTableShell className="rounded-none border-0 shadow-none">
-          <WTable className="min-w-[720px] text-[14px] leading-snug">
+    <div className={cn(className)}>
+      <WorkspaceTableShell className="rounded-none border-0 shadow-none">
+        <WTable className="min-w-[720px] text-[14px] leading-snug">
             <WThead className="text-[12px] [&_th]:px-3.5 [&_th]:py-3">
               <WTh className="font-semibold">Product</WTh>
               <WTh className="font-semibold">Catalog SKU</WTh>
@@ -443,10 +442,9 @@ export function CatalogMappingSection({
                   </WTd>
                 </WTr>
               ))}
-            </WTbody>
-          </WTable>
-        </WorkspaceTableShell>
-      )}
-    </SectionCard>
+        </WTbody>
+      </WTable>
+    </WorkspaceTableShell>
+    </div>
   );
 }

@@ -1,4 +1,3 @@
-import { SectionCard } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 import type { BillingKind } from "@/components/transitions/ingest-drawer-derive";
 import { buildInvoicePlanLines } from "@/components/transitions/ingest-drawer-derive";
@@ -10,8 +9,14 @@ interface Props {
   billingFrequency: string;
   tcv: number;
   className?: string;
+  /** When true, renders without an internal eyebrow heading — for use inside IngestFieldGroup. */
+  hideHeading?: boolean;
 }
 
+/**
+ * Flat invoice-plan rows. Designed to live inside an `IngestFieldGroup` body
+ * (no own card chrome). Set `hideHeading` if the host group already announces it.
+ */
 export function InvoicePlanSection({
   billingKind,
   invoiceTiming,
@@ -19,6 +24,7 @@ export function InvoicePlanSection({
   billingFrequency,
   tcv,
   className,
+  hideHeading = false,
 }: Props) {
   const lines = buildInvoicePlanLines({
     billingKind,
@@ -29,10 +35,18 @@ export function InvoicePlanSection({
   });
 
   return (
-    <SectionCard title="Invoice plan" className={cn(className)} bodyClassName="py-3">
+    <div className={cn("flex flex-col gap-2", className)}>
+      {hideHeading ? null : (
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">
+          Invoice plan
+        </p>
+      )}
       <dl className="space-y-2">
         {lines.map((row) => (
-          <div key={row.label} className="border-b border-border-subtle/80 pb-2 last:border-0 last:pb-0">
+          <div
+            key={row.label}
+            className="border-b border-border-subtle/80 pb-2 last:border-0 last:pb-0"
+          >
             <dt className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
               {row.label}
             </dt>
@@ -40,6 +54,6 @@ export function InvoicePlanSection({
           </div>
         ))}
       </dl>
-    </SectionCard>
+    </div>
   );
 }

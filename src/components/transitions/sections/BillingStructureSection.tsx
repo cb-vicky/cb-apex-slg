@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { SectionCard } from "@/components/ui/primitives";
 import { formInputClass, formLabelClass } from "@/components/ui/form-field";
 import { cn } from "@/lib/utils";
 import type { BillingKind } from "@/components/transitions/ingest-drawer-derive";
@@ -54,6 +53,10 @@ function LogicSummary({ kind }: { kind: BillingKind }) {
   );
 }
 
+/**
+ * Flat billing-structure controls. Designed to live inside an `IngestFieldGroup`
+ * body — no own card chrome.
+ */
 export function BillingStructureSection({
   kind,
   onKindChange,
@@ -67,7 +70,7 @@ export function BillingStructureSection({
     "h-4 w-4 border-border-default text-[color:var(--color-info)] focus:ring-2 focus:ring-blue-100";
 
   return (
-    <SectionCard title="Billing structure" className={cn(className)} bodyClassName="py-3">
+    <div className={cn("flex flex-col", className)}>
       <div className="flex flex-wrap gap-5 text-[14px]">
         <label className="inline-flex cursor-pointer items-center gap-2">
           <input
@@ -151,6 +154,6 @@ export function BillingStructureSection({
           )}
         </div>
       )}
-    </SectionCard>
+    </div>
   );
 }
