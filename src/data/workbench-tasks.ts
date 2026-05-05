@@ -238,7 +238,7 @@ export function deriveWorkbenchTasks(
     if (isLateRenewal) {
       subtitle = q.ingestable
         ? "Renewal contract received — ingest and close prior"
-        : "Contract expired — extend grace or renew";
+        : "Contract about to expire — choose how to proceed";
     }
     
     derived.push({

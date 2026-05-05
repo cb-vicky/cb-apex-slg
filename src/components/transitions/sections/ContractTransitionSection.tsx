@@ -3,7 +3,7 @@ import { currency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { KV } from "@/components/ui/primitives";
 import { formInputClass, formLabelClass } from "@/components/ui/form-field";
-import { DrawerNativeSelect, DrawerRailIndent, DrawerSelectShell, DrawerStackedField } from "../DrawerSelectShell";
+import { DrawerRailIndent, DrawerStackedField } from "../DrawerSelectShell";
 
 const drawerInputClass = formInputClass;
 const radioClass =
@@ -13,8 +13,6 @@ interface Props {
   intent: TransitionDrawerIntent;
   executionDate: string;
   onExecutionDateChange: (v: string) => void;
-  settlementMethod: "credit_note" | "refund" | "charge_difference" | "defer";
-  onSettlementMethodChange: (m: "credit_note" | "refund" | "charge_difference" | "defer") => void;
   amendmentDelta: number;
   /** Late renewal — extend phase */
   graceDays: number;
@@ -34,8 +32,6 @@ export function ContractTransitionSection({
   intent,
   executionDate,
   onExecutionDateChange,
-  settlementMethod,
-  onSettlementMethodChange,
   amendmentDelta,
   graceDays,
   onGraceDaysChange,
@@ -80,20 +76,6 @@ export function ContractTransitionSection({
                   </li>
                 </ul>
               </DrawerStackedField>
-              <DrawerSelectShell id="transition-early-renew-settlement" label="Settlement">
-                <DrawerNativeSelect
-                  id="transition-early-renew-settlement"
-                  value={settlementMethod}
-                  onChange={(e) =>
-                    onSettlementMethodChange(e.target.value as "credit_note" | "refund" | "charge_difference" | "defer")
-                  }
-                >
-                  <option value="credit_note">Credit note</option>
-                  <option value="refund">Refund</option>
-                  <option value="charge_difference">Charge difference</option>
-                  <option value="defer">Defer</option>
-                </DrawerNativeSelect>
-              </DrawerSelectShell>
             </div>
           </DrawerRailIndent>
         </div>
@@ -123,21 +105,6 @@ export function ContractTransitionSection({
               <span className="text-emerald-600">✓</span> Generate invoice
             </li>
           </ul>
-          <label className={cn("flex flex-col gap-1.5", formLabelClass)}>
-            <span>Settlement</span>
-            <select
-              className={cn(drawerInputClass, "cursor-pointer")}
-              value={settlementMethod}
-              onChange={(e) =>
-                onSettlementMethodChange(e.target.value as "credit_note" | "refund" | "charge_difference" | "defer")
-              }
-            >
-              <option value="credit_note">Credit note</option>
-              <option value="refund">Refund</option>
-              <option value="charge_difference">Charge difference</option>
-              <option value="defer">Defer</option>
-            </select>
-          </label>
         </div>
       </section>
     );

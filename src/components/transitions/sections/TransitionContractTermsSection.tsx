@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn, shortDate } from "@/lib/utils";
 import { formInputClass, formLabelClass } from "@/components/ui/form-field";
 import { DrawerNativeSelect, DrawerSelectShell, DrawerRailIndent } from "../DrawerSelectShell";
 
@@ -14,8 +14,15 @@ interface Props {
   activationSummary: string;
   /** `flat` = drawer queue style (no outer card). */
   variant?: "panel" | "flat";
+  /**
+   * When true, the start-date label exposes that backdating is allowed (used by Late Renewal
+   * where the operator commonly sets the effective date earlier than today).
+   */
+  allowBackdate?: boolean;
   className?: string;
 }
+
+const TODAY_ISO = new Date().toISOString().slice(0, 10);
 
 export function TransitionContractTermsSection({
   startDate,
@@ -28,8 +35,11 @@ export function TransitionContractTermsSection({
   onAutoRenewChange,
   activationSummary,
   variant = "panel",
+  allowBackdate = false,
   className,
 }: Props) {
+  const isBackdated = allowBackdate && startDate && startDate < TODAY_ISO;
+
   if (variant === "flat") {
     return (
       <div className={cn("flex flex-col gap-2", className)}>
@@ -50,8 +60,18 @@ export function TransitionContractTermsSection({
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
               <label className="flex min-w-0 flex-col gap-1.5">
-                <span className={formLabelClass}>Start date</span>
+                <span className={cn(formLabelClass, "flex items-center gap-1.5")}>
+                  Start date
+                  {allowBackdate ? (
+                    <span className="text-[10px] font-normal text-text-muted">(backdate allowed)</span>
+                  ) : null}
+                </span>
                 <input type="date" value={startDate} onChange={(e) => onStartChange(e.target.value)} className={formInputClass} />
+                {isBackdated ? (
+                  <span className="text-[11px] text-amber-700">
+                    Backdated to {shortDate(startDate)} — invoices for elapsed days will be clubbed into the first invoice.
+                  </span>
+                ) : null}
               </label>
               <label className="flex min-w-0 flex-col gap-1.5">
                 <span className={formLabelClass}>End date</span>
@@ -84,13 +104,23 @@ export function TransitionContractTermsSection({
       <h3 className="mb-4 text-[14px] font-semibold text-text-primary">Contract terms</h3>
       <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
         <label className={cn("flex flex-col gap-1.5", formLabelClass)}>
-          <span>Start date</span>
+          <span className="flex items-center gap-1.5">
+            Start date
+            {allowBackdate ? (
+              <span className="text-[10px] font-normal text-text-muted">(backdate allowed)</span>
+            ) : null}
+          </span>
           <input
             type="date"
             className={formInputClass}
             value={startDate}
             onChange={(e) => onStartChange(e.target.value)}
           />
+          {isBackdated ? (
+            <span className="text-[11px] font-normal text-amber-700">
+              Backdated to {shortDate(startDate)} — invoices for elapsed days will be clubbed into the first invoice.
+            </span>
+          ) : null}
         </label>
         <label className={cn("flex flex-col gap-1.5", formLabelClass)}>
           <span>End date</span>

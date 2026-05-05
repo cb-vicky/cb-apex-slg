@@ -125,6 +125,10 @@ export interface ContractGraceExtension {
   customerId: string;
   until: string;
   billingMode: "continue" | "pause";
+  /** When billingMode = "pause": whether to keep provisioning active during the grace period. */
+  provisioningDuringGrace?: boolean;
+  /** When billingMode = "continue": whether to keep dunning if invoices go unpaid during grace. */
+  dunningDuringGrace?: boolean;
   markedAt: string;
   /** When operator completes resolution flow */
   resolved?: boolean;

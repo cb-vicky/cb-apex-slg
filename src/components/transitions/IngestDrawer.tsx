@@ -232,7 +232,6 @@ export function IngestDrawer({
     return ex?.terms.autoRenew ?? true;
   });
   const [futureInvoices, setFutureInvoices] = useState<"always" | "if_changed" | "never">("if_changed");
-  const [settlementMethod, setSettlementMethod] = useState<"credit_note" | "refund" | "charge_difference" | "defer">("credit_note");
   const [executionDate, setExecutionDate] = useState(addDays(TODAY, 14));
   const [graceDays, setGraceDays] = useState(30);
   const [graceBilling, setGraceBilling] = useState<"continue" | "pause">("continue");
@@ -548,20 +547,21 @@ export function IngestDrawer({
 
   function handleLateRenewalQueueFinish(q: QueueItem) {
     if (!q.activeContractId || !q.customerId) return;
-    
-    // Create the scheduled renewal contract
+
+    // Create the scheduled renewal contract — reflects operator-chosen (possibly backdated)
+    // effective date, end date, and billing frequency from the ingest form.
     const renewalContract: Contract = {
       id: "CON-2026-0NL1",
       customerId: q.customerId,
       sourceQuoteId: "",
       status: "Scheduled",
       tcv: q.tcv,
-      term: "24 months",
-      effectiveDate: "2026-05-01",
-      endDate: "2028-04-30",
+      term: "12 months",
+      effectiveDate: startDate,
+      endDate: endDate,
       signedDate: "2026-04-18",
-      renewalDate: "2028-04-30",
-      billingFrequency: "Annual upfront",
+      renewalDate: endDate,
+      billingFrequency: billingFrequency,
       paymentTerms: "Net 30",
       prepaidCreditTotal: 85000,
       prepaidCreditBalance: 85000,
@@ -636,7 +636,7 @@ export function IngestDrawer({
       replacesContractId: q.activeContractId,
     };
     addSessionContract(renewalContract);
-    
+
     setPendingRenewalIngestion(q.activeContractId, {
       queueItemId: q.id,
       sampleId: "sample4",
@@ -732,7 +732,9 @@ export function IngestDrawer({
         id: invoiceId,
         customerId: resolvedCustomerId,
         contractId,
-        date: startDate,
+        // Invoice effective date defaults to today (operator can backdate
+        // in the next step via Critical Fields).
+        date: TODAY,
         amount: invoiceAmount,
         status: "Pending Review",
       }),
@@ -1233,6 +1235,7 @@ export function IngestDrawer({
                       autoRenew={autoRenew}
                       onAutoRenewChange={setAutoRenew}
                       activationSummary={activationSummary}
+                      allowBackdate={isLateRenewal}
                     />
                   </div>
                   {intent !== "new_deal" && (
@@ -1241,8 +1244,6 @@ export function IngestDrawer({
                       intent={intent}
                       executionDate={executionDate}
                       onExecutionDateChange={setExecutionDate}
-                      settlementMethod={settlementMethod}
-                      onSettlementMethodChange={setSettlementMethod}
                       amendmentDelta={tcv * 0.04}
                       graceDays={graceDays}
                       onGraceDaysChange={setGraceDays}
@@ -1359,6 +1360,7 @@ export function IngestDrawer({
                       autoRenew={autoRenew}
                       onAutoRenewChange={setAutoRenew}
                       activationSummary={activationSummary}
+                      allowBackdate={isLateRenewal}
                     />
                     {intent !== "new_deal" && (
                       <ContractTransitionSection
@@ -1366,8 +1368,6 @@ export function IngestDrawer({
                         intent={intent}
                         executionDate={executionDate}
                         onExecutionDateChange={setExecutionDate}
-                        settlementMethod={settlementMethod}
-                        onSettlementMethodChange={setSettlementMethod}
                         amendmentDelta={tcv * 0.04}
                         graceDays={graceDays}
                         onGraceDaysChange={setGraceDays}
@@ -1484,8 +1484,6 @@ export function IngestDrawer({
                   intent={intent}
                   executionDate={executionDate}
                   onExecutionDateChange={setExecutionDate}
-                  settlementMethod={settlementMethod}
-                  onSettlementMethodChange={setSettlementMethod}
                   amendmentDelta={tcv * 0.04}
                   graceDays={graceDays}
                   onGraceDaysChange={setGraceDays}
