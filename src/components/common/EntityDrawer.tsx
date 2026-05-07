@@ -5,7 +5,7 @@ import { InvoiceApprovalDrawer } from "@/components/approvals/InvoiceApprovalDra
 import { UnifiedFlowShell } from "@/components/transitions/UnifiedFlowShell";
 
 /**
- * Global overlay drawer — wide canvas from `sm` up for tri-column ingest / review layouts.
+ * Global full-page overlay for tri-column ingest / review layouts.
  */
 export function EntityDrawer() {
   const { isOpen, closeDrawer, entityType, mode, entityId, context, flow } = useDrawerStore();
@@ -29,14 +29,8 @@ export function EntityDrawer() {
   );
 
   return (
-    <div className="fixed inset-0 z-[60] flex justify-end">
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/35"
-        aria-label="Close drawer backdrop"
-        onClick={closeDrawer}
-      />
-      <div className="relative flex h-full min-h-0 w-full max-w-[100vw] flex-col border-l border-border-default bg-white shadow-[-12px_0_32px_rgba(0,0,0,0.12)] sm:w-[min(96vw,1800px)] sm:max-w-[min(96vw,1800px)]">
+    <div className="fixed inset-0 z-[60] flex">
+      <div className="relative flex h-full min-h-0 w-full flex-col bg-white">
         {useUnifiedShell && flow ? (
           <UnifiedFlowShell key={flow.key ?? `flow-${entityId ?? ""}`} onClose={closeDrawer} />
         ) : mode === "invoice_approval" && entityType === "invoice" && entityId ? (

@@ -5,7 +5,8 @@ import { ChevronLeft, ChevronRight, Clock, MessageSquare, PanelRightOpen, X } fr
 import type { DrawerEntityType, DrawerMode, EntityState, TransitionDrawerIntent } from "@/data/contract-transition";
 import { transitionTypeFromIntent } from "@/data/contract-transition";
 import { useIngestContext } from "@/context/IngestContext";
-import { ValidationPanel, type ValidationItem } from "./ValidationPanel";
+import { type ValidationItem } from "./ValidationPanel";
+import { DrawerInsightRail } from "./DrawerInsightRail";
 import type { ApprovalComment } from "@/data/ingest-data";
 import { useDemoPersona } from "@/context/DemoPersonaContext";
 import { buildIngestResult, getExtractedContract } from "@/data/ingest-data";
@@ -808,6 +809,20 @@ export function IngestDrawer({
       customerId: resolvedCustomerId,
     });
     setEntityStatus("executed");
+    // Check if we're in a unified flow FIRST — if so, advance via patchFlowSession
+    const { flow } = getDrawerState();
+    if (flow?.scenario === "ingest_invoice") {
+      patchFlowSession({
+        step: "invoice_review",
+        furthestUnlockedStep: "invoice_review",
+        invoiceId,
+        contractId,
+        customerId: resolvedCustomerId,
+        queueItemId: q.id,
+      });
+      return;
+    }
+    // Standalone page workspace (no unified flow): navigate and open a new drawer
     if (isPageWorkspace) {
       navigate(`/contracts/${contractId}`);
       openDrawer({
@@ -823,18 +838,6 @@ export function IngestDrawer({
           contractId,
           customerId: resolvedCustomerId,
         },
-      });
-      return;
-    }
-    const { flow } = getDrawerState();
-    if (flow?.scenario === "ingest_invoice") {
-      patchFlowSession({
-        step: "invoice_review",
-        furthestUnlockedStep: "invoice_review",
-        invoiceId,
-        contractId,
-        customerId: resolvedCustomerId,
-        queueItemId: q.id,
       });
       return;
     }
@@ -1186,31 +1189,45 @@ export function IngestDrawer({
       </header>
       ) : null}
 
-      {/* Body — queue ingest: tri-column (comments · fields · preview) or narrow rail + preview. */}
+      {/* Body — queue ingest: two-column (preview · validations+fields) or narrow rail + preview. */}
       <div
         className={cn(
           "relative min-h-0 flex-1 overflow-hidden",
           triColQueueIngest
-            ? "grid min-h-0 min-w-0 grid-cols-[minmax(0,25%)_minmax(0,35%)_minmax(0,40%)] [grid-template-rows:minmax(0,1fr)]"
+            ? "grid min-h-0 min-w-0 grid-cols-[minmax(0,40%)_minmax(0,60%)] [grid-template-rows:minmax(0,1fr)]"
             : "flex min-w-0",
         )}
       >
         {isQueueIngest ? (
           triColQueueIngest ? (
             <>
-              <div className="min-h-0 max-h-full min-w-0 overflow-hidden border-r border-border-default bg-gray-50">
-                <ValidationPanel
-                  title="Validations"
-                  items={validationItems}
-                  onItemClick={scrollToSection}
-                  activeItemId={activeSectionId ?? undefined}
-                  comments={pageApproval?.comments ?? []}
-                  onSubmitComment={readOnly || !queueItem ? undefined : handlePageIngestComment}
-                  commentsTitle="Discussion"
-                />
+              <div className="flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden">
+                {!ingestPreviewCollapsed ? (
+                  <IngestDocumentPreviewPane
+                    extracted={extracted}
+                    documentTitle={queueItem?.documentName ?? "Contract.pdf"}
+                    onCollapse={() => setIngestPreviewCollapsed(true)}
+                  />
+                ) : (
+                  <div className="flex min-h-0 flex-1 flex-row bg-gray-100">
+                    <div className="flex shrink-0 bg-white">
+                      <button
+                        type="button"
+                        onClick={() => setIngestPreviewCollapsed(false)}
+                        className="flex h-full min-h-[200px] w-8 flex-col items-center justify-center gap-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
+                        title="Show document preview"
+                      >
+                        <PanelRightOpen size={14} />
+                        <span className="rotate-90 whitespace-nowrap text-[9px] uppercase tracking-widest">Preview</span>
+                      </button>
+                    </div>
+                    <div className="min-h-0 min-w-0 flex-1" aria-hidden />
+                  </div>
+                )}
               </div>
-              <div ref={fieldsContainerRef} className="min-h-0 max-h-full min-w-0 overflow-y-auto overscroll-y-contain border-r border-border-default">
-                <div className="px-6 py-5 text-[14px] leading-snug">
+              <div className="relative flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden bg-gray-100">
+                <div ref={fieldsContainerRef} className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain transition-[padding] duration-200" data-drawer-fields-container>
+                  <div className="mx-auto max-w-[480px] px-6 py-5 text-[14px] leading-snug transition-[margin] duration-200" data-drawer-fields-inner>
                   {queueItem && !queueItem.ingestable && (
                     <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3 text-[13px] text-amber-900">
                       This queue item is not ingestable in the prototype. Use{" "}
@@ -1355,29 +1372,16 @@ export function IngestDrawer({
                   </fieldset>
                 </div>
               </div>
-              <div className="flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden border-l border-border-default">
-                {!ingestPreviewCollapsed ? (
-                  <IngestDocumentPreviewPane
-                    extracted={extracted}
-                    documentTitle={queueItem?.documentName ?? "Contract.pdf"}
-                    onCollapse={() => setIngestPreviewCollapsed(true)}
-                  />
-                ) : (
-                  <div className="flex min-h-0 flex-1 flex-row bg-gray-100">
-                    <div className="min-h-0 min-w-0 flex-1" aria-hidden />
-                    <div className="flex shrink-0 border-l border-border-default bg-white">
-                      <button
-                        type="button"
-                        onClick={() => setIngestPreviewCollapsed(false)}
-                        className="flex h-full min-h-[200px] w-8 flex-col items-center justify-center gap-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
-                        title="Show document preview"
-                      >
-                        <PanelRightOpen size={14} />
-                        <span className="rotate-90 whitespace-nowrap text-[9px] uppercase tracking-widest">Preview</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <DrawerInsightRail
+                  variant="validation"
+                  title="Validations"
+                  validationItems={validationItems}
+                  onItemClick={scrollToSection}
+                  activeItemId={activeSectionId ?? undefined}
+                  comments={pageApproval?.comments ?? []}
+                  onSubmitComment={readOnly || !queueItem ? undefined : handlePageIngestComment}
+                  commentsTitle="Discussion"
+                />
               </div>
             </>
           ) : (

@@ -81,12 +81,17 @@ export function WTr({ children, className }: { children: ReactNode; className?: 
 export function WTd({
   children,
   align = "left",
-  truncate = true,
+  truncate = false,
   className,
   ...rest
 }: TdHTMLAttributes<HTMLTableCellElement> & {
   align?: "left" | "right" | "center";
-  /** Set false for badges, chips, or icon+text flex rows. */
+  /**
+   * When true, force the cell to clamp via `max-w-0` and ellipsis. By default
+   * cells render their content single-line at natural width so wide content
+   * (long product names, IDs, etc.) makes the wrapping `WorkspaceTableShell`
+   * scroll horizontally instead of clipping content.
+   */
   truncate?: boolean;
 }) {
   const body = truncate ? (
@@ -98,8 +103,8 @@ export function WTd({
     <td
       {...rest}
       className={cn(
-        "max-w-0 px-3 py-2.5 align-middle text-text-primary",
-        truncate && "whitespace-nowrap",
+        "whitespace-nowrap px-3 py-2.5 align-middle text-text-primary",
+        truncate && "max-w-0",
         align === "right" && "text-right tabular-nums",
         align === "center" && "text-center",
         align === "left" && "text-left",

@@ -94,3 +94,18 @@ body {
   will-change: background-position;
   animation: ai-insights-sheen-sweep calc(2600ms / 3) cubic-bezier(0.42, 0, 0.58, 1) 3 forwards;
 }
+
+/* Pointer cursor for all interactive elements */
+button,
+a,
+[role="button"],
+[role="link"],
+[role="tab"],
+[role="menuitem"],
+[role="option"],
+[tabindex]:not([tabindex="-1"]),
+label[for],
+summary,
+select {
+  cursor: pointer;
+}

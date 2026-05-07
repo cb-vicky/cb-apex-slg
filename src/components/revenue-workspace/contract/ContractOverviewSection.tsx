@@ -26,7 +26,7 @@ export function ContractOverviewSection({ contract }: { contract: Contract }) {
   return (
     <div className="grid grid-cols-4 gap-3">
       {cards.map((card) => (
-        <div key={card.label} className="rounded-lg border border-border-default bg-white px-3 py-2.5">
+        <div key={card.label} className="rounded-2xl border border-border-default bg-white px-3 py-2.5">
           <p className="text-[10px] uppercase tracking-wider text-text-muted">{card.label}</p>
           <p className="mt-1 text-sm font-semibold text-text-primary">{card.value}</p>
         </div>

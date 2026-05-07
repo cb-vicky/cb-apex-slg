@@ -97,12 +97,42 @@ Components live under `src/components/revenue-workspace/`, `src/components/index
 
 - `CustomerWorkspaceHeader` — stable customer header (name, entity, metrics, risk badges)
 - `RevenueJourneyRail` — lifecycle stage rail with status labels
-- `RecordContextBar` — per-tab record identifier + actions bar
-- `CustomerContextBar` — simplified context bar when Customer tab is active
-- `RecordHeader` — alternate compact record header
-- `DetailBreadcrumb` — breadcrumb for shared shell
-- `InsightRail` — 320px right rail container
+- `CustomerContextBar` — combined header + tabs + optional record slot; orchestrates the workspace chrome
+- `RecordHeader` — **glass card** portaled into `RecordSlotContext` (see below)
+- `RecordSlotContext` — React context providing a portal target for stage content to render its record header
+- `InsightRail` — **floating icon stack + panel** (see below)
 - `SectionCard` — shared section wrapper with title + slot
+
+#### RecordHeader (glass card)
+
+A semi-transparent glass card that floats below the tabs when viewing a specific record (quote, contract, invoice).
+
+**Visual treatment:**
+- `bg-white/65` + `backdrop-blur-md` + `backdrop-saturate-150`
+- `shadow-[0_8px_24px_-12px_rgba(17,24,39,0.18)]`
+- `rounded-2xl` with `px-5 py-2.5` padding
+
+**Left side:**
+- Back link (optional): flat text with left arrow (e.g. "All contracts")
+- ID pill: `border-blue-300 bg-blue-50` with bold `text-blue-700` ID
+- Optional pill tag (e.g. "v3") and dropdown chevron
+
+**Right side:**
+- Flat text action buttons separated by `1px` vertical dividers (`mx-3 h-4 w-px bg-gray-300`)
+- Optional overflow menu (`MoreHorizontal` icon)
+
+#### InsightRail (floating)
+
+No longer a fixed 320px column. Instead:
+
+**Collapsed state:** Vertical icon stack (`rounded-full border bg-white shadow`) pinned to viewport right, positioned from `[data-tabs-anchor]` bottom + 80px offset.
+
+**Expanded state:** 340px floating panel, same fixed positioning. Panel has:
+- White card with `rounded-2xl`, border, deep shadow
+- Header: "Insights" title + collapse button
+- Accordion body: Open Tasks, Account Details, Linked Records
+
+Content push: When panel opens, `[data-workspace-content]` receives dynamic `padding-right`.
 
 ### Per-tab content components
 
@@ -135,7 +165,35 @@ Sections below are reusable building blocks. See `docs/04-lifecycle-tabs.md` for
 - `DrawerStackedField` — label + input stacked vertically for drawer forms
 - `DrawerRailIndent` — left padding wrapper for sub-content inside drawer sections
 - `DrawerSelectShell` / `DrawerNativeSelect` — select input shells for drawer forms
-- `ValidationPanel` — left-rail validation status list with clickable items + comments section
+- `ValidationPanel` — validation status list with clickable items + comments toggle (see layouts below)
+
+#### ValidationPanel layouts
+
+`ValidationPanel` supports three layouts via the `layout` prop:
+
+**`vertical` (default)** — Full-height column layout for the 25% left column in full-page ingest:
+- Sticky header with title + comments toggle button
+- Scrollable list of validation items with status icons and hints
+- Active item has left border accent + white background
+- Comments toggle switches between validation list and `ApprovalCommentsCard`
+
+**`horizontal`** — Compact row layout for drawer or narrow contexts:
+- Single row: title + inline validation chips + comments toggle
+- Chips are clickable buttons with status icons
+- Comments expand below in a bordered section
+
+**`sidebar`** — Minimal layout for tight spaces:
+- Compact vertical list without sticky header
+- Smaller icons (14px) and tighter spacing
+- No chevron indicators
+
+Status icons:
+- `valid` → emerald `CheckCircle2`
+- `warning` → amber `AlertCircle`
+- `error` → red `AlertCircle`
+- `pending` → gray dot
+
+Comments toggle shows badge with count when comments exist.
 
 ### Ingest field group chip tones
 

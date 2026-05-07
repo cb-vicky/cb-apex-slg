@@ -6,7 +6,8 @@ import { contracts, customers } from "@/data/mock-data";
 import type { ContractClosure, ClosureReason, ClosureSettlementType, Contract } from "@/data/mock-data";
 import { patchFlowSession } from "@/store/drawer-store";
 import { currency, shortDate, cn } from "@/lib/utils";
-import { FieldSummaryPanel, type FieldSummaryItem } from "./ValidationPanel";
+import { type FieldSummaryItem } from "./ValidationPanel";
+import { DrawerInsightRail } from "./DrawerInsightRail";
 import { FormField, formInputClass, Select } from "@/components/ui/form-field";
 
 interface EarlyRenewalClosePriorStepProps {
@@ -393,7 +394,7 @@ function ClosurePriorPreviewPane({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-gray-100">
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border-default bg-white px-3 py-2">
+      <div className="mx-3 mt-3 flex shrink-0 items-center justify-between gap-2 rounded-3xl border border-gray-200 bg-white/65 px-3 py-2 shadow-[0_8px_24px_-12px_rgba(17,24,39,0.18)] backdrop-blur-md backdrop-saturate-150">
         <div className="flex items-center gap-0.5 rounded-md border border-border-default bg-surface-muted p-0.5">
           {newContract && (
             <button
@@ -749,32 +750,49 @@ export function EarlyRenewalClosePriorStep({ queueItemId }: EarlyRenewalClosePri
   }
 
   const gridClass =
-    "grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,25%)_minmax(0,35%)_minmax(0,40%)] [grid-template-rows:minmax(0,1fr)]";
+    "grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,40%)_minmax(0,60%)] [grid-template-rows:minmax(0,1fr)]";
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
       <div className={gridClass}>
-        <div className="min-h-0 max-h-full min-w-0 overflow-hidden border-r border-border-default bg-gray-50">
-          <FieldSummaryPanel
-            title="Closure summary"
-            items={summaryItems}
-            comments={approval?.comments ?? []}
-            onSubmitComment={handleAddComment}
-            commentsTitle="Discussion"
-          />
+        <div className="flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden">
+          {!previewCollapsed ? (
+            <ClosurePriorPreviewPane
+              priorContract={priorContract}
+              newContract={newContract}
+              customerName={customer?.name ?? "Customer"}
+              onCollapse={() => setPreviewCollapsed(true)}
+            />
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-row bg-gray-100">
+              <div className="flex shrink-0 bg-white">
+                <button
+                  type="button"
+                  onClick={() => setPreviewCollapsed(false)}
+                  className="flex h-full min-h-[200px] w-8 flex-col items-center justify-center gap-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
+                  title="Show preview"
+                >
+                  <PanelRightOpen size={14} />
+                  <span className="rotate-90 whitespace-nowrap text-[9px] uppercase tracking-widest">Preview</span>
+                </button>
+              </div>
+              <div className="min-h-0 min-w-0 flex-1" aria-hidden />
+            </div>
+          )}
         </div>
 
-        <div className="min-h-0 max-h-full min-w-0 overflow-y-auto overscroll-y-contain border-r border-border-default">
-          <div className="px-6 py-5 text-[14px] leading-snug">
+        <div className="relative flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden bg-gray-100">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain transition-[padding] duration-200" data-drawer-fields-container>
+            <div className="mx-auto max-w-[480px] px-6 py-5 text-[14px] leading-snug transition-[margin] duration-200" data-drawer-fields-inner>
             {confirmed ? (
               <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
                 <CheckCircle2 size={16} className="text-emerald-600" />
                 <p className="text-[14px] font-medium text-emerald-700">Prior contract closed — proceeding to invoice review…</p>
               </div>
             ) : (
-              <div className="flex flex-col gap-5">
+              <div className="flex flex-col gap-4">
                 {showExtensionBanner && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3">
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3">
                     <div className="flex items-start gap-2">
                       <Clock size={16} className="mt-0.5 shrink-0 text-amber-600" />
                       <div>
@@ -789,7 +807,7 @@ export function EarlyRenewalClosePriorStep({ queueItemId }: EarlyRenewalClosePri
                   </div>
                 )}
 
-                <div className="rounded-lg border border-blue-200 bg-blue-50/80 px-4 py-3">
+                <div className="rounded-2xl border border-blue-200 bg-blue-50/80 px-4 py-3">
                   <p className="text-[13px] text-blue-900">
                     <span className="font-semibold text-blue-950">Close prior contract</span>{" "}
                     {isLateRenewal
@@ -798,104 +816,103 @@ export function EarlyRenewalClosePriorStep({ queueItemId }: EarlyRenewalClosePri
                   </p>
                 </div>
 
-                <FormField
-                  label="Closure effective date"
-                  hint={
-                    isLateRenewal
-                      ? "Defaults to the prior contract's expiry date. Operators commonly backdate to align with the renewal start."
-                      : undefined
-                  }
-                >
-                  <input
-                    type="date"
-                    value={effectiveDate}
-                    onChange={(e) => setEffectiveDate(e.target.value)}
-                    className={formInputClass}
-                  />
-                  {isBackdated ? (
-                    <p className="mt-1 text-[11px] text-amber-700">
-                      Backdated to {shortDate(effectiveDate)}.
-                    </p>
-                  ) : isForwardDated ? (
-                    <p className="mt-1 text-[11px] text-text-muted">
-                      Scheduled for {shortDate(effectiveDate)}.
-                    </p>
-                  ) : null}
-                </FormField>
+                {/* Closure details card */}
+                <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
+                  <div className="border-b border-border-subtle px-5 py-3">
+                    <h3 className="text-[14px] font-semibold text-text-primary">Closure details</h3>
+                  </div>
+                  <div className="flex flex-col gap-4 px-5 py-4">
+                    <FormField
+                      label="Closure effective date"
+                      hint={
+                        isLateRenewal
+                          ? "Defaults to the prior contract's expiry date. Operators commonly backdate to align with the renewal start."
+                          : undefined
+                      }
+                    >
+                      <input
+                        type="date"
+                        value={effectiveDate}
+                        onChange={(e) => setEffectiveDate(e.target.value)}
+                        className={formInputClass}
+                      />
+                      {isBackdated ? (
+                        <p className="mt-1 text-[11px] text-amber-700">
+                          Backdated to {shortDate(effectiveDate)}.
+                        </p>
+                      ) : isForwardDated ? (
+                        <p className="mt-1 text-[11px] text-text-muted">
+                          Scheduled for {shortDate(effectiveDate)}.
+                        </p>
+                      ) : null}
+                    </FormField>
 
-                <FormField label="Closure reason">
-                  <Select value={reason} onChange={(e) => setReason(e.target.value as ClosureReason)}>
-                    {CLOSURE_REASONS.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.label}
-                      </option>
-                    ))}
-                  </Select>
-                </FormField>
+                    <FormField label="Closure reason">
+                      <Select value={reason} onChange={(e) => setReason(e.target.value as ClosureReason)}>
+                        {CLOSURE_REASONS.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.label}
+                          </option>
+                        ))}
+                      </Select>
+                    </FormField>
+                  </div>
+                </div>
 
-                <FormField
-                  label="Settlement type"
-                  hint={
-                    isLateRenewal
-                      ? "For late renewals, any charge for the elapsed period is rolled into the upcoming renewal invoice."
-                      : undefined
-                  }
-                >
-                  <Select value={settlementType} onChange={(e) => setSettlementType(e.target.value as ClosureSettlementType)}>
-                    {settlementOptions.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.label}
-                      </option>
-                    ))}
-                  </Select>
-                </FormField>
+                {/* Settlement card */}
+                <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
+                  <div className="border-b border-border-subtle px-5 py-3">
+                    <h3 className="text-[14px] font-semibold text-text-primary">Settlement</h3>
+                  </div>
+                  <div className="flex flex-col gap-4 px-5 py-4">
+                    <FormField
+                      label="Settlement type"
+                      hint={
+                        isLateRenewal
+                          ? "For late renewals, any charge for the elapsed period is rolled into the upcoming renewal invoice."
+                          : undefined
+                      }
+                    >
+                      <Select value={settlementType} onChange={(e) => setSettlementType(e.target.value as ClosureSettlementType)}>
+                        {settlementOptions.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.label}
+                          </option>
+                        ))}
+                      </Select>
+                    </FormField>
 
-                {calculations && calculations.suggestedAmount > 0 && (
-                  <CalculationCard
-                    settlementType={settlementType}
-                    isLateRenewal={isLateRenewal}
-                    expanded={calcExpanded}
-                    onToggle={() => setCalcExpanded((v) => !v)}
-                    contract={priorContract}
-                    calculations={calculations}
-                  />
-                )}
+                    {calculations && calculations.suggestedAmount > 0 && (
+                      <CalculationCard
+                        settlementType={settlementType}
+                        isLateRenewal={isLateRenewal}
+                        expanded={calcExpanded}
+                        onToggle={() => setCalcExpanded((v) => !v)}
+                        contract={priorContract}
+                        calculations={calculations}
+                      />
+                    )}
 
-                {isLateRenewal && newContract && /year|annual/i.test(newContract.billingFrequency) &&
-                  settlementType === "termination_charge" && (
-                    <div className="rounded-md border border-border-subtle bg-gray-50 px-4 py-3 text-[12px] text-text-muted">
-                      The renewal contract is billed annually upfront — the elapsed period is absorbed into the new annual invoice, so no extra one-time charge applies.
-                    </div>
-                  )}
+                    {isLateRenewal && newContract && /year|annual/i.test(newContract.billingFrequency) &&
+                      settlementType === "termination_charge" && (
+                        <div className="rounded-lg border border-border-subtle bg-gray-50 px-4 py-3 text-[12px] text-text-muted">
+                          The renewal contract is billed annually upfront — the elapsed period is absorbed into the new annual invoice, so no extra one-time charge applies.
+                        </div>
+                      )}
+                  </div>
+                </div>
               </div>
             )}
-          </div>
-        </div>
-
-        <div className="flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden border-l border-border-default">
-          {!previewCollapsed ? (
-            <ClosurePriorPreviewPane
-              priorContract={priorContract}
-              newContract={newContract}
-              customerName={customer?.name ?? "Customer"}
-              onCollapse={() => setPreviewCollapsed(true)}
-            />
-          ) : (
-            <div className="flex min-h-0 flex-1 flex-row bg-gray-100">
-              <div className="min-h-0 min-w-0 flex-1" aria-hidden />
-              <div className="flex shrink-0 border-l border-border-default bg-white">
-                <button
-                  type="button"
-                  onClick={() => setPreviewCollapsed(false)}
-                  className="flex h-full min-h-[200px] w-8 flex-col items-center justify-center gap-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
-                  title="Show preview"
-                >
-                  <PanelRightOpen size={14} />
-                  <span className="rotate-90 whitespace-nowrap text-[9px] uppercase tracking-widest">Preview</span>
-                </button>
-              </div>
             </div>
-          )}
+          </div>
+          <DrawerInsightRail
+            variant="summary"
+            title="Closure summary"
+            summaryItems={summaryItems}
+            comments={approval?.comments ?? []}
+            onSubmitComment={handleAddComment}
+            commentsTitle="Discussion"
+          />
         </div>
       </div>
     </div>

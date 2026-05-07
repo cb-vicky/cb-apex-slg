@@ -41,23 +41,6 @@ function SeverityPill({ severity }: { severity: WorkbenchTask["severity"] }) {
   );
 }
 
-function typeLabel(type: WorkbenchTask["type"]): string {
-  switch (type) {
-    case "contract-ingest":
-      return "Contract ingest";
-    case "invoice-approval":
-      return "Invoice approval";
-    case "closure-approval":
-      return "Closure approval";
-    case "billing-task":
-      return "Billing task";
-    case "late-renewal-extension":
-      return "Grace extension";
-    case "late-renewal":
-      return "Late renewal (queue)";
-  }
-}
-
 function formatTcv(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
@@ -94,9 +77,9 @@ function StatCard({ label, value, warning }: StatCardProps) {
 // Task table — one row per task (no stacked lines in cells)
 // ---------------------------------------------------------------------------
 
-/** Shared column template: customer · subject · severity · type · detail */
+/** Shared column template: task type · customer · subject · severity · detail */
 const TASK_TABLE_GRID =
-  "grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_90px_minmax(110px,0.95fr)_minmax(0,1.1fr)] items-center gap-3 pl-3 pr-4";
+  "grid w-full grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1.35fr)_90px_minmax(0,1.15fr)] items-center gap-3 pl-3 pr-4";
 
 function TaskRow({
   task,
@@ -115,6 +98,10 @@ function TaskRow({
       )}
     >
       <div className="min-w-0 truncate text-[13px] font-medium leading-snug text-text-primary">
+        {task.kindLabel}
+      </div>
+
+      <div className="min-w-0 truncate text-[13px] font-medium leading-snug text-text-primary">
         {task.customerName}
       </div>
 
@@ -123,8 +110,6 @@ function TaskRow({
       <span className="flex justify-start">
         <SeverityPill severity={task.severity} />
       </span>
-
-      <div className="min-w-0 truncate text-[12px] leading-snug text-text-secondary">{typeLabel(task.type)}</div>
 
       <div className="min-w-0 truncate text-[12px] leading-snug text-text-muted">
         {task.subtitle ?? "—"}
@@ -276,10 +261,10 @@ export function WorkbenchTaskList() {
             )}
             aria-hidden
           >
+            <span className="min-w-0 truncate">Task type</span>
             <span className="min-w-0 truncate">Customer</span>
             <span className="min-w-0 truncate">Subject</span>
             <span>Severity</span>
-            <span className="min-w-0 truncate">Type</span>
             <span className="min-w-0 truncate">Detail</span>
           </div>
           {sortedTasks.map((task) => (

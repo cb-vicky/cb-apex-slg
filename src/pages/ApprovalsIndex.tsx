@@ -9,8 +9,10 @@ import { PageHeader } from "@/components/index-page/PageHeader";
 import { useIngestContext } from "@/context/IngestContext";
 import { useDemoPersona } from "@/context/DemoPersonaContext";
 import { invoices, customers } from "@/data/mock-data";
+import { approvalRequestKindLabel } from "@/data/workbench-tasks";
 
 const columns: Column[] = [
+  { key: "kind", label: "Task type", width: "200px", sortable: true },
   { key: "id", label: "Approval ID", width: "150px", sortable: true },
   { key: "invoice", label: "Document", width: "140px", sortable: true },
   { key: "customer", label: "Customer", width: "160px", sortable: true },
@@ -111,6 +113,12 @@ export function ApprovalsIndex() {
                   );
                 }}
               >
+                <ListCell width="200px" className="font-medium text-text-primary">
+                  {approvalRequestKindLabel({
+                    invoiceId: req.invoiceId,
+                    ingestId: req.ingestId,
+                  })}
+                </ListCell>
                 <ListCell width="150px" className="font-medium text-blue-600">{req.id}</ListCell>
                 <ListCell width="140px" className="font-medium text-text-primary">{req.invoiceId}</ListCell>
                 <ListCell width="160px">{req.customerName}</ListCell>

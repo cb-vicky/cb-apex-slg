@@ -36,7 +36,7 @@ function PreviewToolbar({
   documentTabLabel: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-border-default bg-white px-3 py-2">
+    <div className="mx-3 mt-3 flex items-center justify-between gap-2 rounded-3xl border border-gray-200 bg-white/65 px-3 py-2 shadow-[0_8px_24px_-12px_rgba(17,24,39,0.18)] backdrop-blur-md backdrop-saturate-150">
       <div className="flex items-center gap-0.5 rounded-md border border-border-default bg-surface-muted p-0.5">
         <button
           type="button"

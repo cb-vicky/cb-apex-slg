@@ -6,7 +6,8 @@ import { contracts, customers } from "@/data/mock-data";
 import type { Contract, ContractClosure } from "@/data/mock-data";
 import { closeDrawer } from "@/store/drawer-store";
 import { currency, shortDate, cn } from "@/lib/utils";
-import { FieldSummaryPanel, type FieldSummaryItem } from "./ValidationPanel";
+import { type FieldSummaryItem } from "./ValidationPanel";
+import { DrawerInsightRail } from "./DrawerInsightRail";
 import { FormField, formInputClass, Select } from "@/components/ui/form-field";
 import { StatusBadge } from "@/components/ui/primitives";
 
@@ -216,7 +217,7 @@ function ContractPreviewPane({
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-gray-100">
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border-default bg-white px-3 py-2">
+      <div className="mx-3 mt-3 flex shrink-0 items-center justify-between gap-2 rounded-3xl border border-gray-200 bg-white/65 px-3 py-2 shadow-[0_8px_24px_-12px_rgba(17,24,39,0.18)] backdrop-blur-md backdrop-saturate-150">
         <span className="rounded px-2.5 py-1 text-[11px] font-medium text-text-primary">
           Contract
         </span>
@@ -504,49 +505,66 @@ export function ExtendGraceStep({ queueItemId, contractId }: ExtendGraceStepProp
   }
 
   const gridClass =
-    "grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,25%)_minmax(0,35%)_minmax(0,40%)] [grid-template-rows:minmax(0,1fr)]";
+    "grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,40%)_minmax(0,60%)] [grid-template-rows:minmax(0,1fr)]";
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
       <div className={gridClass}>
-        <div className="min-h-0 max-h-full min-w-0 overflow-hidden border-r border-border-default bg-gray-50">
-          <FieldSummaryPanel
-            title={
-              intent === "extend_grace"
-                ? "Extension summary"
-                : intent === "schedule_renewal"
-                  ? "Renewal summary"
-                  : "Cancellation summary"
-            }
-            items={summaryItems}
-            comments={approval?.comments ?? []}
-            onSubmitComment={handleAddComment}
-            commentsTitle="Discussion"
-          />
+        <div className="flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden">
+          {!previewCollapsed ? (
+            <ContractPreviewPane
+              contract={contract}
+              customerName={customer?.name ?? "Customer"}
+              onCollapse={() => setPreviewCollapsed(true)}
+            />
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-row bg-gray-100">
+              <div className="flex shrink-0 bg-white">
+                <button
+                  type="button"
+                  onClick={() => setPreviewCollapsed(false)}
+                  className="flex h-full min-h-[200px] w-8 flex-col items-center justify-center gap-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
+                  title="Show preview"
+                >
+                  <PanelRightOpen size={14} />
+                  <span className="rotate-90 whitespace-nowrap text-[9px] uppercase tracking-widest">Preview</span>
+                </button>
+              </div>
+              <div className="min-h-0 min-w-0 flex-1" aria-hidden />
+            </div>
+          )}
         </div>
 
-        <div className="min-h-0 max-h-full min-w-0 overflow-y-auto overscroll-y-contain border-r border-border-default">
-          <div className="px-6 py-5 text-[14px] leading-snug">
+        <div className="relative flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden bg-gray-100">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain transition-[padding] duration-200" data-drawer-fields-container>
+            <div className="mx-auto max-w-[480px] px-6 py-5 text-[14px] leading-snug transition-[margin] duration-200" data-drawer-fields-inner>
             {confirmed ? (
-              <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+              <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
                 <CheckCircle2 size={16} className="text-emerald-600" />
                 <p className="text-[14px] font-medium text-emerald-700">{confirmedMessage}</p>
               </div>
             ) : (
-              <div className="flex flex-col gap-5">
-                {/* Intent selector — what would you like to do? */}
-                <FormField label="What would you like to do?">
-                  <Select
-                    value={intent}
-                    onChange={(e) => setIntent(e.target.value as LateRenewalIntent)}
-                  >
-                    {INTENT_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </Select>
-                </FormField>
+              <div className="flex flex-col gap-4">
+                {/* Intent selector card */}
+                <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
+                  <div className="border-b border-border-subtle px-5 py-3">
+                    <h3 className="text-[14px] font-semibold text-text-primary">Late renewal action</h3>
+                  </div>
+                  <div className="px-5 py-4">
+                    <FormField label="What would you like to do?">
+                      <Select
+                        value={intent}
+                        onChange={(e) => setIntent(e.target.value as LateRenewalIntent)}
+                      >
+                        {INTENT_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </Select>
+                    </FormField>
+                  </div>
+                </div>
 
                 {intent === "extend_grace" && (
                   <ExtendGraceBody
@@ -580,31 +598,21 @@ export function ExtendGraceStep({ queueItemId, contractId }: ExtendGraceStepProp
               </div>
             )}
           </div>
-        </div>
-
-        <div className="flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden border-l border-border-default">
-          {!previewCollapsed ? (
-            <ContractPreviewPane
-              contract={contract}
-              customerName={customer?.name ?? "Customer"}
-              onCollapse={() => setPreviewCollapsed(true)}
-            />
-          ) : (
-            <div className="flex min-h-0 flex-1 flex-row bg-gray-100">
-              <div className="min-h-0 min-w-0 flex-1" aria-hidden />
-              <div className="flex shrink-0 border-l border-border-default bg-white">
-                <button
-                  type="button"
-                  onClick={() => setPreviewCollapsed(false)}
-                  className="flex h-full min-h-[200px] w-8 flex-col items-center justify-center gap-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
-                  title="Show preview"
-                >
-                  <PanelRightOpen size={14} />
-                  <span className="rotate-90 whitespace-nowrap text-[9px] uppercase tracking-widest">Preview</span>
-                </button>
-              </div>
-            </div>
-          )}
+          </div>
+          <DrawerInsightRail
+            variant="summary"
+            title={
+              intent === "extend_grace"
+                ? "Extension summary"
+                : intent === "schedule_renewal"
+                  ? "Renewal summary"
+                  : "Cancellation summary"
+            }
+            summaryItems={summaryItems}
+            comments={approval?.comments ?? []}
+            onSubmitComment={handleAddComment}
+            commentsTitle="Discussion"
+          />
         </div>
       </div>
     </div>
@@ -638,66 +646,74 @@ function ExtendGraceBody({
 }) {
   return (
     <>
-      <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3">
+      <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3">
         <p className="text-[13px] text-amber-900">
           <span className="font-semibold text-amber-950">Extend grace period</span> to continue
           providing services past the contract end date while renewal is negotiated.
         </p>
       </div>
 
-      <FormField label="Grace duration (days)">
-        <input
-          type="number"
-          min={1}
-          max={180}
-          value={graceDays}
-          onChange={(e) => onGraceDaysChange(Math.max(1, Math.min(180, Number(e.target.value))))}
-          className={formInputClass}
-        />
-        <p className="mt-1 text-[11px] text-text-muted">
-          Extended end date: {shortDate(addDaysIso(contract.endDate, graceDays))}
-        </p>
-      </FormField>
+      {/* Grace settings card */}
+      <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
+        <div className="border-b border-border-subtle px-5 py-3">
+          <h3 className="text-[14px] font-semibold text-text-primary">Grace period settings</h3>
+        </div>
+        <div className="flex flex-col gap-4 px-5 py-4">
+          <FormField label="Grace duration (days)">
+            <input
+              type="number"
+              min={1}
+              max={180}
+              value={graceDays}
+              onChange={(e) => onGraceDaysChange(Math.max(1, Math.min(180, Number(e.target.value))))}
+              className={formInputClass}
+            />
+            <p className="mt-1 text-[11px] text-text-muted">
+              Extended end date: {shortDate(addDaysIso(contract.endDate, graceDays))}
+            </p>
+          </FormField>
 
-      <FormField label="Billing during grace">
-        <Select
-          value={graceBilling}
-          onChange={(e) => onGraceBillingChange(e.target.value as "continue" | "pause")}
-        >
-          <option value="continue">Continue billing</option>
-          <option value="pause">Pause billing</option>
-        </Select>
-        <p className="mt-1 text-[11px] text-text-muted">
-          {graceBilling === "continue"
-            ? "Invoices will continue to generate during the grace period."
-            : "Billing will be paused until the grace period ends or renewal is confirmed."}
-        </p>
-      </FormField>
+          <FormField label="Billing during grace">
+            <Select
+              value={graceBilling}
+              onChange={(e) => onGraceBillingChange(e.target.value as "continue" | "pause")}
+            >
+              <option value="continue">Continue billing</option>
+              <option value="pause">Pause billing</option>
+            </Select>
+            <p className="mt-1 text-[11px] text-text-muted">
+              {graceBilling === "continue"
+                ? "Invoices will continue to generate during the grace period."
+                : "Billing will be paused until the grace period ends or renewal is confirmed."}
+            </p>
+          </FormField>
 
-      {graceBilling === "pause" && (
-        <ToggleSwitch
-          label="Extend provisioning during grace"
-          description="Keep services provisioned for the customer even though billing is paused."
-          checked={provisioningDuringGrace}
-          onChange={onProvisioningChange}
-        />
-      )}
+          {graceBilling === "pause" && (
+            <ToggleSwitch
+              label="Extend provisioning during grace"
+              description="Keep services provisioned for the customer even though billing is paused."
+              checked={provisioningDuringGrace}
+              onChange={onProvisioningChange}
+            />
+          )}
 
-      {graceBilling === "continue" && (
-        <ToggleSwitch
-          label="Continue dunning if invoices unpaid"
-          description="Keep dunning workflows active for invoices that remain unpaid during grace."
-          checked={dunningDuringGrace}
-          onChange={onDunningChange}
-        />
-      )}
+          {graceBilling === "continue" && (
+            <ToggleSwitch
+              label="Continue dunning if invoices unpaid"
+              description="Keep dunning workflows active for invoices that remain unpaid during grace."
+              checked={dunningDuringGrace}
+              onChange={onDunningChange}
+            />
+          )}
 
-      <div className="rounded-md border border-border-default bg-gray-50 px-4 py-3">
-        <p className="text-[12px] text-text-muted">Contract status</p>
-        <div className="mt-1 flex items-center gap-2">
-          <StatusBadge status="Active" />
-          <span className="text-text-muted">→</span>
-          <StatusBadge status="Extended" />
+          <div className="rounded-lg border border-border-default bg-gray-50 px-4 py-3">
+            <p className="text-[12px] text-text-muted">Contract status</p>
+            <div className="mt-1 flex items-center gap-2">
+              <StatusBadge status="Active" />
+              <span className="text-text-muted">→</span>
+              <StatusBadge status="Extended" />
+            </div>
+          </div>
         </div>
       </div>
     </>
@@ -715,7 +731,7 @@ function ScheduleRenewalBody({
 }) {
   return (
     <>
-      <div className="rounded-lg border border-blue-200 bg-blue-50/80 px-4 py-3">
+      <div className="rounded-2xl border border-blue-200 bg-blue-50/80 px-4 py-3">
         <p className="text-[13px] text-blue-900">
           <span className="font-semibold text-blue-950">Schedule renewal</span> at the same terms
           as the current contract. A new {contract.term} contract will start the day after the
@@ -723,37 +739,45 @@ function ScheduleRenewalBody({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="Renewal start">
-          <input type="date" value={renewalStart} disabled className={formInputClass} />
-        </FormField>
-        <FormField label="Renewal end">
-          <input type="date" value={renewalEnd} disabled className={formInputClass} />
-        </FormField>
-      </div>
-
-      <div className="rounded-md border border-border-default bg-gray-50 px-4 py-3">
-        <p className="text-[12px] uppercase tracking-wider text-text-muted">Carried over</p>
-        <div className="mt-2 grid grid-cols-2 gap-y-1 text-[12px]">
-          <span className="text-text-muted">Term</span>
-          <span className="text-right font-medium text-text-primary">{contract.term}</span>
-          <span className="text-text-muted">Billing frequency</span>
-          <span className="text-right font-medium text-text-primary">{contract.billingFrequency}</span>
-          <span className="text-text-muted">Payment terms</span>
-          <span className="text-right font-medium text-text-primary">{contract.paymentTerms}</span>
-          <span className="text-text-muted">TCV</span>
-          <span className="text-right font-medium text-text-primary">{currency(contract.tcv)}</span>
-          <span className="text-text-muted">Min annual commit</span>
-          <span className="text-right font-medium text-text-primary">{currency(contract.minAnnualCommit)}</span>
+      {/* Renewal details card */}
+      <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
+        <div className="border-b border-border-subtle px-5 py-3">
+          <h3 className="text-[14px] font-semibold text-text-primary">Renewal details</h3>
         </div>
-      </div>
+        <div className="flex flex-col gap-4 px-5 py-4">
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Renewal start">
+              <input type="date" value={renewalStart} disabled className={formInputClass} />
+            </FormField>
+            <FormField label="Renewal end">
+              <input type="date" value={renewalEnd} disabled className={formInputClass} />
+            </FormField>
+          </div>
 
-      <div className="rounded-md border border-border-default bg-gray-50 px-4 py-3">
-        <p className="text-[12px] text-text-muted">Contract status</p>
-        <div className="mt-1 flex items-center gap-2">
-          <StatusBadge status="Active" />
-          <span className="text-text-muted">→</span>
-          <StatusBadge status="Scheduled" />
+          <div className="rounded-lg border border-border-default bg-gray-50 px-4 py-3">
+            <p className="text-[12px] uppercase tracking-wider text-text-muted">Carried over</p>
+            <div className="mt-2 grid grid-cols-2 gap-y-1 text-[12px]">
+              <span className="text-text-muted">Term</span>
+              <span className="text-right font-medium text-text-primary">{contract.term}</span>
+              <span className="text-text-muted">Billing frequency</span>
+              <span className="text-right font-medium text-text-primary">{contract.billingFrequency}</span>
+              <span className="text-text-muted">Payment terms</span>
+              <span className="text-right font-medium text-text-primary">{contract.paymentTerms}</span>
+              <span className="text-text-muted">TCV</span>
+              <span className="text-right font-medium text-text-primary">{currency(contract.tcv)}</span>
+              <span className="text-text-muted">Min annual commit</span>
+              <span className="text-right font-medium text-text-primary">{currency(contract.minAnnualCommit)}</span>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border-default bg-gray-50 px-4 py-3">
+            <p className="text-[12px] text-text-muted">Contract status</p>
+            <div className="mt-1 flex items-center gap-2">
+              <StatusBadge status="Active" />
+              <span className="text-text-muted">→</span>
+              <StatusBadge status="Scheduled" />
+            </div>
+          </div>
         </div>
       </div>
     </>
@@ -771,46 +795,54 @@ function CancelContractBody({
 }) {
   return (
     <>
-      <div className="rounded-lg border border-red-200 bg-red-50/70 px-4 py-3">
+      <div className="rounded-2xl border border-red-200 bg-red-50/70 px-4 py-3">
         <p className="text-[13px] text-red-900">
           <span className="font-semibold text-red-950">Cancel contract</span> on the contract
           expiry date. No grace period will apply and no renewal will be scheduled.
         </p>
       </div>
 
-      <FormField
-        label="Closure effective date"
-        hint="Defaults to the contract expiry date. Backdate or forward-date as needed."
-      >
-        <input
-          type="date"
-          value={cancelEffectiveDate}
-          onChange={(e) => onCancelEffectiveDateChange(e.target.value)}
-          className={formInputClass}
-        />
-        <p className="mt-1 text-[11px] text-text-muted">
-          Contract end date: {shortDate(contract.endDate)}
-        </p>
-      </FormField>
-
-      <div className="rounded-md border border-border-default bg-gray-50 px-4 py-3">
-        <p className="text-[12px] uppercase tracking-wider text-text-muted">Closure summary</p>
-        <div className="mt-2 grid grid-cols-2 gap-y-1 text-[12px]">
-          <span className="text-text-muted">Reason</span>
-          <span className="text-right font-medium text-text-primary">Customer non-renewal</span>
-          <span className="text-text-muted">Settlement</span>
-          <span className="text-right font-medium text-text-primary">No financial impact</span>
-          <span className="text-text-muted">Open AR</span>
-          <span className="text-right font-medium text-text-primary">{currency(contract.openAr)}</span>
+      {/* Cancellation details card */}
+      <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
+        <div className="border-b border-border-subtle px-5 py-3">
+          <h3 className="text-[14px] font-semibold text-text-primary">Cancellation details</h3>
         </div>
-      </div>
+        <div className="flex flex-col gap-4 px-5 py-4">
+          <FormField
+            label="Closure effective date"
+            hint="Defaults to the contract expiry date. Backdate or forward-date as needed."
+          >
+            <input
+              type="date"
+              value={cancelEffectiveDate}
+              onChange={(e) => onCancelEffectiveDateChange(e.target.value)}
+              className={formInputClass}
+            />
+            <p className="mt-1 text-[11px] text-text-muted">
+              Contract end date: {shortDate(contract.endDate)}
+            </p>
+          </FormField>
 
-      <div className="rounded-md border border-border-default bg-gray-50 px-4 py-3">
-        <p className="text-[12px] text-text-muted">Contract status</p>
-        <div className="mt-1 flex items-center gap-2">
-          <StatusBadge status="Active" />
-          <span className="text-text-muted">→</span>
-          <StatusBadge status="Closing" />
+          <div className="rounded-lg border border-border-default bg-gray-50 px-4 py-3">
+            <p className="text-[12px] uppercase tracking-wider text-text-muted">Closure summary</p>
+            <div className="mt-2 grid grid-cols-2 gap-y-1 text-[12px]">
+              <span className="text-text-muted">Reason</span>
+              <span className="text-right font-medium text-text-primary">Customer non-renewal</span>
+              <span className="text-text-muted">Settlement</span>
+              <span className="text-right font-medium text-text-primary">No financial impact</span>
+              <span className="text-text-muted">Open AR</span>
+              <span className="text-right font-medium text-text-primary">{currency(contract.openAr)}</span>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border-default bg-gray-50 px-4 py-3">
+            <p className="text-[12px] text-text-muted">Contract status</p>
+            <div className="mt-1 flex items-center gap-2">
+              <StatusBadge status="Active" />
+              <span className="text-text-muted">→</span>
+              <StatusBadge status="Closing" />
+            </div>
+          </div>
         </div>
       </div>
     </>

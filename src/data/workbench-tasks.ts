@@ -15,7 +15,7 @@ import type {
   DrawerMode,
   TransitionFlowSession,
 } from "@/data/contract-transition";
-import { customers, tasks as customerTasks } from "@/data/mock-data";
+import { customers, contracts, tasks as customerTasks } from "@/data/mock-data";
 import type { DemoPersona } from "@/types/demo-persona";
 
 // ---------------------------------------------------------------------------
@@ -40,6 +40,8 @@ export interface WorkbenchTask {
   id: string;
   customerId?: string;
   customerName: string;
+  /** Deterministic first-column label (queue scenario, approval class, customer task theme). */
+  kindLabel: string;
   type:
     | "contract-ingest"
     | "invoice-approval"
@@ -127,6 +129,73 @@ function taskTypeToTab(type: string): string {
       return "customer";
     default:
       return "customer";
+  }
+}
+
+/** Whole calendar days from today (UTC date) to `endDate` (YYYY-MM-DD). */
+function calendarDaysUntilEndDate(endDateStr: string): number {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(endDateStr);
+  if (!m) return NaN;
+  const y = parseInt(m[1], 10);
+  const mo = parseInt(m[2], 10);
+  const d = parseInt(m[3], 10);
+  if ([y, mo, d].some((n) => Number.isNaN(n))) return NaN;
+  const endUtc = Date.UTC(y, mo - 1, d);
+  const now = new Date();
+  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.round((endUtc - todayUtc) / 86400000);
+}
+
+function contractExpiryKindFromActiveId(activeContractId: string | undefined): string {
+  if (!activeContractId) return "Contract expiry — action needed";
+  const c = contracts.find((x) => x.id === activeContractId);
+  if (!c?.endDate) return "Contract expiry — action needed";
+  const days = calendarDaysUntilEndDate(c.endDate);
+  if (Number.isNaN(days)) return "Contract expiry — action needed";
+  if (days < 0) return "Contract expired — closeout required";
+  if (days === 0) return "Contract expires today";
+  if (days === 1) return "Contract expires in 1 day";
+  return `Contract expires in ${days} days`;
+}
+
+/** Row “task type” for queue tables — matches `WorkbenchTask.kindLabel` for queue-sourced tasks. */
+export function queueItemKindLabel(q: QueueItem): string {
+  switch (q.scenario) {
+    case "New Business":
+      return "New deal";
+    case "Early Renewal":
+      return "Early renewal";
+    case "Renewal":
+      return "Renewal";
+    case "Amendment":
+      return "Amendment";
+    case "Late Renewal":
+      return q.ingestable ? "Late renewal — ingest" : contractExpiryKindFromActiveId(q.activeContractId);
+    default:
+      return q.scenario;
+  }
+}
+
+/** Row “task type” for approval tables — matches `WorkbenchTask.kindLabel` for approval-sourced tasks. */
+export function approvalRequestKindLabel(req: { invoiceId: string; ingestId?: string }): string {
+  if (req.invoiceId.startsWith("CN-CLOSE-")) return "Closure Credit Note Approval";
+  if (req.invoiceId.startsWith("INV-TERM-")) return "Termination Charge Approval";
+  if (req.ingestId) return "First Invoice Approval";
+  return "Invoice Approval";
+}
+
+function customerTaskKindLabel(task: { type: string }): string {
+  switch (task.type) {
+    case "Billing":
+      return "Billing follow-up";
+    case "Renewal":
+      return "Renewal follow-up";
+    case "Enforcement":
+      return "Enforcement follow-up";
+    case "Usage":
+      return "Usage review";
+    default:
+      return `${task.type} task`;
   }
 }
 
@@ -245,6 +314,7 @@ export function deriveWorkbenchTasks(
       id: `queue-${q.id}`,
       customerId: q.customerId,
       customerName: q.customerName,
+      kindLabel: queueItemKindLabel(q),
       type,
       title: q.documentName,
       subtitle,
@@ -293,6 +363,7 @@ export function deriveWorkbenchTasks(
         id: `approval-${req.id}`,
         customerId: req.customerId || undefined,
         customerName: req.customerName || "Unknown",
+        kindLabel: approvalRequestKindLabel(req),
         type: "closure-approval",
         title: `Closure approval: ${req.invoiceId}`,
         subtitle: pendingRenewal
@@ -337,6 +408,7 @@ export function deriveWorkbenchTasks(
         id: `approval-${req.id}`,
         customerId: req.customerId || undefined,
         customerName: req.customerName || "Unknown",
+        kindLabel: approvalRequestKindLabel(req),
         type: "invoice-approval",
         title: `Invoice approval: ${req.invoiceId}`,
         subtitle: `Submitted by ${req.submittedBy}`,
@@ -358,6 +430,7 @@ export function deriveWorkbenchTasks(
       id: `task-${task.id}`,
       customerId: task.customerId,
       customerName: customer?.name ?? "Unknown Customer",
+      kindLabel: customerTaskKindLabel(task),
       type: "billing-task",
       title: task.title,
       subtitle: `${task.type} · ${task.assignee}`,

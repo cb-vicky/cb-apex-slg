@@ -140,15 +140,15 @@ Should the approval detail page support **multi-approver chains** (sequential or
 
 ### Q6 — Late Renewal implementation direction
 
-**Partially resolved:** Late Renewal now has `handleLateRenewalQueueFinish` in `IngestDrawer` which creates a scheduled renewal contract and advances to the `close_prior` step. Key implementation decisions made:
+**Resolved:** Late Renewal is fully implemented with:
 
 - **Backdating:** `TransitionContractTermsSection` supports `allowBackdate` prop — operators can set effective date earlier than today for late renewals
 - **Grace extension awareness:** Late renewal banner shows prior contract's grace extension details when present
 - **Flow parity:** Late Renewal follows the same `close_prior` → approval → auto-activate pattern as Early Renewal
+- **Contract workspace:** Grace extension banner in `ContractStageContent` with "Resolve in drawer" action
+- **State-aware actions:** Contract tab actions vary based on status (Extended/inGrace shows "Resolve renewal" as primary action)
 
-**Remaining questions:**
-- Should Late Renewal queue rows (`QI-2026-0003`) be updated with `sampleId: "sample4"` + `ingestable: true` to enable the full ingest grid?
-- How should `activeContractId` + `contractGraceExtensions` surface prominently in the fields column beyond the banner?
+Queue row `QI-2026-0003` can be updated with `sampleId: "sample4"` + `ingestable: true` when ready for the full demo.
 
 ### Q7 — Early Renewal comments parity
 

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { LayoutList } from "lucide-react";
 import type { Quote } from "@/data/mock-data";
-import { RecordHeader } from "../RecordHeader";
+import { RecordHeader, type OverflowItem, type RecordHeaderOption } from "../RecordHeader";
 import { ActionButton } from "../primitives/ActionButton";
 import { QuoteOverviewSection } from "./QuoteOverviewSection";
 import { QuotePricingSection } from "./QuotePricingSection";
@@ -21,9 +21,6 @@ interface Props {
 
 export function QuoteStageContent({ quote, quoteVersions, onQuoteVersionChange, onBack }: Props) {
   const navigate = useNavigate();
-  const approvalStatus = quote.approval.status === "pending" ? "Pending Approval" : quote.approval.status;
-  const approvalTagline =
-    approvalStatus !== quote.status && approvalStatus !== "not_required" ? approvalStatus : undefined;
 
   const headerActions = useMemo(() => {
     const approvalPending = quote.approval.status === "pending" || quote.status === "Pending Approval";
@@ -87,22 +84,53 @@ export function QuoteStageContent({ quote, quoteVersions, onQuoteVersionChange, 
     );
   }, [navigate, quote]);
 
+  const overflowItems = useMemo<OverflowItem[]>(() => {
+    const items: OverflowItem[] = [];
+    if (quoteVersions && quoteVersions.length > 1) {
+      items.push({ label: "Compare versions" });
+    }
+    items.push({ label: "Duplicate quote" });
+    items.push({ label: "Download PDF" });
+    if (quote.status !== "Cancelled" && quote.status !== "Accepted") {
+      items.push({ label: "Cancel quote", destructive: true });
+    }
+    return items;
+  }, [quote.status, quoteVersions]);
+
+  const recordOptions = useMemo<RecordHeaderOption[] | undefined>(() => {
+    if (!quoteVersions || quoteVersions.length === 0) return undefined;
+    return quoteVersions.map((v) => ({
+      id: v.id,
+      pillTag: `v${v.version}`,
+      status: v.status,
+      description: v.versionSummary,
+      errorLine: v.status === "Rejected" && v.rejectionReason ? `Rejection reason: ${v.rejectionReason}` : undefined,
+    }));
+  }, [quoteVersions]);
+
+  const handleRecordSelect = useMemo(() => {
+    if (!quoteVersions || !onQuoteVersionChange) return undefined;
+    return (id: string) => {
+      const v = quoteVersions.find((q) => q.id === id);
+      if (v) onQuoteVersionChange(v);
+    };
+  }, [quoteVersions, onQuoteVersionChange]);
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3">
       <RecordHeader
-        stickyBar
-        showStatusBadge={false}
         id={quote.id}
-        status={quote.status}
-        tagline={approvalTagline}
-        versions={quoteVersions}
-        onVersionChange={onQuoteVersionChange}
+        pillTag={`v${quote.version}`}
+        recordOptions={recordOptions}
+        onRecordSelect={handleRecordSelect}
+        recordMenuTitle="Quote versions"
         leadingAction={
           onBack ? (
             <ActionButton icon={LayoutList} label="All quotes" onClick={onBack} />
           ) : undefined
         }
         actions={headerActions}
+        overflowItems={overflowItems}
       />
       <QuoteOverviewSection quote={quote} />
       <QuoteApprovalsSection

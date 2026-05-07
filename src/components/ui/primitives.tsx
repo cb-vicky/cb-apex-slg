@@ -27,6 +27,9 @@ const statusColors: Record<string, string> = {
   "pending rerun": "bg-amber-50 text-amber-700 border-amber-200",
   "review required": "bg-amber-50 text-amber-700 border-amber-200",
   "in progress": "bg-amber-50 text-amber-700 border-amber-200",
+  "pending ingestion": "bg-amber-50 text-amber-700 border-amber-200",
+  "invoice review": "bg-amber-50 text-amber-700 border-amber-200",
+  returned: "bg-amber-50 text-amber-700 border-amber-200",
   partial: "bg-amber-50 text-amber-700 border-amber-200",
   "on hold": "bg-amber-50 text-amber-700 border-amber-200",
   "po required": "bg-amber-50 text-amber-700 border-amber-200",
@@ -125,12 +128,12 @@ export function SectionCard({
   bodyClassName?: string;
 }) {
   return (
-    <div className={cn("overflow-hidden rounded-lg border border-border-default bg-white", className)}>
-      <div className="flex items-center justify-between gap-3 border-b border-border-subtle bg-gray-50 px-5 py-3">
+    <div className={cn("overflow-hidden rounded-3xl border border-border-default bg-white", className)}>
+      <div className="flex items-center justify-between gap-3 bg-white px-5 pt-4 pb-3">
         <h3 className="text-[14px] font-semibold leading-tight tracking-normal text-text-primary">{title}</h3>
         {actions}
       </div>
-      <div className={cn("px-5 py-4", bodyClassName)}>{children}</div>
+      <div className={cn("px-5 pb-4 pt-1", bodyClassName)}>{children}</div>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { IngestProvider } from "@/context/IngestContext";
 import { AppShell } from "@/components/layout/AppShell";
 import { WorkbenchHome } from "@/pages/workbench/WorkbenchHome";
 import { CustomersIndex } from "@/pages/CustomersIndex";
+import { ProspectsIndex } from "@/pages/ProspectsIndex";
 import { QuotesIndex } from "@/pages/QuotesIndex";
 import { ContractsIndex } from "@/pages/ContractsIndex";
 import { InvoicesIndex } from "@/pages/InvoicesIndex";
@@ -11,9 +12,7 @@ import { CustomerDetailPage } from "@/pages/CustomerDetailPage";
 import { QuoteDetailPage } from "@/pages/QuoteDetailPage";
 import { ContractDetailPage } from "@/pages/ContractDetailPage";
 import { InvoiceDetailPage } from "@/pages/InvoiceDetailPage";
-import { QueueIndex } from "@/pages/QueueIndex";
 import { QueueIngestPage } from "@/pages/QueueIngestPage";
-import { ApprovalsIndex } from "@/pages/ApprovalsIndex";
 import { ApprovalDetailPage } from "@/pages/ApprovalDetailPage";
 import { EntityDrawer } from "@/components/common/EntityDrawer";
 
@@ -24,22 +23,23 @@ export default function App() {
         <AppShell>
           <>
           <Routes>
-            {/* Workbench home */}
+            {/* Workbench home (includes My Tasks, Queue, Approvals tabs) */}
             <Route path="/" element={<WorkbenchHome />} />
             <Route path="/workbench" element={<WorkbenchHome />} />
 
             {/* Resource index pages (grouped landing + filtered list) */}
             <Route path="/customers" element={<CustomersIndex />} />
+            <Route path="/prospects" element={<ProspectsIndex />} />
             <Route path="/quotes" element={<QuotesIndex />} />
             <Route path="/contracts" element={<ContractsIndex />} />
             <Route path="/invoices" element={<InvoicesIndex />} />
 
-            {/* Queue (Inbox > Queue) — landing for all contracts pending ingestion */}
-            <Route path="/queue" element={<QueueIndex />} />
-            <Route path="/queue/:queueItemId" element={<QueueIngestPage />} />
+            {/* Queue and Approvals index routes redirect to workbench tabs */}
+            <Route path="/queue" element={<Navigate to="/?tab=queue" replace />} />
+            <Route path="/approvals" element={<Navigate to="/?tab=approvals" replace />} />
 
-            {/* Approvals module */}
-            <Route path="/approvals" element={<ApprovalsIndex />} />
+            {/* Queue and Approvals detail routes still work */}
+            <Route path="/queue/:queueItemId" element={<QueueIngestPage />} />
             <Route path="/approvals/invoices/:invoiceId" element={<ApprovalDetailPage />} />
 
             {/* Canonical customer-centric detail shell */}

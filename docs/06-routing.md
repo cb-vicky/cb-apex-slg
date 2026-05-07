@@ -13,24 +13,18 @@ The in-page role switcher (Billing Manager / Billing Operator) applies to both t
 
 ## Canonical route model
 
-### Index routes (grouped landing + filtered list)
+### Index routes (list tables)
 
 ```
-/customers
-/customers?group=renewals-30d
-/quotes
-/quotes?group=pending-approval
-/contracts
-/contracts?group=pending-enforcement
-/invoices
-/invoices?group=pending-review
-/approvals
-/queue
-/queue?group=pending-review
-/queue?group=ingested
+/customers                  — CustomersIndex (list table)
+/quotes                     — QuotesIndex (list table)
+/contracts                  — ContractsIndex (list table)
+/invoices                   — InvoicesIndex (list table)
+/approvals                  — ApprovalsIndex
+/queue                      — QueueIndex
 ```
 
-Same component toggles between grouped and list mode based on the `?group` query param.
+All module index pages render as flat list tables with a top metric strip. No grouped priority landing pattern — simpler, faster navigation.
 
 ### Canonical detail shell
 
@@ -98,17 +92,17 @@ Known past bug (fixed): Pioneer Systems and Zenith Analytics previously inherite
 ## Deep-linking examples
 
 ```
-From Customers index "Renewals in 30 days":
-  navigate("/customers/cust_echo_001?tab=contract&contractId=CON-2024-0189")
+From Customers index (row click):
+  navigate("/customers/cust_echo_001?tab=customer&from=customers")
 
-From Customers index "Quotes pending approval":
-  navigate("/customers/cust_echo_001?tab=quote&quoteId=QT-2026-0042")
+From Quotes index (row click):
+  navigate("/customers/cust_echo_001?tab=quote&quoteId=QT-2026-0042&from=quotes")
 
-From Quotes index (any row):
-  navigate("/customers/cust_echo_001?tab=quote&quoteId=QT-2026-0042")
+From Contracts index (row click):
+  navigate("/customers/cust_echo_001?tab=contract&contractId=CON-2024-0189&from=contracts")
 
-From Invoices index (any row):
-  navigate("/customers/cust_echo_001?tab=invoicing&invoiceId=INV-2026-0034")
+From Invoices index (row click):
+  navigate("/customers/cust_echo_001?tab=invoicing&invoiceId=INV-2026-0034&from=invoices")
 ```
 
 ## Full navigation chain (Queue → ingest → first-invoice approval)

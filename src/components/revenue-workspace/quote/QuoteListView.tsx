@@ -61,9 +61,9 @@ export function QuoteListView({ quotes, onSelect }: Props) {
   }
 
   return (
-    <div className="border-y border-border-default bg-white">
+    <div className="overflow-hidden rounded-3xl border border-border-default bg-white">
       {/* Column header */}
-      <div className="grid grid-cols-[auto_1fr_120px_100px_80px_110px] items-center gap-3 border-b border-border-subtle bg-gray-50 py-2 pl-3 pr-4 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+      <div className="grid grid-cols-[auto_1fr_120px_100px_80px_110px] items-center gap-3 border-b border-border-subtle bg-white px-4 pt-4 pb-2 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
         <span className="w-4" />
         <span>Deal</span>
         <span>Type</span>

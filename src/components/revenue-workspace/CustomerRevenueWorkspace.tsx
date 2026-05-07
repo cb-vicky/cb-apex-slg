@@ -22,11 +22,13 @@ import {
   type InsightRailSectionKey,
 } from "./InsightRail";
 import { QuoteListView } from "./quote/QuoteListView";
-import { ContractListView } from "./contract/ContractListView";
+import { ContractListView, type PendingIngestionContract } from "./contract/ContractListView";
 import { InvoiceListView } from "./invoicing/InvoiceListView";
 import { CloseContractPane } from "@/components/contracts/CloseContractPane";
 import type { IncomingRenewalPreview } from "@/components/contracts/CloseContractPane";
 import { mergeContractsWithRuntimeClosures } from "./derive-stage-data";
+import { RecordSlotContext } from "./RecordSlot";
+import { cn } from "@/lib/utils";
 
 // Stages that use a list-then-detail pattern
 const LIST_STAGES: Stage[] = ["quote", "contract", "invoicing"];
@@ -73,6 +75,7 @@ export function CustomerRevenueWorkspace({
     invoiceStatusOverrides,
     contractGraceExtensions,
     sessionInvoices,
+    queueItems,
   } = useIngestContext();
 
   // When closeIntent is present, force list mode (so user sees context before pane opens)
@@ -100,6 +103,33 @@ export function CustomerRevenueWorkspace({
     () => mergeContractsWithRuntimeClosures(customerContracts, contractClosures, contractGraceExtensions),
     [customerContracts, contractClosures, contractGraceExtensions],
   );
+
+  /** Pending ingestion contracts from queue items (Early/Late Renewal scenarios for this customer). */
+  const pendingIngestionContracts = useMemo<PendingIngestionContract[]>(() => {
+    const isPendingStatus = (status: string) =>
+      status === "Pending Review" ||
+      status === "In Progress" ||
+      status === "Invoice review" ||
+      status === "Returned";
+
+    return queueItems
+      .filter(
+        (q) =>
+          q.customerId === customer.id &&
+          (q.scenario === "Early Renewal" || q.scenario === "Late Renewal") &&
+          isPendingStatus(q.status)
+      )
+      .map((q) => ({
+        queueItemId: q.id,
+        documentName: q.documentName,
+        customerName: q.customerName,
+        tcv: q.tcv,
+        uploadedAt: q.uploadedAt,
+        scenario: q.scenario,
+        status: q.status,
+        activeContractId: q.activeContractId,
+      }));
+  }, [queueItems, customer.id]);
 
   const customerInvoicesRaw = useMemo(() => {
     const seed = getInvoices(customer.id);
@@ -270,14 +300,17 @@ export function CustomerRevenueWorkspace({
   const isListStage = LIST_STAGES.includes(activeStage);
   const inListMode = viewMode === "list" && isListStage;
 
-  /** Sticky `RecordHeader` (quote / contract / invoice detail) provides its own shadow — skip context bar stuck shadow. */
-  const suppressContextBarStuckShadow =
+  // Stages that present a per-record bar (the glass card under the tabs).
+  // Customer/Payment/RevRec don't have list-then-detail or a record context bar.
+  const hasRecordBar =
     !inListMode &&
     Boolean(
       (activeStage === "quote" && !!activeQuote) ||
         (activeStage === "contract" && !!effectiveContract) ||
         (activeStage === "invoicing" && !!effectiveInvoice && !!effectiveContract),
     );
+
+  const [recordSlotEl, setRecordSlotEl] = useState<HTMLDivElement | null>(null);
 
   // The ID shown in the breadcrumb's record crumb.
   const currentRecordId = inListMode
@@ -322,6 +355,7 @@ export function CustomerRevenueWorkspace({
           return (
             <ContractListView
               contracts={contractsForListView}
+              pendingIngestions={pendingIngestionContracts}
               onSelect={(c) => {
                 setActiveContract(c);
                 setViewMode("detail");
@@ -361,6 +395,11 @@ export function CustomerRevenueWorkspace({
           <ContractStageContent
             contract={effectiveContract}
             graceExtension={graceExt}
+            customerContracts={contractsForListView}
+            onContractSelect={(id) => {
+              const next = contractsForListView.find((c) => c.id === id);
+              if (next) setActiveContract(next);
+            }}
             onBack={handleBackToList}
             onOpenClosePane={() => setShowClosePane(true)}
           />
@@ -370,7 +409,16 @@ export function CustomerRevenueWorkspace({
       }
       case "invoicing":
         return effectiveInvoice && effectiveContract ? (
-          <InvoicingStageContent invoice={effectiveInvoice} contract={effectiveContract} onBack={handleBackToList} />
+          <InvoicingStageContent
+            invoice={effectiveInvoice}
+            contract={effectiveContract}
+            customerInvoices={invoicesForListView}
+            onInvoiceSelect={(id) => {
+              const next = invoicesForListView.find((i) => i.id === id);
+              if (next) setActiveInvoice(next);
+            }}
+            onBack={handleBackToList}
+          />
         ) : null;
       case "payment":
         return <PaymentStageContent customer={customer} />;
@@ -382,7 +430,7 @@ export function CustomerRevenueWorkspace({
   }
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex flex-1 flex-col bg-gray-100">
       <CustomerContextBar
         customer={customer}
         quote={activeQuote}
@@ -394,13 +442,26 @@ export function CustomerRevenueWorkspace({
         disabledStages={disabledStages}
         from={from}
         recordId={currentRecordId}
-        suppressStuckShadow={suppressContextBarStuckShadow}
+        recordSlot={hasRecordBar ? <div ref={setRecordSlotEl} /> : null}
       />
 
-      {/* Main content — always rendered */}
-      <div className="flex-1 px-8 pt-6 pb-8">
-        <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_320px]">
-          <div>{renderContent()}</div>
+      {/* Main content area — light grey bg, content cards centered.
+          Detail content reads at max-w-860; list views (Quotes / Contracts /
+          Invoicing tables) get a wider 1020px column so columns aren't
+          cramped. */}
+      <RecordSlotContext.Provider value={recordSlotEl}>
+        <div
+          data-workspace-content
+          className="relative flex-1 transition-[padding] duration-200 ease-out"
+        >
+          <div
+            className={cn(
+              "mx-auto px-6 pt-2 pb-12",
+              inListMode ? "max-w-[1020px]" : "max-w-[860px]",
+            )}
+          >
+            {renderContent()}
+          </div>
           <InsightRail
             tasks={tasks}
             customer={customer}
@@ -408,7 +469,7 @@ export function CustomerRevenueWorkspace({
             onSectionToggle={toggleRailSection}
           />
         </div>
-      </div>
+      </RecordSlotContext.Provider>
 
       {/* Close contract modal — full page overlay with padding on top/left/right */}
       {showClosePane && effectiveContract && (

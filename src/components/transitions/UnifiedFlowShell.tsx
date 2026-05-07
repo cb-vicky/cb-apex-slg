@@ -7,6 +7,7 @@ import { InvoiceReviewStep } from "@/components/transitions/InvoiceReviewStep";
 import { InvoiceApprovalDrawer } from "@/components/approvals/InvoiceApprovalDrawer";
 import { EarlyRenewalClosePriorStep } from "@/components/transitions/EarlyRenewalClosePriorStep";
 import { ExtendGraceStep } from "@/components/transitions/ExtendGraceStep";
+import { ApprovalSettingsStep } from "@/components/transitions/ApprovalSettingsStep";
 import { useDemoPersona } from "@/context/DemoPersonaContext";
 import { UnifiedDrawerChromeProvider, useUnifiedDrawerChrome } from "@/context/UnifiedDrawerChromeContext";
 import { useIngestContext } from "@/context/IngestContext";
@@ -146,7 +147,7 @@ function UnifiedFlowStepper({
   if (currentRank < 0) return null;
 
   return (
-    <div className="shrink-0 border-t border-border-subtle border-b border-gray-200 bg-gray-50 px-4 py-1.5 sm:px-5">
+    <div className="relative z-10 shrink-0 rounded-bl-3xl rounded-br-3xl border border-gray-200 bg-white/65 px-4 py-2 shadow-[0_8px_24px_-12px_rgba(17,24,39,0.18)] backdrop-blur-md backdrop-saturate-150 sm:px-5">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
         <div className="flex min-w-0 flex-1 items-center justify-center gap-0 sm:justify-start sm:gap-1">
           {orderedSteps.map((s, idx) => {
@@ -289,7 +290,7 @@ function UnifiedFlowShellInner({ onClose }: { onClose: () => void }) {
   const lateContractId = flow.contractId ?? context?.contractId;
 
   return (
-    <div className="relative flex h-full min-h-0 w-full flex-1 flex-col bg-white">
+    <div className="relative flex h-full min-h-0 w-full flex-1 flex-col bg-gray-100">
       <UnifiedFlowShellHeader
         onClose={onClose}
         queueId={queueId}
@@ -322,7 +323,7 @@ function UnifiedFlowShellInner({ onClose }: { onClose: () => void }) {
               entityId={queueId}
               context={context}
               onClose={onClose}
-              presentation="drawer"
+              presentation="page"
               omitHeader
               readOnly={ingestReadOnly}
             />
@@ -360,6 +361,12 @@ function UnifiedFlowShellInner({ onClose }: { onClose: () => void }) {
               queueItemId={queueId ?? ""}
               contractId={lateContractId}
             />
+          </div>
+        ) : null}
+
+        {flow.step === "approval_settings" ? (
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            <ApprovalSettingsStep queueItemId={queueId} invoiceId={invoiceId} />
           </div>
         ) : null}
       </div>

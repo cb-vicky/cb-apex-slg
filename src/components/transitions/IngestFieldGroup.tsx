@@ -35,11 +35,11 @@ export const IngestFieldGroup = forwardRef<HTMLDivElement, IngestFieldGroupProps
       <div
         ref={ref}
         className={cn(
-          "overflow-hidden rounded-lg border border-border-default bg-white",
+          "overflow-hidden rounded-2xl border border-border-default bg-white",
           className,
         )}
       >
-        <div className="flex items-center justify-between gap-3 border-b border-border-subtle bg-gray-50 px-5 py-3">
+        <div className="flex items-center justify-between gap-3 border-b border-border-subtle px-5 py-3">
           <div className="min-w-0">
             <h3 className="truncate text-[14px] font-semibold leading-tight tracking-normal text-text-primary">
               {title}

@@ -4,10 +4,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
   ChevronRight,
-  Sparkles,
   Search,
   Command,
-  LayoutDashboard,
   FolderOpen,
   Package,
   LineChart,
@@ -36,16 +34,14 @@ const DISABLED_NAV_PATHS = new Set([
   "/entitlements",
   "/usages",
   "/revenuestory",
+  "/signals",
 ]);
 
 const navGroups: NavGroup[] = [
   {
-    label: "Desk",
-    icon: LayoutDashboard,
+    icon: FolderOpen,
     items: [
       { label: "My Workbench", path: "/" },
-      { label: "Queue", path: "/queue" },
-      { label: "Approvals", path: "/approvals" },
     ],
   },
   {
@@ -53,6 +49,7 @@ const navGroups: NavGroup[] = [
     icon: FolderOpen,
     items: [
       { label: "Customers", path: "/customers" },
+      { label: "Prospects", path: "/prospects" },
       { label: "Quotes", path: "/quotes" },
       { label: "Contracts", path: "/contracts" },
       { label: "Invoices", path: "/invoices" },
@@ -73,6 +70,7 @@ const navGroups: NavGroup[] = [
     icon: LineChart,
     items: [
       { label: "RevenueStory", path: "/revenuestory" },
+      { label: "Signals", path: "/signals" },
     ],
   },
 ];
@@ -102,12 +100,12 @@ function NavRow({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "group relative flex w-full items-center gap-2 overflow-hidden rounded-md px-2.5 py-[2px] text-left text-[12px] transition-colors duration-150",
+        "group relative flex w-full items-center gap-2 overflow-hidden rounded-md px-2.5 py-[3px] text-left text-[13px] transition-colors duration-150",
         disabled
           ? "cursor-not-allowed text-text-muted opacity-55"
           : active
           ? "bg-gradient-to-r from-cb-orange/[0.18] to-transparent font-semibold text-cb-orange"
-          : "font-medium text-[#012A38] hover:bg-white/60 hover:text-cb-orange",
+          : "font-medium text-[#012A38] hover:bg-black/[0.04] hover:text-cb-orange",
       )}
     >
       {/* Left active accent — kept mounted to avoid paint flicker on route changes. */}
@@ -120,7 +118,7 @@ function NavRow({
       />
       {leading ?? (
         <ChevronRight
-          size={11}
+          size={12}
           strokeWidth={2.25}
           aria-hidden
           className={cn(
@@ -204,8 +202,7 @@ export function Sidebar() {
 
   /** Persona-scoped: Operator = queue/lifecycle work + renewal pipeline; Approver = items in their task list. */
   const workbenchHasDot =
-    workbenchTaskCount > 0 || (persona === "operator" && inflightClosures > 0);
-  const approvalsHasDot = persona === "approver" && pendingApprovalCount > 0;
+    workbenchTaskCount > 0 || (persona === "operator" && inflightClosures > 0) || (persona === "approver" && pendingApprovalCount > 0);
 
   function isActive(path: string) {
     if (path === "/") {
@@ -219,37 +216,24 @@ export function Sidebar() {
     .filter((c): c is (typeof customers)[number] => Boolean(c));
 
   return (
-    <aside className="relative z-[1] flex w-[180px] shrink-0 flex-col overflow-hidden rounded-tl-[24px] bg-[#F0F1F3] pt-6 pb-3">
+    <aside className="relative z-[0] flex w-[200px] shrink-0 flex-col overflow-hidden rounded-tl-[24px] bg-white pt-6 pb-3">
       <div className="flex flex-1 flex-col overflow-y-auto px-2">
-        {/* Global search — placeholder, opens command palette in future.
-            Transparent by default; same grey hover as nav rows. The
-            ⌘+K shortcut is rendered as a Lucide Command icon plus "K"
-            inline (no pill / border). */}
-        <button
-          type="button"
-          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-white/60"
-        >
-          <Search size={13} strokeWidth={2.25} className="shrink-0 text-text-secondary" />
-          <span className="flex-1 truncate">Search…</span>
-          <span className="flex shrink-0 items-center gap-px text-text-secondary">
-            <Command size={12} strokeWidth={2.25} aria-hidden />
-            <span className="text-[11px] font-semibold leading-none">K</span>
-          </span>
-        </button>
-
-        {/* Ask AI — 1px frame: gradient border (left full cb-orange → right
-            transparent). Inner uses sidebar fill so only the frame shows, not a wash. */}
-        <div className="mt-1 rounded-md bg-gradient-to-r from-cb-orange to-transparent p-px">
+        {/* Search — gradient border styling (previously Ask AI), now consolidated with keyboard shortcut */}
+        <div className="rounded-md bg-gradient-to-r from-cb-orange to-transparent p-px">
           <button
             type="button"
-            className="group/ai flex w-full items-center gap-2 rounded-[5px] bg-[#F0F1F3] px-2 py-[3px] text-left text-[12px] font-medium text-[#012A38] transition-colors hover:bg-cb-orange hover:text-white"
+            className="group/search flex w-full items-center gap-2 rounded-[5px] bg-white px-2 py-[5px] text-left text-[13px] font-medium text-[#012A38] transition-colors hover:bg-cb-orange hover:text-white"
           >
-            <Sparkles
-              size={13}
+            <Search
+              size={14}
               strokeWidth={2}
-              className="shrink-0 text-cb-orange transition-colors group-hover/ai:text-white"
+              className="shrink-0 text-cb-orange transition-colors group-hover/search:text-white"
             />
-            <span className="truncate">Ask AI</span>
+            <span className="flex-1 truncate">Search</span>
+            <span className="flex shrink-0 items-center gap-px text-text-muted transition-colors group-hover/search:text-white/70">
+              <Command size={12} strokeWidth={2.25} aria-hidden />
+              <span className="text-[11px] font-semibold leading-none">K</span>
+            </span>
           </button>
         </div>
 
@@ -261,9 +245,7 @@ export function Sidebar() {
               {group.items.map((item) => {
                 const disabled = DISABLED_NAV_PATHS.has(item.path);
                 const active = !disabled && isActive(item.path);
-                const dot =
-                  (item.path === "/" && workbenchHasDot) ||
-                  (item.path === "/approvals" && approvalsHasDot);
+                const dot = item.path === "/" && workbenchHasDot;
                 return (
                   <NavRow
                     key={item.label}

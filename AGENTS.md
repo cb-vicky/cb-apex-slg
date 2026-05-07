@@ -80,8 +80,21 @@ npm run lint      # eslint
 
 ## Status
 
-Prototype is ~75% complete functionally. Remaining work is mostly **UI finesse, layout reorganization, and visual rework** — treat `docs/02-design-system.md` and `docs/03-customer-workspace.md` as the primary references for most upcoming tasks.
+Prototype is ~80% complete functionally. Recent work focused on **workspace chrome refinements** and **lifecycle stage improvements**.
 
-**Queue / ingest / approvals:** `docs/09-contract-ingestion.md`, `docs/06-routing.md`, `docs/08-mock-data.md`, and `docs/12-open-questions.md` reflect the **full-page ingest + approval** layout (25/35/40 grid), **`ValidationPanel`** + **`ApprovalCommentsCard`** in left column, **`IngestFieldGroup`** as the canonical wrapper for ingest sections, **reduced `queue-data` seeds**, and a **Roadmap** section for renewal follow-up work.
+### Recent implementation
 
-**Recent implementation:** `IngestFieldGroup` component with status chips, flat section components (`*Section.tsx`), Late Renewal support with backdating and grace extension awareness, unified validation + group chip state.
+**Workspace chrome redesign:**
+- **InsightRail** — redesigned as floating icon stack (collapsed) + 340px panel (expanded). No longer a fixed 320px column. Icons float from tabs anchor; panel pushes main content via dynamic padding.
+- **RecordHeader** — new glass card design with `bg-white/65` + `backdrop-blur-md`. Portal-based rendering via `RecordSlotContext`. Replaces older `RecordContextBar` component.
+- **ValidationPanel** — now supports three layouts: `vertical` (full-page left column), `horizontal` (drawer/narrow), `sidebar` (minimal). Integrated comments toggle.
+
+**Index pages simplified:**
+- All module index pages (`Customers`, `Quotes`, `Contracts`, `Invoices`) now use pure **list tables** with metric strips. Grouped priority landing pattern removed. Simpler, faster navigation.
+
+**Contract lifecycle:**
+- State-aware actions in `ContractStageContent`: actions/overflow vary by contract status (Active, Closing, Scheduled, Extended, Terminal).
+- Grace extension banner with "Resolve in drawer" action.
+- `IngestContext` tracks `contractGraceExtensions` for late renewal flows.
+
+**Queue / ingest / approvals:** `docs/09-contract-ingestion.md` reflects the **full-page ingest + approval** layout (25/35/40 grid), **`ValidationPanel`** + **`ApprovalCommentsCard`** in left column, **`IngestFieldGroup`** as the canonical wrapper for ingest sections, **reduced `queue-data` seeds**, and a **Roadmap** section for renewal follow-up work.

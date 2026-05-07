@@ -64,15 +64,45 @@ Design:
 
 Disabled tabs render at 40% opacity with "Not available" sub-text and `cursor-not-allowed`.
 
-### C. Record Context Bar
+### C. Record Header (Glass Card)
 
-Component: `RecordContextBar` (or `CustomerContextBar` for the Customer tab)
+Component: `RecordHeader` (portaled into `RecordSlotContext`)
 
-**Mandatory** on Quote/Contract/Invoicing/Payment/RevRec tabs — users must always know which record is being viewed. Hidden (or shown as a simplified customer-level bar) when the Customer tab is active.
+**Mandatory** on Quote/Contract/Invoicing tabs when in detail view — users must always know which record is being viewed. Hidden when in list view or on Customer/Payment/RevRec tabs (customer is the record context, or no per-record bar is needed).
 
-See `docs/04-lifecycle-tabs.md` for per-tab record-context-bar fields and actions.
+The record header uses a **portal pattern**: `CustomerContextBar` renders an empty `<div ref>` slot, and `RecordHeader` renders its content into that slot via `createPortal`. This allows the stage content components to control their own header without lifting state.
 
-Active record resolution table:
+#### Visual design (glass card)
+
+The record header is a floating glass card with:
+
+- `bg-white/65` + `backdrop-blur-md` + `backdrop-saturate-150` — semi-transparent with blur
+- Subtle shadow: `shadow-[0_8px_24px_-12px_rgba(17,24,39,0.18)]`
+- Rounded: `rounded-2xl`
+- Horizontal padding: `px-5 py-2.5`
+
+**Left side:**
+- Optional back link (text + left arrow) for "All contracts", "All invoices", etc.
+- ID pill: `border-blue-300 bg-blue-50` with bold blue ID text
+- Optional pill tag (e.g. "v3" for quote versions)
+- Optional dropdown chevron when multiple sibling records exist
+
+**Right side:**
+- Flat text action buttons (e.g. "Transition", "Create amendment") separated by vertical hairline dividers
+- Optional overflow menu (`…`) for additional actions
+
+#### Record dropdown
+
+When `recordOptions` prop is provided, the ID pill becomes a dropdown trigger. The dropdown shows all sibling records (other quotes in lineage, contracts for customer, invoices for customer) with:
+
+- ID + optional pill tag + status badge
+- Description line (e.g. TCV · term · date range)
+- Optional error line (e.g. rejection reason)
+- Selected record gets blue highlight
+
+See `docs/04-lifecycle-tabs.md` for per-tab record actions and overflow items.
+
+#### Active record resolution
 
 | Tab        | Selected Record                                | Query Param                |
 |------------|------------------------------------------------|----------------------------|
@@ -83,21 +113,43 @@ Active record resolution table:
 | Payment    | Invoice (AR view) or Payment                   | `invoiceId` / `paymentId`  |
 | RevRec     | Revenue arrangement (resolved from contract)   | `contractId`               |
 
-### D. Main Workspace + Right Insight Rail
+### D. Main Workspace + Floating Insight Rail
 
-Component layout: `InsightRail` on the right at ~320px. Main content column flexes.
-
-Desktop: `grid grid-cols-[minmax(0,1fr)_320px] gap-6`. Tablet/smaller desktop: right rail collapses below main content.
+Component layout: Main content column is centered (`max-w-860` for detail, `max-w-1020` for list views). The **InsightRail** floats on the right and pushes the main content over when expanded.
 
 **The insight rail is consistent across ALL tabs** — identical structure and data. It is purely customer-scoped (not stage-scoped). This makes the rail a stable "customer anchor" you can rely on regardless of which lifecycle stage is active.
 
-#### Three sections (in order)
+#### Floating icon stack (collapsed state)
 
-Expand/collapse is **controlled in `CustomerRevenueWorkspace`** (`railSections` state) so choices **persist when switching lifecycle tabs** (Overview → Quotes → Contracts, etc.) for the same customer. Defaults: **all three expanded**.
+On desktop (`xl:` ≥ 1280px), the rail starts as a **floating icon stack** pinned to the right edge of the viewport. The stack is a vertical white pill with soft shadow containing three icon buttons:
 
-1. **Open Tasks** — all open tasks for this customer, spanning across all stages. Count is shown next to the title. Each row: priority dot aligned with the title line, meta line below (assignee · due). Rows are separated by hairline dividers; hover background only (no card chrome). Rows are `<button>` elements (navigation TBD).
+- **Open Tasks** (`ListChecks` icon) — shows red badge with count when > 0
+- **Account Details** (`IdCard` icon)
+- **Linked Records** (`FileText` icon)
 
-2. **Account Details** — flat key / value rows (no sub-headings). Order: health metrics first (NPS, Support tickets 30d, Open escalations when > 0, Churn risk — see `docs/07-dynamic-status.md`), then segment / industry / region / customer since, then commercial + billing + CB entity, then AE / CSM / billing owner. Hairline dividers separate those blocks.
+Icons have a left-side hover tooltip showing the section name.
+
+**Position:** Fixed to the right side, anchored from `[data-tabs-anchor]` bottom + 80px offset (so it clears the optional record bar). Uses `position: fixed`, not sticky.
+
+#### Panel (expanded state)
+
+Clicking any icon opens a **340px floating panel** that slides in from the right. The panel is:
+
+- `position: fixed`, same `top` as the icon stack
+- White card with `rounded-2xl`, border, and deep shadow
+- Max height: `100vh - top - 24px` (24px bottom margin)
+
+**Panel header:** "Insights" title + collapse button (`PanelRightClose` icon).
+
+**Panel body:** Scrollable accordion with the three sections. Only one section can be expanded at a time. Section state persists across tab switches via `railSections` state in `CustomerRevenueWorkspace`.
+
+When the panel is open, the main content area receives `padding-right` equal to `panel width + gap` (352px total) via direct DOM manipulation on `[data-workspace-content]`, creating a smooth push effect.
+
+#### Three sections (accordion behavior)
+
+1. **Open Tasks** — all open tasks for this customer, spanning across all stages. Count badge in header turns blue when expanded. Each row: priority dot (gray, colored on hover) aligned with the title line, meta line below (assignee · due). Rows are separated by hairline dividers; hover background only (no card chrome). Rows are `<button>` elements (navigation TBD).
+
+2. **Account Details** — flat key / value rows grouped with hairline dividers. Order: health metrics first (NPS, Support tickets 30d, Open escalations when > 0, Churn risk — see `docs/07-dynamic-status.md`), then segment / industry / region / customer since, then commercial + billing + CB entity, then AE / CSM / billing owner.
 
 3. **Linked Records** — **external-system references only**, aggregated across the customer. Same list pattern as Open Tasks (dividers, hover, no per-row icons). Rows with a URL show a muted **arrow-up-right** on the right to indicate opening in a new tab; rows without a URL (e.g. CRM account ID only) have no arrow.
    - CRM Account (`customer.crmAccountId` + sync status)
@@ -112,14 +164,10 @@ Expand/collapse is **controlled in `CustomerRevenueWorkspace`** (`railSections` 
 
 **On the Customer (Account 360) tab specifically:** the main column leads with a **Next best action** card plus a separate **AI Insights** control (collapsed until the user runs **Generate**). Both are implemented in `CustomerNbaAiRow.tsx` and composed by `CustomerStageContent.tsx`. See `docs/04-lifecycle-tabs.md` — Customer tab — for visual treatment (border animation, collapsed/expanded AI Insights), CTAs, and derivation (`getPrimaryCustomerAction`, `getCustomerInsightsEnriched`). Other lifecycle tabs continue to surface stage-specific NBAs/insights next to their record content as described in doc 04.
 
-#### Scroll / overflow behavior (desktop only, `xl:` ≥ 1280px)
+#### Responsive behavior
 
-- Rail is `position: sticky` and sits right below the context bar with a 16px gap.
-- **When at least one section is expanded:** the scrollable body has a **max-height** = `100vh − (contextBarBottom + 16px) − 32px` (32px bottom margin preserved). The rail **hugs its content** until that cap; only then does internal scrolling kick in (no tall empty card when content is short). When content overflows and the user is not yet at the bottom, a floating **"View more"** chip appears at the bottom, above a subtle white → transparent gradient. Clicking the chip scrolls down ~70% of the visible rail body. Chip and gradient hide once scrolled to the bottom.
-- **When all three sections are collapsed:** the card **does not** use that fixed viewport height — it shrinks to only the three section headers (natural height). No internal scroll, no **View more** chip, no gradient. Sticky positioning + `top` offset still apply so the compact rail stays aligned.
-- Below `xl:` the rail flows naturally below the main content: regular page scroll, no sticky, no fixed height, no overflow hint.
-
-Implementation: `useRailMetrics()` inside `InsightRail.tsx` measures the context bar (`[data-insight-rail-anchor]`) height on mount and resize. **`maxHeight`** (not fixed `height`) is applied to the scroll container only when `metrics` exists **and** not every section is collapsed (`fixedHeightMode`).
+- **Below `xl:`** the floating rail is hidden entirely — no icon stack, no panel. Content uses full width.
+- **`xl:` and above:** floating icon stack is visible. Panel opens on click.
 
 ## List-then-detail pattern (Quote, Contract, Invoicing)
 

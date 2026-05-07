@@ -124,6 +124,24 @@ Linked records and open tasks are in the insight rail — no need to duplicate h
 
 Component: `ContractStageContent`.
 
+### Contract tab state-aware actions
+
+The `RecordHeader` actions and overflow menu vary based on contract state. The logic lives in `ContractStageContent` and considers: `isTerminal`, `isClosing`, `isScheduled`, `isExtended`, `isActive`, `inGrace`, `enforcementNeedsAttention`, and `canClose`.
+
+| Contract state | Primary actions | Overflow items |
+|---|---|---|
+| **Terminal** (Closed, Terminated) | Contract PDF | — |
+| **Closing** (status = "Closing") | Contract PDF | — |
+| **Scheduled** (pending activation) | Transition, Contract PDF | — |
+| **Extended** (or in grace) | Resolve renewal, Transition | Contract PDF, Review enforcement (if issues), — |
+| **Active** | Transition, Create amendment | Contract PDF, Review enforcement (if issues), Extend grace period (if not already), Close contract early (destructive) |
+| **Other** | Transition, Create amendment | Contract PDF |
+
+**Transition** opens `EntityDrawer` with `mode="transition"` for the contract.
+**Resolve renewal** opens the late renewal drawer flow.
+**Extend grace period** opens the grace extension drawer.
+**Close contract early** opens `CloseContractPane` (only for Active contracts without existing closure).
+
 ### Contract Closure UI
 
 The Contract tab supports early termination via a full left/right pane layout (`CloseContractPane`). Access via the overflow menu (⋯) on the `RecordHeader` — only available for Active contracts. The same pane is also triggered automatically during the **Early Renewal** queue flow (see `docs/09-contract-ingestion.md`).
@@ -185,6 +203,13 @@ When a contract is in grace extension (`contractGraceExtensions[contractId]`):
 - `TransitionContractTermsSection` allows backdating the effective date (`allowBackdate={true}`)
 - Closing the prior contract via the renewal flow **resolves the grace extension** automatically
 - Backdated start dates show amber helper: "Invoices for elapsed days will be clubbed into the first invoice"
+
+### Grace extension banner (Contract detail)
+
+When viewing a contract with an active (unresolved) grace extension in `ContractStageContent`:
+- Red-tinted banner (`border-red-200 bg-red-50/90 text-red-900`)
+- Shows: "**Grace extension** active through {date}. Billing during grace: {mode}."
+- "Resolve in drawer" button opens the late renewal resolve flow
 
 ### Sections
 

@@ -79,7 +79,9 @@ export type FlowStepId =
   /** Late renewal: configure grace extension before policy approval */
   | "grace_extend"
   | "invoice_review"
-  | "approval";
+  | "approval"
+  /** Post-approval: configure approval settings for subsequent invoices */
+  | "approval_settings";
 
 export type TransitionFlowSession = {
   /** Stable React key when switching queue items / steps quickly (filled by `openDrawer` if omitted). */

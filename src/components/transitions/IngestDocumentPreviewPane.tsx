@@ -22,7 +22,7 @@ export function IngestDocumentPreviewPane({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-gray-100">
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border-default bg-white px-3 py-2">
+      <div className="mx-3 mt-3 flex shrink-0 items-center justify-between gap-2 rounded-3xl border border-gray-200 bg-white/65 px-3 py-2 shadow-[0_8px_24px_-12px_rgba(17,24,39,0.18)] backdrop-blur-md backdrop-saturate-150">
         <div
           className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-border-default bg-surface-muted px-2.5 py-1"
           title={documentTitle}

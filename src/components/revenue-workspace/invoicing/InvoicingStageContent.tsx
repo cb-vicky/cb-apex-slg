@@ -1,10 +1,10 @@
-import { useMemo, useCallback } from "react";
-import { ChevronRight, LayoutList } from "lucide-react";
+import { useMemo, useCallback, useState, type ReactNode } from "react";
+import { ChevronRight, LayoutList, AlertCircle, X } from "lucide-react";
 import type { Invoice, Contract } from "@/data/mock-data";
 import { customers } from "@/data/mock-data";
 import { getInvoiceEnrichment, getCreditNotesForInvoice, getInvoiceSchedule } from "@/data/billing-data";
 import { useIngestContext } from "@/context/IngestContext";
-import { RecordHeader } from "../RecordHeader";
+import { RecordHeader, type OverflowItem, type RecordHeaderOption } from "../RecordHeader";
 import { ActionButton } from "../primitives/ActionButton";
 import { InvoicingOverviewSection } from "./InvoicingOverviewSection";
 import { InvoiceCompositionSection } from "./InvoiceCompositionSection";
@@ -12,17 +12,27 @@ import { BillingBasisSection } from "./BillingBasisSection";
 import { InvoiceDeliverySection } from "./InvoiceDeliverySection";
 import { InvoicingScheduleSection } from "./InvoicingScheduleSection";
 import { openDrawer } from "@/store/drawer-store";
+import { currency, shortDate } from "@/lib/utils";
 
 interface Props {
   invoice: Invoice;
   contract: Contract;
+  /** Other invoices under the same customer for the dropdown switcher. */
+  customerInvoices?: Invoice[];
+  onInvoiceSelect?: (id: string) => void;
   onBack?: () => void;
 }
 
 const pendingReviewPrimaryBtnClass =
   "inline-flex items-center justify-center gap-1 rounded-lg px-4 py-2 text-center text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-info)] bg-[color:var(--color-info)]";
 
-export function InvoicingStageContent({ invoice, contract, onBack }: Props) {
+export function InvoicingStageContent({
+  invoice,
+  contract,
+  customerInvoices,
+  onInvoiceSelect,
+  onBack,
+}: Props) {
   const {
     submittedInvoiceIds,
     submitInvoiceForApproval,
@@ -31,6 +41,8 @@ export function InvoicingStageContent({ invoice, contract, onBack }: Props) {
     creditNoteStatusOverrides,
     approvalRequests,
   } = useIngestContext();
+
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const enrichment = getInvoiceEnrichment(invoice.id);
   const creditNotes = getCreditNotesForInvoice(invoice.id, creditNoteStatusOverrides);
@@ -41,7 +53,7 @@ export function InvoicingStageContent({ invoice, contract, onBack }: Props) {
   const isSubmitted = submittedInvoiceIds.has(invoice.id);
   const showBanner = isPendingReview;
 
-  const handleSendForApproval = useCallback(() => {
+  const handleConfirmSendForApproval = useCallback(() => {
     const customer = customers.find((c) => c.id === invoice.customerId);
     submitInvoiceForApproval(invoice.id);
     addApprovalRequest({
@@ -57,6 +69,7 @@ export function InvoicingStageContent({ invoice, contract, onBack }: Props) {
       approver: "Sarah Chen, VP Revenue",
       comments: [],
     });
+    setShowConfirmModal(false);
   }, [
     addApprovalRequest,
     invoice.amount,
@@ -65,6 +78,10 @@ export function InvoicingStageContent({ invoice, contract, onBack }: Props) {
     invoice.id,
     submitInvoiceForApproval,
   ]);
+
+  const handleSendForApproval = useCallback(() => {
+    setShowConfirmModal(true);
+  }, []);
 
   // Determine effective invoice for display (override status if needed)
   const displayInvoice: Invoice = effectiveStatus !== invoice.status
@@ -84,74 +101,75 @@ export function InvoicingStageContent({ invoice, contract, onBack }: Props) {
     });
   }, [approvalForInvoice, invoice.id]);
 
-  const headerActions = useMemo(() => {
-    const preview = <ActionButton key="preview" label="Preview" />;
-    const regenerate = <ActionButton key="regen" label="Regenerate" />;
-    const creditNote = <ActionButton key="cn" label="Issue credit note" />;
+  const { primaryActions, overflowItems } = useMemo(() => {
+    const overflow: OverflowItem[] = [];
+    let primary: ReactNode = null;
 
     if (effectiveStatus === "Cancelled") {
-      return <>{preview}</>;
-    }
-    if (displayInvoice.holdReason) {
-      return (
+      primary = <ActionButton label="Preview" />;
+    } else if (displayInvoice.holdReason) {
+      primary = (
         <>
-          {preview}
+          <ActionButton label="Preview" />
           <ActionButton label="Clear hold" />
-          {regenerate}
         </>
       );
-    }
-    if (displayInvoice.disputeReason) {
-      return (
+      overflow.push({ label: "Regenerate" });
+      overflow.push({ label: "Issue credit note" });
+    } else if (displayInvoice.disputeReason) {
+      primary = (
         <>
-          {preview}
+          <ActionButton label="Preview" />
           <ActionButton label="Review dispute" />
-          {creditNote}
         </>
       );
-    }
-    if (effectiveStatus === "Pending Review") {
+      overflow.push({ label: "Issue credit note" });
+      overflow.push({ label: "Regenerate" });
+    } else if (effectiveStatus === "Pending Review") {
       if (isSubmitted) {
-        return (
+        primary = (
           <>
-            {preview}
-            {regenerate}
+            <ActionButton label="Preview" />
             <ActionButton label="View in Approvals" onClick={openApprovalDrawer} />
           </>
         );
+        overflow.push({ label: "Regenerate" });
+      } else {
+        primary = (
+          <>
+            <ActionButton label="Preview" />
+            <ActionButton label="Send for approval" onClick={handleSendForApproval} />
+          </>
+        );
+        overflow.push({ label: "Regenerate" });
       }
-      return (
+    } else if (effectiveStatus === "Overdue") {
+      primary = (
         <>
-          {preview}
-          {regenerate}
-          <ActionButton label="Send for approval" onClick={handleSendForApproval} />
-        </>
-      );
-    }
-    if (effectiveStatus === "Overdue") {
-      return (
-        <>
-          {preview}
+          <ActionButton label="Preview" />
           <ActionButton label="Record payment" />
-          {creditNote}
         </>
       );
-    }
-    if (effectiveStatus === "Paid") {
-      return (
+      overflow.push({ label: "Send reminder" });
+      overflow.push({ label: "Issue credit note" });
+    } else if (effectiveStatus === "Paid") {
+      primary = (
         <>
-          {preview}
-          {creditNote}
+          <ActionButton label="Preview" />
+          <ActionButton label="Issue credit note" />
         </>
       );
+    } else {
+      primary = (
+        <>
+          <ActionButton label="Preview" />
+          <ActionButton label="Regenerate" />
+        </>
+      );
+      overflow.push({ label: "Issue credit note" });
     }
-    return (
-      <>
-        {preview}
-        {regenerate}
-        {creditNote}
-      </>
-    );
+
+    return { primaryActions: primary, overflowItems: overflow };
   }, [
     displayInvoice.disputeReason,
     displayInvoice.holdReason,
@@ -161,16 +179,27 @@ export function InvoicingStageContent({ invoice, contract, onBack }: Props) {
     openApprovalDrawer,
   ]);
 
+  const recordOptions = useMemo<RecordHeaderOption[] | undefined>(() => {
+    if (!customerInvoices || customerInvoices.length <= 1) return undefined;
+    return customerInvoices.map((inv) => ({
+      id: inv.id,
+      status: inv.status,
+      description: `${currency(inv.amount)} · Issued ${shortDate(inv.date)} · Due ${shortDate(inv.dueDate)}${inv.contractId ? ` · ${inv.contractId}` : ""}`,
+    }));
+  }, [customerInvoices]);
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3">
       <RecordHeader
-        stickyBar
         id={displayInvoice.id}
-        status={displayInvoice.status}
+        recordOptions={recordOptions}
+        onRecordSelect={onInvoiceSelect}
+        recordMenuTitle="Invoices for this customer"
         leadingAction={
           onBack ? <ActionButton icon={LayoutList} label="All invoices" onClick={onBack} /> : undefined
         }
-        actions={headerActions}
+        actions={primaryActions}
+        overflowItems={overflowItems}
       />
 
       {/* Pending review — same visual approach as Account 360 “Next best action” */}
@@ -230,6 +259,62 @@ export function InvoicingStageContent({ invoice, contract, onBack }: Props) {
       <BillingBasisSection invoice={displayInvoice} enrichment={enrichment} contract={contract} />
       <InvoiceDeliverySection enrichment={enrichment} creditNotes={creditNotes} />
       <InvoicingScheduleSection invoice={displayInvoice} enrichment={enrichment} schedule={schedule} />
+
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowConfirmModal(false)} />
+          <div className="relative z-10 w-[400px] rounded-xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-border-default px-5 py-4">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-50">
+                  <AlertCircle size={16} className="text-amber-600" />
+                </div>
+                <h2 className="text-[15px] font-semibold text-text-primary">Send for approval?</h2>
+              </div>
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="shrink-0 rounded-md p-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
+                aria-label="Close"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="px-5 py-4">
+              <p className="text-[13px] leading-relaxed text-text-secondary">
+                This invoice will be routed to the approval queue for review before it can be sent to the customer.
+              </p>
+              <div className="mt-3 rounded-md border border-border-default bg-surface-muted px-3 py-2">
+                <div className="flex items-center justify-between text-[12px]">
+                  <span className="text-text-muted">Invoice</span>
+                  <span className="font-medium text-text-primary">{invoice.id}</span>
+                </div>
+                <div className="mt-1 flex items-center justify-between text-[12px]">
+                  <span className="text-text-muted">Amount</span>
+                  <span className="font-medium text-text-primary">{currency(invoice.amount)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-border-default px-5 py-3">
+              <button
+                type="button"
+                onClick={() => setShowConfirmModal(false)}
+                className="rounded-md px-3 py-1.5 text-[13px] font-medium text-text-secondary transition-colors hover:bg-surface-muted"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSendForApproval}
+                className="rounded-md bg-[color:var(--color-info)] px-4 py-1.5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
+              >
+                Send for approval
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

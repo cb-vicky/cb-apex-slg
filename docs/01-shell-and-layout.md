@@ -59,19 +59,17 @@ Use shadcn cards sparingly and consistently. Prefer:
 ```
 - page root:     h-full w-full overflow-auto
 - inner wrapper: flex flex-col gap-4 px-6 py-6
-- body grid on xl:    grid grid-cols-[minmax(0,1fr)_320px] gap-6
-- smaller widths:     single column layout (right rail collapses below main)
+- body:          centered column (max-w-860 detail, max-w-1020 list)
 ```
 
 ### Standard detail-page structure
 
 ```
-- customer header
+- customer header (CustomerContextBar)
 - journey rail
-- record context bar
-- body grid
-  - main column with stacked content sections
-  - right insight rail (~320px, sticky within page if practical)
+- optional record slot (RecordHeader glass card, portaled)
+- centered main column with stacked content sections
+- floating insight rail (see docs/03-customer-workspace.md)
 ```
 
-On desktop the right rail is ~320px. On tablet/smaller desktop, collapse the right rail below main content.
+The insight rail is no longer a fixed column. Instead it floats as an icon stack on the right (xl: breakpoint and above), expanding to a 340px panel on click. The panel pushes main content via dynamic padding. See `docs/03-customer-workspace.md` for full InsightRail spec.

@@ -1,18 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, Search } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { ChevronRight } from "lucide-react";
+import { cn, currency } from "@/lib/utils";
 import type { Customer, Quote, Contract, Invoice } from "@/data/mock-data";
 import { getInvoices } from "@/data/mock-data";
 import type { RevenueArrangement } from "@/data/revrec-data";
 import type { Stage } from "./RevenueJourneyRail";
 import {
   deriveAllStageStatuses,
-  derivePriorityChips,
-  deriveContextMetrics,
   mergeInvoiceStatuses,
-  type PriorityChip,
-  type ContextMetric,
   type StageStatus,
 } from "./derive-stage-data";
 import { useIngestContext } from "@/context/IngestContext";
@@ -77,28 +73,26 @@ interface Props {
   from?: string;
   recordId?: string;
   /**
-   * When a sticky record header sits below this bar, its own shadow carries depth;
-   * skip the stuck shadow here to avoid stacked elevation.
+   * Slot rendered below the tabs row, inside the sticky frame, to host the
+   * detail-record context bar (glass card). Pass `null`/`undefined` and the
+   * rail collapses to just the tabs row.
    */
-  suppressStuckShadow?: boolean;
+  recordSlot?: ReactNode;
 }
 
 export function CustomerContextBar({
   customer,
   quote,
   contract,
-  invoice,
-  arrangement,
   activeStage,
   onStageChange,
   disabledStages,
   from,
   recordId,
-  suppressStuckShadow = false,
+  recordSlot,
 }: Props) {
   const navigate = useNavigate();
   const barRef = useRef<HTMLDivElement>(null);
-  const isStuck = useStuckOnScroll(barRef);
   const { invoiceStatusOverrides } = useIngestContext();
 
   const customerInvoices = mergeInvoiceStatuses(
@@ -106,60 +100,40 @@ export function CustomerContextBar({
     invoiceStatusOverrides,
   );
   const stageStatuses = deriveAllStageStatuses(customer, quote, contract, invoiceStatusOverrides);
-  const chips = derivePriorityChips(customer, customerInvoices, contract);
-  const metrics = deriveContextMetrics(
-    activeStage,
-    customer,
-    quote,
-    contract,
-    invoice,
-    arrangement,
-    invoiceStatusOverrides,
-  );
+  const headerChips = deriveHeaderChips(customer, customerInvoices);
   const crumbs = buildCrumbs({ from, customerName: customer.name, customerId: customer.id, activeStage, recordId });
 
   return (
     <div
       ref={barRef}
       data-insight-rail-anchor=""
-      className={cn(
-        "sticky top-0 z-20 overflow-hidden rounded-tl-[24px] rounded-bl-[24px] bg-white",
-        "border border-border-default",
-        "transition-shadow duration-200 ease-out",
-        isStuck && !suppressStuckShadow && "shadow-[0_10px_20px_-6px_rgba(17,24,39,0.18)]",
-      )}
+      className="sticky top-0 z-20 bg-transparent"
     >
-      {/* ROW 1 — breadcrumb + search */}
-      <div className="flex h-11 items-center justify-between gap-3 px-6">
-        <Breadcrumbs crumbs={crumbs} onNavigate={navigate} />
-        <SearchInput />
-      </div>
+      {/* === Customer header (white, top-rounded to match canvas) === */}
+      <div className="border-b border-border-default bg-white">
+        {/* breadcrumb */}
+        <div className="flex h-11 items-center px-6">
+          <Breadcrumbs crumbs={crumbs} onNavigate={navigate} />
+        </div>
 
-      {/* ROW 2 — title + priority chips (left)  ↔  dynamic metrics (right) */}
-      <div className="flex items-center justify-between gap-4 px-6 pt-1 pb-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <h1 className="truncate text-[24px] font-semibold leading-tight tracking-tight text-text-primary">
+        {/* title + financial-health chips */}
+        <div className="flex items-center justify-between gap-4 px-6 pt-1 pb-4">
+          <h1 className="truncate text-[26px] font-semibold leading-tight tracking-tight text-text-primary">
             {customer.name}
           </h1>
-          {chips.length > 0 && (
-            <div className="flex shrink-0 items-center gap-1.5">
-              {chips.map((chip) => (
-                <PriorityChipBadge key={`${chip.label}-${chip.value}`} chip={chip} />
+          {headerChips.length > 0 && (
+            <div className="flex shrink-0 items-center gap-2">
+              {headerChips.map((chip) => (
+                <HeaderChip key={chip.label} chip={chip} />
               ))}
             </div>
           )}
         </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          {metrics.map((m) => (
-            <MetricInline key={m.label} metric={m} />
-          ))}
-        </div>
       </div>
 
-      {/* ROW 3 — resource tabs (full-width, 24px side margins) */}
-      <div className="flex items-stretch border-b border-border-default px-6">
-        {STAGE_ORDER.map((stageId) => {
+      {/* === Tabs (edge-to-edge, no gap) === */}
+      <div data-tabs-anchor="" className="flex items-stretch">
+        {STAGE_ORDER.map((stageId, idx) => {
           const isActive = stageId === activeStage;
           const isDisabled = disabledStages?.has(stageId) ?? false;
           return (
@@ -169,17 +143,96 @@ export function CustomerContextBar({
               status={stageStatuses[stageId]}
               active={isActive}
               disabled={isDisabled}
+              isFirst={idx === 0}
+              isLast={idx === STAGE_ORDER.length - 1}
               onClick={() => !isDisabled && onStageChange(stageId)}
             />
           );
         })}
       </div>
+
+      {/* === Record context slot — glass card centered max-w-1200 (own backdrop-blur) === */}
+      {recordSlot ? (
+        <div className="px-6 pt-3 pb-4">
+          <div className="mx-auto w-full max-w-[1200px]">{recordSlot}</div>
+        </div>
+      ) : (
+        <div className="h-3" />
+      )}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Subcomponents
+// Header chips — financial health only (CREDITS, OPEN AR, HELD)
+// Bracket-style: tinted bg, thin top/bottom border, thicker side accents.
+// ---------------------------------------------------------------------------
+
+interface HeaderChipDef {
+  label: string;
+  value: string;
+  severity: "amber" | "red";
+}
+
+function deriveHeaderChips(customer: Customer, customerInvoices: Invoice[]): HeaderChipDef[] {
+  const chips: HeaderChipDef[] = [];
+
+  if (customer.openAr > 0) {
+    chips.push({ label: "OPEN AR", value: currency(customer.openAr), severity: "red" });
+  } else {
+    const overdueCount = customerInvoices.filter((i) => i.status === "Overdue").length;
+    if (overdueCount > 0) {
+      chips.push({
+        label: "OVERDUE",
+        value: `${overdueCount} invoice${overdueCount > 1 ? "s" : ""}`,
+        severity: "red",
+      });
+    }
+  }
+
+  if (customer.prepaidCreditTotal > 0) {
+    const usedPct = Math.round(
+      ((customer.prepaidCreditTotal - customer.prepaidCreditBalance) / customer.prepaidCreditTotal) * 100,
+    );
+    if (usedPct >= 50) {
+      chips.push({ label: "CREDITS", value: `${usedPct}% used`, severity: "amber" });
+    }
+  }
+
+  const heldCount = customerInvoices.filter((i) => i.holdReason).length;
+  if (heldCount > 0) {
+    chips.push({
+      label: "HELD",
+      value: `${heldCount} invoice${heldCount > 1 ? "s" : ""}`,
+      severity: "amber",
+    });
+  }
+
+  return chips;
+}
+
+function HeaderChip({ chip }: { chip: HeaderChipDef }) {
+  const palette =
+    chip.severity === "red"
+      ? "border-red-300 bg-red-50/80 text-red-700"
+      : "border-amber-300 bg-amber-50/80 text-amber-700";
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 px-2.5 py-1 text-[12px] leading-4",
+        // Bracket frame: 1px top/bottom + 3px left/right accents + tinted fill
+        "rounded-sm border border-l-[3px] border-r-[3px]",
+        palette,
+      )}
+    >
+      <span className="font-semibold uppercase tracking-wide">{chip.label}:</span>
+      <span className="font-bold text-text-primary tabular-nums">{chip.value}</span>
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Breadcrumbs (unchanged behavior)
 // ---------------------------------------------------------------------------
 
 interface Crumb {
@@ -287,75 +340,56 @@ function Breadcrumbs({
   );
 }
 
-function SearchInput() {
-  return (
-    <div className="flex h-8 w-[280px] shrink-0 items-center gap-2 rounded-full border border-border-default bg-gray-50 px-3 text-[13px] text-text-muted">
-      <Search size={14} className="shrink-0 opacity-80" strokeWidth={2.2} aria-hidden />
-      <span className="flex-1 truncate">Search anything...</span>
-      <kbd className="inline-flex shrink-0 items-center gap-0.5 font-medium text-blue-600">
-        <span className="text-[13px] leading-none">⌘</span>
-        <span className="text-[10px] leading-none">K</span>
-      </kbd>
-    </div>
-  );
-}
-
-function PriorityChipBadge({ chip }: { chip: PriorityChip }) {
-  const classes =
-    chip.severity === "red"
-      ? "bg-red-50 text-red-700 border border-red-200"
-      : "bg-amber-50 text-amber-700 border border-amber-200";
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[12px] font-medium leading-4",
-        classes,
-      )}
-    >
-      <span className="font-normal opacity-80">{chip.label}:</span>
-      <span className="font-semibold">{chip.value}</span>
-    </span>
-  );
-}
-
-function MetricInline({ metric }: { metric: ContextMetric }) {
-  return (
-    <div className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-gray-200 bg-gray-100 px-2 py-0.5 leading-4">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-text-muted">{metric.label}</span>
-      <span className="text-[12px] font-semibold tabular-nums text-text-primary">{metric.value}</span>
-    </div>
-  );
-}
+// ---------------------------------------------------------------------------
+// Tab — inverted card pill (sharp top, rounded bottom). Selected = blue solid.
+// Edge-to-edge: no gap between tabs, only neighbour borders shared cleanly.
+// ---------------------------------------------------------------------------
 
 function TabButton({
   label,
   status,
   active,
   disabled,
+  isFirst,
+  isLast,
   onClick,
 }: {
   label: string;
   status: StageStatus;
   active: boolean;
   disabled: boolean;
+  isFirst: boolean;
+  isLast: boolean;
   onClick: () => void;
 }) {
-  const dotClass = disabled ? "bg-gray-200" : dotColorFor(status.severity);
+  const dotClass = disabled ? "bg-gray-300" : dotColorFor(status.severity);
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "relative -mb-px inline-flex flex-1 items-center justify-center gap-1.5 border-b-2 pb-2.5 pt-1 text-[13px] transition-colors",
-        disabled
-          ? "cursor-not-allowed border-transparent text-text-muted/70"
-          : active
-          ? "border-blue-600 font-semibold text-blue-600"
-          : "border-transparent font-medium text-text-secondary hover:border-border-default hover:text-text-primary",
+        "group relative inline-flex flex-1 items-center justify-center gap-1.5",
+        "rounded-b-2xl rounded-t-none px-4 py-2.5 text-[13px] transition-all",
+        "border-b border-r",
+        // First tab: also draw left border
+        isFirst && "border-l",
+        // Last tab: nothing extra (right border already on)
+        // Hide right border on the last tab so it sits flush with canvas edge
+        isLast && "!border-r-0",
+        active
+          ? "z-[1] border-blue-600 bg-blue-600 font-semibold text-white shadow-[0_6px_14px_-4px_rgba(37,99,235,0.45)]"
+          : disabled
+          ? "cursor-not-allowed border-gray-200 bg-white text-text-muted/60"
+          : "border-gray-200 bg-white font-medium text-text-secondary hover:border-gray-300 hover:text-text-primary",
       )}
     >
-      {!active && <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotClass)} />}
+      <span
+        className={cn(
+          "h-1.5 w-1.5 shrink-0 rounded-full",
+          active ? "bg-white/90" : dotClass,
+        )}
+      />
       <span>{label}</span>
     </button>
   );
@@ -368,46 +402,9 @@ function dotColorFor(severity: StageStatus["severity"]): string {
       return "bg-red-500";
     case "amber":
       return "bg-amber-500";
+    case "green":
+      return "bg-emerald-500";
     default:
-      return "bg-gray-200";
+      return "bg-gray-300";
   }
-}
-
-// Tracks whether a `sticky top-0` element is currently "stuck" — i.e., its
-// nearest scrolling ancestor has scrolled past the top. Used to elevate the
-// bar with a subtle shadow only when content is actually sliding underneath.
-function useStuckOnScroll(ref: React.RefObject<HTMLElement | null>): boolean {
-  const [stuck, setStuck] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-
-    const scrollParent = findScrollParent(el);
-    const read = () => {
-      const top =
-        scrollParent === window
-          ? window.scrollY
-          : (scrollParent as HTMLElement).scrollTop;
-      setStuck(top > 0);
-    };
-
-    read();
-    scrollParent.addEventListener("scroll", read, { passive: true });
-    return () => scrollParent.removeEventListener("scroll", read);
-  }, [ref]);
-
-  return stuck;
-}
-
-function findScrollParent(el: HTMLElement): HTMLElement | Window {
-  let node: HTMLElement | null = el.parentElement;
-  while (node) {
-    const style = getComputedStyle(node);
-    if (/(auto|scroll|overlay)/.test(style.overflowY + style.overflow)) {
-      return node;
-    }
-    node = node.parentElement;
-  }
-  return window;
 }

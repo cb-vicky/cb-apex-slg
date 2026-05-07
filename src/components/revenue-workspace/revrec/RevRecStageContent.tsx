@@ -25,7 +25,7 @@ export function RevRecStageContent({ contract }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3">
       <ArrangementOverviewSection arrangement={arrangement} />
       <ObligationsSection obligations={arrangement.obligations} />
       <RecognitionScheduleSection

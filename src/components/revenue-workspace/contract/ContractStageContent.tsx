@@ -1,11 +1,11 @@
-import { useRef, useEffect, useState, useMemo, useCallback, type ReactNode } from "react";
-import { LayoutList, MoreHorizontal, XCircle } from "lucide-react";
+import { useMemo, useCallback, type ReactNode } from "react";
+import { LayoutList, XCircle } from "lucide-react";
 import type { Contract } from "@/data/mock-data";
 import type { ContractGraceExtension } from "@/data/contract-transition";
 import { useIngestContext } from "@/context/IngestContext";
 import { mergeBillingScheduleWithInvoiceOverrides } from "@/components/revenue-workspace/derive-stage-data";
 import { openDrawer } from "@/store/drawer-store";
-import { RecordHeader } from "../RecordHeader";
+import { RecordHeader, type OverflowItem, type RecordHeaderOption } from "../RecordHeader";
 import { ActionButton } from "../primitives/ActionButton";
 import { ContractOverviewSection } from "./ContractOverviewSection";
 import { ContractTermsSection } from "./ContractTermsSection";
@@ -19,36 +19,33 @@ import { ContractTimelineSection } from "./ContractTimelineSection";
 import { ClosureSummaryCard } from "@/components/contracts/ClosureSummaryCard";
 import { ClosureBanner } from "@/components/contracts/ClosureBanner";
 import { ScheduledBanner } from "@/components/contracts/ScheduledBanner";
-import { cn } from "@/lib/utils";
+import { currency, shortDate } from "@/lib/utils";
 
 interface Props {
   contract: Contract;
   /** Session grace extension (late renewal), if any */
   graceExtension?: ContractGraceExtension;
+  /** Other contracts under the same customer for the dropdown switcher. */
+  customerContracts?: Contract[];
+  onContractSelect?: (id: string) => void;
   onBack?: () => void;
   /** Callback to open the close pane (lifted to CustomerRevenueWorkspace) */
   onOpenClosePane?: () => void;
 }
 
-export function ContractStageContent({ contract, graceExtension, onBack, onOpenClosePane }: Props) {
+export function ContractStageContent({
+  contract,
+  graceExtension,
+  customerContracts,
+  onContractSelect,
+  onBack,
+  onOpenClosePane,
+}: Props) {
   const { invoiceStatusOverrides } = useIngestContext();
   const billingScheduleView = useMemo(
     () => mergeBillingScheduleWithInvoiceOverrides(contract.billingSchedule, invoiceStatusOverrides),
     [contract.billingSchedule, invoiceStatusOverrides],
   );
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // Close menu when clicking outside
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
-    }
-    if (menuOpen) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [menuOpen]);
 
   const canClose = contract.status === "Active" && !contract.closure;
   const hasClosure = !!contract.closure;
@@ -73,115 +70,121 @@ export function ContractStageContent({ contract, graceExtension, onBack, onOpenC
     });
   }, []);
 
-  const showCloseOverflow = !isTerminal && !isClosing && !isScheduled;
+  const openTransition = useCallback(() => {
+    openDrawer({
+      entityType: "transition",
+      mode: "transition",
+      context: { customerId: contract.customerId, contractId: contract.id },
+    });
+  }, [contract.customerId, contract.id]);
 
-  const headerMainActions = useMemo(() => {
-    const pdf = <ActionButton key="pdf" label="Contract PDF" />;
-    const transitionBtn = (
-      <ActionButton
-        key="transition"
-        label="Transition"
-        onClick={() =>
-          openDrawer({
-            entityType: "transition",
-            mode: "transition",
-            context: { customerId: contract.customerId, contractId: contract.id },
-          })
-        }
-      />
-    );
-    const extendGraceBtn = (
-      <ActionButton
-        key="grace"
-        label="Extend grace"
-        onClick={() =>
-          openDrawer({
-            entityType: "transition",
-            mode: "late_renewal",
-            context: {
-              customerId: contract.customerId,
-              contractId: contract.id,
-              latePhase: "extend",
-            },
-            flow: {
-              scenario: "late_grace",
-              step: "grace_extend",
-              furthestUnlockedStep: "grace_extend",
-              customerId: contract.customerId,
-              contractId: contract.id,
-              showStepper: true,
-            },
-          })
-        }
-      />
-    );
-    const resolveRenewalBtn = (
-      <ActionButton
-        key="resolve"
-        label="Resolve renewal"
-        onClick={() =>
-          openDrawer({
-            entityType: "transition",
-            mode: "late_renewal",
-            context: {
-              customerId: contract.customerId,
-              contractId: contract.id,
-              latePhase: "resolve",
-            },
-            flow: {
-              scenario: "late_grace",
-              step: "grace_extend",
-              furthestUnlockedStep: "grace_extend",
-              customerId: contract.customerId,
-              contractId: contract.id,
-              showStepper: true,
-            },
-          })
-        }
-      />
-    );
-    const amendmentBtn = <ActionButton key="amend" label="Create Amendment" />;
-    const enforcementBtn = (
-      <ActionButton key="enforce" label="Review enforcement" onClick={scrollToEnforcement} />
-    );
+  const openExtendGrace = useCallback(() => {
+    openDrawer({
+      entityType: "transition",
+      mode: "late_renewal",
+      context: {
+        customerId: contract.customerId,
+        contractId: contract.id,
+        latePhase: "extend",
+      },
+      flow: {
+        scenario: "late_grace",
+        step: "grace_extend",
+        furthestUnlockedStep: "grace_extend",
+        customerId: contract.customerId,
+        contractId: contract.id,
+        showStepper: true,
+      },
+    });
+  }, [contract.customerId, contract.id]);
 
-    if (isTerminal) {
-      return <>{pdf}</>;
-    }
-    if (isClosing) {
-      return <>{pdf}</>;
-    }
-    if (isScheduled) {
-      return (
+  const openResolveRenewal = useCallback(() => {
+    openDrawer({
+      entityType: "transition",
+      mode: "late_renewal",
+      context: {
+        customerId: contract.customerId,
+        contractId: contract.id,
+        latePhase: "resolve",
+      },
+      flow: {
+        scenario: "late_grace",
+        step: "grace_extend",
+        furthestUnlockedStep: "grace_extend",
+        customerId: contract.customerId,
+        contractId: contract.id,
+        showStepper: true,
+      },
+    });
+  }, [contract.customerId, contract.id]);
+
+  /**
+   * Decide the (up to) two primary actions and the overflow set for the
+   * current contract state.
+   */
+  const { primaryActions, overflowItems } = useMemo(() => {
+    const overflow: OverflowItem[] = [];
+    let primary: ReactNode = null;
+
+    if (isTerminal || isClosing) {
+      primary = (
         <>
-          {transitionBtn}
-          {pdf}
+          <ActionButton label="Contract PDF" />
         </>
       );
+    } else if (isScheduled) {
+      primary = (
+        <>
+          <ActionButton label="Transition" onClick={openTransition} />
+          <ActionButton label="Contract PDF" />
+        </>
+      );
+    } else if (isExtended) {
+      primary = (
+        <>
+          <ActionButton label="Resolve renewal" onClick={openResolveRenewal} />
+          <ActionButton label="Transition" onClick={openTransition} />
+        </>
+      );
+      overflow.push({ label: "Contract PDF" });
+      if (enforcementNeedsAttention) {
+        overflow.push({ label: "Review enforcement", onClick: scrollToEnforcement });
+      }
+    } else if (isActive) {
+      primary = (
+        <>
+          <ActionButton label="Transition" onClick={openTransition} />
+          <ActionButton label="Create amendment" />
+        </>
+      );
+      overflow.push({ label: "Contract PDF" });
+      if (enforcementNeedsAttention) {
+        overflow.push({ label: "Review enforcement", onClick: scrollToEnforcement });
+      }
+      if (!inGrace) {
+        overflow.push({ label: "Extend grace period", onClick: openExtendGrace });
+      }
+      if (canClose && onOpenClosePane) {
+        overflow.push({
+          label: "Close contract early",
+          icon: XCircle,
+          destructive: true,
+          onClick: onOpenClosePane,
+        });
+      }
+    } else {
+      primary = (
+        <>
+          <ActionButton label="Transition" onClick={openTransition} />
+          <ActionButton label="Create amendment" />
+        </>
+      );
+      overflow.push({ label: "Contract PDF" });
     }
-    if (isExtended) {
-      const parts: ReactNode[] = [resolveRenewalBtn, transitionBtn, pdf];
-      if (enforcementNeedsAttention) parts.splice(1, 0, enforcementBtn);
-      return <>{parts}</>;
-    }
-    if (isActive) {
-      const parts: ReactNode[] = [transitionBtn];
-      if (!inGrace) parts.push(extendGraceBtn);
-      parts.push(amendmentBtn, pdf);
-      if (enforcementNeedsAttention) parts.splice(1, 0, enforcementBtn);
-      return <>{parts}</>;
-    }
-    return (
-      <>
-        {transitionBtn}
-        {amendmentBtn}
-        {pdf}
-      </>
-    );
+
+    return { primaryActions: primary, overflowItems: overflow };
   }, [
-    contract.customerId,
-    contract.id,
-    contract.status,
+    canClose,
     enforcementNeedsAttention,
     inGrace,
     isActive,
@@ -189,62 +192,34 @@ export function ContractStageContent({ contract, graceExtension, onBack, onOpenC
     isExtended,
     isScheduled,
     isTerminal,
+    onOpenClosePane,
+    openExtendGrace,
+    openResolveRenewal,
+    openTransition,
     scrollToEnforcement,
   ]);
 
-  const overflowMenu = showCloseOverflow ? (
-    <div ref={menuRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setMenuOpen((o) => !o)}
-        className={cn(
-          "inline-flex h-7 w-7 items-center justify-center rounded-full border transition-colors",
-          menuOpen
-            ? "border-border-default bg-surface-muted text-text-primary"
-            : "border-gray-200 bg-gray-100 text-text-secondary hover:border-border-default hover:bg-gray-200 hover:text-text-primary",
-        )}
-        aria-label="More actions"
-      >
-        <MoreHorizontal size={14} />
-      </button>
-      {menuOpen && (
-        <div className="absolute right-0 top-[calc(100%+4px)] z-20 w-48 rounded-lg border border-border-default bg-white py-1 shadow-lg">
-          <button
-            type="button"
-            onClick={() => {
-              setMenuOpen(false);
-              onOpenClosePane?.();
-            }}
-            disabled={!canClose}
-            className={cn(
-              "flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] transition-colors",
-              canClose ? "text-red-600 hover:bg-red-50" : "cursor-not-allowed text-text-muted",
-            )}
-          >
-            <XCircle size={14} />
-            Close contract early
-          </button>
-        </div>
-      )}
-    </div>
-  ) : null;
+  const recordOptions = useMemo<RecordHeaderOption[] | undefined>(() => {
+    if (!customerContracts || customerContracts.length <= 1) return undefined;
+    return customerContracts.map((c) => ({
+      id: c.id,
+      status: c.status,
+      description: `${currency(c.tcv)} · ${c.term} · ${shortDate(c.effectiveDate)} – ${shortDate(c.endDate)}`,
+    }));
+  }, [customerContracts]);
 
   return (
-    <div className="relative flex flex-col gap-6">
+    <div className="relative flex flex-col gap-3">
       <RecordHeader
-        stickyBar
         id={contract.id}
-        status={contract.status}
-        tagline={contract.enforcement.enforcementStatus}
+        recordOptions={recordOptions}
+        onRecordSelect={onContractSelect}
+        recordMenuTitle="Contracts for this customer"
         leadingAction={
           onBack ? <ActionButton icon={LayoutList} label="All contracts" onClick={onBack} /> : undefined
         }
-        actions={
-          <>
-            {headerMainActions}
-            {overflowMenu}
-          </>
-        }
+        actions={primaryActions}
+        overflowItems={overflowItems}
       />
 
       {/* Closure banner for wind-down state */}
@@ -268,25 +243,7 @@ export function ContractStageContent({ contract, graceExtension, onBack, onOpenC
           </p>
           <button
             type="button"
-            onClick={() =>
-              openDrawer({
-                entityType: "transition",
-                mode: "late_renewal",
-                context: {
-                  customerId: contract.customerId,
-                  contractId: contract.id,
-                  latePhase: "resolve",
-                },
-                flow: {
-                  scenario: "late_grace",
-                  step: "grace_extend",
-                  furthestUnlockedStep: "grace_extend",
-                  customerId: contract.customerId,
-                  contractId: contract.id,
-                  showStepper: true,
-                },
-              })
-            }
+            onClick={openResolveRenewal}
             className="shrink-0 rounded-md border border-red-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-red-800 hover:bg-red-100"
           >
             Resolve in drawer

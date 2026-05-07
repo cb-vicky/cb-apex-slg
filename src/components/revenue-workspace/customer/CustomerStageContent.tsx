@@ -11,7 +11,7 @@ interface Props {
 
 export function CustomerStageContent({ customer }: Props) {
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3">
       <CustomerNbaAiRow customer={customer} />
       <CustomerMetricsSection customer={customer} />
       <SupportCommsSection customerId={customer.id} />

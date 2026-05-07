@@ -88,7 +88,7 @@ export function QuoteApprovalsSection({
   const unread = teamCommentsUnread;
 
   return (
-    <SectionCard title="Approvals & Policy Checks" className="overflow-visible">
+    <SectionCard title="Approvals & Policy Checks">
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">

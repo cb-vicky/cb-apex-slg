@@ -32,7 +32,7 @@ export function PaymentStageContent({ customer }: Props) {
   const primaryCase = cases[0];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3">
       <ArOverviewSection summary={summary} primaryCase={primaryCase} />
       <OpenReceivablesSection invoices={customerInvoices} cases={cases} />
       <CollectionsWorkflowSection cases={cases} />

@@ -1,22 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { CheckCircle2, ChevronRight, PanelRightOpen, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronRight, PanelRightOpen, X, XCircle } from "lucide-react";
 import { useIngestContext } from "@/context/IngestContext";
 import { useDemoPersona } from "@/context/DemoPersonaContext";
 import { invoices, customers, contracts } from "@/data/mock-data";
 import type { Invoice } from "@/data/mock-data";
 import { getInvoiceEnrichment } from "@/data/billing-data";
 import { ApprovalDocumentPreviewPane } from "@/components/approvals/approval-document-preview";
-import { FieldSummaryPanel, type FieldSummaryItem } from "@/components/transitions/ValidationPanel";
+import { type FieldSummaryItem } from "@/components/transitions/ValidationPanel";
+import { DrawerInsightRail } from "@/components/transitions/DrawerInsightRail";
 import {
   approvalPreviewVariant,
   getApprovalDocKind,
   getApprovalDocUi,
 } from "@/components/approvals/approval-doc-ui";
 import { CriticalFieldsCard } from "@/components/approvals/approval-critical-fields-card";
-import { ApprovalSettingsModal } from "@/components/approvals/ApprovalSettingsModal";
 import { DrawerRailIndent } from "@/components/transitions/DrawerSelectShell";
-import { closeDrawer } from "@/store/drawer-store";
+import { closeDrawer, patchFlowSession } from "@/store/drawer-store";
 import { useUnifiedDrawerChrome } from "@/context/UnifiedDrawerChromeContext";
 import { activateScheduledContractAfterInvoiceApproval } from "@/data/zenith-ingest-session";
 import { currency, cn, shortDate } from "@/lib/utils";
@@ -106,8 +106,6 @@ export function InvoiceReviewStep({
     updateApprovalStatus,
     firstApprovalCompletedFor,
     markFirstApprovalCompleted,
-    approvalPolicy,
-    setApprovalPolicy,
     addSessionContract,
     addSessionCustomer,
     returnIngestToOperatorAfterReject,
@@ -126,9 +124,9 @@ export function InvoiceReviewStep({
   const [rejected, setRejected] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [includeGraceCharges, setIncludeGraceCharges] = useState(false);
+  const [showSendConfirmModal, setShowSendConfirmModal] = useState(false);
 
   const staticInvoice = invoices.find((i) => i.id === invoiceId);
   const sessionInvoice = sessionInvoices.find((i) => i.id === invoiceId);
@@ -277,7 +275,7 @@ export function InvoiceReviewStep({
     addApprovalComment(approval.id, c);
   }
 
-  function handleSendForApproval() {
+  function confirmSendForApproval() {
     if (!invoice || !mergedCustomer) return;
     const finalAmount = includeGraceCharges && graceInfo
       ? (overrides.amount ?? invoice.amount) + graceInfo.proratedAmount
@@ -292,7 +290,12 @@ export function InvoiceReviewStep({
     setInvoiceStatusOverride(invoice.id, "Pending Approval");
     applyQueueItemOverride(queueItemId, { status: "Ingested" });
     setSent(true);
+    setShowSendConfirmModal(false);
     setTimeout(() => closeDrawer(), 400);
+  }
+
+  function handleSendForApproval() {
+    setShowSendConfirmModal(true);
   }
 
   function handleApprove() {
@@ -320,7 +323,7 @@ export function InvoiceReviewStep({
     setShowToast(false);
     if (queueItemId && !firstApprovalCompletedFor[queueItemId]) {
       markFirstApprovalCompleted(queueItemId);
-      setShowSettingsModal(true);
+      patchFlowSession({ step: "approval_settings" });
       return;
     }
     closeDrawer();
@@ -434,7 +437,7 @@ export function InvoiceReviewStep({
   const customer = mergedCustomer;
 
   const invoiceReviewGridClass =
-    "grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,25%)_minmax(0,35%)_minmax(0,40%)] [grid-template-rows:minmax(0,1fr)]";
+    "grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,40%)_minmax(0,60%)] [grid-template-rows:minmax(0,1fr)]";
 
   if (isApprover) {
     return (
@@ -463,77 +466,7 @@ export function InvoiceReviewStep({
           </div>
         ) : null}
         <div className={invoiceReviewGridClass}>
-          <div className="min-h-0 max-h-full min-w-0 overflow-hidden border-r border-border-default bg-gray-50">
-            <FieldSummaryPanel
-              title="Invoice summary"
-              items={fieldSummaryItems}
-              comments={approval?.comments ?? []}
-              onSubmitComment={handleAddComment}
-              commentsTitle="Discussion"
-            />
-          </div>
-
-          <div className="min-h-0 max-h-full min-w-0 overflow-y-auto overscroll-y-contain border-r border-border-default">
-            <div className="px-6 py-5 text-[14px] leading-snug">
-              {approved && (
-                <div className="mb-5 flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-                  <CheckCircle2 size={16} className="text-emerald-600" />
-                  <p className="text-[14px] font-medium text-emerald-700">{docUi.approvedBanner}</p>
-                </div>
-              )}
-              {rejected && (
-                <div className="mb-5 flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-                  <XCircle size={16} className="text-gray-500" />
-                  <p className="text-[14px] font-medium text-gray-600">{docUi.rejectedBanner}</p>
-                </div>
-              )}
-              <CriticalFieldsCard
-                layout="flat"
-                invoice={inv}
-                overrides={overrides}
-                onChange={(next) => setInvoiceFieldOverride(invoiceId, next)}
-                enrichmentBilling={
-                  enrichment?.billingPeriodStart
-                    ? { start: enrichment.billingPeriodStart, end: enrichment.billingPeriodEnd }
-                    : undefined
-                }
-                enrichmentPaymentTerms={enrichment?.paymentTerms}
-                enrichmentPo={enrichment?.poNumber}
-                disabled
-                isBackdated={isBackdated}
-                amountFieldLabel={docUi.amountField}
-                dateFieldLabel={docUi.dateField}
-              />
-              <div className="mt-6 border-t border-border-default pt-5">
-                <p className="text-[12px] font-semibold uppercase tracking-wide text-text-secondary">Context</p>
-                <DrawerRailIndent className="mt-3">
-                  <div className="flex flex-col divide-y divide-border-subtle">
-                    {contract ? (
-                      <KV
-                        label="Contract"
-                        value={
-                          <span className="text-[13px] font-semibold leading-tight text-text-primary">
-                            <Link
-                              to={`/customers/${inv.customerId}?tab=contract&contractId=${contract.id}&from=approvals`}
-                              className="font-semibold text-[color:var(--color-info)] hover:underline"
-                            >
-                              {contract.id}
-                            </Link>
-                            <span className="font-medium text-text-secondary"> · {contract.term}</span>
-                          </span>
-                        }
-                      />
-                    ) : null}
-                    {contract ? <KV label="TCV" value={currency(contract.tcv)} /> : null}
-                    <KV label="Submitted by" value={approval?.submittedBy ?? "—"} />
-                    <KV label="Submitted on" value={approval ? shortDate(approval.submittedAt) : "—"} />
-                  </div>
-                </DrawerRailIndent>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden border-l border-border-default">
+          <div className="flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden">
             {!viewerCollapsed ? (
               <ApprovalDocumentPreviewPane
                 invoice={inv}
@@ -548,8 +481,7 @@ export function InvoiceReviewStep({
               />
             ) : (
               <div className="flex min-h-0 flex-1 flex-row bg-gray-100">
-                <div className="min-h-0 min-w-0 flex-1" aria-hidden />
-                <div className="flex shrink-0 border-l border-border-default bg-white">
+                <div className="flex shrink-0 bg-white">
                   <button
                     type="button"
                     onClick={() => setViewerCollapsed(false)}
@@ -560,26 +492,96 @@ export function InvoiceReviewStep({
                     <span className="rotate-90 whitespace-nowrap text-[9px] uppercase tracking-widest">Preview</span>
                   </button>
                 </div>
+                <div className="min-h-0 min-w-0 flex-1" aria-hidden />
               </div>
             )}
+          </div>
+
+          <div className="relative flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden bg-gray-100">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain transition-[padding] duration-200" data-drawer-fields-container>
+              <div className="mx-auto max-w-[480px] px-6 py-5 text-[14px] leading-snug transition-[margin] duration-200" data-drawer-fields-inner>
+                {approved && (
+                  <div className="mb-4 flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                    <CheckCircle2 size={16} className="text-emerald-600" />
+                    <p className="text-[14px] font-medium text-emerald-700">{docUi.approvedBanner}</p>
+                  </div>
+                )}
+                {rejected && (
+                  <div className="mb-4 flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3">
+                    <XCircle size={16} className="text-gray-500" />
+                    <p className="text-[14px] font-medium text-gray-600">{docUi.rejectedBanner}</p>
+                  </div>
+                )}
+                {/* Invoice details card */}
+                <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
+                  <div className="border-b border-border-subtle px-5 py-3">
+                    <h3 className="text-[14px] font-semibold text-text-primary">Invoice details</h3>
+                  </div>
+                  <div className="px-5 py-4">
+                    <CriticalFieldsCard
+                      layout="flat"
+                      invoice={inv}
+                      overrides={overrides}
+                      onChange={(next) => setInvoiceFieldOverride(invoiceId, next)}
+                      enrichmentBilling={
+                        enrichment?.billingPeriodStart
+                          ? { start: enrichment.billingPeriodStart, end: enrichment.billingPeriodEnd }
+                          : undefined
+                      }
+                      enrichmentPaymentTerms={enrichment?.paymentTerms}
+                      enrichmentPo={enrichment?.poNumber}
+                      disabled
+                      isBackdated={isBackdated}
+                      amountFieldLabel={docUi.amountField}
+                      dateFieldLabel={docUi.dateField}
+                    />
+                  </div>
+                </div>
+                {/* Context card */}
+                <div className="mt-4 overflow-hidden rounded-2xl border border-border-default bg-white">
+                  <div className="border-b border-border-subtle px-5 py-3">
+                    <h3 className="text-[14px] font-semibold text-text-primary">Context</h3>
+                  </div>
+                  <div className="px-5 py-4">
+                    <DrawerRailIndent>
+                      <div className="flex flex-col divide-y divide-border-subtle">
+                        {contract ? (
+                          <KV
+                            label="Contract"
+                            value={
+                              <span className="text-[13px] font-semibold leading-tight text-text-primary">
+                                <Link
+                                  to={`/customers/${inv.customerId}?tab=contract&contractId=${contract.id}&from=approvals`}
+                                  className="font-semibold text-[color:var(--color-info)] hover:underline"
+                                >
+                                  {contract.id}
+                                </Link>
+                                <span className="font-medium text-text-secondary"> · {contract.term}</span>
+                              </span>
+                            }
+                          />
+                        ) : null}
+                        {contract ? <KV label="TCV" value={currency(contract.tcv)} /> : null}
+                        <KV label="Submitted by" value={approval?.submittedBy ?? "—"} />
+                        <KV label="Submitted on" value={approval ? shortDate(approval.submittedAt) : "—"} />
+                      </div>
+                    </DrawerRailIndent>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <DrawerInsightRail
+              variant="summary"
+              title="Invoice summary"
+              summaryItems={fieldSummaryItems}
+              comments={approval?.comments ?? []}
+              onSubmitComment={handleAddComment}
+              commentsTitle="Discussion"
+            />
           </div>
         </div>
 
         {showToast && <Toast message={toastMessage} onDone={handleToastDone} />}
-        {showSettingsModal && (
-          <ApprovalSettingsModal
-            initial={approvalPolicy}
-            onSave={(p) => {
-              setApprovalPolicy(p);
-              setShowSettingsModal(false);
-              closeDrawer();
-            }}
-            onSkip={() => {
-              setShowSettingsModal(false);
-              closeDrawer();
-            }}
-          />
-        )}
       </div>
     );
   }
@@ -587,77 +589,7 @@ export function InvoiceReviewStep({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
       <div className={invoiceReviewGridClass}>
-        <div className="min-h-0 max-h-full min-w-0 overflow-hidden border-r border-border-default bg-gray-50">
-          <FieldSummaryPanel
-            title="Invoice summary"
-            items={fieldSummaryItems}
-            comments={approval?.comments ?? []}
-            onSubmitComment={handleAddComment}
-            commentsTitle="Discussion"
-          />
-        </div>
-
-        <div className="min-h-0 max-h-full min-w-0 overflow-y-auto overscroll-y-contain border-r border-border-default">
-          <div className="px-6 py-5 text-[14px] leading-snug">
-            <div className="mb-5 rounded-lg border border-cb-orange/40 bg-[#FFFCFA] px-4 py-3 text-[13px] text-text-secondary">
-              <span className="font-semibold text-text-primary">Review the generated invoice</span> before it is
-              submitted for approval. Fields below update the preview.
-            </div>
-            {graceInfo && !sent && (
-              <div className="mb-5 rounded-lg border border-blue-200 bg-blue-50/80 px-4 py-3">
-                <label className="flex cursor-pointer items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={includeGraceCharges}
-                    onChange={(e) => setIncludeGraceCharges(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <div>
-                    <p className="text-[13px] font-semibold text-blue-950">
-                      Include prorated usage charges for grace period
-                    </p>
-                    <p className="mt-0.5 text-[12px] text-blue-900">
-                      Add {currency(graceInfo.proratedAmount)} for {graceInfo.graceDays} days of grace period usage
-                      (prior contract {graceInfo.priorContractId})
-                    </p>
-                  </div>
-                </label>
-              </div>
-            )}
-            {sent ? (
-              <p className="text-[14px] font-medium text-emerald-700">Sent for approval — closing…</p>
-            ) : (
-              <CriticalFieldsCard
-                layout="flat"
-                invoice={inv}
-                overrides={overrides}
-                onChange={(next) => setInvoiceFieldOverride(invoiceId, next)}
-                enrichmentBilling={
-                  enrichment?.billingPeriodStart
-                    ? { start: enrichment.billingPeriodStart, end: enrichment.billingPeriodEnd }
-                    : undefined
-                }
-                enrichmentPaymentTerms={enrichment?.paymentTerms}
-                enrichmentPo={enrichment?.poNumber}
-                disabled={false}
-                isBackdated={
-                  Boolean(
-                    (overrides.invoiceDate ?? inv.date) &&
-                      (overrides.invoiceDate ?? inv.date) < new Date().toISOString().slice(0, 10),
-                  )
-                }
-                amountFieldLabel={docUi.amountField}
-                dateFieldLabel={docUi.dateField}
-                amountComputed
-                discountPercent={discountPercent}
-                onDiscountChange={setDiscountPercent}
-                showDiscountControl
-              />
-            )}
-          </div>
-        </div>
-
-        <div className="flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden border-l border-border-default">
+        <div className="flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden">
           {!viewerCollapsed ? (
             <ApprovalDocumentPreviewPane
               invoice={inv}
@@ -672,8 +604,7 @@ export function InvoiceReviewStep({
             />
           ) : (
             <div className="flex min-h-0 flex-1 flex-row bg-gray-100">
-              <div className="min-h-0 min-w-0 flex-1" aria-hidden />
-              <div className="flex shrink-0 border-l border-border-default bg-white">
+              <div className="flex shrink-0 bg-white">
                 <button
                   type="button"
                   onClick={() => setViewerCollapsed(false)}
@@ -684,10 +615,144 @@ export function InvoiceReviewStep({
                   <span className="rotate-90 whitespace-nowrap text-[9px] uppercase tracking-widest">Preview</span>
                 </button>
               </div>
+              <div className="min-h-0 min-w-0 flex-1" aria-hidden />
             </div>
           )}
         </div>
+
+        <div className="relative flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden bg-gray-100">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain transition-[padding] duration-200" data-drawer-fields-container>
+            <div className="mx-auto max-w-[480px] px-6 py-5 text-[14px] leading-snug transition-[margin] duration-200" data-drawer-fields-inner>
+              <div className="mb-4 rounded-2xl border border-cb-orange/40 bg-[#FFFCFA] px-4 py-3 text-[13px] text-text-secondary">
+                <span className="font-semibold text-text-primary">Review the generated invoice</span> before it is
+                submitted for approval. Fields below update the preview.
+              </div>
+              {graceInfo && !sent && (
+                <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50/80 px-4 py-3">
+                  <label className="flex cursor-pointer items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={includeGraceCharges}
+                      onChange={(e) => setIncludeGraceCharges(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <div>
+                      <p className="text-[13px] font-semibold text-blue-950">
+                        Include prorated usage charges for grace period
+                      </p>
+                      <p className="mt-0.5 text-[12px] text-blue-900">
+                        Add {currency(graceInfo.proratedAmount)} for {graceInfo.graceDays} days of grace period usage
+                        (prior contract {graceInfo.priorContractId})
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              )}
+              {sent ? (
+                <p className="text-[14px] font-medium text-emerald-700">Sent for approval — closing…</p>
+              ) : (
+                <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
+                  <div className="border-b border-border-subtle px-5 py-3">
+                    <h3 className="text-[14px] font-semibold text-text-primary">Invoice details</h3>
+                  </div>
+                  <div className="px-5 py-4">
+                    <CriticalFieldsCard
+                      layout="flat"
+                      invoice={inv}
+                      overrides={overrides}
+                      onChange={(next) => setInvoiceFieldOverride(invoiceId, next)}
+                      enrichmentBilling={
+                        enrichment?.billingPeriodStart
+                          ? { start: enrichment.billingPeriodStart, end: enrichment.billingPeriodEnd }
+                          : undefined
+                      }
+                      enrichmentPaymentTerms={enrichment?.paymentTerms}
+                      enrichmentPo={enrichment?.poNumber}
+                      disabled={false}
+                      isBackdated={
+                        Boolean(
+                          (overrides.invoiceDate ?? inv.date) &&
+                            (overrides.invoiceDate ?? inv.date) < new Date().toISOString().slice(0, 10),
+                        )
+                      }
+                      amountFieldLabel={docUi.amountField}
+                      dateFieldLabel={docUi.dateField}
+                      amountComputed
+                      discountPercent={discountPercent}
+                      onDiscountChange={setDiscountPercent}
+                      showDiscountControl
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          <DrawerInsightRail
+            variant="summary"
+            title="Invoice summary"
+            summaryItems={fieldSummaryItems}
+            comments={approval?.comments ?? []}
+            onSubmitComment={handleAddComment}
+            commentsTitle="Discussion"
+          />
+        </div>
       </div>
+
+      {showSendConfirmModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowSendConfirmModal(false)} />
+          <div className="relative z-10 w-[400px] rounded-xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-border-default px-5 py-4">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-50">
+                  <AlertCircle size={16} className="text-amber-600" />
+                </div>
+                <h2 className="text-[15px] font-semibold text-text-primary">Send for approval?</h2>
+              </div>
+              <button
+                onClick={() => setShowSendConfirmModal(false)}
+                className="shrink-0 rounded-md p-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
+                aria-label="Close"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="px-5 py-4">
+              <p className="text-[13px] leading-relaxed text-text-secondary">
+                This invoice will be routed to the approval queue for review before it can be sent to the customer.
+              </p>
+              <div className="mt-3 rounded-md border border-border-default bg-surface-muted px-3 py-2">
+                <div className="flex items-center justify-between text-[12px]">
+                  <span className="text-text-muted">Invoice</span>
+                  <span className="font-medium text-text-primary">{invoiceId}</span>
+                </div>
+                <div className="mt-1 flex items-center justify-between text-[12px]">
+                  <span className="text-text-muted">Amount</span>
+                  <span className="font-medium text-text-primary">{currency(totalAmount)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-border-default px-5 py-3">
+              <button
+                type="button"
+                onClick={() => setShowSendConfirmModal(false)}
+                className="rounded-md px-3 py-1.5 text-[13px] font-medium text-text-secondary transition-colors hover:bg-surface-muted"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmSendForApproval}
+                className="rounded-md bg-[color:var(--color-info)] px-4 py-1.5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
+              >
+                Send for approval
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

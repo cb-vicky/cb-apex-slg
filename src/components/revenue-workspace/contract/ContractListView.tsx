@@ -1,15 +1,32 @@
 import type { Contract } from "@/data/mock-data";
+import type { QueueItem } from "@/data/queue-data";
 import { StatusBadge } from "@/components/ui/primitives";
 import { currency, shortDate } from "@/lib/utils";
-import { FileText, ArrowRight, ArrowLeft } from "lucide-react";
+import { FileText, ArrowRight, ArrowLeft, Upload } from "lucide-react";
+import { openDrawer } from "@/store/drawer-store";
+
+export interface PendingIngestionContract {
+  queueItemId: string;
+  documentName: string;
+  customerName: string;
+  tcv: number;
+  uploadedAt: string;
+  scenario: QueueItem["scenario"];
+  status: QueueItem["status"];
+  activeContractId?: string;
+}
 
 interface Props {
   contracts: Contract[];
   onSelect: (contract: Contract) => void;
+  pendingIngestions?: PendingIngestionContract[];
 }
 
-export function ContractListView({ contracts, onSelect }: Props) {
-  if (contracts.length === 0) {
+export function ContractListView({ contracts, onSelect, pendingIngestions = [] }: Props) {
+  const hasPending = pendingIngestions.length > 0;
+  const hasContracts = contracts.length > 0;
+
+  if (!hasContracts && !hasPending) {
     return (
       <div className="flex flex-col items-center gap-3 rounded-lg border border-border-default bg-surface-muted px-6 py-12 text-center">
         <FileText size={24} className="text-text-muted" />
@@ -35,19 +52,67 @@ export function ContractListView({ contracts, onSelect }: Props) {
     return new Date(b.effectiveDate).getTime() - new Date(a.effectiveDate).getTime();
   });
 
+  const handlePendingClick = (item: PendingIngestionContract) => {
+    openDrawer({
+      entityType: "queue_item",
+      mode: "ingest",
+      entityId: item.queueItemId,
+      context: {
+        customerId: contractById.get(item.activeContractId ?? "")?.customerId,
+        contractId: item.activeContractId,
+      },
+      flow: {
+        scenario: "ingest_invoice",
+        step: "ingest",
+        queueItemId: item.queueItemId,
+        furthestUnlockedStep: "ingest",
+        showStepper: true,
+      },
+    });
+  };
+
   return (
-    <div className="border-y border-border-default bg-white">
+    <div className="overflow-hidden rounded-3xl border border-border-default bg-white">
       {/* Column header */}
-      <div className="grid grid-cols-[1fr_100px_100px_110px_120px_100px] items-center gap-3 border-b border-border-subtle bg-gray-50 py-2 pl-3 pr-4 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+      <div className="grid grid-cols-[1fr_100px_100px_110px_100px] items-center gap-3 border-b border-border-subtle bg-white px-4 pt-4 pb-2 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
         <span>Contract</span>
         <span>Effective</span>
         <span>Ends</span>
         <span className="text-right">TCV</span>
-        <span>Enforcement</span>
         <span>Status</span>
       </div>
 
       <div className="divide-y divide-border-subtle">
+        {/* Pending ingestion items appear first */}
+        {pendingIngestions.map((item) => (
+          <button
+            key={item.queueItemId}
+            type="button"
+            onClick={() => handlePendingClick(item)}
+            className="grid w-full grid-cols-[1fr_100px_100px_110px_100px] items-center gap-3 py-3 pl-3 pr-4 text-left transition-colors hover:bg-amber-50/60 bg-amber-50/30"
+          >
+            <div className="flex flex-col gap-0.5">
+              <span className="flex items-center gap-1.5 text-[13px] font-semibold text-amber-700 hover:text-cb-orange transition-colors">
+                <Upload size={12} className="shrink-0" />
+                {item.scenario === "Early Renewal" ? "Early Renewal" : item.scenario === "Late Renewal" ? "Late Renewal" : "Renewal"} Contract
+              </span>
+              <span className="text-[12px] text-text-muted truncate max-w-[200px]">
+                {item.documentName}
+              </span>
+              {item.activeContractId && (
+                <span className="mt-0.5 flex items-center gap-1 text-[11px] text-amber-600">
+                  <ArrowRight size={10} />
+                  Renews {item.activeContractId}
+                </span>
+              )}
+            </div>
+            <span className="text-[12px] text-text-muted">—</span>
+            <span className="text-[12px] text-text-muted">—</span>
+            <span className="text-right text-[13px] font-medium text-text-primary">{currency(item.tcv)}</span>
+            <StatusBadge status="Pending Ingestion" />
+          </button>
+        ))}
+
         {sorted.map((contract) => {
           const replacedBy = contract.replacedByContractId
             ? contractById.get(contract.replacedByContractId)
@@ -61,7 +126,7 @@ export function ContractListView({ contracts, onSelect }: Props) {
               key={contract.id}
               type="button"
               onClick={() => onSelect(contract)}
-              className="grid w-full grid-cols-[1fr_100px_100px_110px_120px_100px] items-center gap-3 py-3 pl-3 pr-4 text-left transition-colors hover:bg-surface-muted/60"
+              className="grid w-full grid-cols-[1fr_100px_100px_110px_100px] items-center gap-3 py-3 pl-3 pr-4 text-left transition-colors hover:bg-surface-muted/60"
             >
               <div className="flex flex-col gap-0.5">
                 <span className="text-[13px] font-semibold text-text-primary hover:text-cb-orange transition-colors">
@@ -103,7 +168,6 @@ export function ContractListView({ contracts, onSelect }: Props) {
               <span className="text-[12px] text-text-secondary">{shortDate(contract.effectiveDate)}</span>
               <span className="text-[12px] text-text-secondary">{shortDate(contract.endDate)}</span>
               <span className="text-right text-[13px] font-medium text-text-primary">{currency(contract.tcv)}</span>
-              <StatusBadge status={contract.enforcement.enforcementStatus} />
               <StatusBadge status={contract.status} />
             </button>
           );

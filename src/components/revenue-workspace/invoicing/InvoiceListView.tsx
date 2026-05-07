@@ -32,12 +32,12 @@ export function InvoiceListView({ invoices, onSelect }: Props) {
   );
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3">
       {/* Invoices table */}
       {invoices.length > 0 && (
-        <div className="border-y border-border-default bg-white">
+        <div className="overflow-hidden rounded-3xl border border-border-default bg-white">
           {/* Column header */}
-          <div className="grid grid-cols-[1fr_90px_90px_1fr_100px_110px] items-center gap-3 border-b border-border-subtle bg-gray-50 py-2 pl-3 pr-4 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+          <div className="grid grid-cols-[1fr_90px_90px_1fr_100px_110px] items-center gap-3 border-b border-border-subtle bg-white px-4 pt-4 pb-2 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
             <span>Invoice</span>
             <span>Date</span>
             <span>Due Date</span>
@@ -75,14 +75,14 @@ export function InvoiceListView({ invoices, onSelect }: Props) {
 
       {/* Closure credit notes section */}
       {closureCreditNotes.length > 0 && (
-        <div className="border-y border-border-default bg-white">
-          <div className="flex items-center gap-2 border-b border-border-subtle bg-gray-50 py-2 pl-3 pr-4">
+        <div className="overflow-hidden rounded-3xl border border-border-default bg-white">
+          <div className="flex items-center gap-2 bg-white px-4 pt-4 pb-2">
             <CreditCard size={14} className="text-text-muted" />
             <span className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
               Closure Credit Notes
             </span>
           </div>
-          <div className="grid grid-cols-[1fr_90px_1fr_100px_110px] items-center gap-3 border-b border-border-subtle bg-gray-50 py-2 pl-3 pr-4 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+          <div className="grid grid-cols-[1fr_90px_1fr_100px_110px] items-center gap-3 border-b border-border-subtle bg-white px-4 pb-2 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
             <span>Credit Note</span>
             <span>Date</span>
             <span>Contract</span>

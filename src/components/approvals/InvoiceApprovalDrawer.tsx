@@ -9,8 +9,8 @@ import { invoices, customers, contracts } from "@/data/mock-data";
 import { activateScheduledContractAfterInvoiceApproval } from "@/data/zenith-ingest-session";
 import type { Invoice } from "@/data/mock-data";
 import { getInvoiceEnrichment } from "@/data/billing-data";
-import { ApprovalSettingsModal } from "@/components/approvals/ApprovalSettingsModal";
 import { ApprovalDocumentPreviewPane } from "@/components/approvals/approval-document-preview";
+import { patchFlowSession } from "@/store/drawer-store";
 import {
   approvalPreviewVariant,
   getApprovalDocKind,
@@ -105,8 +105,6 @@ export function InvoiceApprovalDrawer({
     setInvoiceFieldOverride,
     firstApprovalCompletedFor,
     markFirstApprovalCompleted,
-    approvalPolicy,
-    setApprovalPolicy,
     sessionContracts,
     sessionInvoices,
     sessionCustomers,
@@ -122,7 +120,6 @@ export function InvoiceApprovalDrawer({
   const [approved, setApproved] = useState(false);
   const [rejected, setRejected] = useState(false);
   const [viewerCollapsed, setViewerCollapsed] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
 
   const docUi = useMemo(() => getApprovalDocUi(getApprovalDocKind(invoiceId)), [invoiceId]);
@@ -207,20 +204,9 @@ export function InvoiceApprovalDrawer({
     setShowToast(false);
     if (ingestId && !firstApprovalCompletedFor[ingestId]) {
       markFirstApprovalCompleted(ingestId);
-      setShowSettingsModal(true);
+      patchFlowSession({ step: "approval_settings" });
       return;
     }
-    onClose();
-  }
-
-  function handleSavePolicy(policy: typeof approvalPolicy) {
-    setApprovalPolicy(policy);
-    setShowSettingsModal(false);
-    onClose();
-  }
-
-  function handleSkipPolicy() {
-    setShowSettingsModal(false);
     onClose();
   }
 
@@ -453,10 +439,6 @@ export function InvoiceApprovalDrawer({
       </div>
 
       {showToast && <Toast message={toastMessage} onDone={handleToastDone} />}
-
-      {showSettingsModal && (
-        <ApprovalSettingsModal initial={approvalPolicy} onSave={handleSavePolicy} onSkip={handleSkipPolicy} />
-      )}
     </div>
   );
 }

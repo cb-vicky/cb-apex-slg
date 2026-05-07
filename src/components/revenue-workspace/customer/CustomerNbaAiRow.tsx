@@ -264,7 +264,7 @@ export function CustomerNbaAiRow({ customer }: Props) {
       {aiPhase !== "ready" ? (
         <div
           className={cn(
-            "relative overflow-hidden rounded-lg border border-border-default bg-white",
+            "relative overflow-hidden rounded-3xl border border-border-default bg-white",
             aiPhase === "loading" && "ai-insights-loading-sheen",
           )}
         >
@@ -314,7 +314,7 @@ export function CustomerNbaAiRow({ customer }: Props) {
           </div>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-border-default bg-white">
+        <div className="overflow-hidden rounded-3xl border border-border-default bg-white">
           <div className="flex items-center justify-between border-b border-border-subtle bg-gray-50 px-5 py-3">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-text-primary">AI Insights</h3>
             <div className="flex items-center gap-1">

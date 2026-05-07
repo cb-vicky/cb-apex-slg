@@ -37,7 +37,7 @@ export function ArOverviewSection({ summary, primaryCase }: Props) {
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-3 gap-3 xl:grid-cols-6">
         {cards.map((card) => (
-          <div key={card.label} className="rounded-lg border border-border-default bg-white px-3 py-2.5">
+          <div key={card.label} className="rounded-2xl border border-border-default bg-white px-3 py-2.5">
             <p className="text-[10px] uppercase tracking-wider text-text-muted">{card.label}</p>
             <p className={`mt-1 text-sm font-semibold tabular-nums ${variantClasses[card.variant]}`}>{card.value}</p>
           </div>

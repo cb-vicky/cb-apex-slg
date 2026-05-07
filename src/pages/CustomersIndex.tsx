@@ -1,148 +1,37 @@
 import { useMemo } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useScrolled } from "@/hooks/useScrolled";
-import { customers, quotes, contracts, invoices } from "@/data/mock-data";
-import type { Contract, Customer, Invoice } from "@/data/mock-data";
+import { customers, quotes } from "@/data/mock-data";
+import type { Customer } from "@/data/mock-data";
 import { useIngestContext } from "@/context/IngestContext";
-import { mergeContractsWithRuntimeClosures, mergeInvoiceStatuses } from "@/components/revenue-workspace/derive-stage-data";
-import { supportTickets } from "@/data/support-data";
 import { currency, shortDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/primitives";
 import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStrip";
-import { GroupedSection } from "@/components/index-page/GroupedSection";
-import { GroupedRow, RowCell } from "@/components/index-page/GroupedRow";
 import { ListTable, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
 import { PageHeader } from "@/components/index-page/PageHeader";
-import { ViewToggle, type ViewMode } from "@/components/index-page/ViewToggle";
 
 // ---------------------------------------------------------------------------
-// Group definitions
+// Helpers
 // ---------------------------------------------------------------------------
 
-interface CustomerGroupRow {
-  customerId: string;
-  customerName: string;
-  reason: string;
-  relatedRecord: string;
-  value: string;
-  owner: string;
-  dueDate: string;
-  status: string;
-  targetTab: string;
-  targetParam: string;
-}
-
-function buildGroups(customerList: Customer[], contractsList: Contract[], invoicesList: Invoice[]) {
-  const groups: Record<string, CustomerGroupRow[]> = {
-    "renewals-30d": [],
-    "quotes-pending": [],
-    "burn-down-risk": [],
-    "overdue-invoices": [],
-    "enforcement-mismatch": [],
-    "support-escalations": [],
-    "expansion-opportunity": [],
-  };
-
+function countRenewalsIn30Days(customerList: Customer[]) {
+  let count = 0;
   for (const c of customerList) {
     if (c.nextRenewalDate) {
       const days = Math.round((new Date(c.nextRenewalDate).getTime() - Date.now()) / 86400000);
-      if (days <= 30 && days > 0) {
-        const con = contractsList.find((ct) => ct.customerId === c.id);
-        groups["renewals-30d"].push({
-          customerId: c.id, customerName: c.name,
-          reason: `Renewal in ${days} days`,
-          relatedRecord: con?.id ?? "—", value: currency(c.arr),
-          owner: c.csm, dueDate: shortDate(c.nextRenewalDate),
-          status: "Upcoming", targetTab: "contract",
-          targetParam: con ? `contractId=${con.id}` : "",
-        });
-      }
-    }
-
-    const pendingQuotes = quotes.filter((q) => q.customerId === c.id && q.approval.status === "pending");
-    for (const q of pendingQuotes) {
-      groups["quotes-pending"].push({
-        customerId: c.id, customerName: c.name,
-        reason: "Quote pending approval",
-        relatedRecord: q.id, value: currency(q.tcv),
-        owner: q.owner, dueDate: shortDate(q.expiryDate),
-        status: q.status, targetTab: "quote",
-        targetParam: `quoteId=${q.id}`,
-      });
-    }
-
-    if (c.prepaidCreditTotal > 0 && (c.prepaidCreditBalance / c.prepaidCreditTotal) < 0.3) {
-      groups["burn-down-risk"].push({
-        customerId: c.id, customerName: c.name,
-        reason: `Credits ${Math.round(((c.prepaidCreditTotal - c.prepaidCreditBalance) / c.prepaidCreditTotal) * 100)}% consumed`,
-        relatedRecord: "—", value: currency(c.prepaidCreditBalance),
-        owner: c.csm, dueDate: "—",
-        status: "At risk", targetTab: "customer",
-        targetParam: "",
-      });
-    }
-
-    const overdueInvs = invoicesList.filter((i) => i.customerId === c.id && i.status === "Overdue");
-    for (const inv of overdueInvs) {
-      groups["overdue-invoices"].push({
-        customerId: c.id, customerName: c.name,
-        reason: "Overdue invoice",
-        relatedRecord: inv.id, value: currency(inv.amount),
-        owner: inv.owner, dueDate: shortDate(inv.dueDate),
-        status: "Overdue", targetTab: "invoicing",
-        targetParam: `invoiceId=${inv.id}`,
-      });
-    }
-
-    const enfContracts = contractsList.filter((ct) => ct.customerId === c.id && ct.enforcement.enforcementStatus !== "Enforced");
-    for (const con of enfContracts) {
-      groups["enforcement-mismatch"].push({
-        customerId: c.id, customerName: c.name,
-        reason: "Enforcement incomplete",
-        relatedRecord: con.id, value: currency(con.tcv),
-        owner: con.owner, dueDate: shortDate(con.effectiveDate),
-        status: con.enforcement.enforcementStatus, targetTab: "contract",
-        targetParam: `contractId=${con.id}`,
-      });
-    }
-
-    const escalatedTickets = supportTickets.filter((t) => t.customerId === c.id && t.status === "Escalated");
-    if (escalatedTickets.length > 0) {
-      groups["support-escalations"].push({
-        customerId: c.id, customerName: c.name,
-        reason: `${escalatedTickets.length} escalation${escalatedTickets.length > 1 ? "s" : ""}`,
-        relatedRecord: escalatedTickets[0].id, value: "—",
-        owner: escalatedTickets[0].assignee, dueDate: shortDate(escalatedTickets[0].lastUpdatedAt),
-        status: "Escalated", targetTab: "customer",
-        targetParam: "",
-      });
-    }
-
-    const amendmentQuotes = quotes.filter((q) => q.customerId === c.id && q.quoteType === "Amendment");
-    for (const q of amendmentQuotes) {
-      groups["expansion-opportunity"].push({
-        customerId: c.id, customerName: c.name,
-        reason: "Amendment in progress",
-        relatedRecord: q.id, value: currency(q.tcv),
-        owner: q.owner, dueDate: shortDate(q.expiryDate),
-        status: q.status, targetTab: "quote",
-        targetParam: `quoteId=${q.id}`,
-      });
+      if (days <= 30 && days > 0) count++;
     }
   }
-
-  return groups;
+  return count;
 }
 
-const groupMeta: { key: string; label: string; slug: string }[] = [
-  { key: "renewals-30d", label: "Renewals coming up in 30 days", slug: "renewals-30d" },
-  { key: "quotes-pending", label: "Quotes pending approval", slug: "quotes-pending" },
-  { key: "burn-down-risk", label: "Prepaid credit burn-down risk", slug: "burn-down-risk" },
-  { key: "overdue-invoices", label: "Overdue invoices", slug: "overdue-invoices" },
-  { key: "enforcement-mismatch", label: "Contract enforcement mismatches", slug: "enforcement-mismatch" },
-  { key: "support-escalations", label: "Support escalations impacting billing", slug: "support-escalations" },
-  { key: "expansion-opportunity", label: "Expansion / amendment opportunity", slug: "expansion-opportunity" },
-];
+function countPendingQuotes(customerList: Customer[]) {
+  let count = 0;
+  for (const c of customerList) {
+    count += quotes.filter((q) => q.customerId === c.id && q.approval.status === "pending").length;
+  }
+  return count;
+}
 
 const listColumns: Column[] = [
   { key: "customer", label: "Customer", width: "180px", sortable: true },
@@ -160,16 +49,8 @@ const listColumns: Column[] = [
 // ---------------------------------------------------------------------------
 
 export function CustomersIndex() {
-  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const {
-    contractClosures,
-    contractGraceExtensions,
-    sessionContracts,
-    sessionCustomers,
-    sessionInvoices,
-    invoiceStatusOverrides,
-  } = useIngestContext();
+  const { sessionCustomers } = useIngestContext();
 
   const customersMerged = useMemo(() => {
     const byId = new Map(customers.map((c) => [c.id, c]));
@@ -179,190 +60,50 @@ export function CustomersIndex() {
     return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
   }, [sessionCustomers]);
 
-  const contractsView = useMemo(() => {
-    const byId = new Map(contracts.map((c) => [c.id, c]));
-    for (const c of sessionContracts) {
-      byId.set(c.id, c);
-    }
-    return mergeContractsWithRuntimeClosures([...byId.values()], contractClosures, contractGraceExtensions);
-  }, [contractClosures, contractGraceExtensions, sessionContracts]);
-
-  const invoicesWithSession = useMemo(() => {
-    const byId = new Map(invoices.map((i) => [i.id, i]));
-    for (const inv of sessionInvoices) {
-      byId.set(inv.id, inv);
-    }
-    return [...byId.values()];
-  }, [sessionInvoices]);
-
-  const invoicesView = useMemo(
-    () => mergeInvoiceStatuses(invoicesWithSession, invoiceStatusOverrides),
-    [invoicesWithSession, invoiceStatusOverrides],
-  );
-
-  const groupFilter = searchParams.get("group");
-  const viewMode = (searchParams.get("view") as ViewMode) || "all";
-  const groups = useMemo(
-    () => buildGroups(customersMerged, contractsView, invoicesView),
-    [customersMerged, contractsView, invoicesView],
-  );
   const { ref: scrollRef, isScrolled } = useScrolled();
 
-  function handleViewChange(mode: ViewMode) {
-    const params = new URLSearchParams(searchParams);
-    if (mode === "groups") {
-      params.set("view", "groups");
-      params.delete("group");
-    } else {
-      params.delete("view");
-      params.delete("group");
-    }
-    setSearchParams(params);
-  }
-
-  const viewToggle = (
-    <ViewToggle
-      value={groupFilter ? "groups" : viewMode}
-      onChange={handleViewChange}
-      resourcePlural="Customers"
-    />
-  );
+  const renewalsIn30Days = useMemo(() => countRenewalsIn30Days(customersMerged), [customersMerged]);
+  const pendingQuotesCount = useMemo(() => countPendingQuotes(customersMerged), [customersMerged]);
 
   const metrics: MetricCard[] = [
     { label: "Active customers", value: customersMerged.length },
-    { label: "Renewals in 30 days", value: groups["renewals-30d"].length, variant: groups["renewals-30d"].length > 0 ? "warning" : "default" },
+    { label: "Renewals in 30 days", value: renewalsIn30Days, variant: renewalsIn30Days > 0 ? "warning" : "default" },
     { label: "Open AR total", value: currency(customersMerged.reduce((s, c) => s + c.openAr, 0)), variant: "danger" },
-    { label: "Quotes pending", value: groups["quotes-pending"].length, variant: groups["quotes-pending"].length > 0 ? "warning" : "default" },
+    { label: "Quotes pending", value: pendingQuotesCount, variant: pendingQuotesCount > 0 ? "warning" : "default" },
     { label: "At-risk customers", value: customersMerged.filter((c) => c.riskBadges.length > 0).length, variant: "danger" },
   ];
 
-  function navigateToShell(row: CustomerGroupRow) {
-    const fromParam = groupFilter ? `customers:${groupFilter}` : "customers";
-    navigate(`/customers/${row.customerId}?tab=customer&from=${fromParam}`);
-  }
-
-  // Filtered list mode (from "View all" on a group)
-  if (groupFilter) {
-    const gm = groupMeta.find((g) => g.slug === groupFilter);
-    const rows = groups[groupFilter] ?? [];
-    return (
-      <div className="flex flex-1 w-full flex-col">
-        <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-gray-100 transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
-          <PageHeader
-            title="Customers"
-            backLabel="Back to overview"
-            backPath="/customers"
-            filterLabel={gm?.label}
-            createLabel="Create"
-          />
-        </div>
-        <div className="flex flex-col gap-5 px-6 pt-5 pb-7">
-          <MetricStrip metrics={metrics} />
-          <ListTable
-            columns={listColumns}
-            resultCount={customersMerged.filter((c) => rows.some((r) => r.customerId === c.id)).length}
-          >
-            {customersMerged
-              .filter((c) => rows.some((r) => r.customerId === c.id))
-              .map((c) => {
-                const matchRow = rows.find((r) => r.customerId === c.id)!;
-                return (
-                  <ListRow key={c.id} onClick={() => navigateToShell(matchRow)}>
-                    <ListCell width="180px" className="font-medium text-text-primary">{c.name}</ListCell>
-                    <ListCell width="100px" align="right">
-                      {currency(c.arr)}
-                    </ListCell>
-                    <ListCell width="100px" align="right" className={c.openAr > 0 ? "text-red-600 font-medium" : ""}>
-                      {currency(c.openAr)}
-                    </ListCell>
-                    <ListCell width="80px" align="right">
-                      {c.activeContractCount}
-                    </ListCell>
-                    <ListCell width="80px" align="right">
-                      {c.openQuoteCount}
-                    </ListCell>
-                    <ListCell width="110px">{c.nextRenewalDate ? shortDate(c.nextRenewalDate) : "—"}</ListCell>
-                    <ListCell width="120px" noTruncate>
-                      {c.riskBadges.length > 0 ? <StatusBadge status={`${c.riskBadges.length} flags`} /> : <span className="text-emerald-600 text-[12px]">Healthy</span>}
-                    </ListCell>
-                    <ListCell width="120px">{c.billingOwner}</ListCell>
-                  </ListRow>
-                );
-              })}
-          </ListTable>
-        </div>
-      </div>
-    );
-  }
-
-  // All list view
-  if (viewMode === "all") {
-    return (
-      <div className="flex flex-1 w-full flex-col">
-        <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-gray-100 transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
-          <PageHeader title="Customers" createLabel="Create" viewToggle={viewToggle} />
-        </div>
-        <div className="flex flex-col gap-5 px-6 pt-5 pb-7">
-          <MetricStrip metrics={metrics} />
-          <ListTable columns={listColumns} resultCount={customersMerged.length}>
-            {customersMerged.map((c) => (
-              <ListRow key={c.id} onClick={() => navigate(`/customers/${c.id}?tab=customer&from=customers`)}>
-                <ListCell width="180px" className="font-medium text-text-primary">{c.name}</ListCell>
-                <ListCell width="100px" align="right">
-                  {currency(c.arr)}
-                </ListCell>
-                <ListCell width="100px" align="right" className={c.openAr > 0 ? "text-red-600 font-medium" : ""}>
-                  {currency(c.openAr)}
-                </ListCell>
-                <ListCell width="80px" align="right">
-                  {c.activeContractCount}
-                </ListCell>
-                <ListCell width="80px" align="right">
-                  {c.openQuoteCount}
-                </ListCell>
-                <ListCell width="110px">{c.nextRenewalDate ? shortDate(c.nextRenewalDate) : "—"}</ListCell>
-                <ListCell width="120px" noTruncate>
-                  {c.riskBadges.length > 0 ? <StatusBadge status={`${c.riskBadges.length} flags`} /> : <span className="text-emerald-600 text-[12px]">Healthy</span>}
-                </ListCell>
-                <ListCell width="120px">{c.billingOwner}</ListCell>
-              </ListRow>
-            ))}
-          </ListTable>
-        </div>
-      </div>
-    );
-  }
-
-  // Grouped landing (default)
   return (
     <div className="flex flex-1 w-full flex-col">
       <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-gray-100 transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
-        <PageHeader title="Customers" createLabel="Create" viewToggle={viewToggle} />
+        <PageHeader title="Customers" createLabel="Create" />
       </div>
       <div className="flex flex-col gap-5 px-6 pt-5 pb-7">
         <MetricStrip metrics={metrics} />
-        {groupMeta.map((gm) => {
-          const rows = groups[gm.key] ?? [];
-          return (
-            <GroupedSection key={gm.key} title={gm.label} count={rows.length} viewAllPath={`/customers?group=${gm.slug}`}>
-              {rows.slice(0, 5).map((row, idx) => (
-                <GroupedRow key={`${row.customerId}-${idx}`} onClick={() => navigateToShell(row)}>
-                  <RowCell width="160px" className="font-medium text-text-primary">{row.customerName}</RowCell>
-                  <RowCell width="200px" className="text-text-secondary">{row.reason}</RowCell>
-                  <RowCell width="130px" className="font-medium text-blue-600">{row.relatedRecord}</RowCell>
-                  <RowCell width="100px" className="tabular-nums" align="right">
-                    {row.value}
-                  </RowCell>
-                  <RowCell width="110px" className="text-text-secondary">{row.owner}</RowCell>
-                  <RowCell width="100px" className="text-text-secondary">{row.dueDate}</RowCell>
-                  <RowCell width="100px" noTruncate>
-                    <StatusBadge status={row.status} />
-                  </RowCell>
-                </GroupedRow>
-              ))}
-            </GroupedSection>
-          );
-        })}
+        <ListTable columns={listColumns} resultCount={customersMerged.length}>
+          {customersMerged.map((c) => (
+            <ListRow key={c.id} onClick={() => navigate(`/customers/${c.id}?tab=customer&from=customers`)}>
+              <ListCell width="180px" className="font-medium text-text-primary">{c.name}</ListCell>
+              <ListCell width="100px" align="right">
+                {currency(c.arr)}
+              </ListCell>
+              <ListCell width="100px" align="right" className={c.openAr > 0 ? "text-red-600 font-medium" : ""}>
+                {currency(c.openAr)}
+              </ListCell>
+              <ListCell width="80px" align="right">
+                {c.activeContractCount}
+              </ListCell>
+              <ListCell width="80px" align="right">
+                {c.openQuoteCount}
+              </ListCell>
+              <ListCell width="110px">{c.nextRenewalDate ? shortDate(c.nextRenewalDate) : "—"}</ListCell>
+              <ListCell width="120px" noTruncate>
+                {c.riskBadges.length > 0 ? <StatusBadge status={`${c.riskBadges.length} flags`} /> : <span className="text-emerald-600 text-[12px]">Healthy</span>}
+              </ListCell>
+              <ListCell width="120px">{c.billingOwner}</ListCell>
+            </ListRow>
+          ))}
+        </ListTable>
       </div>
     </div>
   );
