@@ -108,6 +108,10 @@ Live in React context (`IngestContext.invoiceStatusOverrides`). Navigating direc
 
 The **`queue-data.ts`** seed was reduced to **three** operational rows to speed iteration. Re-expand when building **Late Renewal** ingest, **Amendment**, failure buckets, or renewal (`sample1`) demos — update **`docs/09-contract-ingestion.md`** navigation examples whenever ids change.
 
+### IngestFieldGroup as standard drawer primitive
+
+`IngestFieldGroup` is the canonical grouping wrapper for all ingest drawer sections. Flat section components (`*Section.tsx` in `src/components/transitions/sections/`) are designed to be hosted inside its body — no nested cards, no redundant chrome. The chip in the header mirrors the `ValidationPanel` status items so both surfaces stay in sync.
+
 ---
 
 ## Open questions
@@ -134,9 +138,17 @@ Should contract documents be **downloadable (PDF export)** from the document vie
 
 Should the approval detail page support **multi-approver chains** (sequential or parallel) in future iterations?
 
-### Q6 — Late Renewal vs contract workspace
+### Q6 — Late Renewal implementation direction
 
-Should **Late Renewal** (`QI-2026-0003` today) ever become a **full `IngestDrawer` page** with extraction, or remain an **ops handoff** into **`late_extend`** / grace tooling in **`CustomerRevenueWorkspace`**? Decision drives whether to add `sampleId` + `ingestable: true` vs deepen placeholder CTAs.
+**Partially resolved:** Late Renewal now has `handleLateRenewalQueueFinish` in `IngestDrawer` which creates a scheduled renewal contract and advances to the `close_prior` step. Key implementation decisions made:
+
+- **Backdating:** `TransitionContractTermsSection` supports `allowBackdate` prop — operators can set effective date earlier than today for late renewals
+- **Grace extension awareness:** Late renewal banner shows prior contract's grace extension details when present
+- **Flow parity:** Late Renewal follows the same `close_prior` → approval → auto-activate pattern as Early Renewal
+
+**Remaining questions:**
+- Should Late Renewal queue rows (`QI-2026-0003`) be updated with `sampleId: "sample4"` + `ingestable: true` to enable the full ingest grid?
+- How should `activeContractId` + `contractGraceExtensions` surface prominently in the fields column beyond the banner?
 
 ### Q7 — Early Renewal comments parity
 

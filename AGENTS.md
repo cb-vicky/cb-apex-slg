@@ -26,6 +26,8 @@ src/
     approvals/              # invoice approval UI + ApprovalSettingsModal
     contracts/              # upload modal, closure modal + ClosureSummaryCard + ClosureBanner
     queue/                  # Inbox > Queue: integrations modal + queue UI bits
+    transitions/            # IngestDrawer, IngestFieldGroup, ValidationPanel, panels/*
+      sections/             # flat section components (CustomerMappingSection, BillingStructureSection, etc.)
     ui/                     # shared primitives (StatusBadge, KV, SectionCard, etc.)
   data/                     # mock-data, revrec, support, billing, ingest,
                             # queue-data, approval-policy, gettingStarted,
@@ -78,6 +80,8 @@ npm run lint      # eslint
 
 ## Status
 
-Prototype is ~70% complete functionally. Remaining work is mostly **UI finesse, layout reorganization, and visual rework** — treat `docs/02-design-system.md` and `docs/03-customer-workspace.md` as the primary references for most upcoming tasks.
+Prototype is ~75% complete functionally. Remaining work is mostly **UI finesse, layout reorganization, and visual rework** — treat `docs/02-design-system.md` and `docs/03-customer-workspace.md` as the primary references for most upcoming tasks.
 
-**Queue / ingest / approvals:** `docs/09-contract-ingestion.md`, `docs/06-routing.md`, `docs/08-mock-data.md`, and `docs/12-open-questions.md` reflect the **full-page ingest + approval** layout (25/25/50), **`ApprovalCommentsCard`** on queue ingest (with **`ensureQueueIngestDiscussion`** stub), **reduced `queue-data` seeds**, and a **Roadmap** section for **Early / Late renewal** follow-up work.
+**Queue / ingest / approvals:** `docs/09-contract-ingestion.md`, `docs/06-routing.md`, `docs/08-mock-data.md`, and `docs/12-open-questions.md` reflect the **full-page ingest + approval** layout (25/35/40 grid), **`ValidationPanel`** + **`ApprovalCommentsCard`** in left column, **`IngestFieldGroup`** as the canonical wrapper for ingest sections, **reduced `queue-data` seeds**, and a **Roadmap** section for renewal follow-up work.
+
+**Recent implementation:** `IngestFieldGroup` component with status chips, flat section components (`*Section.tsx`), Late Renewal support with backdating and grace extension awareness, unified validation + group chip state.

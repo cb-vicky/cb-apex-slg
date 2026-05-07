@@ -125,6 +125,27 @@ Sections below are reusable building blocks. See `docs/04-lifecycle-tabs.md` for
 - Timeline row (`TimelineRow`)
 - `ActionButton` — consistent action styling for record context bar
 
+### Ingest drawer primitives
+
+- `IngestFieldGroup` — bordered card wrapper for ingest form sections with header chrome + optional status chip
+  - Header: `bg-gray-50` with bold title, optional subtitle
+  - Chip tones: `valid` (emerald), `warning` (amber), `error` (red), `neutral` (gray border)
+  - Body: white surface with `px-5 py-4` padding
+  - Supports `forwardRef` for scroll-to-section behavior
+- `DrawerStackedField` — label + input stacked vertically for drawer forms
+- `DrawerRailIndent` — left padding wrapper for sub-content inside drawer sections
+- `DrawerSelectShell` / `DrawerNativeSelect` — select input shells for drawer forms
+- `ValidationPanel` — left-rail validation status list with clickable items + comments section
+
+### Ingest field group chip tones
+
+| Tone | Border / BG | Text | Use case |
+|------|-------------|------|----------|
+| `valid` | emerald-200 / emerald-50 | emerald-700 | Validation passed, mapped |
+| `warning` | amber-200 / amber-50 | amber-700 | Needs attention, unmapped lines |
+| `error` | red-200 / red-50 | red-700 | Blocking error, invalid |
+| `neutral` | border-subtle / white | text-secondary | Default, informational |
+
 ### Index-page primitives
 
 - `MetricStrip` — top 4–5 summary cards

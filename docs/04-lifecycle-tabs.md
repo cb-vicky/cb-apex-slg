@@ -176,7 +176,15 @@ Lineage is read from `contract.replacedByContractId` and `contract.replacesContr
 
 During closure state (prior contract `Closing` + new contract `Scheduled`):
 - **Always land in list view** — never auto-select a contract until it is explicitly Active
-- `closeIntent` query param forces list view and auto-opens `CloseContractPane` on arrival (used by the Early Renewal queue flow)
+- `closeIntent` query param forces list view and auto-opens `CloseContractPane` on arrival (used by the Early/Late Renewal queue flows)
+
+### Late Renewal — Grace extension awareness
+
+When a contract is in grace extension (`contractGraceExtensions[contractId]`):
+- **Late Renewal banner** appears in the ingest drawer: "This customer has a contract in extension" with grace period details (end date, billing mode)
+- `TransitionContractTermsSection` allows backdating the effective date (`allowBackdate={true}`)
+- Closing the prior contract via the renewal flow **resolves the grace extension** automatically
+- Backdated start dates show amber helper: "Invoices for elapsed days will be clubbed into the first invoice"
 
 ### Sections
 
