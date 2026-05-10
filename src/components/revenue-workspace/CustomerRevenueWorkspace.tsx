@@ -7,6 +7,7 @@ import { extractedSample3 } from "@/data/ingest-data";
 import { getCollectionCasesForCustomer } from "@/data/billing-data";
 import { getRevenueArrangement } from "@/data/revrec-data";
 import { useIngestContext } from "@/context/IngestContext";
+import { useWorkspaceShell } from "@/context/WorkspaceShellContext";
 import { openDrawer } from "@/store/drawer-store";
 import { CustomerContextBar } from "./CustomerContextBar";
 import { type Stage } from "./RevenueJourneyRail";
@@ -59,6 +60,7 @@ export function CustomerRevenueWorkspace({
   queueItemId,
 }: Props) {
   const navigate = useNavigate();
+  const { setCustomer360Active } = useWorkspaceShell();
   const [activeStage, setActiveStage] = useState<Stage>(
     closeIntent ? "contract" : initialStage
   );
@@ -77,6 +79,11 @@ export function CustomerRevenueWorkspace({
     sessionInvoices,
     queueItems,
   } = useIngestContext();
+
+  useEffect(() => {
+    setCustomer360Active(true);
+    return () => setCustomer360Active(false);
+  }, [setCustomer360Active]);
 
   // When closeIntent is present, force list mode (so user sees context before pane opens)
   const [viewMode, setViewMode] = useState<"list" | "detail">(

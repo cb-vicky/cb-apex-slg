@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { DemoPersonaProvider } from "@/context/DemoPersonaContext";
 import { IngestProvider } from "@/context/IngestContext";
+import { WorkspaceShellProvider } from "@/context/WorkspaceShellContext";
 import { AppShell } from "@/components/layout/AppShell";
 import { WorkbenchHome } from "@/pages/workbench/WorkbenchHome";
 import { CustomersIndex } from "@/pages/CustomersIndex";
@@ -20,6 +21,7 @@ export default function App() {
   return (
     <IngestProvider>
       <DemoPersonaProvider>
+        <WorkspaceShellProvider>
         <AppShell>
           <>
           <Routes>
@@ -55,6 +57,7 @@ export default function App() {
           <EntityDrawer />
           </>
         </AppShell>
+        </WorkspaceShellProvider>
         </DemoPersonaProvider>
       </IngestProvider>
   );
