@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { PanelRightOpen, CheckCircle2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { useIngestContext } from "@/context/IngestContext";
 import { useUnifiedDrawerChrome } from "@/context/UnifiedDrawerChromeContext";
 import { contracts, customers } from "@/data/mock-data";
@@ -7,13 +7,20 @@ import type { Contract, ContractClosure } from "@/data/mock-data";
 import { closeDrawer } from "@/store/drawer-store";
 import { currency, shortDate, cn } from "@/lib/utils";
 import { type FieldSummaryItem } from "./ValidationPanel";
-import { DrawerInsightRail } from "./DrawerInsightRail";
+import { IngestWorkspaceTabs } from "./IngestWorkspaceTabs";
 import { FormField, formInputClass, Select } from "@/components/ui/form-field";
 import { StatusBadge } from "@/components/ui/primitives";
 
 interface ExtendGraceStepProps {
   queueItemId: string;
   contractId?: string;
+  allContractsContent?: React.ReactNode;
+  showAllContracts?: boolean;
+  allContractsIsActive?: boolean;
+  onAllContractsTabClick?: () => void;
+  onAllContractsDeactivate?: () => void;
+  allContractsShowBack?: boolean;
+  onAllContractsBack?: () => void;
 }
 
 type LateRenewalIntent = "extend_grace" | "schedule_renewal" | "cancel_contract";
@@ -206,32 +213,24 @@ function ContractDocumentBody({ contract, customerName }: { contract: Contract; 
   );
 }
 
-function ContractPreviewPane({
+function ContractPreviewTabContent({
   contract,
   customerName,
-  onCollapse,
 }: {
   contract: Contract;
   customerName: string;
-  onCollapse: () => void;
 }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-gray-100">
-      <div className="mx-3 mt-3 flex shrink-0 items-center justify-between gap-2 rounded-3xl border border-gray-200 bg-white/65 px-3 py-2 shadow-[0_8px_24px_-12px_rgba(17,24,39,0.18)] backdrop-blur-md backdrop-saturate-150">
-        <span className="rounded px-2.5 py-1 text-[11px] font-medium text-text-primary">
+    <div className="flex min-h-full flex-col bg-[#F3F4F6]">
+      {/* Contract label bar */}
+      <div className="shrink-0 px-6 py-3">
+        <span className="rounded-md border border-border-default bg-white px-2.5 py-1.5 text-[11px] font-medium text-text-primary">
           Contract
         </span>
-        <button
-          type="button"
-          onClick={onCollapse}
-          className="rounded p-1 text-text-muted hover:bg-surface-muted hover:text-text-primary"
-          aria-label="Hide preview"
-        >
-          <PanelRightOpen size={14} className="rotate-180" />
-        </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto p-4">
-        <div className="mx-auto rounded-sm border border-border-default bg-white px-8 py-7 shadow-[0_2px_12px_rgba(17,24,39,0.08)]">
+      {/* Document body */}
+      <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
+        <div className="mx-auto max-w-3xl rounded-lg border border-border-default bg-white px-8 py-7 shadow-sm">
           <ContractDocumentBody contract={contract} customerName={customerName} />
         </div>
       </div>
@@ -243,7 +242,17 @@ function ContractPreviewPane({
 // Main step component
 // ---------------------------------------------------------------------------
 
-export function ExtendGraceStep({ queueItemId, contractId }: ExtendGraceStepProps) {
+export function ExtendGraceStep({ 
+  queueItemId, 
+  contractId, 
+  allContractsContent,
+  showAllContracts,
+  allContractsIsActive,
+  onAllContractsTabClick,
+  onAllContractsDeactivate,
+  allContractsShowBack,
+  onAllContractsBack,
+}: ExtendGraceStepProps) {
   const {
     queueItems,
     sessionContracts,
@@ -304,7 +313,6 @@ export function ExtendGraceStep({ queueItemId, contractId }: ExtendGraceStepProp
   );
 
   // ── Shared UI state ───────────────────────────────────────────────────────
-  const [previewCollapsed, setPreviewCollapsed] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [confirmedMessage, setConfirmedMessage] = useState("Grace period extended — closing…");
 
@@ -504,117 +512,104 @@ export function ExtendGraceStep({ queueItemId, contractId }: ExtendGraceStepProp
     );
   }
 
-  const gridClass =
-    "grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,40%)_minmax(0,60%)] [grid-template-rows:minmax(0,1fr)]";
-
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
-      <div className={gridClass}>
-        <div className="flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden">
-          {!previewCollapsed ? (
-            <ContractPreviewPane
-              contract={contract}
-              customerName={customer?.name ?? "Customer"}
-              onCollapse={() => setPreviewCollapsed(true)}
-            />
-          ) : (
-            <div className="flex min-h-0 flex-1 flex-row bg-gray-100">
-              <div className="flex shrink-0 bg-white">
-                <button
-                  type="button"
-                  onClick={() => setPreviewCollapsed(false)}
-                  className="flex h-full min-h-[200px] w-8 flex-col items-center justify-center gap-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
-                  title="Show preview"
-                >
-                  <PanelRightOpen size={14} />
-                  <span className="rotate-90 whitespace-nowrap text-[9px] uppercase tracking-widest">Preview</span>
-                </button>
-              </div>
-              <div className="min-h-0 min-w-0 flex-1" aria-hidden />
-            </div>
-          )}
-        </div>
+      <IngestWorkspaceTabs
+        documentTabs={[
+          {
+            id: "contract-pdf",
+            label: "Current Contract",
+            content: (
+              <ContractPreviewTabContent
+                contract={contract}
+                customerName={customer?.name ?? "Customer"}
+              />
+            ),
+          },
+        ]}
+        firstTabLabel={
+          intent === "extend_grace"
+            ? "Grace settings"
+            : intent === "schedule_renewal"
+              ? "Renewal details"
+              : "Cancellation details"
+        }
+        summaryItems={summaryItems}
+        extractedFieldsContent={
+              <div className="bg-[#F3F4F6]" data-drawer-fields-container>
+                <div className="mx-auto max-w-[520px] px-6 py-5 text-[14px] leading-snug" data-drawer-fields-inner>
+                  {confirmed ? (
+                    <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                      <CheckCircle2 size={16} className="text-emerald-600" />
+                      <p className="text-[14px] font-medium text-emerald-700">{confirmedMessage}</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-4">
+                      <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
+                        <div className="border-b border-border-subtle px-5 py-3">
+                          <h3 className="text-[14px] font-semibold text-text-primary">Late renewal action</h3>
+                        </div>
+                        <div className="px-5 py-4">
+                          <FormField label="What would you like to do?">
+                            <Select
+                              value={intent}
+                              onChange={(e) => setIntent(e.target.value as LateRenewalIntent)}
+                            >
+                              {INTENT_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </Select>
+                          </FormField>
+                        </div>
+                      </div>
 
-        <div className="relative flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden bg-gray-100">
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain transition-[padding] duration-200" data-drawer-fields-container>
-            <div className="mx-auto max-w-[480px] px-6 py-5 text-[14px] leading-snug transition-[margin] duration-200" data-drawer-fields-inner>
-            {confirmed ? (
-              <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                <CheckCircle2 size={16} className="text-emerald-600" />
-                <p className="text-[14px] font-medium text-emerald-700">{confirmedMessage}</p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-4">
-                {/* Intent selector card */}
-                <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
-                  <div className="border-b border-border-subtle px-5 py-3">
-                    <h3 className="text-[14px] font-semibold text-text-primary">Late renewal action</h3>
-                  </div>
-                  <div className="px-5 py-4">
-                    <FormField label="What would you like to do?">
-                      <Select
-                        value={intent}
-                        onChange={(e) => setIntent(e.target.value as LateRenewalIntent)}
-                      >
-                        {INTENT_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </Select>
-                    </FormField>
-                  </div>
+                      {intent === "extend_grace" && (
+                        <ExtendGraceBody
+                          contract={contract}
+                          graceDays={graceDays}
+                          onGraceDaysChange={setGraceDays}
+                          graceBilling={graceBilling}
+                          onGraceBillingChange={setGraceBilling}
+                          provisioningDuringGrace={provisioningDuringGrace}
+                          onProvisioningChange={setProvisioningDuringGrace}
+                          dunningDuringGrace={dunningDuringGrace}
+                          onDunningChange={setDunningDuringGrace}
+                        />
+                      )}
+
+                      {intent === "schedule_renewal" && (
+                        <ScheduleRenewalBody
+                          contract={contract}
+                          renewalStart={renewalStart}
+                          renewalEnd={renewalEnd}
+                        />
+                      )}
+
+                      {intent === "cancel_contract" && (
+                        <CancelContractBody
+                          contract={contract}
+                          cancelEffectiveDate={cancelEffectiveDate}
+                          onCancelEffectiveDateChange={setCancelEffectiveDate}
+                        />
+                      )}
+                    </div>
+                  )}
                 </div>
-
-                {intent === "extend_grace" && (
-                  <ExtendGraceBody
-                    contract={contract}
-                    graceDays={graceDays}
-                    onGraceDaysChange={setGraceDays}
-                    graceBilling={graceBilling}
-                    onGraceBillingChange={setGraceBilling}
-                    provisioningDuringGrace={provisioningDuringGrace}
-                    onProvisioningChange={setProvisioningDuringGrace}
-                    dunningDuringGrace={dunningDuringGrace}
-                    onDunningChange={setDunningDuringGrace}
-                  />
-                )}
-
-                {intent === "schedule_renewal" && (
-                  <ScheduleRenewalBody
-                    contract={contract}
-                    renewalStart={renewalStart}
-                    renewalEnd={renewalEnd}
-                  />
-                )}
-
-                {intent === "cancel_contract" && (
-                  <CancelContractBody
-                    contract={contract}
-                    cancelEffectiveDate={cancelEffectiveDate}
-                    onCancelEffectiveDateChange={setCancelEffectiveDate}
-                  />
-                )}
               </div>
-            )}
-          </div>
-          </div>
-          <DrawerInsightRail
-            variant="summary"
-            title={
-              intent === "extend_grace"
-                ? "Extension summary"
-                : intent === "schedule_renewal"
-                  ? "Renewal summary"
-                  : "Cancellation summary"
             }
-            summaryItems={summaryItems}
-            comments={approval?.comments ?? []}
-            onSubmitComment={handleAddComment}
-            commentsTitle="Discussion"
-          />
-        </div>
-      </div>
+        comments={approval?.comments ?? []}
+        onSubmitComment={handleAddComment}
+        allContractsContent={allContractsContent}
+        showAllContracts={showAllContracts}
+        allContractsIsActive={allContractsIsActive}
+        onAllContractsTabClick={onAllContractsTabClick}
+        onAllContractsDeactivate={onAllContractsDeactivate}
+        allContractsShowBack={allContractsShowBack}
+        onAllContractsBack={onAllContractsBack}
+        processSummary="Contract about to expire"
+      />
     </div>
   );
 }

@@ -305,3 +305,152 @@ export function ApprovalDocumentPreviewPane({
     </div>
   );
 }
+
+/**
+ * Invoice PDF preview content for use within IngestWorkspaceTabs.
+ * Just shows invoice (no toggle - contract is a separate tab now).
+ */
+export function InvoicePDFTabContent({
+  invoice,
+  customer,
+  enrichment,
+  invoiceOverrides,
+  previewVariant,
+}: {
+  invoice: Invoice;
+  customer: Customer;
+  enrichment?: InvoiceEnrichment;
+  invoiceOverrides: InvoiceFieldOverrides;
+  previewVariant: InvoicePreviewVariant;
+}) {
+  const [zoom, setZoom] = useState(100);
+
+  const effectiveInvoice: Invoice = {
+    ...invoice,
+    amount: invoiceOverrides.amount ?? invoice.amount,
+    dueDate: invoiceOverrides.dueDate ?? invoice.dueDate,
+    date: invoiceOverrides.invoiceDate ?? invoice.date,
+  };
+
+  return (
+    <div className="flex min-h-full flex-col bg-[#F3F4F6]">
+      {/* Controls bar */}
+      <div className="shrink-0 px-6 py-3">
+        <div className="flex items-center justify-end">
+          <div className="flex shrink-0 items-center gap-1 rounded-md border border-border-default bg-white px-2 py-1">
+            <button
+              type="button"
+              onClick={() => setZoom((z) => Math.max(50, z - 10))}
+              className="rounded p-0.5 text-text-muted hover:text-text-primary"
+              aria-label="Zoom out"
+            >
+              <Minus size={12} />
+            </button>
+            <span className="min-w-[32px] text-center text-[10px] tabular-nums text-text-secondary">{zoom}%</span>
+            <button
+              type="button"
+              onClick={() => setZoom((z) => Math.min(200, z + 10))}
+              className="rounded p-0.5 text-text-muted hover:text-text-primary"
+              aria-label="Zoom in"
+            >
+              <Plus size={12} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Document body */}
+      <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
+        <div
+          className="mx-auto max-w-3xl rounded-lg border border-border-default bg-white shadow-sm"
+          style={{ zoom: zoom / 100 } as CSSProperties}
+        >
+          <InvoiceHTMLPreview
+            invoice={effectiveInvoice}
+            customerName={customer.name}
+            enrichment={enrichment}
+            variant={previewVariant}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Contract PDF preview content for use within IngestWorkspaceTabs.
+ */
+export function ContractPDFTabContent({
+  contract,
+  customer,
+}: {
+  contract: Contract;
+  customer: Customer;
+}) {
+  const [zoom, setZoom] = useState(100);
+  const [page, setPage] = useState(1);
+  const pageCount = 3;
+
+  return (
+    <div className="flex min-h-full flex-col bg-[#F3F4F6]">
+      {/* Controls bar */}
+      <div className="shrink-0 px-6 py-3">
+        <div className="flex items-center justify-end">
+          <div className="flex shrink-0 items-center gap-1 rounded-md border border-border-default bg-white px-2 py-1">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="rounded p-0.5 text-text-muted transition-colors hover:text-text-primary disabled:opacity-40"
+              aria-label="Previous page"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <span className="min-w-[52px] text-center text-[10px] tabular-nums text-text-secondary">
+              {page} / {pageCount}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+              disabled={page === pageCount}
+              className="rounded p-0.5 text-text-muted transition-colors hover:text-text-primary disabled:opacity-40"
+              aria-label="Next page"
+            >
+              <ChevronRight size={14} />
+            </button>
+            <div className="mx-1 h-3 w-px bg-border-default" />
+            <button
+              type="button"
+              onClick={() => setZoom((z) => Math.max(50, z - 10))}
+              className="rounded p-0.5 text-text-muted hover:text-text-primary"
+              aria-label="Zoom out"
+            >
+              <Minus size={12} />
+            </button>
+            <span className="min-w-[32px] text-center text-[10px] tabular-nums text-text-secondary">{zoom}%</span>
+            <button
+              type="button"
+              onClick={() => setZoom((z) => Math.min(200, z + 10))}
+              className="rounded p-0.5 text-text-muted hover:text-text-primary"
+              aria-label="Zoom in"
+            >
+              <Plus size={12} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Document body */}
+      <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
+        <div
+          className="mx-auto max-w-3xl rounded-lg border border-border-default bg-white shadow-sm"
+          style={{ zoom: zoom / 100 } as CSSProperties}
+        >
+          <div className="px-8 py-7">
+            <ContractDocumentBody contract={contract} customer={customer} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -30,7 +30,14 @@ export function EntityDrawer() {
 
   return (
     <div className="fixed inset-0 z-[60] flex">
-      <div className="relative flex h-full min-h-0 w-full flex-col bg-white">
+      {/* Backdrop */}
+      <div
+        className="h-full w-[25%] shrink-0 bg-black/30"
+        onClick={closeDrawer}
+        aria-hidden
+      />
+      {/* Drawer panel - 75% width */}
+      <div className="relative flex h-full min-h-0 w-[75%] flex-col bg-white shadow-[-4px_0_24px_rgba(0,0,0,0.12)]">
         {useUnifiedShell && flow ? (
           <UnifiedFlowShell key={flow.key ?? `flow-${entityId ?? ""}`} onClose={closeDrawer} />
         ) : mode === "invoice_approval" && entityType === "invoice" && entityId ? (

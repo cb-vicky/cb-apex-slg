@@ -16,9 +16,11 @@ import { InvoiceDetailPage } from "@/pages/InvoiceDetailPage";
 import { QueueIngestPage } from "@/pages/QueueIngestPage";
 import { ApprovalDetailPage } from "@/pages/ApprovalDetailPage";
 import { EntityDrawer } from "@/components/common/EntityDrawer";
+import { RootErrorBoundary } from "@/components/common/RootErrorBoundary";
 
 export default function App() {
   return (
+    <RootErrorBoundary>
     <IngestProvider>
       <DemoPersonaProvider>
         <WorkspaceShellProvider>
@@ -60,5 +62,6 @@ export default function App() {
         </WorkspaceShellProvider>
         </DemoPersonaProvider>
       </IngestProvider>
+    </RootErrorBoundary>
   );
 }

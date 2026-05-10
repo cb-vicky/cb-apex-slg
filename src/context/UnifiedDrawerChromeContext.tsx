@@ -1,20 +1,45 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 
+export type AllContractsTabState = {
+  showTab: boolean;
+  isActive: boolean;
+  showBackButton: boolean;
+  onTabClick: () => void;
+  onBackClick: () => void;
+};
+
 export type UnifiedDrawerChromeValue = {
   trailingActions: ReactNode | null;
   setTrailingActions: (node: ReactNode | null) => void;
+  allContractsTab: AllContractsTabState;
+  setAllContractsTab: (state: Partial<AllContractsTabState>) => void;
+};
+
+const defaultAllContractsTab: AllContractsTabState = {
+  showTab: false,
+  isActive: false,
+  showBackButton: false,
+  onTabClick: () => {},
+  onBackClick: () => {},
 };
 
 const UnifiedDrawerChromeContext = createContext<UnifiedDrawerChromeValue | null>(null);
 
 export function UnifiedDrawerChromeProvider({ children }: { children: ReactNode }) {
   const [trailingActions, setTrailingActionsState] = useState<ReactNode | null>(null);
+  const [allContractsTabState, setAllContractsTabState] = useState<AllContractsTabState>(defaultAllContractsTab);
+  
   const setTrailingActions = useCallback((node: ReactNode | null) => {
     setTrailingActionsState(node);
   }, []);
+  
+  const setAllContractsTab = useCallback((state: Partial<AllContractsTabState>) => {
+    setAllContractsTabState((prev) => ({ ...prev, ...state }));
+  }, []);
+  
   const value = useMemo(
-    () => ({ trailingActions, setTrailingActions }),
-    [trailingActions, setTrailingActions],
+    () => ({ trailingActions, setTrailingActions, allContractsTab: allContractsTabState, setAllContractsTab }),
+    [trailingActions, setTrailingActions, allContractsTabState, setAllContractsTab],
   );
   return (
     <UnifiedDrawerChromeContext.Provider value={value}>{children}</UnifiedDrawerChromeContext.Provider>
@@ -29,6 +54,8 @@ export function useUnifiedDrawerChrome(): UnifiedDrawerChromeValue {
     return {
       trailingActions: null,
       setTrailingActions: () => {},
+      allContractsTab: defaultAllContractsTab,
+      setAllContractsTab: () => {},
     };
   }
   return ctx;

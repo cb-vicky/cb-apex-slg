@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { PanelRightOpen, CheckCircle2, ChevronDown, ChevronRight, Clock } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, Clock } from "lucide-react";
 import { useIngestContext } from "@/context/IngestContext";
 import { useUnifiedDrawerChrome } from "@/context/UnifiedDrawerChromeContext";
 import { contracts, customers } from "@/data/mock-data";
@@ -7,11 +7,18 @@ import type { ContractClosure, ClosureReason, ClosureSettlementType, Contract } 
 import { patchFlowSession } from "@/store/drawer-store";
 import { currency, shortDate, cn } from "@/lib/utils";
 import { type FieldSummaryItem } from "./ValidationPanel";
-import { DrawerInsightRail } from "./DrawerInsightRail";
+import { IngestWorkspaceTabs } from "./IngestWorkspaceTabs";
 import { FormField, formInputClass, Select } from "@/components/ui/form-field";
 
 interface EarlyRenewalClosePriorStepProps {
   queueItemId: string;
+  allContractsContent?: React.ReactNode;
+  showAllContracts?: boolean;
+  allContractsIsActive?: boolean;
+  onAllContractsTabClick?: () => void;
+  onAllContractsDeactivate?: () => void;
+  allContractsShowBack?: boolean;
+  onAllContractsBack?: () => void;
 }
 
 const CLOSURE_REASONS: { id: ClosureReason; label: string }[] = [
@@ -377,71 +384,40 @@ function CalculationCard({
   );
 }
 
-function ClosurePriorPreviewPane({
-  priorContract,
-  newContract,
+/**
+ * Single contract PDF preview content for display within IngestWorkspaceTabs.
+ */
+function SingleContractPDFContent({
+  contract,
   customerName,
-  onCollapse,
+  variant,
 }: {
-  priorContract: Contract;
-  newContract?: Contract;
+  contract: Contract;
   customerName: string;
-  onCollapse: () => void;
+  variant: "prior" | "renewal";
 }) {
-  const [tab, setTab] = useState<"new" | "prior">(newContract ? "new" : "prior");
-  const active = tab === "new" && newContract ? newContract : priorContract;
-  const variant: "prior" | "renewal" = tab === "new" && newContract ? "renewal" : "prior";
-
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-gray-100">
-      <div className="mx-3 mt-3 flex shrink-0 items-center justify-between gap-2 rounded-3xl border border-gray-200 bg-white/65 px-3 py-2 shadow-[0_8px_24px_-12px_rgba(17,24,39,0.18)] backdrop-blur-md backdrop-saturate-150">
-        <div className="flex items-center gap-0.5 rounded-md border border-border-default bg-surface-muted p-0.5">
-          {newContract && (
-            <button
-              type="button"
-              onClick={() => setTab("new")}
-              className={cn(
-                "rounded px-2.5 py-1 text-[11px] font-medium transition-colors",
-                tab === "new"
-                  ? "bg-white text-text-primary shadow-sm"
-                  : "text-text-muted hover:text-text-secondary",
-              )}
-            >
-              New contract
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setTab("prior")}
-            className={cn(
-              "rounded px-2.5 py-1 text-[11px] font-medium transition-colors",
-              tab === "prior"
-                ? "bg-white text-text-primary shadow-sm"
-                : "text-text-muted hover:text-text-secondary",
-            )}
-          >
-            Prior contract
-          </button>
-        </div>
-        <button
-          type="button"
-          onClick={onCollapse}
-          className="rounded p-1 text-text-muted hover:bg-surface-muted hover:text-text-primary"
-          aria-label="Hide preview"
-        >
-          <PanelRightOpen size={14} className="rotate-180" />
-        </button>
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto p-4">
-        <div className="mx-auto rounded-sm border border-border-default bg-white px-8 py-7 shadow-[0_2px_12px_rgba(17,24,39,0.08)]">
-          <ContractDocumentBody contract={active} customerName={customerName} variant={variant} />
+    <div className="flex min-h-full flex-col bg-[#F3F4F6]">
+      {/* Document body */}
+      <div className="min-h-0 flex-1 overflow-auto px-6 py-4">
+        <div className="mx-auto max-w-3xl rounded-lg border border-border-default bg-white px-8 py-7 shadow-sm">
+          <ContractDocumentBody contract={contract} customerName={customerName} variant={variant} />
         </div>
       </div>
     </div>
   );
 }
 
-export function EarlyRenewalClosePriorStep({ queueItemId }: EarlyRenewalClosePriorStepProps) {
+export function EarlyRenewalClosePriorStep({ 
+  queueItemId, 
+  allContractsContent,
+  showAllContracts,
+  allContractsIsActive,
+  onAllContractsTabClick,
+  onAllContractsDeactivate,
+  allContractsShowBack,
+  onAllContractsBack,
+}: EarlyRenewalClosePriorStepProps) {
   const {
     queueItems,
     sessionContracts,
@@ -485,7 +461,6 @@ export function EarlyRenewalClosePriorStep({ queueItemId }: EarlyRenewalClosePri
   // Termination charge is the default for both early and late renewals — credit note
   // is the exception and only fires when the operator explicitly selects it.
   const [settlementType, setSettlementType] = useState<ClosureSettlementType>("termination_charge");
-  const [previewCollapsed, setPreviewCollapsed] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [calcExpanded, setCalcExpanded] = useState(false);
 
@@ -749,172 +724,175 @@ export function EarlyRenewalClosePriorStep({ queueItemId }: EarlyRenewalClosePri
     );
   }
 
-  const gridClass =
-    "grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,40%)_minmax(0,60%)] [grid-template-rows:minmax(0,1fr)]";
+  const documentTabs = [
+    ...(newContract
+      ? [
+          {
+            id: "new-contract-pdf",
+            label: "New Contract",
+            content: (
+              <SingleContractPDFContent
+                contract={newContract}
+                customerName={customer?.name ?? "Customer"}
+                variant="renewal"
+              />
+            ),
+          },
+        ]
+      : []),
+    {
+      id: "prior-contract-pdf",
+      label: "Prior Contract PDF",
+      content: (
+        <SingleContractPDFContent
+          contract={priorContract}
+          customerName={customer?.name ?? "Customer"}
+          variant="prior"
+        />
+      ),
+    },
+  ];
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
-      <div className={gridClass}>
-        <div className="flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden">
-          {!previewCollapsed ? (
-            <ClosurePriorPreviewPane
-              priorContract={priorContract}
-              newContract={newContract}
-              customerName={customer?.name ?? "Customer"}
-              onCollapse={() => setPreviewCollapsed(true)}
-            />
-          ) : (
-            <div className="flex min-h-0 flex-1 flex-row bg-gray-100">
-              <div className="flex shrink-0 bg-white">
-                <button
-                  type="button"
-                  onClick={() => setPreviewCollapsed(false)}
-                  className="flex h-full min-h-[200px] w-8 flex-col items-center justify-center gap-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
-                  title="Show preview"
-                >
-                  <PanelRightOpen size={14} />
-                  <span className="rotate-90 whitespace-nowrap text-[9px] uppercase tracking-widest">Preview</span>
-                </button>
-              </div>
-              <div className="min-h-0 min-w-0 flex-1" aria-hidden />
-            </div>
-          )}
-        </div>
-
-        <div className="relative flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden bg-gray-100">
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain transition-[padding] duration-200" data-drawer-fields-container>
-            <div className="mx-auto max-w-[480px] px-6 py-5 text-[14px] leading-snug transition-[margin] duration-200" data-drawer-fields-inner>
-            {confirmed ? (
-              <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-                <CheckCircle2 size={16} className="text-emerald-600" />
-                <p className="text-[14px] font-medium text-emerald-700">Prior contract closed — proceeding to invoice review…</p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-4">
-                {showExtensionBanner && (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3">
-                    <div className="flex items-start gap-2">
-                      <Clock size={16} className="mt-0.5 shrink-0 text-amber-600" />
-                      <div>
-                        <p className="text-[13px] font-semibold text-amber-950">This customer has a contract in extension</p>
-                        <p className="mt-0.5 text-[12px] text-amber-900">
-                          Contract {priorContract.id} is in grace period through {shortDate(graceExtension!.until)} ·
-                          billing {graceExtension!.billingMode === "continue" ? "continued" : "paused"}.
-                          Closing this contract will resolve the grace extension.
-                        </p>
-                      </div>
+      <IngestWorkspaceTabs
+        documentTabs={documentTabs}
+        firstTabLabel="Closure details"
+        summaryItems={summaryItems}
+        extractedFieldsContent={
+              <div className="bg-[#F3F4F6]" data-drawer-fields-container>
+                <div className="mx-auto max-w-[520px] px-6 py-5 text-[14px] leading-snug" data-drawer-fields-inner>
+                  {confirmed ? (
+                    <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+                      <CheckCircle2 size={16} className="text-emerald-600" />
+                      <p className="text-[14px] font-medium text-emerald-700">Prior contract closed — proceeding to invoice review…</p>
                     </div>
-                  </div>
-                )}
-
-                <div className="rounded-2xl border border-blue-200 bg-blue-50/80 px-4 py-3">
-                  <p className="text-[13px] text-blue-900">
-                    <span className="font-semibold text-blue-950">Close prior contract</span>{" "}
-                    {isLateRenewal
-                      ? "on the contract expiry date so the renewal can pick up. Backdate or forward-date as needed."
-                      : "before activating the renewal."}
-                  </p>
-                </div>
-
-                {/* Closure details card */}
-                <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
-                  <div className="border-b border-border-subtle px-5 py-3">
-                    <h3 className="text-[14px] font-semibold text-text-primary">Closure details</h3>
-                  </div>
-                  <div className="flex flex-col gap-4 px-5 py-4">
-                    <FormField
-                      label="Closure effective date"
-                      hint={
-                        isLateRenewal
-                          ? "Defaults to the prior contract's expiry date. Operators commonly backdate to align with the renewal start."
-                          : undefined
-                      }
-                    >
-                      <input
-                        type="date"
-                        value={effectiveDate}
-                        onChange={(e) => setEffectiveDate(e.target.value)}
-                        className={formInputClass}
-                      />
-                      {isBackdated ? (
-                        <p className="mt-1 text-[11px] text-amber-700">
-                          Backdated to {shortDate(effectiveDate)}.
-                        </p>
-                      ) : isForwardDated ? (
-                        <p className="mt-1 text-[11px] text-text-muted">
-                          Scheduled for {shortDate(effectiveDate)}.
-                        </p>
-                      ) : null}
-                    </FormField>
-
-                    <FormField label="Closure reason">
-                      <Select value={reason} onChange={(e) => setReason(e.target.value as ClosureReason)}>
-                        {CLOSURE_REASONS.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.label}
-                          </option>
-                        ))}
-                      </Select>
-                    </FormField>
-                  </div>
-                </div>
-
-                {/* Settlement card */}
-                <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
-                  <div className="border-b border-border-subtle px-5 py-3">
-                    <h3 className="text-[14px] font-semibold text-text-primary">Settlement</h3>
-                  </div>
-                  <div className="flex flex-col gap-4 px-5 py-4">
-                    <FormField
-                      label="Settlement type"
-                      hint={
-                        isLateRenewal
-                          ? "For late renewals, any charge for the elapsed period is rolled into the upcoming renewal invoice."
-                          : undefined
-                      }
-                    >
-                      <Select value={settlementType} onChange={(e) => setSettlementType(e.target.value as ClosureSettlementType)}>
-                        {settlementOptions.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.label}
-                          </option>
-                        ))}
-                      </Select>
-                    </FormField>
-
-                    {calculations && calculations.suggestedAmount > 0 && (
-                      <CalculationCard
-                        settlementType={settlementType}
-                        isLateRenewal={isLateRenewal}
-                        expanded={calcExpanded}
-                        onToggle={() => setCalcExpanded((v) => !v)}
-                        contract={priorContract}
-                        calculations={calculations}
-                      />
-                    )}
-
-                    {isLateRenewal && newContract && /year|annual/i.test(newContract.billingFrequency) &&
-                      settlementType === "termination_charge" && (
-                        <div className="rounded-lg border border-border-subtle bg-gray-50 px-4 py-3 text-[12px] text-text-muted">
-                          The renewal contract is billed annually upfront — the elapsed period is absorbed into the new annual invoice, so no extra one-time charge applies.
+                  ) : (
+                    <div className="flex flex-col gap-4">
+                      {showExtensionBanner && (
+                        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3">
+                          <div className="flex items-start gap-2">
+                            <Clock size={16} className="mt-0.5 shrink-0 text-amber-600" />
+                            <div>
+                              <p className="text-[13px] font-semibold text-amber-950">This customer has a contract in extension</p>
+                              <p className="mt-0.5 text-[12px] text-amber-900">
+                                Contract {priorContract.id} is in grace period through {shortDate(graceExtension!.until)} ·
+                                billing {graceExtension!.billingMode === "continue" ? "continued" : "paused"}.
+                                Closing this contract will resolve the grace extension.
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       )}
-                  </div>
+
+                      <div className="rounded-2xl border border-blue-200 bg-blue-50/80 px-4 py-3">
+                        <p className="text-[13px] text-blue-900">
+                          <span className="font-semibold text-blue-950">Close prior contract</span>{" "}
+                          {isLateRenewal
+                            ? "on the contract expiry date so the renewal can pick up. Backdate or forward-date as needed."
+                            : "before activating the renewal."}
+                        </p>
+                      </div>
+
+                      <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
+                        <div className="border-b border-border-subtle px-5 py-3">
+                          <h3 className="text-[14px] font-semibold text-text-primary">Closure details</h3>
+                        </div>
+                        <div className="flex flex-col gap-4 px-5 py-4">
+                          <FormField
+                            label="Closure effective date"
+                            hint={
+                              isLateRenewal
+                                ? "Defaults to the prior contract's expiry date. Operators commonly backdate to align with the renewal start."
+                                : undefined
+                            }
+                          >
+                            <input
+                              type="date"
+                              value={effectiveDate}
+                              onChange={(e) => setEffectiveDate(e.target.value)}
+                              className={formInputClass}
+                            />
+                            {isBackdated ? (
+                              <p className="mt-1 text-[11px] text-amber-700">
+                                Backdated to {shortDate(effectiveDate)}.
+                              </p>
+                            ) : isForwardDated ? (
+                              <p className="mt-1 text-[11px] text-text-muted">
+                                Scheduled for {shortDate(effectiveDate)}.
+                              </p>
+                            ) : null}
+                          </FormField>
+
+                          <FormField label="Closure reason">
+                            <Select value={reason} onChange={(e) => setReason(e.target.value as ClosureReason)}>
+                              {CLOSURE_REASONS.map((r) => (
+                                <option key={r.id} value={r.id}>
+                                  {r.label}
+                                </option>
+                              ))}
+                            </Select>
+                          </FormField>
+                        </div>
+                      </div>
+
+                      <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
+                        <div className="border-b border-border-subtle px-5 py-3">
+                          <h3 className="text-[14px] font-semibold text-text-primary">Settlement</h3>
+                        </div>
+                        <div className="flex flex-col gap-4 px-5 py-4">
+                          <FormField
+                            label="Settlement type"
+                            hint={
+                              isLateRenewal
+                                ? "For late renewals, any charge for the elapsed period is rolled into the upcoming renewal invoice."
+                                : undefined
+                            }
+                          >
+                            <Select value={settlementType} onChange={(e) => setSettlementType(e.target.value as ClosureSettlementType)}>
+                              {settlementOptions.map((s) => (
+                                <option key={s.id} value={s.id}>
+                                  {s.label}
+                                </option>
+                              ))}
+                            </Select>
+                          </FormField>
+
+                          {calculations && calculations.suggestedAmount > 0 && (
+                            <CalculationCard
+                              settlementType={settlementType}
+                              isLateRenewal={isLateRenewal}
+                              expanded={calcExpanded}
+                              onToggle={() => setCalcExpanded((v) => !v)}
+                              contract={priorContract}
+                              calculations={calculations}
+                            />
+                          )}
+
+                          {isLateRenewal && newContract && /year|annual/i.test(newContract.billingFrequency) &&
+                            settlementType === "termination_charge" && (
+                              <div className="rounded-lg border border-border-subtle bg-gray-50 px-4 py-3 text-[12px] text-text-muted">
+                                The renewal contract is billed annually upfront — the elapsed period is absorbed into the new annual invoice, so no extra one-time charge applies.
+                              </div>
+                            )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
-            </div>
-          </div>
-          <DrawerInsightRail
-            variant="summary"
-            title="Closure summary"
-            summaryItems={summaryItems}
-            comments={approval?.comments ?? []}
-            onSubmitComment={handleAddComment}
-            commentsTitle="Discussion"
-          />
-        </div>
-      </div>
+            }
+        comments={approval?.comments ?? []}
+        onSubmitComment={handleAddComment}
+        allContractsContent={allContractsContent}
+        showAllContracts={showAllContracts}
+        allContractsIsActive={allContractsIsActive}
+        onAllContractsTabClick={onAllContractsTabClick}
+        onAllContractsDeactivate={onAllContractsDeactivate}
+        allContractsShowBack={allContractsShowBack}
+        onAllContractsBack={onAllContractsBack}
+        processSummary={isLateRenewal ? "Late Renewal" : "Early Renewal"}
+      />
     </div>
   );
 }

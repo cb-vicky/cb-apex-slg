@@ -6,7 +6,7 @@ import type { DrawerEntityType, DrawerMode, EntityState, TransitionDrawerIntent 
 import { transitionTypeFromIntent } from "@/data/contract-transition";
 import { useIngestContext } from "@/context/IngestContext";
 import { type ValidationItem } from "./ValidationPanel";
-import { DrawerInsightRail } from "./DrawerInsightRail";
+import { IngestWorkspaceTabs } from "./IngestWorkspaceTabs";
 import type { ApprovalComment } from "@/data/ingest-data";
 import { useDemoPersona } from "@/context/DemoPersonaContext";
 import { buildIngestResult, getExtractedContract } from "@/data/ingest-data";
@@ -52,7 +52,7 @@ import {
   type BillingKind,
 } from "./ingest-drawer-derive";
 import { ApprovalPanelOverlay } from "./ApprovalPanelOverlay";
-import { IngestDocumentPreviewPane } from "./IngestDocumentPreviewPane";
+import { IngestDocumentPreviewPane, DocumentPreviewTabContent } from "./IngestDocumentPreviewPane";
 import { IngestFieldGroup, type IngestFieldGroupChip } from "./IngestFieldGroup";
 import { getDrawerState, openDrawer, patchFlowSession } from "@/store/drawer-store";
 import { useDrawerStore } from "@/store/useDrawerStore";
@@ -98,6 +98,20 @@ export interface IngestDrawerProps {
   omitHeader?: boolean;
   /** Unified flow: approver recap on Map & terms — same layout, fields non-editable. */
   readOnly?: boolean;
+  /** Content for "All contracts" tab (when active) */
+  allContractsContent?: React.ReactNode;
+  /** Show the All contracts tab */
+  showAllContracts?: boolean;
+  /** Whether All contracts tab is active */
+  allContractsIsActive?: boolean;
+  /** Click handler for All contracts tab */
+  onAllContractsTabClick?: () => void;
+  /** Called when user switches AWAY from All contracts */
+  onAllContractsDeactivate?: () => void;
+  /** Show back button in All contracts view */
+  allContractsShowBack?: boolean;
+  /** Back button click handler */
+  onAllContractsBack?: () => void;
 }
 
 export function IngestDrawer({
@@ -109,6 +123,13 @@ export function IngestDrawer({
   presentation = "drawer",
   omitHeader = false,
   readOnly = false,
+  allContractsContent,
+  showAllContracts,
+  allContractsIsActive,
+  onAllContractsTabClick,
+  onAllContractsDeactivate,
+  allContractsShowBack,
+  onAllContractsBack,
 }: IngestDrawerProps) {
   const navigate = useNavigate();
   const ingestCtx = useIngestContext();
@@ -246,7 +267,7 @@ export function IngestDrawer({
   const [approvalOpen, setApprovalOpen] = useState(false);
   const [approvalVariant, setApprovalVariant] = useState<"approve_activate" | "approve_transition" | "submit">("submit");
   const [ingestPreviewCollapsed, setIngestPreviewCollapsed] = useState(false);
-  const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+  const [_activeSectionId, setActiveSectionId] = useState<string | null>(null);
 
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const fieldsContainerRef = useRef<HTMLDivElement | null>(null);
@@ -515,6 +536,14 @@ export function IngestDrawer({
   }, [queueItem, mode]);
 
   const showIntentSelector = mode !== "late_renewal";
+
+  const processSummary = useMemo(() => {
+    if (!queueItem) return undefined;
+    if (queueItem.scenario === "Early Renewal") return "Early Renewal";
+    if (queueItem.scenario === "Late Renewal") return "Late Renewal";
+    if (queueItem.scenario === "New Business") return "New Deal";
+    return undefined;
+  }, [queueItem?.scenario]);
 
   const timelineSteps = useMemo(() => {
     const act = startDate;
@@ -1189,201 +1218,194 @@ export function IngestDrawer({
       </header>
       ) : null}
 
-      {/* Body — queue ingest: two-column (preview · validations+fields) or narrow rail + preview. */}
+      {/* Body — queue ingest: unified single-column layout with document preview as tab */}
       <div
         className={cn(
           "relative min-h-0 flex-1 overflow-hidden",
           triColQueueIngest
-            ? "grid min-h-0 min-w-0 grid-cols-[minmax(0,40%)_minmax(0,60%)] [grid-template-rows:minmax(0,1fr)]"
+            ? "flex min-h-0 min-w-0 flex-col"
             : "flex min-w-0",
         )}
       >
         {isQueueIngest ? (
           triColQueueIngest ? (
-            <>
-              <div className="flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden">
-                {!ingestPreviewCollapsed ? (
-                  <IngestDocumentPreviewPane
-                    extracted={extracted}
-                    documentTitle={queueItem?.documentName ?? "Contract.pdf"}
-                    onCollapse={() => setIngestPreviewCollapsed(true)}
-                  />
-                ) : (
-                  <div className="flex min-h-0 flex-1 flex-row bg-gray-100">
-                    <div className="flex shrink-0 bg-white">
-                      <button
-                        type="button"
-                        onClick={() => setIngestPreviewCollapsed(false)}
-                        className="flex h-full min-h-[200px] w-8 flex-col items-center justify-center gap-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
-                        title="Show document preview"
-                      >
-                        <PanelRightOpen size={14} />
-                        <span className="rotate-90 whitespace-nowrap text-[9px] uppercase tracking-widest">Preview</span>
-                      </button>
-                    </div>
-                    <div className="min-h-0 min-w-0 flex-1" aria-hidden />
-                  </div>
-                )}
-              </div>
-              <div className="relative flex min-h-0 max-h-full min-w-0 flex-col overflow-hidden bg-gray-100">
-                <div ref={fieldsContainerRef} className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain transition-[padding] duration-200" data-drawer-fields-container>
-                  <div className="mx-auto max-w-[480px] px-6 py-5 text-[14px] leading-snug transition-[margin] duration-200" data-drawer-fields-inner>
-                  {queueItem && !queueItem.ingestable && (
-                    <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3 text-[13px] text-amber-900">
-                      This queue item is not ingestable in the prototype. Use{" "}
-                      {readOnly ? (
-                        <span className="font-semibold">Open comments</span>
-                      ) : (
-                        <button type="button" className="font-semibold underline" onClick={openIngestCommentsPage}>
-                          Open comments
-                        </button>
-                      )}{" "}
-                      for manual handling.
-                    </div>
-                  )}
-
-                  <fieldset
-                    disabled={readOnly}
-                    className="min-w-0 border-0 p-0 disabled:opacity-[0.92]"
-                  >
-                    <div className="flex min-w-0 flex-col gap-4">
-                      {showIntentSelector && !readOnly && (
-                        <TransitionIntentSelector value={intent} onChange={setIntent} allowed={allowedIntents} />
-                      )}
-
-                      {showLateRenewalBanner && (
-                        <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3">
-                          <div className="flex items-start gap-2">
-                            <Clock size={16} className="mt-0.5 shrink-0 text-amber-600" />
-                            <div>
-                              <p className="text-[13px] font-semibold text-amber-950">This customer has a contract in extension</p>
-                              <p className="mt-0.5 text-[12px] text-amber-900">
-                                Contract {priorContractForLateRenewal?.id} is in grace period through {shortDate(graceExtensionForLateRenewal?.until ?? "")} ·
-                                billing {graceExtensionForLateRenewal?.billingMode === "continue" ? "continued" : "paused"}.
-                                Closing it will resolve the grace extension automatically as part of this renewal.
-                              </p>
-                            </div>
+            <IngestWorkspaceTabs
+              documentTabs={[
+                {
+                  id: "contract-pdf",
+                  label: "New Contract",
+                  content: (
+                    <DocumentPreviewTabContent
+                      extracted={extracted}
+                      documentTitle={queueItem?.documentName ?? "Contract.pdf"}
+                      documentLabel="Contract"
+                    />
+                  ),
+                },
+              ]}
+              firstTabLabel="Extracted fields"
+              extractedFieldsContent={
+                    <div ref={fieldsContainerRef} className="bg-[#F3F4F6]" data-drawer-fields-container>
+                      <div className="mx-auto max-w-[520px] px-6 py-5 text-[14px] leading-snug" data-drawer-fields-inner>
+                        {queueItem && !queueItem.ingestable && (
+                          <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3 text-[13px] text-amber-900">
+                            This queue item is not ingestable in the prototype. Use{" "}
+                            {readOnly ? (
+                              <span className="font-semibold">Open comments</span>
+                            ) : (
+                              <button type="button" className="font-semibold underline" onClick={openIngestCommentsPage}>
+                                Open comments
+                              </button>
+                            )}{" "}
+                            for manual handling.
                           </div>
-                        </div>
-                      )}
+                        )}
 
-                      <IngestFieldGroup
-                        ref={(el) => { sectionRefs.current["customer"] = el; }}
-                        title="Customer"
-                        chip={groupChips["customer"]}
-                      >
-                        <CustomerMappingSection
-                          customers={mergedCustomers}
-                          selectedCustomerId={customerId}
-                          onSelectCustomer={setCustomerId}
-                          allowCreateNew={Boolean(queueItem && !queueItem.customerId)}
-                          newCustomer={newCustomer}
-                          onNewCustomerChange={(p) => setNewCustomer((prev) => ({ ...prev, ...p }))}
-                          activeContractSummary={
-                            activeContract ? `${activeContract.id} · ${currency(activeContract.tcv)} TCV` : null
-                          }
-                          createCustomerIssue={createCustomerIssueForDrawer}
-                          onConfirmCreateCustomer={() => {
-                            if (newCustomerComplete) setNewCustomerAcknowledged(true);
-                          }}
-                          createCustomerConfirmDisabled={!newCustomerComplete}
-                          showNewCustomerKvSummary={showNewCustomerKvSummary}
-                          onEditNewCustomer={() => setNewCustomerAcknowledged(false)}
-                        />
-                      </IngestFieldGroup>
-
-                      <IngestFieldGroup
-                        ref={(el) => { sectionRefs.current["billing"] = el; }}
-                        title="Billing & invoicing"
-                        chip={groupChips["billing"]}
-                      >
-                        <div className="flex flex-col gap-4">
-                          <div className="flex flex-col gap-2">
-                            <PrepaidOnlyBillingSelect kind={billingKind} onKindChange={setBillingKind} />
-                            <DrawerRailIndent>
-                              <ContractProcessingSummarySection tcv={tcv} startDate={startDate} />
-                            </DrawerRailIndent>
-                          </div>
-                          {intent !== "new_deal" && (
-                            <FinancialPreviewSection
-                              intent={intent}
-                              tcv={tcv}
-                              settlementAmount={settlementAmount}
-                              extensionCharge={extensionCharge}
-                              billingKind={billingKind}
-                            />
-                          )}
-                        </div>
-                      </IngestFieldGroup>
-
-                      <IngestFieldGroup
-                        ref={(el) => { sectionRefs.current["terms"] = el; }}
-                        title="Contract terms"
-                        chip={groupChips["terms"]}
-                      >
-                        <TransitionContractTermsSection
-                          startDate={startDate}
-                          endDate={endDate}
-                          onStartChange={setStartDate}
-                          onEndChange={setEndDate}
-                          billingFrequency={billingFrequency}
-                          onFrequencyChange={setBillingFrequency}
-                          autoRenew={autoRenew}
-                          onAutoRenewChange={setAutoRenew}
-                          activationSummary={activationSummary}
-                          allowBackdate={isLateRenewal}
-                        />
-                      </IngestFieldGroup>
-
-                      {intent !== "new_deal" && (
-                        <IngestFieldGroup title={transitionGroupTitle} chip={transitionChip}>
-                          <ContractTransitionSection
-                            intent={intent}
-                            executionDate={executionDate}
-                            onExecutionDateChange={setExecutionDate}
-                            amendmentDelta={tcv * 0.04}
-                            graceDays={graceDays}
-                            onGraceDaysChange={setGraceDays}
-                            graceBilling={graceBilling}
-                            onGraceBillingChange={setGraceBilling}
-                            resolution={resolution}
-                            onResolutionChange={setResolution}
-                            latePhase={latePhase}
-                          />
-                        </IngestFieldGroup>
-                      )}
-
-                      {extracted && (
-                        <IngestFieldGroup
-                          ref={(el) => { sectionRefs.current["catalog"] = el; }}
-                          title="Catalog mapping"
-                          chip={groupChips["catalog"]}
+                        <fieldset
+                          disabled={readOnly}
+                          className="min-w-0 border-0 p-0 disabled:opacity-[0.92]"
                         >
-                          <CatalogMappingSection
-                            layout="drawer"
-                            products={extracted.products}
-                            onMarkMapped={(sku) => addSessionProductSku(sku)}
-                            catalogMappingIssue={catalogMappingIssueForDrawer}
-                            sessionMappedSkus={sessionProductSkus}
-                          />
-                        </IngestFieldGroup>
-                      )}
+                          <div className="flex min-w-0 flex-col gap-4">
+                            {showIntentSelector && !readOnly && (
+                              <TransitionIntentSelector value={intent} onChange={setIntent} allowed={allowedIntents} />
+                            )}
+
+                            {showLateRenewalBanner && (
+                              <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3">
+                                <div className="flex items-start gap-2">
+                                  <Clock size={16} className="mt-0.5 shrink-0 text-amber-600" />
+                                  <div>
+                                    <p className="text-[13px] font-semibold text-amber-950">This customer has a contract in extension</p>
+                                    <p className="mt-0.5 text-[12px] text-amber-900">
+                                      Contract {priorContractForLateRenewal?.id} is in grace period through {shortDate(graceExtensionForLateRenewal?.until ?? "")} ·
+                                      billing {graceExtensionForLateRenewal?.billingMode === "continue" ? "continued" : "paused"}.
+                                      Closing it will resolve the grace extension automatically as part of this renewal.
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            <IngestFieldGroup
+                              ref={(el) => { sectionRefs.current["customer"] = el; }}
+                              title="Customer"
+                              chip={groupChips["customer"]}
+                            >
+                              <CustomerMappingSection
+                                customers={mergedCustomers}
+                                selectedCustomerId={customerId}
+                                onSelectCustomer={setCustomerId}
+                                allowCreateNew={Boolean(queueItem && !queueItem.customerId)}
+                                newCustomer={newCustomer}
+                                onNewCustomerChange={(p) => setNewCustomer((prev) => ({ ...prev, ...p }))}
+                                activeContractSummary={
+                                  activeContract ? `${activeContract.id} · ${currency(activeContract.tcv)} TCV` : null
+                                }
+                                createCustomerIssue={createCustomerIssueForDrawer}
+                                onConfirmCreateCustomer={() => {
+                                  if (newCustomerComplete) setNewCustomerAcknowledged(true);
+                                }}
+                                createCustomerConfirmDisabled={!newCustomerComplete}
+                                showNewCustomerKvSummary={showNewCustomerKvSummary}
+                                onEditNewCustomer={() => setNewCustomerAcknowledged(false)}
+                              />
+                            </IngestFieldGroup>
+
+                            <IngestFieldGroup
+                              ref={(el) => { sectionRefs.current["billing"] = el; }}
+                              title="Billing & invoicing"
+                              chip={groupChips["billing"]}
+                            >
+                              <div className="flex flex-col gap-4">
+                                <div className="flex flex-col gap-2">
+                                  <PrepaidOnlyBillingSelect kind={billingKind} onKindChange={setBillingKind} />
+                                  <DrawerRailIndent>
+                                    <ContractProcessingSummarySection tcv={tcv} startDate={startDate} />
+                                  </DrawerRailIndent>
+                                </div>
+                                {intent !== "new_deal" && (
+                                  <FinancialPreviewSection
+                                    intent={intent}
+                                    tcv={tcv}
+                                    settlementAmount={settlementAmount}
+                                    extensionCharge={extensionCharge}
+                                    billingKind={billingKind}
+                                  />
+                                )}
+                              </div>
+                            </IngestFieldGroup>
+
+                            <IngestFieldGroup
+                              ref={(el) => { sectionRefs.current["terms"] = el; }}
+                              title="Contract terms"
+                              chip={groupChips["terms"]}
+                            >
+                              <TransitionContractTermsSection
+                                startDate={startDate}
+                                endDate={endDate}
+                                onStartChange={setStartDate}
+                                onEndChange={setEndDate}
+                                billingFrequency={billingFrequency}
+                                onFrequencyChange={setBillingFrequency}
+                                autoRenew={autoRenew}
+                                onAutoRenewChange={setAutoRenew}
+                                activationSummary={activationSummary}
+                                allowBackdate={isLateRenewal}
+                              />
+                            </IngestFieldGroup>
+
+                            {intent !== "new_deal" && (
+                              <IngestFieldGroup title={transitionGroupTitle} chip={transitionChip}>
+                                <ContractTransitionSection
+                                  intent={intent}
+                                  executionDate={executionDate}
+                                  onExecutionDateChange={setExecutionDate}
+                                  amendmentDelta={tcv * 0.04}
+                                  graceDays={graceDays}
+                                  onGraceDaysChange={setGraceDays}
+                                  graceBilling={graceBilling}
+                                  onGraceBillingChange={setGraceBilling}
+                                  resolution={resolution}
+                                  onResolutionChange={setResolution}
+                                  latePhase={latePhase}
+                                />
+                              </IngestFieldGroup>
+                            )}
+
+                            {extracted && (
+                              <IngestFieldGroup
+                                ref={(el) => { sectionRefs.current["catalog"] = el; }}
+                                title="Catalog mapping"
+                                chip={groupChips["catalog"]}
+                              >
+                                <CatalogMappingSection
+                                  layout="drawer"
+                                  products={extracted.products}
+                                  onMarkMapped={(sku) => addSessionProductSku(sku)}
+                                  catalogMappingIssue={catalogMappingIssueForDrawer}
+                                  sessionMappedSkus={sessionProductSkus}
+                                />
+                              </IngestFieldGroup>
+                            )}
+                          </div>
+                        </fieldset>
+                      </div>
                     </div>
-                  </fieldset>
-                </div>
-              </div>
-                <DrawerInsightRail
-                  variant="validation"
-                  title="Validations"
+                  }
                   validationItems={validationItems}
-                  onItemClick={scrollToSection}
-                  activeItemId={activeSectionId ?? undefined}
+                  onValidationItemClick={scrollToSection}
                   comments={pageApproval?.comments ?? []}
                   onSubmitComment={readOnly || !queueItem ? undefined : handlePageIngestComment}
-                  commentsTitle="Discussion"
+                  readOnly={readOnly}
+                  allContractsContent={allContractsContent}
+                  showAllContracts={showAllContracts}
+                  allContractsIsActive={allContractsIsActive}
+                  onAllContractsTabClick={onAllContractsTabClick}
+                  onAllContractsDeactivate={onAllContractsDeactivate}
+                  allContractsShowBack={allContractsShowBack}
+                  onAllContractsBack={onAllContractsBack}
+                  processSummary={processSummary}
                 />
-              </div>
-            </>
           ) : (
             <>
               <div className="flex min-h-0 min-w-0 w-full flex-col overflow-hidden sm:w-[420px] sm:min-w-[420px] sm:max-w-[420px] sm:shrink-0">
