@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useScrolled } from "@/hooks/useScrolled";
 import { quotes, customers } from "@/data/mock-data";
@@ -5,6 +6,7 @@ import { currency, shortDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/primitives";
 import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStrip";
 import { ListTable, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
+import { FilterBar, type FilterTag, type FilterOption } from "@/components/index-page/FilterBar";
 import { PageHeader } from "@/components/index-page/PageHeader";
 
 // ---------------------------------------------------------------------------
@@ -31,6 +33,13 @@ const listColumns: Column[] = [
   { key: "owner", label: "Owner", width: "110px" },
 ];
 
+const filterOptions: FilterOption[] = [
+  { field: "Status", label: "Status", values: ["Draft", "Pending", "Accepted", "Rejected", "Expired"] },
+  { field: "Type", label: "Type", values: ["New Business", "Renewal", "Amendment", "Expansion"] },
+  { field: "Source", label: "Source", values: ["CPQ", "Manual", "API"] },
+  { field: "Owner", label: "Owner", values: ["Sarah Chen", "Mike Ross", "Alex Kim"] },
+];
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -38,6 +47,7 @@ const listColumns: Column[] = [
 export function QuotesIndex() {
   const navigate = useNavigate();
   const { ref: scrollRef, isScrolled } = useScrolled();
+  const [filters, setFilters] = useState<FilterTag[]>([]);
 
   const pending = quotes.filter((q) => q.approval.status === "pending").length;
   const expiringSoon = countExpiringSoon();
@@ -51,13 +61,20 @@ export function QuotesIndex() {
   ];
 
   return (
-    <div className="flex flex-1 w-full flex-col">
-      <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-gray-100 transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
+    <div className="flex flex-1 w-full flex-col bg-grey-100">
+      <div ref={scrollRef} className={`sticky top-0 z-10 bg-grey-100 rounded-tl-[24px] px-6 pt-5 pb-3 transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.04)]" : ""}`}>
         <PageHeader title="Quotes" createLabel="Create" />
       </div>
-      <div className="flex flex-col gap-5 px-6 pt-5 pb-7">
+      <div className="flex flex-col gap-5 px-6 pt-2 pb-7">
         <MetricStrip metrics={metrics} />
-        <ListTable columns={listColumns} resultCount={quotes.length}>
+        <FilterBar
+          filters={filters}
+          onFiltersChange={setFilters}
+          filterOptions={filterOptions}
+          resultCount={quotes.length}
+          resultLabel="quotes"
+        />
+        <ListTable columns={listColumns}>
           {quotes.map((q) => {
             const c = customers.find((cu) => cu.id === q.customerId);
             return (

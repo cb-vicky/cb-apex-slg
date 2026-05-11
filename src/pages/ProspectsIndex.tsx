@@ -1,10 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useScrolled } from "@/hooks/useScrolled";
 import { useIngestContext } from "@/context/IngestContext";
 import { currency, shortDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/primitives";
 import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStrip";
 import { ListTable, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
+import { FilterBar, type FilterTag, type FilterOption } from "@/components/index-page/FilterBar";
 import { PageHeader } from "@/components/index-page/PageHeader";
 import { openDrawer } from "@/store/drawer-store";
 import type { QueueItem } from "@/data/queue-data";
@@ -16,6 +17,11 @@ const listColumns: Column[] = [
   { key: "source", label: "Source", width: "100px" },
   { key: "uploadedAt", label: "Received", width: "110px", sortable: true },
   { key: "status", label: "Status", width: "130px" },
+];
+
+const filterOptions: FilterOption[] = [
+  { field: "Status", label: "Status", values: ["Pending Review", "In Progress", "Invoice review", "Returned"] },
+  { field: "Source", label: "Source", values: ["PDF Upload", "API", "CPQ", "Email"] },
 ];
 
 function isPendingStatus(status: string): boolean {
@@ -30,6 +36,7 @@ function isPendingStatus(status: string): boolean {
 export function ProspectsIndex() {
   const { queueItems } = useIngestContext();
   const { ref: scrollRef, isScrolled } = useScrolled();
+  const [filters, setFilters] = useState<FilterTag[]>([]);
 
   const prospects = useMemo(() => {
     return queueItems
@@ -75,23 +82,30 @@ export function ProspectsIndex() {
   };
 
   return (
-    <div className="flex flex-1 w-full flex-col">
+    <div className="flex flex-1 w-full flex-col bg-grey-100">
       <div
         ref={scrollRef}
-        className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-gray-100 transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}
+        className={`sticky top-0 z-10 bg-grey-100 rounded-tl-[24px] px-6 pt-5 pb-3 transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.04)]" : ""}`}
       >
         <PageHeader title="Prospects" />
       </div>
-      <div className="flex flex-col gap-5 px-6 pt-5 pb-7">
+      <div className="flex flex-col gap-5 px-6 pt-2 pb-7">
         <MetricStrip metrics={metrics} />
+        <FilterBar
+          filters={filters}
+          onFiltersChange={setFilters}
+          filterOptions={filterOptions}
+          resultCount={prospects.length}
+          resultLabel="prospects"
+        />
         {prospects.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 rounded-lg border border-border-default bg-surface-muted px-6 py-12 text-center">
+          <div className="flex flex-col items-center gap-3 rounded-3xl border border-border-default bg-white px-6 py-12 text-center">
             <p className="text-[13px] text-text-muted">
               No new business contracts pending ingestion.
             </p>
           </div>
         ) : (
-          <ListTable columns={listColumns} resultCount={prospects.length}>
+          <ListTable columns={listColumns}>
             {prospects.map((item) => (
               <ListRow key={item.id} onClick={() => handleRowClick(item)}>
                 <ListCell width="200px" className="font-medium text-text-primary">

@@ -62,14 +62,14 @@ export function ApprovalsTabContent() {
       <MetricStrip metrics={metrics} />
 
       {enriched.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-border-default bg-surface-muted py-16 text-center">
+        <div className="flex flex-col items-center justify-center rounded-3xl border border-border-default bg-white py-16 text-center">
           <p className="text-[14px] font-medium text-text-secondary">No approvals pending</p>
           <p className="mt-1 text-[12px] text-text-muted">
             Approvals will appear here once a document is submitted for review.
           </p>
         </div>
       ) : (
-        <ListTable columns={columns} resultCount={enriched.length} resultLabel="approvals">
+        <ListTable columns={columns}>
           {enriched.map((req) => (
             <ListRow
               key={req.id}

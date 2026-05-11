@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useScrolled } from "@/hooks/useScrolled";
 import { invoices, customers } from "@/data/mock-data";
@@ -8,6 +8,7 @@ import { currency, shortDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/primitives";
 import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStrip";
 import { ListTable, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
+import { FilterBar, type FilterTag, type FilterOption } from "@/components/index-page/FilterBar";
 import { PageHeader } from "@/components/index-page/PageHeader";
 
 // ---------------------------------------------------------------------------
@@ -37,6 +38,12 @@ const listColumns: Column[] = [
   { key: "blocker", label: "Blocker", width: "160px" },
 ];
 
+const filterOptions: FilterOption[] = [
+  { field: "Status", label: "Status", values: ["Pending Review", "Pending Approval", "Paid", "Overdue", "Draft"] },
+  { field: "Owner", label: "Owner", values: ["Sarah Chen", "Mike Ross", "Alex Kim"] },
+  { field: "Blocker", label: "Blocker", values: ["Has blocker", "No blocker"] },
+];
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -44,6 +51,7 @@ const listColumns: Column[] = [
 export function InvoicesIndex() {
   const navigate = useNavigate();
   const { invoiceStatusOverrides, sessionInvoices, sessionCustomers } = useIngestContext();
+  const [filters, setFilters] = useState<FilterTag[]>([]);
 
   const customersMerged = useMemo(() => {
     const byId = new Map(customers.map((c) => [c.id, c]));
@@ -84,13 +92,20 @@ export function InvoicesIndex() {
   ];
 
   return (
-    <div className="flex flex-1 w-full flex-col">
-      <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-gray-100 transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
+    <div className="flex flex-1 w-full flex-col bg-grey-100">
+      <div ref={scrollRef} className={`sticky top-0 z-10 bg-grey-100 rounded-tl-[24px] px-6 pt-5 pb-3 transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.04)]" : ""}`}>
         <PageHeader title="Invoices" />
       </div>
-      <div className="flex flex-col gap-5 px-6 pt-5 pb-7">
+      <div className="flex flex-col gap-5 px-6 pt-2 pb-7">
         <MetricStrip metrics={metrics} />
-        <ListTable columns={listColumns} resultCount={invoicesView.length}>
+        <FilterBar
+          filters={filters}
+          onFiltersChange={setFilters}
+          filterOptions={filterOptions}
+          resultCount={invoicesView.length}
+          resultLabel="invoices"
+        />
+        <ListTable columns={listColumns}>
           {invoicesView.map((inv) => {
             const c = customersMerged.find((cu) => cu.id === inv.customerId);
             return (

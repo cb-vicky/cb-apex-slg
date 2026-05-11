@@ -212,14 +212,14 @@ export function QueueTabContent() {
         <MetricStrip metrics={metrics} />
         <div className="mt-5">
           {queueItems.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-lg border border-border-default bg-surface-muted py-16 text-center">
+            <div className="flex flex-col items-center justify-center rounded-3xl border border-border-default bg-white py-16 text-center">
               <p className="text-[14px] font-medium text-text-secondary">No queue items</p>
               <p className="mt-1 text-[12px] text-text-muted">
                 Import a signed contract or connect an external source to populate the queue.
               </p>
             </div>
           ) : (
-            <ListTable columns={listColumns} resultCount={queueItems.length}>
+            <ListTable columns={listColumns}>
               {queueItems.map((q) => (
                 <ListRow key={q.id} onClick={() => handleRowClick(q)}>
                   <ListCell width="200px" className="font-medium text-text-primary">

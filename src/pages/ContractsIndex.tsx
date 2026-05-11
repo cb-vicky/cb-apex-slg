@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useScrolled } from "@/hooks/useScrolled";
 import { contracts, customers } from "@/data/mock-data";
@@ -8,6 +8,7 @@ import { currency, shortDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/primitives";
 import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStrip";
 import { ListTable, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
+import { FilterBar, type FilterTag, type FilterOption } from "@/components/index-page/FilterBar";
 import { PageHeader } from "@/components/index-page/PageHeader";
 
 // ---------------------------------------------------------------------------
@@ -41,6 +42,12 @@ const listColumns: Column[] = [
   { key: "owner", label: "Owner", width: "110px" },
 ];
 
+const filterOptions: FilterOption[] = [
+  { field: "Status", label: "Status", values: ["Active", "Extended", "Closing", "Scheduled", "Closed", "Terminated"] },
+  { field: "Enforcement", label: "Enforcement", values: ["Enforced", "Pending", "Not Enforced"] },
+  { field: "Owner", label: "Owner", values: ["Sarah Chen", "Mike Ross", "Alex Kim"] },
+];
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -48,6 +55,7 @@ const listColumns: Column[] = [
 export function ContractsIndex() {
   const navigate = useNavigate();
   const { contractClosures, contractGraceExtensions, sessionContracts, sessionCustomers } = useIngestContext();
+  const [filters, setFilters] = useState<FilterTag[]>([]);
 
   const customersMerged = useMemo(() => {
     const byId = new Map(customers.map((c) => [c.id, c]));
@@ -89,13 +97,20 @@ export function ContractsIndex() {
   ];
 
   return (
-    <div className="flex flex-1 w-full flex-col">
-      <div ref={scrollRef} className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-gray-100 transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""}`}>
+    <div className="flex flex-1 w-full flex-col bg-grey-100">
+      <div ref={scrollRef} className={`sticky top-0 z-10 bg-grey-100 rounded-tl-[24px] px-6 pt-5 pb-3 transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.04)]" : ""}`}>
         <PageHeader title="Contracts" />
       </div>
-      <div className="flex flex-col gap-5 px-6 pt-5 pb-7">
+      <div className="flex flex-col gap-5 px-6 pt-2 pb-7">
         <MetricStrip metrics={metrics} />
-        <ListTable columns={listColumns} resultCount={contractsView.length}>
+        <FilterBar
+          filters={filters}
+          onFiltersChange={setFilters}
+          filterOptions={filterOptions}
+          resultCount={contractsView.length}
+          resultLabel="contracts"
+        />
+        <ListTable columns={listColumns}>
           {contractsView.map((c) => {
             const cu = customersMerged.find((x) => x.id === c.customerId);
             return (

@@ -145,11 +145,13 @@ export function KV({
   label,
   value,
   className,
+  valueClassName,
   layout = "stacked",
 }: {
   label: string;
   value: ReactNode;
   className?: string;
+  valueClassName?: string;
   /** `inline` = label and value on one row (legacy dense rows); prefer `stacked` for detail surfaces. */
   layout?: "stacked" | "inline";
 }) {
@@ -157,14 +159,14 @@ export function KV({
     return (
       <div className={cn("flex min-w-0 items-baseline justify-between gap-4 py-2 text-[14px]", className)}>
         <span className="shrink-0 text-text-secondary">{label}</span>
-        <span className="min-w-0 truncate text-right font-medium text-text-primary">{value}</span>
+        <span className={cn("min-w-0 truncate text-right font-medium text-text-primary", valueClassName)}>{value}</span>
       </div>
     );
   }
   return (
     <div className={cn("flex min-w-0 flex-col gap-1 py-2.5 text-left", className)}>
       <span className="text-[12px] leading-tight text-text-muted">{label}</span>
-      <div className="min-w-0 truncate text-[14px] font-medium leading-snug text-text-primary">{value}</div>
+      <div className={cn("min-w-0 truncate text-[14px] font-medium leading-snug text-text-primary", valueClassName)}>{value}</div>
     </div>
   );
 }

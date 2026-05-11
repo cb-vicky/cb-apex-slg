@@ -12,6 +12,9 @@
   --color-surface: #ffffff;
   --color-surface-muted: #f8f9fa;
   --color-surface-subtle: #f1f3f5;
+  /* Grey tones for shell backgrounds */
+  --color-grey-100: #f3f4f6;
+  --color-grey-50: #f9fafb;
   --color-border-default: #e5e7eb;
   --color-border-subtle: #f3f4f6;
   --color-text-primary: #111827;

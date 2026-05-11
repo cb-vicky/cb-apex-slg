@@ -15,33 +15,12 @@ export interface Column {
 interface Props {
   columns: Column[];
   children: ReactNode;
-  /** Shown in a slim toolbar above the header (e.g. filters). */
-  toolbarLeft?: ReactNode;
-  toolbarRight?: ReactNode;
-  /** Renders as muted “N results” when set. */
-  resultCount?: number;
-  resultLabel?: string;
 }
 
-export function ListTable({ columns, children, toolbarLeft, toolbarRight, resultCount, resultLabel = "results" }: Props) {
-  const showToolbar = toolbarLeft != null || toolbarRight != null || resultCount !== undefined;
-
+export function ListTable({ columns, children }: Props) {
   return (
-    <div className="border-y border-border-default bg-white">
-      {showToolbar && (
-        <div className="flex min-h-[44px] items-center justify-between gap-3 border-b border-border-subtle bg-white py-2.5 pl-3 pr-4">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{toolbarLeft}</div>
-          <div className="flex shrink-0 items-center gap-2">
-            {toolbarRight}
-            {resultCount !== undefined && (
-              <span className="text-[13px] tabular-nums text-text-muted">
-                {resultCount} {resultLabel}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-      <div className="flex min-h-[40px] shrink-0 items-center gap-3 border-b border-border-subtle bg-gray-50 py-2 pl-3 pr-4">
+    <div className="overflow-hidden rounded-3xl border border-border-default bg-white">
+      <div className="flex min-h-[40px] shrink-0 items-center gap-3 border-b border-border-subtle bg-white px-4 pt-4 pb-2">
         {columns.map((col) => (
           <span
             key={col.key}
@@ -73,7 +52,7 @@ export function ListRow({ onClick, children }: { onClick: () => void; children: 
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3 py-3 pl-3 pr-4 text-left text-[13px] leading-snug transition-colors hover:bg-surface-muted/60"
+      className="flex w-full items-center gap-3 py-3 pl-4 pr-4 text-left text-[13px] leading-snug transition-colors hover:bg-surface-muted/60"
     >
       {children}
     </button>

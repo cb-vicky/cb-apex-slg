@@ -1,3 +1,5 @@
+import { cn } from "@/lib/utils";
+
 export interface MetricCard {
   label: string;
   value: string | number;
@@ -13,16 +15,21 @@ const variantClasses = {
 
 export function MetricStrip({ metrics }: { metrics: MetricCard[] }) {
   return (
-    <div className="flex items-stretch gap-3">
+    <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
       {metrics.map((m) => (
         <div
           key={m.label}
-          className="flex flex-1 flex-col gap-1.5 border-r border-border-default bg-white px-6 py-3"
+          className="flex flex-col gap-1 rounded-2xl border border-border-default bg-white px-5 py-4"
         >
-          <span className="text-[12px] font-medium uppercase tracking-wider text-text-muted">{m.label}</span>
-          <span className={`text-[22px] font-semibold leading-tight tracking-tight tabular-nums ${variantClasses[m.variant ?? "default"]}`}>
+          <span
+            className={cn(
+              "text-[26px] font-semibold leading-tight tracking-tight tabular-nums",
+              variantClasses[m.variant ?? "default"],
+            )}
+          >
             {m.value}
           </span>
+          <span className="text-[13px] text-text-secondary">{m.label}</span>
         </div>
       ))}
     </div>

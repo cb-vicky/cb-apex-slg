@@ -216,13 +216,13 @@ export function Sidebar() {
     .filter((c): c is (typeof customers)[number] => Boolean(c));
 
   return (
-    <aside className="relative z-[0] flex w-[200px] shrink-0 flex-col overflow-hidden rounded-tl-[24px] bg-white pt-6 pb-3">
+    <aside className="relative z-[0] flex w-[200px] shrink-0 flex-col overflow-hidden rounded-tl-[24px] bg-grey-100 pt-6 pb-3">
       <div className="flex flex-1 flex-col overflow-y-auto px-2">
         {/* Search — gradient border styling (previously Ask AI), now consolidated with keyboard shortcut */}
         <div className="rounded-md bg-gradient-to-r from-cb-orange to-transparent p-px">
           <button
             type="button"
-            className="group/search flex w-full items-center gap-2 rounded-[5px] bg-white px-2 py-[5px] text-left text-[13px] font-medium text-[#012A38] transition-colors hover:bg-cb-orange hover:text-white"
+            className="group/search flex w-full items-center gap-2 rounded-[5px] bg-grey-100 px-2 py-[5px] text-left text-[13px] font-medium text-[#012A38] transition-colors hover:bg-cb-orange hover:text-white"
           >
             <Search
               size={14}

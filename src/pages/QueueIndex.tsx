@@ -8,6 +8,7 @@ import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStri
 import { GroupedSection } from "@/components/index-page/GroupedSection";
 import { GroupedRow, RowCell } from "@/components/index-page/GroupedRow";
 import { ListTable, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
+import { FilterBar, type FilterTag, type FilterOption } from "@/components/index-page/FilterBar";
 import { PageHeader } from "@/components/index-page/PageHeader";
 import { ViewToggle, type ViewMode } from "@/components/index-page/ViewToggle";
 import { UploadModal } from "@/components/contracts/UploadModal";
@@ -80,7 +81,6 @@ function buildGroups(items: QueueItem[]): Record<string, QueueItem[]> {
 }
 
 function rowSubtitle(q: QueueItem): string {
-  // For ingested / failed items show context that matters
   if (q.status === "Ingested") return q.contractId ?? q.documentName;
   if (q.status === "Invoice review") return q.invoiceId ?? q.documentName;
   if (q.status === "Returned")
@@ -105,6 +105,12 @@ const listColumns: Column[] = [
   { key: "status", label: "Status", width: "120px" },
 ];
 
+const filterOptions: FilterOption[] = [
+  { field: "Status", label: "Status", values: ["Pending Review", "In Progress", "Invoice review", "Ingested", "Failed", "Rejected"] },
+  { field: "Scenario", label: "Scenario", values: ["New Business", "Renewal", "Amendment", "Early Renewal", "Late Renewal"] },
+  { field: "Source", label: "Source", values: ["PDF Upload", "API", "CPQ", "Email"] },
+];
+
 export function QueueIndex() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -114,6 +120,7 @@ export function QueueIndex() {
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
+  const [filters, setFilters] = useState<FilterTag[]>([]);
 
   const groupFilter = searchParams.get("group");
   const viewMode = (searchParams.get("view") as ViewMode) || "groups";
@@ -179,8 +186,6 @@ export function QueueIndex() {
       return;
     }
     if (q.status === "Failed" || q.status === "Rejected") {
-      // No-op: rendered with disabled visual, but rows are still clickable
-      // for parity. Navigate to the queue detail to show the failure state.
       navigate(`/queue/${q.id}`);
       return;
     }
@@ -206,7 +211,6 @@ export function QueueIndex() {
     />
   );
 
-  // Metrics
   const pendingCount = groups["pending-review"].length;
   const inProgressCount = groups["in-progress"].length;
   const invoiceReviewCount = groups["invoice-review"].length;
@@ -256,11 +260,11 @@ export function QueueIndex() {
     return (
       <>
         {modal}
-        <div className="flex flex-1 w-full flex-col">
+        <div className="flex flex-1 w-full flex-col bg-grey-100">
           <div
             ref={scrollRef}
-            className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-gray-100 transition-shadow duration-200${
-              isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""
+            className={`sticky top-0 z-10 bg-grey-100 rounded-tl-[24px] px-6 pt-5 pb-3 transition-shadow duration-200${
+              isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.04)]" : ""
             }`}
           >
             <PageHeader
@@ -273,9 +277,16 @@ export function QueueIndex() {
               secondaryActions={secondaryActions}
             />
           </div>
-          <div className="flex flex-col gap-5 px-6 pt-5 pb-7">
+          <div className="flex flex-col gap-5 px-6 pt-2 pb-7">
             <MetricStrip metrics={metrics} />
-            <ListTable columns={listColumns} resultCount={rows.length}>
+            <FilterBar
+              filters={filters}
+              onFiltersChange={setFilters}
+              filterOptions={filterOptions}
+              resultCount={rows.length}
+              resultLabel="items"
+            />
+            <ListTable columns={listColumns}>
               {rows.map((q) => (
                 <ListRow key={q.id} onClick={() => handleRowClick(q)}>
                   <ListCell width="120px" className="font-medium text-blue-600">{q.id}</ListCell>
@@ -312,11 +323,11 @@ export function QueueIndex() {
     return (
       <>
         {modal}
-        <div className="flex flex-1 w-full flex-col">
+        <div className="flex flex-1 w-full flex-col bg-grey-100">
           <div
             ref={scrollRef}
-            className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-gray-100 transition-shadow duration-200${
-              isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""
+            className={`sticky top-0 z-10 bg-grey-100 rounded-tl-[24px] px-6 pt-5 pb-3 transition-shadow duration-200${
+              isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.04)]" : ""
             }`}
           >
             <PageHeader
@@ -327,9 +338,16 @@ export function QueueIndex() {
               secondaryActions={secondaryActions}
             />
           </div>
-          <div className="flex flex-col gap-5 px-6 pt-5 pb-7">
+          <div className="flex flex-col gap-5 px-6 pt-2 pb-7">
             <MetricStrip metrics={metrics} />
-            <ListTable columns={listColumns} resultCount={queueItems.length}>
+            <FilterBar
+              filters={filters}
+              onFiltersChange={setFilters}
+              filterOptions={filterOptions}
+              resultCount={queueItems.length}
+              resultLabel="items"
+            />
+            <ListTable columns={listColumns}>
               {queueItems.map((q) => (
                 <ListRow key={q.id} onClick={() => handleRowClick(q)}>
                   <ListCell width="120px" className="font-medium text-blue-600">{q.id}</ListCell>
@@ -365,11 +383,11 @@ export function QueueIndex() {
   return (
     <>
       {modal}
-      <div className="flex flex-1 w-full flex-col">
+      <div className="flex flex-1 w-full flex-col bg-grey-100">
         <div
           ref={scrollRef}
-          className={`sticky top-0 z-10 bg-white rounded-tl-[24px] px-6 pt-3 pb-3 border-b border-gray-100 transition-shadow duration-200${
-            isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.08)]" : ""
+          className={`sticky top-0 z-10 bg-grey-100 rounded-tl-[24px] px-6 pt-5 pb-3 transition-shadow duration-200${
+            isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.04)]" : ""
           }`}
         >
           <PageHeader
@@ -380,7 +398,7 @@ export function QueueIndex() {
             secondaryActions={secondaryActions}
           />
         </div>
-        <div className="flex flex-col gap-5 px-6 pt-5 pb-7">
+        <div className="flex flex-col gap-5 px-6 pt-2 pb-7">
           <MetricStrip metrics={metrics} />
 
           {queueGroupMeta.map((gm) => {
@@ -417,9 +435,8 @@ export function QueueIndex() {
             );
           })}
 
-          {/* Empty state if everything is empty (defensive — shouldn't happen with seed data) */}
           {Object.values(groups).every((g) => g.length === 0) && (
-            <div className="flex flex-col items-center justify-center rounded-lg border border-border-default bg-surface-muted py-16 text-center">
+            <div className="flex flex-col items-center justify-center rounded-3xl border border-border-default bg-white py-16 text-center">
               <p className="text-[14px] font-medium text-text-secondary">No queue items</p>
               <p className="mt-1 text-[12px] text-text-muted">
                 Import a signed contract or connect an external source to populate the queue.

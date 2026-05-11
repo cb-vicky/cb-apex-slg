@@ -30,7 +30,7 @@ export function PageHeader({
   const navigate = useNavigate();
 
   return (
-    <div className="flex items-center justify-between gap-4">
+    <div className="flex h-[48px] items-center justify-between gap-4">
       <div className="flex min-w-0 items-center gap-3">
         {backLabel && backPath && (
           <button
@@ -41,7 +41,7 @@ export function PageHeader({
             {backLabel}
           </button>
         )}
-        <h1 className="text-[22px] font-semibold leading-tight tracking-tight text-text-primary">{title}</h1>
+        <h1 className="text-[24px] font-semibold leading-none tracking-tight text-text-primary">{title}</h1>
         {filterLabel && (
           <span className="rounded-md border border-cb-orange/30 bg-cb-orange/10 px-2 py-0.5 text-[12px] font-medium leading-4 text-cb-orange">
             {filterLabel}

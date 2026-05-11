@@ -106,7 +106,7 @@ export function IngestWorkspaceTabs({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#F3F4F6]">
       {/* Tab bar - flush with background, centered */}
-      <div className="shrink-0 px-6 pt-4">
+      <div className="shrink-0 px-6 pt-9">
         <div className="relative flex items-end justify-center gap-6 border-b border-gray-200 pb-0">
           {/* Back button - positioned to the left */}
           {showBackButton && onBackClick && (

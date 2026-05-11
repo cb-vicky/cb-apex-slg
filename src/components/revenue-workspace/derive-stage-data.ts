@@ -698,8 +698,8 @@ export function getPrimaryCustomerAction(
     const total = overdue.reduce((s, i) => s + i.amount, 0);
     return {
       kind: "overdue",
-      label: overdue.length === 1 ? "Resolve overdue invoice" : "Resolve overdue invoices",
-      description: `${overdue.length} past due — ${currency(total)} total. Start with the oldest due date to limit aging and renewal risk.`,
+      label: `${overdue.length} overdue invoice${overdue.length > 1 ? "s" : ""} · ${currency(total)} past due`,
+      description: `Start with the oldest due date to limit aging and renewal risk.`,
       learnMoreBody:
         "Overdue balances affect cash, DSO, and renewal leverage. Prioritize the oldest invoice, confirm dispute vs. neglect, align with collections on next steps, and document promised pay dates in the payment workspace.",
       executeTo: `${base}?tab=invoicing&invoiceId=${firstOverdue.id}`,
@@ -716,8 +716,8 @@ export function getPrimaryCustomerAction(
       const q = pendingQueue[0];
       return {
         kind: "queue_ingest",
-        label: "Review queued contract document",
-        description: `${q.documentName} — ${q.scenario}, ${currency(q.tcv)} TCV (${q.status}).`,
+        label: `Ingest queued document · ${currency(q.tcv)} TCV`,
+        description: `${q.documentName} — ${q.scenario} (${q.status}).`,
         learnMoreBody:
           "Queue items represent signed commercial documents awaiting extraction and mapping. Clear the queue early so billing, renewals, and rev rec stay aligned with what was actually sold.",
         executeTo: "/queue",
@@ -732,8 +732,8 @@ export function getPrimaryCustomerAction(
     const ext = session?.contractGraceExtensions?.[extended.id];
     return {
       kind: "grace_extension",
-      label: "Resolve grace extension",
-      description: `Contract ${extended.id} is in a grace period${ext?.until ? ` through ${shortDate(ext.until)}` : ""}.`,
+      label: `Grace extension active${ext?.until ? ` · until ${shortDate(ext.until)}` : ""}`,
+      description: `Contract ${extended.id} is in a grace period — confirm commercial dates and billing timing.`,
       learnMoreBody:
         "Grace extensions usually follow late renewals or billing disputes. Confirm the new commercial dates, entitlement end, and invoice timing so downstream AR and rev rec do not drift.",
       executeTo: `${base}?tab=contract&contractId=${extended.id}`,
@@ -746,8 +746,8 @@ export function getPrimaryCustomerAction(
   if (closing?.closure) {
     return {
       kind: "contract_closing",
-      label: "Confirm scheduled contract closure",
-      description: `Contract ${closing.id} closes on ${shortDate(closing.closure.effectiveDate)} — validate billing wind-down and replacement terms.`,
+      label: `Contract closing · ${shortDate(closing.closure.effectiveDate)}`,
+      description: `Validate billing wind-down and replacement terms for ${closing.id}.`,
       learnMoreBody:
         "A scheduled closure affects renewal timing, true-ups, and revenue recognition. Review closure reason, credit notes, and any replacement quote or ingest before the effective date.",
       executeTo: `${base}?tab=contract&contractId=${closing.id}`,
@@ -773,8 +773,8 @@ export function getPrimaryCustomerAction(
         if (approval.ingestId) qs.set("ingestId", approval.ingestId);
         return {
           kind: "invoice_activation_pending",
-          label: "Invoice requires approval to activate contract",
-          description: `${approval.invoiceId} is pending approval — ${c.id} stays scheduled until an approver releases it.`,
+          label: `Invoice pending approval · blocks ${c.id} activation`,
+          description: `${approval.invoiceId} needs approval before billing can run.`,
           learnMoreBody:
             "First-invoice approval gates activation for ingested deals. The approver validates amounts and terms against the signed document; once approved, billing can run and the contract moves to active.",
           executeTo: `/approvals/invoices/${approval.invoiceId}?${qs.toString()}`,
@@ -788,8 +788,8 @@ export function getPrimaryCustomerAction(
   if (customer.openAr > 0 && overdue.length === 0) {
     return {
       kind: "open_ar",
-      label: "Collect open AR",
-      description: `${currency(customer.openAr)} is outstanding with no overdue invoices in this view — keep aging tight before the next bill cycle.`,
+      label: `Collect open AR · ${currency(customer.openAr)} outstanding`,
+      description: `No overdue invoices yet — keep aging tight before the next bill cycle.`,
       learnMoreBody:
         "Open AR that is not yet overdue still needs allocation, cash application, and customer confirmation. Use the payment workspace to match unapplied cash, verify PO coverage, and clear holds so invoices stay on track.",
       executeTo: `${base}?tab=payment`,
@@ -801,8 +801,8 @@ export function getPrimaryCustomerAction(
   if (customer.crmSyncStatus === "Stale") {
     return {
       kind: "crm_stale",
-      label: "Refresh CRM alignment",
-      description: "Account data may be stale — downstream quotes and renewal context could be misaligned.",
+      label: "CRM sync stale · data may be misaligned",
+      description: "Downstream quotes and renewal context could be affected.",
       learnMoreBody:
         "A stale CRM sync means AE/CSM context, ship-to/bill-to, and opportunity stage may not match billing. Reconcile the commercial account record before major quotes or amendments.",
       executeTo: `${base}?tab=customer`,
@@ -817,8 +817,8 @@ export function getPrimaryCustomerAction(
     if (days > 0 && days < 90) {
       return {
         kind: "renewal",
-        label: "Drive renewal planning",
-        description: `Renewal in ${days} days (${shortDate(customer.nextRenewalDate)}) — align commercial, finance, and legal early.`,
+        label: `Renewal in ${days} days · ${shortDate(customer.nextRenewalDate)}`,
+        description: `Align commercial, finance, and legal early.`,
         learnMoreBody:
           "Starting 90 days out gives time for pricing, usage true-up, co-termination targets, and security/legal review without forcing a rushed signature.",
         executeTo: `${base}?tab=contract&contractId=${renewalContract.id}`,
@@ -833,8 +833,8 @@ export function getPrimaryCustomerAction(
     if (pct > 70) {
       return {
         kind: "prepaid_burn",
-        label: "Get ahead of credit burn-down",
-        description: `${pct}% of prepaid credits consumed — ${currency(customer.prepaidCreditBalance)} remaining.`,
+        label: `${pct}% credits consumed · ${currency(customer.prepaidCreditBalance)} remaining`,
+        description: `Review usage vs. forecast and consider a top-up or amendment.`,
         learnMoreBody:
           "High burn on prepaid credits can drive surprise overages or mid-term true-ups. Review usage vs. forecast with the customer and consider a top-up or contract amendment before limits hit.",
         executeTo: `${base}?tab=contract&contractId=${prepaidContract.id}`,
@@ -849,8 +849,8 @@ export function getPrimaryCustomerAction(
   if (escalated.length > 0) {
     return {
       kind: "support_escalated",
-      label: "Unblock escalated support",
-      description: `${escalated.length} ticket${escalated.length > 1 ? "s" : ""} escalated — billing and renewal work often waits on these.`,
+      label: `${escalated.length} escalated ticket${escalated.length > 1 ? "s" : ""} · blocking billing/renewal`,
+      description: `Align with support on owner and SLA, then tie resolution back to open AR or contract terms.`,
       learnMoreBody:
         "Escalations usually tie to disputes, data fixes, or executive attention. Read the latest thread, align with support on owner and SLA, then tie resolution back to open AR or contract terms as needed.",
       executeTo: `${base}?tab=customer#support-comms-anchor`,
@@ -861,8 +861,8 @@ export function getPrimaryCustomerAction(
 
   return {
     kind: "none",
-    label: "No urgent action on this account",
-    description: "Posture looks stable — use lifecycle tabs when you are ready to go deeper.",
+    label: "Account stable · no urgent action needed",
+    description: "Use lifecycle tabs when you are ready to go deeper.",
     learnMoreBody:
       "When nothing is red, focus on proactive hygiene: confirm the next renewal thread, scan for upcoming invoice holds, and keep CRM and billing owners aligned on any mid-term changes.",
     executeTo: `${base}?tab=quote`,

@@ -38,9 +38,9 @@ export function WorkbenchHome() {
   }
 
   return (
-    <div className="flex-1 w-full overflow-auto">
-      <div className="px-6 pt-5 pb-7">
-        <header className="mb-3">
+    <div className="flex-1 w-full overflow-auto bg-grey-100">
+      <div className="px-6 pt-6 pb-7">
+        <header className="mb-4">
           <p className="mb-1.5 text-[12px] font-semibold uppercase tracking-wider text-text-muted">
             Workbench
           </p>

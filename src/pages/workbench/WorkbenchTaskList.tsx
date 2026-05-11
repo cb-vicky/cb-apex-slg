@@ -41,6 +41,53 @@ function SeverityPill({ severity }: { severity: WorkbenchTask["severity"] }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Task type pill
+// ---------------------------------------------------------------------------
+
+function TaskTypePill({ kindLabel }: { kindLabel: string }) {
+  const label = kindLabel.toLowerCase();
+
+  let style = "bg-gray-100 text-gray-700 border-gray-200";
+
+  if (label.includes("new deal")) {
+    style = "bg-emerald-50 text-emerald-700 border-emerald-200";
+  } else if (label.includes("early renewal")) {
+    style = "bg-blue-50 text-blue-700 border-blue-200";
+  } else if (label.includes("late renewal")) {
+    style = "bg-amber-50 text-amber-700 border-amber-200";
+  } else if (label.includes("renewal")) {
+    style = "bg-sky-50 text-sky-700 border-sky-200";
+  } else if (label.includes("amendment")) {
+    style = "bg-violet-50 text-violet-700 border-violet-200";
+  } else if (label.includes("closure") || label.includes("closing")) {
+    style = "bg-orange-50 text-orange-700 border-orange-200";
+  } else if (label.includes("termination")) {
+    style = "bg-red-50 text-red-700 border-red-200";
+  } else if (label.includes("approval")) {
+    style = "bg-purple-50 text-purple-700 border-purple-200";
+  } else if (label.includes("expired")) {
+    style = "bg-rose-50 text-rose-700 border-rose-200";
+  } else if (label.includes("billing")) {
+    style = "bg-cyan-50 text-cyan-700 border-cyan-200";
+  } else if (label.includes("enforcement")) {
+    style = "bg-red-50 text-red-700 border-red-200";
+  } else if (label.includes("usage")) {
+    style = "bg-indigo-50 text-indigo-700 border-indigo-200";
+  }
+
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center whitespace-nowrap rounded-md border px-2 py-0.5 text-[11px] font-medium leading-4",
+        style,
+      )}
+    >
+      {kindLabel}
+    </span>
+  );
+}
+
 function formatTcv(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
@@ -59,7 +106,7 @@ interface StatCardProps {
 
 function StatCard({ label, value, warning }: StatCardProps) {
   return (
-    <div className="flex flex-col gap-1 rounded-lg border border-border-default bg-white px-5 py-4">
+    <div className="flex flex-col gap-1 rounded-2xl border border-border-default bg-white px-5 py-4">
       <span
         className={cn(
           "text-[26px] font-semibold leading-tight tracking-tight tabular-nums",
@@ -97,8 +144,8 @@ function TaskRow({
         TASK_TABLE_GRID,
       )}
     >
-      <div className="min-w-0 truncate text-[13px] font-medium leading-snug text-text-primary">
-        {task.kindLabel}
+      <div className="flex min-w-0 items-center">
+        <TaskTypePill kindLabel={task.kindLabel} />
       </div>
 
       <div className="min-w-0 truncate text-[13px] font-medium leading-snug text-text-primary">
@@ -253,10 +300,10 @@ export function WorkbenchTaskList() {
       {sortedTasks.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="border-y border-border-default bg-white">
+        <div className="overflow-hidden rounded-3xl border border-border-default bg-white">
           <div
             className={cn(
-              "border-b border-border-subtle bg-gray-50 py-2 text-[11px] font-semibold uppercase tracking-wider text-text-muted",
+              "border-b border-border-subtle bg-white px-4 pt-4 pb-2 text-[11px] font-semibold uppercase tracking-wider text-text-muted",
               TASK_TABLE_GRID,
             )}
             aria-hidden

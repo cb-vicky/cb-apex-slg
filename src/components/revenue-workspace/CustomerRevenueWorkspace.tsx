@@ -17,11 +17,6 @@ import { CustomerStageContent } from "./customer/CustomerStageContent";
 import { InvoicingStageContent } from "./invoicing/InvoicingStageContent";
 import { PaymentStageContent } from "./payment/PaymentStageContent";
 import { RevRecStageContent } from "./revrec/RevRecStageContent";
-import {
-  InsightRail,
-  DEFAULT_INSIGHT_RAIL_SECTIONS,
-  type InsightRailSectionKey,
-} from "./InsightRail";
 import { QuoteListView } from "./quote/QuoteListView";
 import { ContractListView, type PendingIngestionContract } from "./contract/ContractListView";
 import { InvoiceListView } from "./invoicing/InvoiceListView";
@@ -260,13 +255,6 @@ export function CustomerRevenueWorkspace({
 
   const [activeInvoice, setActiveInvoice] = useState<Invoice | undefined>(initialInvoice);
 
-  // Insight rail: collapsed by default; section open state persists across lifecycle tabs after the user expands.
-  const [railSections, setRailSections] = useState(() => ({ ...DEFAULT_INSIGHT_RAIL_SECTIONS }));
-
-  function toggleRailSection(key: InsightRailSectionKey) {
-    setRailSections((s) => ({ ...s, [key]: !s[key] }));
-  }
-
   useEffect(() => {
     setActiveQuote(quote);
   }, [quote]);
@@ -469,12 +457,6 @@ export function CustomerRevenueWorkspace({
           >
             {renderContent()}
           </div>
-          <InsightRail
-            tasks={tasks}
-            customer={customer}
-            sections={railSections}
-            onSectionToggle={toggleRailSection}
-          />
         </div>
       </RecordSlotContext.Provider>
 

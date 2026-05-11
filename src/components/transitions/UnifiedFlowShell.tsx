@@ -679,7 +679,7 @@ function UnifiedFlowShellInner({ onClose }: { onClose: () => void }) {
           </div>
         ) : null}
 
-        {flow.scenario === "invoice_only" && flow.step === "approval" && invoiceId ? (
+        {isFlowTab && flow.scenario === "invoice_only" && flow.step === "approval" && invoiceId ? (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <InvoiceApprovalDrawer
               invoiceId={invoiceId}
@@ -690,7 +690,7 @@ function UnifiedFlowShellInner({ onClose }: { onClose: () => void }) {
           </div>
         ) : null}
 
-        {flow.scenario === "late_grace" &&
+        {isFlowTab && flow.scenario === "late_grace" &&
         flow.step === "grace_extend" &&
         lateContractId ? (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
