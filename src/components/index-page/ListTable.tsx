@@ -52,7 +52,7 @@ export function ListRow({ onClick, children }: { onClick: () => void; children: 
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3 py-3 pl-4 pr-4 text-left text-[13px] leading-snug transition-colors hover:bg-surface-muted/60"
+      className="flex w-full items-center gap-3 py-3 pl-4 pr-4 text-left text-[14px] leading-snug transition-colors hover:bg-surface-muted/60"
     >
       {children}
     </button>
@@ -82,7 +82,7 @@ export function ListCell({
   return (
     <span
       className={cn(
-        "flex min-h-[20px] min-w-0 items-center text-[13px] leading-snug",
+        "flex min-h-[20px] min-w-0 items-center text-[14px] leading-snug",
         noTruncate && "min-w-0",
         align === "right" && "justify-end text-right tabular-nums",
         align === "center" && "justify-center text-center",

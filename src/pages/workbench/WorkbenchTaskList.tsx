@@ -148,17 +148,17 @@ function TaskRow({
         <TaskTypePill kindLabel={task.kindLabel} />
       </div>
 
-      <div className="min-w-0 truncate text-[13px] font-medium leading-snug text-text-primary">
+      <div className="min-w-0 truncate text-[14px] font-medium leading-snug text-text-primary">
         {task.customerName}
       </div>
 
-      <div className="min-w-0 truncate text-[13px] leading-snug text-text-primary">{task.title}</div>
+      <div className="min-w-0 truncate text-[14px] leading-snug text-text-primary">{task.title}</div>
 
       <span className="flex justify-start">
         <SeverityPill severity={task.severity} />
       </span>
 
-      <div className="min-w-0 truncate text-[12px] leading-snug text-text-muted">
+      <div className="min-w-0 truncate text-[13px] leading-snug text-text-muted">
         {task.subtitle ?? "—"}
       </div>
     </button>
