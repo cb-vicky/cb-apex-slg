@@ -47,13 +47,14 @@ export function CustomerRevenueWorkspace({
   customer,
   quote,
   contract,
-  tasks,
+  tasks: _tasks,
   initialStage,
   from,
   activeRecordId,
   closeIntent,
   queueItemId,
 }: Props) {
+  void _tasks;
   const navigate = useNavigate();
   const { setCustomer360Active } = useWorkspaceShell();
   const [activeStage, setActiveStage] = useState<Stage>(
