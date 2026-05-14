@@ -15,7 +15,7 @@ const SCROLL_THRESHOLD = 40;
 const MORE_BUTTON_WIDTH = 72;
 
 /** Threshold: if tabs exceed this % of container width, show "More" */
-const OVERFLOW_THRESHOLD = 0.70;
+const OVERFLOW_THRESHOLD = 0.83;
 
 const stageDisplay: Record<Stage, { tab: string; crumb: string }> = {
   customer: { tab: "Overview", crumb: "Overview" },
@@ -233,7 +233,7 @@ export function CustomerContextBar({
     tabPositions.current = capturePositions();
   }, [activeStage, capturePositions]);
 
-  // Measure and determine overflow based on 70% threshold
+  // Measure and determine overflow based on 83% threshold
   const measureOverflow = useCallback(() => {
     const container = tabsContainerRef.current;
     if (!container) return;
