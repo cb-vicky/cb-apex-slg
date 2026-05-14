@@ -17,7 +17,7 @@ export function CustomerNbaCard({ action }: Props) {
   if (action.kind === "none") return null;
 
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-cb-orange bg-white">
+    <section className="relative overflow-hidden rounded-3xl border border-gray-200 bg-white">
       {/* Light orange wash: strong at bottom-right, fading toward upper-center */}
       <div
         className="pointer-events-none absolute inset-0 z-0 rounded-[inherit] bg-[radial-gradient(ellipse_110%_85%_at_100%_100%,var(--color-cb-orange-light)_0%,transparent_52%)]"
