@@ -1,10 +1,10 @@
 import { useMemo, useCallback, useState, type ReactNode } from "react";
-import { ChevronRight, LayoutList, AlertCircle, X } from "lucide-react";
+import { ChevronRight, AlertCircle, X } from "lucide-react";
 import type { Invoice, Contract } from "@/data/mock-data";
 import { customers } from "@/data/mock-data";
 import { getInvoiceEnrichment, getCreditNotesForInvoice, getInvoiceSchedule } from "@/data/billing-data";
 import { useIngestContext } from "@/context/IngestContext";
-import { RecordHeader, type OverflowItem, type RecordHeaderOption } from "../RecordHeader";
+import { RecordHeader, type OverflowItem } from "../RecordHeader";
 import { ActionButton } from "../primitives/ActionButton";
 import { InvoicingOverviewSection } from "./InvoicingOverviewSection";
 import { InvoiceCompositionSection } from "./InvoiceCompositionSection";
@@ -12,27 +12,17 @@ import { BillingBasisSection } from "./BillingBasisSection";
 import { InvoiceDeliverySection } from "./InvoiceDeliverySection";
 import { InvoicingScheduleSection } from "./InvoicingScheduleSection";
 import { openDrawer } from "@/store/drawer-store";
-import { currency, shortDate } from "@/lib/utils";
+import { currency } from "@/lib/utils";
 
 interface Props {
   invoice: Invoice;
   contract: Contract;
-  /** Other invoices under the same customer for the dropdown switcher. */
-  customerInvoices?: Invoice[];
-  onInvoiceSelect?: (id: string) => void;
-  onBack?: () => void;
 }
 
 const pendingReviewPrimaryBtnClass =
   "inline-flex items-center justify-center gap-1 rounded-lg px-4 py-2 text-center text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-info)] bg-[color:var(--color-info)]";
 
-export function InvoicingStageContent({
-  invoice,
-  contract,
-  customerInvoices,
-  onInvoiceSelect,
-  onBack,
-}: Props) {
+export function InvoicingStageContent({ invoice, contract }: Props) {
   const {
     submittedInvoiceIds,
     submitInvoiceForApproval,
@@ -179,28 +169,9 @@ export function InvoicingStageContent({
     openApprovalDrawer,
   ]);
 
-  const recordOptions = useMemo<RecordHeaderOption[] | undefined>(() => {
-    if (!customerInvoices || customerInvoices.length <= 1) return undefined;
-    return customerInvoices.map((inv) => ({
-      id: inv.id,
-      status: inv.status,
-      description: `${currency(inv.amount)} · Issued ${shortDate(inv.date)} · Due ${shortDate(inv.dueDate)}${inv.contractId ? ` · ${inv.contractId}` : ""}`,
-    }));
-  }, [customerInvoices]);
-
   return (
     <div className="flex flex-col gap-3">
-      <RecordHeader
-        id={displayInvoice.id}
-        recordOptions={recordOptions}
-        onRecordSelect={onInvoiceSelect}
-        recordMenuTitle="Invoices for this customer"
-        leadingAction={
-          onBack ? <ActionButton icon={LayoutList} label="All invoices" onClick={onBack} /> : undefined
-        }
-        actions={primaryActions}
-        overflowItems={overflowItems}
-      />
+      <RecordHeader actions={primaryActions} overflowItems={overflowItems} />
 
       {/* Pending review — same visual approach as Account 360 “Next best action” */}
       {showBanner && (

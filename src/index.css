@@ -2,6 +2,8 @@
 
 @theme {
   --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /** Self-hosted via `@fontsource/sora` — use `font-sora` or `font-family: var(--font-sora)` */
+  --font-sora: "Sora", ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
 
   --color-cb-orange: #ff3300;
@@ -49,6 +51,12 @@ body {
   font-family: var(--font-sans);
   color: var(--color-text-primary);
   background: #f5f5f7;
+}
+
+/* Sora for primary titles (h1–h2). Section titles at h3 use `font-sora` where size is 14px+. */
+h1,
+h2 {
+  font-family: var(--font-sora);
 }
 
 #root {
@@ -111,4 +119,48 @@ label[for],
 summary,
 select {
   cursor: pointer;
+}
+
+/*
+ * AI Chat FAB — fluid animated gradient background
+ */
+@property --ai-fab-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes ai-fab-gradient-spin {
+  from {
+    --ai-fab-angle: 0deg;
+  }
+  to {
+    --ai-fab-angle: 360deg;
+  }
+}
+
+.ai-fab-gradient {
+  --ai-fab-angle: 0deg;
+  background: conic-gradient(
+    from var(--ai-fab-angle),
+    #ff6b6b 0deg,
+    #feca57 60deg,
+    #48dbfb 120deg,
+    #ff9ff3 180deg,
+    #54a0ff 240deg,
+    #5f27cd 300deg,
+    #ff6b6b 360deg
+  );
+  animation: ai-fab-gradient-spin 8s ease-in-out infinite;
+}
+
+.ai-fab-gradient::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: inherit;
+  filter: blur(8px) saturate(1.2);
+  opacity: 0.7;
+  z-index: -1;
 }

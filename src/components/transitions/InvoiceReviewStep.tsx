@@ -528,7 +528,7 @@ export function InvoiceReviewStep({
                     )}
                     <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
                       <div className="border-b border-border-subtle px-5 py-3">
-                        <h3 className="text-[14px] font-semibold text-text-primary">Invoice details</h3>
+                        <h3 className="font-sora text-[14px] font-semibold text-text-primary">Invoice details</h3>
                       </div>
                       <div className="px-5 py-4">
                         <CriticalFieldsCard
@@ -552,7 +552,7 @@ export function InvoiceReviewStep({
                     </div>
                     <div className="mt-4 overflow-hidden rounded-2xl border border-border-default bg-white">
                       <div className="border-b border-border-subtle px-5 py-3">
-                        <h3 className="text-[14px] font-semibold text-text-primary">Context</h3>
+                        <h3 className="font-sora text-[14px] font-semibold text-text-primary">Context</h3>
                       </div>
                       <div className="px-5 py-4">
                         <DrawerRailIndent>
@@ -662,7 +662,7 @@ export function InvoiceReviewStep({
                   ) : (
                     <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
                       <div className="border-b border-border-subtle px-5 py-3">
-                        <h3 className="text-[14px] font-semibold text-text-primary">Invoice details</h3>
+                        <h3 className="font-sora text-[14px] font-semibold text-text-primary">Invoice details</h3>
                       </div>
                       <div className="px-5 py-4">
                         <CriticalFieldsCard

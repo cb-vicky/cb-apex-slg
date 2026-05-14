@@ -1,8 +1,7 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { LayoutList } from "lucide-react";
 import type { Quote } from "@/data/mock-data";
-import { RecordHeader, type OverflowItem, type RecordHeaderOption } from "../RecordHeader";
+import { RecordHeader, type OverflowItem } from "../RecordHeader";
 import { ActionButton } from "../primitives/ActionButton";
 import { QuoteOverviewSection } from "./QuoteOverviewSection";
 import { QuotePricingSection } from "./QuotePricingSection";
@@ -15,11 +14,9 @@ import { QuoteTimelineSection } from "./QuoteTimelineSection";
 interface Props {
   quote: Quote;
   quoteVersions?: Quote[];
-  onQuoteVersionChange?: (q: Quote) => void;
-  onBack?: () => void;
 }
 
-export function QuoteStageContent({ quote, quoteVersions, onQuoteVersionChange, onBack }: Props) {
+export function QuoteStageContent({ quote, quoteVersions }: Props) {
   const navigate = useNavigate();
 
   const headerActions = useMemo(() => {
@@ -97,41 +94,9 @@ export function QuoteStageContent({ quote, quoteVersions, onQuoteVersionChange, 
     return items;
   }, [quote.status, quoteVersions]);
 
-  const recordOptions = useMemo<RecordHeaderOption[] | undefined>(() => {
-    if (!quoteVersions || quoteVersions.length === 0) return undefined;
-    return quoteVersions.map((v) => ({
-      id: v.id,
-      pillTag: `v${v.version}`,
-      status: v.status,
-      description: v.versionSummary,
-      errorLine: v.status === "Rejected" && v.rejectionReason ? `Rejection reason: ${v.rejectionReason}` : undefined,
-    }));
-  }, [quoteVersions]);
-
-  const handleRecordSelect = useMemo(() => {
-    if (!quoteVersions || !onQuoteVersionChange) return undefined;
-    return (id: string) => {
-      const v = quoteVersions.find((q) => q.id === id);
-      if (v) onQuoteVersionChange(v);
-    };
-  }, [quoteVersions, onQuoteVersionChange]);
-
   return (
     <div className="flex flex-col gap-3">
-      <RecordHeader
-        id={quote.id}
-        pillTag={`v${quote.version}`}
-        recordOptions={recordOptions}
-        onRecordSelect={handleRecordSelect}
-        recordMenuTitle="Quote versions"
-        leadingAction={
-          onBack ? (
-            <ActionButton icon={LayoutList} label="All quotes" onClick={onBack} />
-          ) : undefined
-        }
-        actions={headerActions}
-        overflowItems={overflowItems}
-      />
+      <RecordHeader actions={headerActions} overflowItems={overflowItems} />
       <QuoteOverviewSection quote={quote} />
       <QuoteApprovalsSection
         approval={quote.approval}

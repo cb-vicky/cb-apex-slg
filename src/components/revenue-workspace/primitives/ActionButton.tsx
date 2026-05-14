@@ -17,7 +17,7 @@ export function ActionButton({ icon: Icon, label, onClick, variant = "default", 
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex shrink-0 cursor-pointer items-center text-[12px] font-medium leading-4 transition-colors",
+        "inline-flex shrink-0 cursor-pointer items-center text-sm font-medium leading-tight transition-colors",
         pill ? "rounded-full px-3 py-1.5" : "rounded-md px-2 py-0.5",
         Icon ? "gap-1" : undefined,
         variant === "primary" &&
@@ -26,7 +26,7 @@ export function ActionButton({ icon: Icon, label, onClick, variant = "default", 
           " hover:text-blue-500 hover:text-blue-700",
       )}
     >
-      {Icon ? <Icon size={12} className="shrink-0" /> : null}
+      {Icon ? <Icon size={14} className="shrink-0" /> : null}
       {label}
     </button>
   );

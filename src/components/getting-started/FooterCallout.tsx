@@ -9,7 +9,7 @@ export function FooterCallout({ config }: Props) {
   return (
     <div className="flex items-center justify-between rounded-2xl border border-border-default bg-surface-muted/50 px-6 py-5">
       <div className="max-w-xl">
-        <h3 className="text-[15px] font-semibold text-text-primary">{config.title}</h3>
+        <h3 className="font-sora text-[15px] font-semibold text-text-primary">{config.title}</h3>
         <p className="mt-1 text-[13px] leading-relaxed text-text-secondary">{config.description}</p>
       </div>
       <div className="flex shrink-0 items-center gap-2">

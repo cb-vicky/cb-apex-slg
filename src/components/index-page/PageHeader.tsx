@@ -35,7 +35,7 @@ export function PageHeader({
         {backLabel && backPath && (
           <button
             onClick={() => navigate(backPath)}
-            className="inline-flex items-center gap-1 text-[14px] font-medium text-cb-orange transition-colors hover:text-cb-orange/80"
+            className="inline-flex items-center gap-1 font-sora text-[14px] font-medium text-cb-orange transition-colors hover:text-cb-orange/80"
           >
             <ArrowLeft size={15} />
             {backLabel}
@@ -55,7 +55,7 @@ export function PageHeader({
           <button
             type="button"
             onClick={onCreateClick}
-            className="shrink-0 rounded-md bg-blue-600 px-3.5 py-2 text-[14px] font-medium text-white transition-colors hover:bg-blue-700"
+            className="shrink-0 rounded-md bg-blue-600 px-3.5 py-2 font-sora text-[14px] font-medium text-white transition-colors hover:bg-blue-700"
           >
             {createLabel}
           </button>

@@ -292,7 +292,7 @@ export function ApprovalSettingsStep({
                 <div className="flex flex-col gap-4">
                   <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
                     <div className="border-b border-border-subtle px-5 py-3">
-                      <h3 className="text-[14px] font-semibold text-text-primary">Approval routing</h3>
+                      <h3 className="font-sora text-[14px] font-semibold text-text-primary">Approval routing</h3>
                       <p className="mt-0.5 text-[12px] text-text-muted">
                         Configure how future invoices should be routed
                       </p>

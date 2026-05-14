@@ -236,7 +236,7 @@ function SummarySidebar({
       {/* Process summary title */}
       {processSummary && (
         <div className="flex flex-col gap-1">
-          <p className="text-[24px] font-semibold text-text-primary leading-tight">
+          <p className="font-sora text-[24px] font-semibold text-text-primary leading-tight">
             {processSummary}
           </p>
         </div>

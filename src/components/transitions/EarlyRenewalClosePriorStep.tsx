@@ -796,7 +796,7 @@ export function EarlyRenewalClosePriorStep({
 
                       <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
                         <div className="border-b border-border-subtle px-5 py-3">
-                          <h3 className="text-[14px] font-semibold text-text-primary">Closure details</h3>
+                          <h3 className="font-sora text-[14px] font-semibold text-text-primary">Closure details</h3>
                         </div>
                         <div className="flex flex-col gap-4 px-5 py-4">
                           <FormField
@@ -838,7 +838,7 @@ export function EarlyRenewalClosePriorStep({
 
                       <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
                         <div className="border-b border-border-subtle px-5 py-3">
-                          <h3 className="text-[14px] font-semibold text-text-primary">Settlement</h3>
+                          <h3 className="font-sora text-[14px] font-semibold text-text-primary">Settlement</h3>
                         </div>
                         <div className="flex flex-col gap-4 px-5 py-4">
                           <FormField
