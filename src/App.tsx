@@ -15,6 +15,7 @@ import { ContractDetailPage } from "@/pages/ContractDetailPage";
 import { InvoiceDetailPage } from "@/pages/InvoiceDetailPage";
 import { QueueIngestPage } from "@/pages/QueueIngestPage";
 import { ApprovalDetailPage } from "@/pages/ApprovalDetailPage";
+import { ModuleStubPage } from "@/pages/ModuleStubPage";
 import { EntityDrawer } from "@/components/common/EntityDrawer";
 import { RootErrorBoundary } from "@/components/common/RootErrorBoundary";
 
@@ -37,6 +38,9 @@ export default function App() {
             <Route path="/quotes" element={<QuotesIndex />} />
             <Route path="/contracts" element={<ContractsIndex />} />
             <Route path="/invoices" element={<InvoicesIndex />} />
+            <Route path="/collections" element={<ModuleStubPage title="Collections" />} />
+            <Route path="/revrec" element={<ModuleStubPage title="RevRec" />} />
+            <Route path="/communications" element={<ModuleStubPage title="Communications" />} />
 
             {/* Queue and Approvals index routes redirect to workbench tabs */}
             <Route path="/queue" element={<Navigate to="/?tab=queue" replace />} />

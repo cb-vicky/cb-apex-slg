@@ -441,6 +441,8 @@ export function deriveAllStageStatuses(
 ): Record<Stage, StageStatus> {
   return {
     customer: deriveCustomerStatus(customer, invoiceStatusOverrides),
+    tasks: { text: "Tasks", severity: "blue" },
+    threads: { text: "Threads", severity: "blue" },
     quote: quote ? deriveQuoteStatus(quote) : { text: "No quote", severity: "blue" },
     contract: contract ? deriveContractStatus(contract, invoiceStatusOverrides) : { text: "No contract yet", severity: "blue" },
     invoicing: contract ? deriveInvoicingStatus(customer.id, invoiceStatusOverrides) : { text: "—", severity: "blue" },

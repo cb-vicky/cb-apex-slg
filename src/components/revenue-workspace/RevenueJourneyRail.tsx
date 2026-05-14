@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import { severityColor, type StageStatus } from "./derive-stage-data";
 
-export type Stage = "customer" | "quote" | "contract" | "invoicing" | "payment" | "revrec";
+export type Stage = "customer" | "tasks" | "threads" | "quote" | "contract" | "invoicing" | "payment" | "revrec";
 
 interface StageInfo {
   id: Stage;
@@ -10,6 +10,8 @@ interface StageInfo {
 
 const stageLabels: StageInfo[] = [
   { id: "customer", label: "Customer" },
+  { id: "tasks", label: "Tasks" },
+  { id: "threads", label: "Threads" },
   { id: "quote", label: "Quote" },
   { id: "contract", label: "Contract" },
   { id: "invoicing", label: "Invoicing" },

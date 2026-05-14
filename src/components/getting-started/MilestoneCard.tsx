@@ -44,7 +44,7 @@ export function MilestoneCard({ milestone }: Props) {
             <Icon size={16} className="text-text-secondary" />
           )}
         </div>
-        <h3 className="text-[14px] font-semibold leading-snug text-text-primary">
+        <h3 className="font-sora text-[14px] font-semibold leading-snug text-text-primary">
           {milestone.title}
         </h3>
       </div>

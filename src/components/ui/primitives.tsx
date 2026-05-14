@@ -130,7 +130,7 @@ export function SectionCard({
   return (
     <div className={cn("overflow-hidden rounded-3xl border border-border-default bg-white", className)}>
       <div className="flex items-center justify-between gap-3 bg-white px-5 pt-4 pb-3">
-        <h3 className="text-[14px] font-semibold leading-tight tracking-normal text-text-primary">{title}</h3>
+        <h3 className="font-sora text-[14px] font-semibold leading-tight tracking-normal text-text-primary">{title}</h3>
         {actions}
       </div>
       <div className={cn("px-5 pb-4 pt-1", bodyClassName)}>{children}</div>
@@ -158,7 +158,7 @@ export function KV({
   if (layout === "inline") {
     return (
       <div className={cn("flex min-w-0 items-baseline justify-between gap-4 py-2 text-[14px]", className)}>
-        <span className="shrink-0 text-text-secondary">{label}</span>
+        <span className="shrink-0 font-sora text-text-secondary">{label}</span>
         <span className={cn("min-w-0 truncate text-right font-medium text-text-primary", valueClassName)}>{value}</span>
       </div>
     );

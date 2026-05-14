@@ -218,8 +218,8 @@ function LifecycleTabBar({
               onClick={() => !isDisabled && onStageChange(tab.id)}
               disabled={isDisabled}
               className={cn(
-                "group relative inline-flex flex-1 items-center justify-center gap-1.5",
-                "rounded-b-2xl rounded-t-none px-4 py-2.5 text-[13px] transition-all",
+                "group relative z-0 inline-flex flex-1 items-center justify-center gap-1.5",
+                "rounded-b-[40px] rounded-t-none px-4 py-2.5 text-[13px] transition-all",
                 "border-b border-r",
                 isFirst && "border-l",
                 isLast && "!border-r-0",
@@ -231,9 +231,9 @@ function LifecycleTabBar({
               )}
             >
               {isFlowNativeTab && !isActive && (
-                <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                <span className="relative z-[1] h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500 animate-pulse" />
               )}
-              <span>{tab.label}</span>
+              <span className="relative z-[1]">{tab.label}</span>
             </button>
           );
         })}
@@ -412,10 +412,6 @@ function UnifiedFlowShellInner({ onClose }: { onClose: () => void }) {
     setSelectedQuote(quote);
   }, []);
 
-  const handleQuoteVersionChange = useCallback((quote: Quote) => {
-    setSelectedQuote(quote);
-  }, []);
-
   const handleContractSelect = useCallback((contract: { id: string; customerId: string }) => {
     setShowContractsList(false);
     // Find the full contract from our data
@@ -432,10 +428,7 @@ function UnifiedFlowShellInner({ onClose }: { onClose: () => void }) {
   const allContractsContent = (showContractsList || selectedContract) ? (
     selectedContract ? (
       <div className="mx-auto max-w-[860px] px-6 py-6">
-        <ContractStageContent
-          contract={selectedContract}
-          onBack={() => setSelectedContract(null)}
-        />
+        <ContractStageContent contract={selectedContract} />
       </div>
     ) : (
       <div className="mx-auto max-w-[1020px] px-6 py-6">
@@ -451,11 +444,6 @@ function UnifiedFlowShellInner({ onClose }: { onClose: () => void }) {
   const handleInvoiceSelect = useCallback((invoice: Invoice) => {
     setSelectedInvoice(invoice);
   }, []);
-
-  const handleInvoiceIdSelect = useCallback((invoiceId: string) => {
-    const inv = customerInvoices.find((i) => i.id === invoiceId);
-    if (inv) setSelectedInvoice(inv);
-  }, [customerInvoices]);
 
   const shellKey = `${activeFlow.key ?? "flow"}-${activeFlow.step}-${queueId ?? ""}-${invoiceId ?? ""}`;
 
@@ -507,12 +495,7 @@ function UnifiedFlowShellInner({ onClose }: { onClose: () => void }) {
           <div className="min-h-0 flex-1 overflow-y-auto bg-gray-100">
             <div className="mx-auto max-w-[860px] px-6 py-6">
               {selectedQuote ? (
-                <QuoteStageContent
-                  quote={selectedQuote}
-                  quoteVersions={quoteVersions}
-                  onQuoteVersionChange={handleQuoteVersionChange}
-                  onBack={() => setSelectedQuote(null)}
-                />
+                <QuoteStageContent quote={selectedQuote} quoteVersions={quoteVersions} />
               ) : customerQuotes.length > 0 ? (
                 <div className="max-w-[1020px]">
                   <QuoteListView quotes={customerQuotes} onSelect={handleQuoteSelect} />
@@ -543,13 +526,7 @@ function UnifiedFlowShellInner({ onClose }: { onClose: () => void }) {
           <div className="min-h-0 flex-1 overflow-y-auto bg-gray-100">
             <div className="mx-auto max-w-[860px] px-6 py-6">
               {selectedInvoice && invoiceContract ? (
-                <InvoicingStageContent
-                  invoice={selectedInvoice}
-                  contract={invoiceContract}
-                  customerInvoices={customerInvoices}
-                  onInvoiceSelect={handleInvoiceIdSelect}
-                  onBack={() => setSelectedInvoice(null)}
-                />
+                <InvoicingStageContent invoice={selectedInvoice} contract={invoiceContract} />
               ) : customerInvoices.length > 0 ? (
                 <div className="max-w-[1020px]">
                   <InvoiceListView 

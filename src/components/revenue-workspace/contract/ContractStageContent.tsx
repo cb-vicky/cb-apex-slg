@@ -1,11 +1,11 @@
 import { useMemo, useCallback, type ReactNode } from "react";
-import { LayoutList, XCircle } from "lucide-react";
+import { XCircle } from "lucide-react";
 import type { Contract } from "@/data/mock-data";
 import type { ContractGraceExtension } from "@/data/contract-transition";
 import { useIngestContext } from "@/context/IngestContext";
 import { mergeBillingScheduleWithInvoiceOverrides } from "@/components/revenue-workspace/derive-stage-data";
 import { openDrawer } from "@/store/drawer-store";
-import { RecordHeader, type OverflowItem, type RecordHeaderOption } from "../RecordHeader";
+import { RecordHeader, type OverflowItem } from "../RecordHeader";
 import { ActionButton } from "../primitives/ActionButton";
 import { ContractOverviewSection } from "./ContractOverviewSection";
 import { ContractTermsSection } from "./ContractTermsSection";
@@ -19,16 +19,11 @@ import { ContractTimelineSection } from "./ContractTimelineSection";
 import { ClosureSummaryCard } from "@/components/contracts/ClosureSummaryCard";
 import { ClosureBanner } from "@/components/contracts/ClosureBanner";
 import { ScheduledBanner } from "@/components/contracts/ScheduledBanner";
-import { currency, shortDate } from "@/lib/utils";
 
 interface Props {
   contract: Contract;
   /** Session grace extension (late renewal), if any */
   graceExtension?: ContractGraceExtension;
-  /** Other contracts under the same customer for the dropdown switcher. */
-  customerContracts?: Contract[];
-  onContractSelect?: (id: string) => void;
-  onBack?: () => void;
   /** Callback to open the close pane (lifted to CustomerRevenueWorkspace) */
   onOpenClosePane?: () => void;
 }
@@ -36,9 +31,6 @@ interface Props {
 export function ContractStageContent({
   contract,
   graceExtension,
-  customerContracts,
-  onContractSelect,
-  onBack,
   onOpenClosePane,
 }: Props) {
   const { invoiceStatusOverrides } = useIngestContext();
@@ -199,28 +191,9 @@ export function ContractStageContent({
     scrollToEnforcement,
   ]);
 
-  const recordOptions = useMemo<RecordHeaderOption[] | undefined>(() => {
-    if (!customerContracts || customerContracts.length <= 1) return undefined;
-    return customerContracts.map((c) => ({
-      id: c.id,
-      status: c.status,
-      description: `${currency(c.tcv)} · ${c.term} · ${shortDate(c.effectiveDate)} – ${shortDate(c.endDate)}`,
-    }));
-  }, [customerContracts]);
-
   return (
     <div className="relative flex flex-col gap-3">
-      <RecordHeader
-        id={contract.id}
-        recordOptions={recordOptions}
-        onRecordSelect={onContractSelect}
-        recordMenuTitle="Contracts for this customer"
-        leadingAction={
-          onBack ? <ActionButton icon={LayoutList} label="All contracts" onClick={onBack} /> : undefined
-        }
-        actions={primaryActions}
-        overflowItems={overflowItems}
-      />
+      <RecordHeader actions={primaryActions} overflowItems={overflowItems} />
 
       {/* Closure banner for wind-down state */}
       {isClosing && contract.closure && (

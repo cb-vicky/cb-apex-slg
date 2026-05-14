@@ -9,7 +9,7 @@ import { getRevenueArrangement } from "@/data/revrec-data";
 import { useIngestContext } from "@/context/IngestContext";
 import { useWorkspaceShell } from "@/context/WorkspaceShellContext";
 import { openDrawer } from "@/store/drawer-store";
-import { CustomerContextBar } from "./CustomerContextBar";
+import { CustomerContextBar, type OpenChildTabs, type SelectedChildPerStage } from "./CustomerContextBar";
 import { type Stage } from "./RevenueJourneyRail";
 import { QuoteStageContent } from "./quote/QuoteStageContent";
 import { ContractStageContent } from "./contract/ContractStageContent";
@@ -17,6 +17,9 @@ import { CustomerStageContent } from "./customer/CustomerStageContent";
 import { InvoicingStageContent } from "./invoicing/InvoicingStageContent";
 import { PaymentStageContent } from "./payment/PaymentStageContent";
 import { RevRecStageContent } from "./revrec/RevRecStageContent";
+import { TasksStageContent } from "./tasks/TasksStageContent";
+import { ThreadsStageContent } from "./threads/ThreadsStageContent";
+import type { CustomerTask } from "@/data/customer-tasks";
 import { QuoteListView } from "./quote/QuoteListView";
 import { ContractListView, type PendingIngestionContract } from "./contract/ContractListView";
 import { InvoiceListView } from "./invoicing/InvoiceListView";
@@ -89,6 +92,16 @@ export function CustomerRevenueWorkspace({
   const [activeQuote, setActiveQuote] = useState<Quote | null>(quote);
   const [activeContract, setActiveContract] = useState<Contract | null>(contract);
   const [showClosePane, setShowClosePane] = useState(false);
+
+  // Track open child tabs across stages (persistent until explicitly closed)
+  const [openChildTabs, setOpenChildTabs] = useState<OpenChildTabs>({
+    quote: [],
+    contract: [],
+    invoicing: [],
+  });
+
+  // Track which child is currently selected per stage
+  const [selectedChild, setSelectedChild] = useState<SelectedChildPerStage>({});
 
   const customerQuotes = getQuotesForCustomer(customer.id);
   // Merge runtime session contracts so auto-ingested Scheduled renewals appear
@@ -325,12 +338,70 @@ export function CustomerRevenueWorkspace({
 
   function handleStageChange(stage: Stage) {
     setActiveStage(stage);
+    // If the stage has a selected child, go to detail view; otherwise list view
+    const stageKey = stage as "quote" | "contract" | "invoicing";
+    if (LIST_STAGES.includes(stage) && selectedChild[stageKey]) {
+      setViewMode("detail");
+    } else {
+      setViewMode("list");
+    }
+  }
+
+  // Handle parent tab click — deselect child and show list view
+  function handleParentClick(stage: "quote" | "contract" | "invoicing") {
+    setActiveStage(stage);
+    setSelectedChild((prev) => ({ ...prev, [stage]: undefined }));
     setViewMode("list");
   }
 
-  function handleBackToList() {
-    setViewMode("list");
-    setActiveInvoice(undefined);
+  // Add a child tab to the open tabs and select it
+  function addChildTab(stage: "quote" | "contract" | "invoicing", childId: string) {
+    setOpenChildTabs((prev) => ({
+      ...prev,
+      [stage]: prev[stage].includes(childId) ? prev[stage] : [...prev[stage], childId],
+    }));
+    setSelectedChild((prev) => ({ ...prev, [stage]: childId }));
+    setViewMode("detail");
+  }
+
+  // Select a child tab (when clicking on an existing sub-tab)
+  function handleChildSelect(stage: "quote" | "contract" | "invoicing", childId: string) {
+    setSelectedChild((prev) => ({ ...prev, [stage]: childId }));
+    setViewMode("detail");
+    
+    // Update the active record based on stage
+    if (stage === "quote") {
+      const q = customerQuotes.find((q) => q.id === childId);
+      if (q) setActiveQuote(q);
+    } else if (stage === "contract") {
+      const c = contractsForListView.find((c) => c.id === childId);
+      if (c) setActiveContract(c);
+    } else if (stage === "invoicing") {
+      const inv = invoicesForListView.find((i) => i.id === childId);
+      if (inv) setActiveInvoice(inv);
+    }
+  }
+
+  // Close a child tab
+  function handleChildClose(stage: "quote" | "contract" | "invoicing", childId: string) {
+    setOpenChildTabs((prev) => ({
+      ...prev,
+      [stage]: prev[stage].filter((id) => id !== childId),
+    }));
+    
+    // If closing the selected child, select another or go to list
+    if (selectedChild[stage] === childId) {
+      const remaining = openChildTabs[stage].filter((id) => id !== childId);
+      if (remaining.length > 0) {
+        const newSelected = remaining[remaining.length - 1];
+        setSelectedChild((prev) => ({ ...prev, [stage]: newSelected }));
+        // Update the active record
+        handleChildSelect(stage, newSelected);
+      } else {
+        setSelectedChild((prev) => ({ ...prev, [stage]: undefined }));
+        setViewMode("list");
+      }
+    }
   }
 
   function renderContent() {
@@ -343,7 +414,7 @@ export function CustomerRevenueWorkspace({
               quotes={customerQuotes}
               onSelect={(q) => {
                 setActiveQuote(q);
-                setViewMode("detail");
+                addChildTab("quote", q.id);
               }}
             />
           );
@@ -354,7 +425,7 @@ export function CustomerRevenueWorkspace({
               pendingIngestions={pendingIngestionContracts}
               onSelect={(c) => {
                 setActiveContract(c);
-                setViewMode("detail");
+                addChildTab("contract", c.id);
               }}
             />
           );
@@ -364,7 +435,7 @@ export function CustomerRevenueWorkspace({
               invoices={invoicesForListView}
               onSelect={(inv) => {
                 setActiveInvoice(inv);
-                setViewMode("detail");
+                addChildTab("invoicing", inv.id);
               }}
             />
           );
@@ -374,14 +445,13 @@ export function CustomerRevenueWorkspace({
     switch (activeStage) {
       case "customer":
         return <CustomerStageContent customer={customer} />;
+      case "tasks":
+        return <TasksStageContent customer={customer} onTaskClick={handleTaskClick} />;
+      case "threads":
+        return <ThreadsStageContent customer={customer} />;
       case "quote":
         return activeQuote ? (
-          <QuoteStageContent
-            quote={activeQuote}
-            quoteVersions={quoteVersions}
-            onQuoteVersionChange={setActiveQuote}
-            onBack={handleBackToList}
-          />
+          <QuoteStageContent quote={activeQuote} quoteVersions={quoteVersions} />
         ) : (
           <EmptyState message="No quote selected." />
         );
@@ -391,12 +461,6 @@ export function CustomerRevenueWorkspace({
           <ContractStageContent
             contract={effectiveContract}
             graceExtension={graceExt}
-            customerContracts={contractsForListView}
-            onContractSelect={(id) => {
-              const next = contractsForListView.find((c) => c.id === id);
-              if (next) setActiveContract(next);
-            }}
-            onBack={handleBackToList}
             onOpenClosePane={() => setShowClosePane(true)}
           />
         ) : (
@@ -405,16 +469,7 @@ export function CustomerRevenueWorkspace({
       }
       case "invoicing":
         return effectiveInvoice && effectiveContract ? (
-          <InvoicingStageContent
-            invoice={effectiveInvoice}
-            contract={effectiveContract}
-            customerInvoices={invoicesForListView}
-            onInvoiceSelect={(id) => {
-              const next = invoicesForListView.find((i) => i.id === id);
-              if (next) setActiveInvoice(next);
-            }}
-            onBack={handleBackToList}
-          />
+          <InvoicingStageContent invoice={effectiveInvoice} contract={effectiveContract} />
         ) : null;
       case "payment":
         return <PaymentStageContent customer={customer} />;
@@ -423,6 +478,15 @@ export function CustomerRevenueWorkspace({
       default:
         return null;
     }
+  }
+
+  function handleTaskClick(task: CustomerTask) {
+    // Navigate to the relevant stage based on task action
+    if (task.action?.stage) {
+      setActiveStage(task.action.stage);
+    }
+    // TODO: Open drawer if task.action?.drawer is set
+    // For now, just switch tabs. Drawer integration can be added later.
   }
 
   return (
@@ -438,6 +502,11 @@ export function CustomerRevenueWorkspace({
         disabledStages={disabledStages}
         from={from}
         recordId={currentRecordId}
+        openChildTabs={openChildTabs}
+        selectedChild={selectedChild}
+        onChildSelect={handleChildSelect}
+        onChildClose={handleChildClose}
+        onParentClick={handleParentClick}
         recordSlot={hasRecordBar ? <div ref={setRecordSlotEl} /> : null}
       />
 

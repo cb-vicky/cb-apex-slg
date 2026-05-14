@@ -8,27 +8,13 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, ChevronDown, MoreHorizontal } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { StatusBadge } from "@/components/ui/primitives";
 import { useRecordSlot } from "./RecordSlot";
 
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
-
-/** A switchable record (quote version, sibling contract, sibling invoice…) shown in the dropdown. */
-export interface RecordHeaderOption {
-  id: string;
-  /** Small subtle tag rendered alongside the ID in the trigger pill and row (e.g. "v3"). */
-  pillTag?: string;
-  /** Optional status badge rendered in the dropdown row (NOT in the pill). */
-  status?: string;
-  /** Primary descriptor line below the ID row in the dropdown. */
-  description?: string;
-  /** Optional red error/warning line below the description (e.g. rejection reason). */
-  errorLine?: string;
-}
 
 /** An action surfaced under the `…` overflow menu. */
 export interface OverflowItem {
@@ -40,21 +26,6 @@ export interface OverflowItem {
 }
 
 interface Props {
-  id: string;
-  /** Subtle pill tag rendered inside the trigger pill itself (e.g. "v3" for quotes). */
-  pillTag?: string;
-  /**
-   * When provided the ID pill becomes a dropdown to switch between sibling
-   * records (quote versions, customer contracts, customer invoices, …).
-   */
-  recordOptions?: RecordHeaderOption[];
-  onRecordSelect?: (id: string) => void;
-  /** Optional dropdown title (e.g. "Quote versions", "All contracts"). */
-  recordMenuTitle?: string;
-  /**
-   * Back / list navigation slot — rendered as a flat text link with a left arrow.
-   */
-  leadingAction?: ReactNode;
   /**
    * Action buttons (already composed). Each direct child is treated as a
    * separate action and rendered as a flat text button separated by vertical
@@ -77,88 +48,21 @@ export function RecordHeader(props: Props) {
 }
 
 // ---------------------------------------------------------------------------
-// Glass card — slim white pill with a soft blur on the content scrolling beneath
+// Compact action bar — slim glass pill with primary actions + overflow menu
 // ---------------------------------------------------------------------------
 
-function RecordCard({
-  id,
-  pillTag,
-  recordOptions,
-  onRecordSelect,
-  recordMenuTitle,
-  leadingAction,
-  actions,
-  overflowItems,
-}: Props) {
+function RecordCard({ actions, overflowItems }: Props) {
+  if (!actions && (!overflowItems || overflowItems.length === 0)) return null;
+
   return (
     <div
       className={cn(
-        "flex items-center gap-4 rounded-2xl border border-gray-200 bg-white/65 px-5 py-2.5",
-        "shadow-[0_8px_24px_-12px_rgba(17,24,39,0.18)] backdrop-blur-md backdrop-saturate-150",
+        "inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white/80 px-4 py-2",
+        "shadow-[0_6px_16px_-8px_rgba(17,24,39,0.15)] backdrop-blur-md backdrop-saturate-150",
       )}
     >
-      {/* LEFT — back link + ID pill (status / tagline live in Overview, not here) */}
-      <div className="flex min-w-0 items-center gap-3">
-        {leadingAction && <BackLink>{leadingAction}</BackLink>}
-        {recordOptions && recordOptions.length > 0 && onRecordSelect ? (
-          <RecordMenu
-            id={id}
-            pillTag={pillTag}
-            options={recordOptions}
-            menuTitle={recordMenuTitle}
-            onSelect={onRecordSelect}
-          />
-        ) : (
-          <IdPill id={id} pillTag={pillTag} />
-        )}
-      </div>
-
-      {/* RIGHT — text actions separated by vertical dividers */}
-      {(actions || (overflowItems && overflowItems.length > 0)) && (
-        <ActionRow overflowItems={overflowItems}>{actions}</ActionRow>
-      )}
+      <ActionRow overflowItems={overflowItems}>{actions}</ActionRow>
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Back link — render as a flat text link with a left arrow icon. Accepts the
-// existing leadingAction node (typically an ActionButton) but ignores its
-// chrome and just extracts the label/onClick.
-// ---------------------------------------------------------------------------
-
-function BackLink({ children }: { children: ReactNode }) {
-  if (isValidElement<{ label?: ReactNode; onClick?: () => void }>(children)) {
-    const { label, onClick } = children.props;
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        className="inline-flex shrink-0 items-center gap-1 text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary"
-      >
-        <ArrowLeft size={14} className="opacity-80" />
-        <span>{label}</span>
-      </button>
-    );
-  }
-  return <>{children}</>;
-}
-
-// ---------------------------------------------------------------------------
-// ID pill — solid blue bordered chip
-// ---------------------------------------------------------------------------
-
-function IdPill({ id, pillTag }: { id: string; pillTag?: string }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1 text-[13px]",
-        "border-blue-300 bg-blue-50",
-      )}
-    >
-      <span className="font-bold tracking-tight text-blue-700">{id}</span>
-      {pillTag && <span className="text-[11px] font-medium text-blue-500/80">{pillTag}</span>}
-    </span>
   );
 }
 
@@ -195,7 +99,7 @@ function ActionRow({
 }
 
 function Divider() {
-  return <span className="mx-3 inline-block h-4 w-px bg-gray-300" aria-hidden />;
+  return <span className="mx-2.5 inline-block h-4 w-px bg-gray-300" aria-hidden />;
 }
 
 function FlatAction({ children }: { children: ReactNode }) {
@@ -210,10 +114,10 @@ function FlatAction({ children }: { children: ReactNode }) {
           onClick={onClick}
           disabled={disabled}
           className={cn(
-            "inline-flex items-center text-[13px] font-medium leading-none transition-colors",
+            "inline-flex items-center text-sm font-semibold leading-tight transition-colors",
             disabled
               ? "cursor-not-allowed text-text-muted/60"
-              : "text-text-secondary hover:text-blue-600",
+              : "text-blue-600 hover:text-blue-700",
           )}
         >
           {label}
@@ -249,8 +153,8 @@ function OverflowMenu({ items }: { items: OverflowItem[] }) {
         onClick={() => setOpen((o) => !o)}
         aria-label="More actions"
         className={cn(
-          "inline-flex items-center text-[13px] leading-none transition-colors",
-          open ? "text-text-primary" : "text-text-secondary hover:text-blue-600",
+          "inline-flex items-center leading-none transition-colors",
+          open ? "text-blue-700" : "text-blue-600 hover:text-blue-700",
         )}
       >
         <MoreHorizontal size={16} strokeWidth={2.2} />
@@ -283,102 +187,6 @@ function OverflowMenu({ items }: { items: OverflowItem[] }) {
               </button>
             );
           })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Record menu — generalized version of the previous quote-version dropdown.
-// Used for quote versions, contracts under a customer, invoices under a
-// customer, etc. The trigger keeps the blue ID-pill aesthetic.
-// ---------------------------------------------------------------------------
-
-function RecordMenu({
-  id,
-  pillTag,
-  options,
-  menuTitle,
-  onSelect,
-}: {
-  id: string;
-  pillTag?: string;
-  options: RecordHeaderOption[];
-  menuTitle?: string;
-  onSelect: (id: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [open]);
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[13px] transition-colors",
-          "border-blue-300 bg-blue-50 hover:bg-blue-100",
-        )}
-      >
-        <span className="font-bold tracking-tight text-blue-700">{id}</span>
-        {pillTag && <span className="text-[11px] font-medium text-blue-500/80">{pillTag}</span>}
-        <ChevronDown size={14} strokeWidth={2.4} className="text-blue-500" />
-      </button>
-
-      {open && (
-        <div className="absolute left-0 top-[calc(100%+6px)] z-30 w-[420px] rounded-xl border border-border-default bg-white p-2 shadow-xl">
-          {menuTitle && (
-            <div className="mb-1 px-2 py-1 text-[11px] uppercase tracking-wider text-text-muted">
-              {menuTitle}
-            </div>
-          )}
-          <div className="max-h-72 space-y-1 overflow-y-auto">
-            {options.map((opt) => {
-              const selected = opt.id === id;
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => {
-                    onSelect(opt.id);
-                    setOpen(false);
-                  }}
-                  className={cn(
-                    "block w-full rounded-md border px-2.5 py-2 text-left transition-colors",
-                    selected
-                      ? "border-blue-200 bg-blue-50/60"
-                      : "border-transparent hover:border-border-default hover:bg-surface-muted",
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-text-primary">{opt.id}</span>
-                    {opt.pillTag && (
-                      <span className="text-[12px] text-text-muted">{opt.pillTag}</span>
-                    )}
-                    {opt.status && <StatusBadge status={opt.status} />}
-                  </div>
-                  {opt.description && (
-                    <p className="mt-1 text-[12px] leading-relaxed text-text-secondary">
-                      {opt.description}
-                    </p>
-                  )}
-                  {opt.errorLine && (
-                    <p className="mt-1 text-[11px] text-rose-600">{opt.errorLine}</p>
-                  )}
-                </button>
-              );
-            })}
-          </div>
         </div>
       )}
     </div>
