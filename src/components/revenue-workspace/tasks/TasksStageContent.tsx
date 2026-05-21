@@ -80,7 +80,7 @@ export function TasksStageContent({ customer, onTaskClick }: Props) {
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h2 className="font-sora text-[20px] font-semibold text-text-primary">Tasks</h2>
+          <h2 className="font-sora text-[20px] font-bold text-text-primary">Tasks</h2>
           <p className="mt-1 text-[13px] text-text-muted">
             {openCount} open · {doneCount} completed
           </p>

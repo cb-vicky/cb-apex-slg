@@ -1,36 +1,23 @@
 ---
-description: Queue + contract ingestion + first-invoice approval + merchant approval policy
-globs: src/pages/QueueIndex.tsx,src/pages/QueueIngestPage.tsx,src/pages/ApprovalsIndex.tsx,src/pages/ApprovalDetailPage.tsx,src/context/IngestContext.tsx,src/data/ingest-data.ts,src/data/queue-data.ts,src/data/approval-policy.ts,src/components/contracts/**,src/components/approvals/**,src/components/queue/**
+description: Contract ingestion and invoice approval flows
+globs: src/pages/QueueIngestPage.tsx,src/pages/ApprovalDetailPage.tsx,src/context/IngestContext.tsx,src/context/IngestProvider.tsx,src/context/ingest-context-core.ts,src/data/ingest-data.ts,src/data/queue-data.ts,src/data/approval-policy.ts,src/components/transitions/**,src/components/contracts/**,src/components/approvals/**,src/components/queue/**,src/components/common/EntityDrawer.tsx,src/store/**
 alwaysApply: false
 ---
 
-# Queue, Contract Ingestion & First-Invoice Approval
+# Ingestion & Approvals
 
-When editing the Queue, ingestion flow, upload modal, approvals pages, approval-settings modal, or ingest context, read:
+When editing ingest, queue, approval, or drawer flows:
 
-- **`docs/09-contract-ingestion.md`** — full flow: Queue index (Import + Connect) → upload modal → analysis animation → ingest verification workspace (happy + exception paths) → completion state with two CTAs → auto-submitted approval → approval detail (editable critical fields + Invoice|Contract tabs + comments) → approve toast → ApprovalSettingsModal → "All set" success state → View Customer
-- **`docs/06-routing.md`** — `/queue`, `/queue/:queueItemId`, `/approvals/invoices/:invoiceId?ingestId=…`
-- **`docs/08-mock-data.md`** — ingestion types, queue items, approval policy types, session state shape
+- **`docs/13-drawer-and-flows.md`** — EntityDrawer, drawer-store, UnifiedFlowShell, openDrawer, flow steps
+- **`docs/09-contract-ingestion.md`** — business flows, full-page grids, closure/renewal
+- **`docs/06-routing.md`** — `/queue/:id`, `/approvals/invoices/:id`, redirects
+- **`docs/08-mock-data.md`** — IngestProvider state, `contract-transition.ts` types
 
 ## Key rules
 
-1. The **Queue** is the single landing for every signed contract pending ingestion. Sidebar Desk > Queue → `/queue`.
-2. **Import** (primary blue button) opens the upload modal — replaces the previous "Upload" button on the Contracts index.
-3. **Connect** opens the integrations modal (Salesforce, DocuSign, Ironclad, NetSuite, Workday, HubSpot, PandaDoc) — visual only.
-4. File upload UI is non-functional — only the **two sample documents** drive the active prototype flow:
-   - Sample 1 = Echo Corp renewal (`QI-2026-0001`, happy path)
-   - Sample 2 = Zenith Analytics new business (`QI-2026-0002`, exception path with missing customer + product mapping)
-5. Other queue items (`QI-2026-0003`–`QI-2026-0012`) are placeholders representing PDF / API / CPQ / Email sources, In Progress / Ingested / Failed / Rejected states, and Amendment / Early Renewal scenarios. Clicking them renders a placeholder `PlaceholderState` panel.
-6. Session-created objects (customer, product plan, queue overrides, approval policy, invoice field overrides) live in `IngestContext` only — refresh resets.
-7. `/queue/:queueItemId` is a **standalone route**, NOT inside the customer shell. Breadcrumb: `Queue > Ingest Contract > {document}`.
-8. On Finish Ingestion the page MUST: build the ingest result, **auto-submit the first invoice for approval**, mark the queue item as `Ingested`, and render the completion state with two CTAs ("Review First Invoice →" primary, "Open Contract" secondary).
-9. Approval Detail layout:
-   - LEFT: editable **critical fields** (amount, tax %, invoice date with backdated hint, due date, payment terms, PO number, billing period, memo) + Approval & Context card
-   - RIGHT comments rail (sticky)
-   - RIGHT-most preview panel with **Invoice | Contract tabs** (zoom + page controls; pages only on Contract tab)
-   - Field edits persist into `invoiceFieldOverrides` keyed by invoice ID and feed into the Invoice preview
-10. Comments with `@`-tagging use the hardcoded user list (Jordan Kim, Priya Mehta, Alex Nguyen, Marcus Lee, Rachel Torres, Lena Schulz, Sarah Chen).
-11. On Approve → toast **"Invoice sent to the customer"** (~2.4s) → IF this approval came from a fresh ingest (`?ingestId=…` in URL) AND `firstApprovalCompletedFor[ingestId]` is false → open `ApprovalSettingsModal` → after save/skip render the **"All set"** success state with `View Customer →` CTA. Otherwise navigate to `/invoices/:invoiceId?from=approvals`.
-12. `ApprovalSettingsModal` has three modes: Auto-approve / Always send for approval / Send for approval only if non-standard. Non-standard exposes editable conditions for high TCV (with $ threshold), discount above threshold (with % threshold), custom payment terms, backdated invoices, manual line items.
-13. On Reject → invoice status becomes "Cancelled" via `invoiceStatusOverrides`, no toast, no policy modal.
-14. Type-only exports (`ApprovalPolicy`, `ApprovalPolicyMode`, `NonStandardConditions`, `InvoiceFieldOverrides`, `QueueItemOverride`) live in `src/data/approval-policy.ts` to keep `IngestContext.tsx` HMR-clean.
+1. **Primary ingest path:** `EntityDrawer` via `drawer-store` — not only `/queue/:queueItemId`.
+2. Queue landing is **Workbench `/?tab=queue`** — `/queue` redirects there.
+3. Use **`IngestProvider`** / `useIngestContext()` — context is split across `ingest-context-core.ts`.
+4. Full-page ingest/approval uses **25/35/40** or **25/25/50** grids; drawer uses narrow rail + preview.
+5. `IngestFieldGroup` wraps flat `sections/*` components; chips mirror `ValidationPanel`.
+6. Early Renewal (`sample3`) and Late Renewal (`sample4`) short-circuit standard ingest finish.

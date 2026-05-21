@@ -225,26 +225,6 @@ export const customerTasks: CustomerTask[] = [
     },
     action: { stage: "invoicing" },
   },
-  {
-    id: "TASK-021",
-    customerId: "cust_verdant_005",
-    title: "Ingest early renewal contract",
-    description: "Customer signed early renewal. Needs ingestion and prior contract closure.",
-    type: "contract-ingestion",
-    priority: "high",
-    status: "open",
-    assignee: "Lena Schulz",
-    dueDate: "2026-05-08",
-    createdAt: "2026-04-19",
-    relatedTo: {
-      entityType: "contract",
-      entityId: "CON-2026-VERDANT-NEW",
-      label: "Early Renewal Contract",
-    },
-    action: {
-      drawer: { entityType: "queue", entityId: "QI-2026-0006", mode: "ingest" },
-    },
-  },
 
   // Lumina tasks (healthy customer, fewer tasks)
   {

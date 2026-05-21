@@ -1,21 +1,60 @@
-import { useRef, useState, useEffect, useLayoutEffect, useCallback, forwardRef, type ReactNode } from "react";
+import {
+  Fragment,
+  useRef,
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  forwardRef,
+  type ReactNode,
+  type RefObject,
+} from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
+import { SIDEBAR_LAYOUT_EVENT } from "@/components/layout/Sidebar";
 import { ChevronDown, ChevronRight, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Customer, Quote, Contract, Invoice } from "@/data/mock-data";
-import type { RevenueArrangement } from "@/data/revrec-data";
-import type { Stage } from "./RevenueJourneyRail";
-
-/** Stages that support the list-then-detail pattern with grouped sub-tabs */
-const LIST_DETAIL_STAGES: Stage[] = ["quote", "contract", "invoicing"];
+import type { Customer } from "@/data/mock-data";
+import type { Stage } from "./stage";
+import type { StatusSeverity } from "./derive-stage-data";
+import {
+  buildMoreTabSubtitle,
+  CONNECT_TAB_SUMMARY,
+  MORE_TAB_DEFAULT_SUBTITLE,
+  resolveWorkspaceTabSummary,
+  TAB_STATUS_HOVER_CLASS,
+  type TabSummary,
+} from "./derive-tab-summaries";
+import {
+  buildTabStrip,
+  EMPTY_VISIBILITY_OVERRIDES,
+  findLastUnselectedVisibleTab,
+  isTabClosable,
+  resolveTabVisibility,
+  tabKey,
+  tabLabel,
+  tabsEqual,
+  STAGE_ORDER,
+  type OpenRecordTab,
+  type VisibilityOverrides,
+  type WorkspaceTab,
+} from "./workspace-tabs";
 
 const SCROLL_THRESHOLD = 40;
 
-/** Minimum width reserved for the "More" button when it's needed */
-const MORE_BUTTON_WIDTH = 72;
-
-/** Threshold: if tabs exceed this % of container width, show "More" */
-const OVERFLOW_THRESHOLD = 0.83;
+/** Breadcrumb ↔ customer title stack — expanded / collapsed */
+const HEADER_BREADCRUMB_HEIGHT = { expanded: 40, collapsed: 28 } as const;
+const HEADER_BREADCRUMB_PB = { expanded: 2, collapsed: 1 } as const;
+const HEADER_TITLE_PT = { expanded: 2, collapsed: 0 } as const;
+const HEADER_TITLE_PB = { expanded: 16, collapsed: 4 } as const;
+const HEADER_TABS_GAP = { expanded: 12, collapsed: 4 } as const;
+const MORE_BUTTON_WIDTH = 96;
+const OVERFLOW_THRESHOLD = 1;
+/** Negative margin overlap between adjacent folder tabs */
+const TAB_OVERLAP = 10;
+const MEASURE_RETRY_MAX = 16;
+const TAB_FLIP_EASING = "cubic-bezier(0.25, 0.1, 0.25, 1)";
+const TAB_FLIP_MS = 280;
 
 const stageDisplay: Record<Stage, { tab: string; crumb: string }> = {
   customer: { tab: "Overview", crumb: "Overview" },
@@ -28,21 +67,12 @@ const stageDisplay: Record<Stage, { tab: string; crumb: string }> = {
   revrec: { tab: "RevRec", crumb: "Arrangement" },
 };
 
-/** Open child records for each list-detail stage */
-export interface OpenChildTabs {
-  quote: string[];
-  contract: string[];
-  invoicing: string[];
-}
+const DISABLED_TOOLTIP = "No content to show";
+const EMPTY_DISABLED_STAGES = new Set<Stage>();
 
-/** Currently selected child per stage (which sub-tab is active) */
-export interface SelectedChildPerStage {
-  quote?: string;
-  contract?: string;
-  invoicing?: string;
+function overflowKeysEqual(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((k, i) => k === b[i]);
 }
-
-const STAGE_ORDER: Stage[] = ["customer", "tasks", "threads", "quote", "contract", "invoicing", "payment", "revrec"];
 
 const moduleLabels: Record<string, string> = {
   customers: "Customers",
@@ -81,248 +111,338 @@ const groupLabels: Record<string, string> = {
 
 interface Props {
   customer: Customer;
-  quote: Quote | null;
-  contract: Contract | null;
-  invoice?: Invoice;
-  arrangement?: RevenueArrangement;
-  activeStage: Stage;
-  onStageChange: (stage: Stage) => void;
+  activeTab: WorkspaceTab;
+  hiddenParentStages: Set<Stage>;
+  openRecordTabs: OpenRecordTab[];
   disabledStages?: Set<Stage>;
   from?: string;
   recordId?: string;
-  /** All open child tabs across stages (persistent until explicitly closed) */
-  openChildTabs: OpenChildTabs;
-  /** Currently selected child for each stage */
-  selectedChild: SelectedChildPerStage;
-  /** Called when user selects a child tab */
-  onChildSelect: (stage: "quote" | "contract" | "invoicing", childId: string) => void;
-  /** Called when user closes a specific child tab */
-  onChildClose: (stage: "quote" | "contract" | "invoicing", childId: string) => void;
-  /** Called when user clicks the parent tab to return to list view */
-  onParentClick: (stage: "quote" | "contract" | "invoicing") => void;
-  /**
-   * Slot rendered below the tabs row, inside the sticky frame, to host the
-   * detail-record context bar (glass card). Pass `null`/`undefined` and the
-   * rail collapses to just the tabs row.
-   */
+  onTabSelect: (tab: WorkspaceTab) => void;
+  onParentClose: (stage: Stage) => void;
+  onRecordClose: (stage: OpenRecordTab["stage"], recordId: string) => void;
+  onRestoreParent: (stage: Stage) => void;
+  parentTabSummaries?: Partial<Record<Stage, TabSummary>>;
+  recordTabSummaries?: Record<string, TabSummary>;
   recordSlot?: ReactNode;
+}
+
+const TAB_COLLAPSE_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
+const TAB_COLLAPSE_MS = "380ms";
+
+function tabStatusClass(
+  severity: StatusSeverity,
+  active: boolean,
+  group: "tab" | "connect" = "tab",
+): string {
+  const hoverPrefix = group === "connect" ? "group-hover/connect:" : "group-hover/tab:";
+  const hover = TAB_STATUS_HOVER_CLASS[severity].replace("group-hover/tab:", hoverPrefix);
+  if (active) {
+    return cn("text-blue-100/80", `${hoverPrefix}text-blue-50`);
+  }
+  return cn("text-text-muted", hover);
 }
 
 export function CustomerContextBar({
   customer,
-  activeStage,
-  onStageChange,
+  activeTab,
+  hiddenParentStages,
+  openRecordTabs,
   disabledStages,
   from,
   recordId,
-  openChildTabs,
-  selectedChild,
-  onChildSelect,
-  onChildClose,
-  onParentClick,
+  onTabSelect,
+  onParentClose,
+  onRecordClose,
+  onRestoreParent,
+  parentTabSummaries = {},
+  recordTabSummaries = {},
   recordSlot,
 }: Props) {
   const navigate = useNavigate();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const rafRef = useRef<number>(0);
 
-  // Overflow state
   const tabsContainerRef = useRef<HTMLDivElement>(null);
-  const tabRefs = useRef<Map<Stage | "connect", HTMLElement>>(new Map());
-  const [overflowStages, setOverflowStages] = useState<Stage[]>([]);
-  const [connectInOverflow, setConnectInOverflow] = useState(false);
+  const visibleStripRef = useRef<HTMLDivElement>(null);
+  const measureRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const pendingFlipRef = useRef<Map<string, DOMRect> | null>(null);
+  const [measuredOverflowKeys, setMeasuredOverflowKeys] = useState<string[]>([]);
+  const [visibilityOverrides, setVisibilityOverrides] =
+    useState<VisibilityOverrides>(EMPTY_VISIBILITY_OVERRIDES);
   const [showMoreDropdown, setShowMoreDropdown] = useState(false);
   const moreButtonRef = useRef<HTMLDivElement>(null);
 
-  // Animation state for FLIP
-  const prevActiveStage = useRef<Stage | null>(null);
-  const tabPositions = useRef<Map<Stage | "connect", DOMRect>>(new Map());
-  const [isAnimating, setIsAnimating] = useState(false);
-  const pendingAnimation = useRef(false);
-  
-  // Prevent clicks during animation
-  const animatingStyle = isAnimating ? { pointerEvents: "none" as const } : undefined;
+  const activeStage = activeTab.kind === "parent" ? activeTab.stage : activeTab.stage;
+  const disabled = disabledStages ?? EMPTY_DISABLED_STAGES;
+  const activeTabKey = tabKey(activeTab);
 
-  // Reorder stages: active stage first, then rest in natural order
-  const orderedStages = useCallback((): Stage[] => {
-    const rest = STAGE_ORDER.filter((s) => s !== activeStage);
-    return [activeStage, ...rest];
-  }, [activeStage]);
+  const fullStrip = buildTabStrip(hiddenParentStages, openRecordTabs, disabled);
+  const stripSignature = fullStrip.map(tabKey).join("|");
+  const fullStripRef = useRef(fullStrip);
+  fullStripRef.current = fullStrip;
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
 
-  // Capture current tab positions
-  const capturePositions = useCallback(() => {
-    const positions = new Map<Stage | "connect", DOMRect>();
-    tabRefs.current.forEach((el, stageId) => {
-      positions.set(stageId, el.getBoundingClientRect());
-    });
-    return positions;
+  const hiddenParents = STAGE_ORDER.filter((s) => hiddenParentStages.has(s));
+  const disabledParents = STAGE_ORDER.filter((s) => disabled.has(s));
+  const needsMoreMenu = hiddenParents.length > 0 || disabledParents.length > 0;
+
+  const commitMeasuredOverflow = useCallback((next: string[]) => {
+    const valid = new Set(fullStripRef.current.map(tabKey));
+    const filtered = next.filter((k) => valid.has(k));
+    setMeasuredOverflowKeys((prev) => (overflowKeysEqual(prev, filtered) ? prev : filtered));
   }, []);
 
-  // Capture positions before activeStage change triggers re-render
-  // This runs synchronously when activeStage prop changes but before DOM updates
-  if (prevActiveStage.current !== null && prevActiveStage.current !== activeStage && !pendingAnimation.current) {
-    // Capture "before" positions right now, before React updates the DOM
-    tabPositions.current = capturePositions();
-    pendingAnimation.current = true;
-  }
+  useEffect(() => {
+    setVisibilityOverrides(EMPTY_VISIBILITY_OVERRIDES);
+  }, [stripSignature]);
 
-  // FLIP Animation: Animate tabs after DOM has been updated
-  useLayoutEffect(() => {
-    // First render: just initialize
-    if (prevActiveStage.current === null) {
-      prevActiveStage.current = activeStage;
-      tabPositions.current = capturePositions();
-      return;
-    }
+  const captureVisibleTabPositions = useCallback(() => {
+    const map = new Map<string, DOMRect>();
+    visibleStripRef.current
+      ?.querySelectorAll<HTMLElement>("[data-tab-key]")
+      .forEach((el) => {
+        const key = el.dataset.tabKey;
+        if (key) map.set(key, el.getBoundingClientRect());
+      });
+    return map;
+  }, []);
 
-    // No pending animation
-    if (!pendingAnimation.current) {
-      return;
-    }
+  const playTabStripFlip = useCallback((before: Map<string, DOMRect>) => {
+    const nodes = visibleStripRef.current?.querySelectorAll<HTMLElement>("[data-tab-key]");
+    if (!nodes?.length) return;
 
-    pendingAnimation.current = false;
-    const prevPositions = tabPositions.current;
-    
-    // Calculate deltas between old and new positions
-    const animations: { el: HTMLElement; deltaX: number }[] = [];
-    
-    tabRefs.current.forEach((el, stageId) => {
-      const prevRect = prevPositions.get(stageId);
-      if (!prevRect) return;
-      
-      const newRect = el.getBoundingClientRect();
-      const deltaX = prevRect.left - newRect.left;
-      
-      if (Math.abs(deltaX) > 2) {
-        animations.push({ el, deltaX });
+    nodes.forEach((el) => {
+      const key = el.dataset.tabKey;
+      if (!key) return;
+
+      const prev = before.get(key);
+      const next = el.getBoundingClientRect();
+
+      if (!prev) {
+        el.animate(
+          [
+            { opacity: 0, transform: "translateX(14px) scale(0.97)" },
+            { opacity: 1, transform: "translateX(0) scale(1)" },
+          ],
+          { duration: TAB_FLIP_MS, easing: TAB_FLIP_EASING, fill: "forwards" },
+        );
+        return;
       }
+
+      const dx = prev.left - next.left;
+      if (Math.abs(dx) < 2) return;
+
+      el.style.transform = `translateX(${dx}px)`;
+      el.style.transition = "none";
+
+      requestAnimationFrame(() => {
+        el.style.transition = `transform ${TAB_FLIP_MS}ms ${TAB_FLIP_EASING}`;
+        el.style.transform = "translateX(0)";
+        const onEnd = () => {
+          el.style.transition = "";
+          el.style.transform = "";
+          el.removeEventListener("transitionend", onEnd);
+        };
+        el.addEventListener("transitionend", onEnd);
+      });
+    });
+  }, []);
+
+  const measureOverflow = useCallback((): boolean => {
+    const container = tabsContainerRef.current;
+    if (!container || container.offsetWidth === 0) return false;
+
+    const strip = fullStripRef.current;
+    const widthOf = (key: string) => measureRefs.current.get(key)?.offsetWidth ?? 0;
+    const moreWidth = widthOf("measure:more") || MORE_BUTTON_WIDTH;
+    const maxTabsWidth = Math.max(
+      0,
+      container.offsetWidth * OVERFLOW_THRESHOLD - moreWidth + TAB_OVERLAP,
+    );
+
+    const tabWidths = strip.map((tab) => {
+      const key = tabKey(tab);
+      const isActive = tabsEqual(activeTabRef.current, tab);
+      if (isTabClosable(tab) && isActive) {
+        const expanded = widthOf(`measure:${key}:expanded`);
+        const compact = widthOf(`measure:${key}`);
+        return expanded > 0 ? expanded : compact;
+      }
+      return widthOf(`measure:${key}`);
     });
 
-    if (animations.length > 0) {
-      setIsAnimating(true);
-      
-      // FLIP - Invert: Apply inverse transform instantly (appear at old position)
-      animations.forEach(({ el, deltaX }) => {
-        el.style.transform = `translateX(${deltaX}px)`;
-        el.style.transition = "none";
-      });
+    if (tabWidths.some((w) => w === 0)) return false;
 
-      // Force reflow to ensure transform is applied
-      void tabsContainerRef.current?.offsetHeight;
+    const sumWithOverlap = (widths: number[]) => {
+      if (widths.length === 0) return 0;
+      return widths.reduce((sum, w, i) => sum + w - (i > 0 ? TAB_OVERLAP : 0), 0);
+    };
 
-      // FLIP - Play: Animate to final position (new position)
-      requestAnimationFrame(() => {
-        animations.forEach(({ el }) => {
-          el.style.transition = "transform 600ms cubic-bezier(0.25, 0.1, 0.25, 1)";
-          el.style.transform = "translateX(0)";
-        });
-
-        // Clean up after animation completes
-        setTimeout(() => {
-          animations.forEach(({ el }) => {
-            el.style.transform = "";
-            el.style.transition = "";
-          });
-          setIsAnimating(false);
-        }, 600);
-      });
+    const stripWidth = sumWithOverlap(tabWidths);
+    if (stripWidth <= maxTabsWidth && !needsMoreMenu) {
+      commitMeasuredOverflow([]);
+      return true;
     }
 
-    prevActiveStage.current = activeStage;
-    // Update stored positions for next animation
-    tabPositions.current = capturePositions();
-  }, [activeStage, capturePositions]);
+    let usedWidth = 0;
+    const overflowKeys: string[] = [];
 
-  // Measure and determine overflow based on 83% threshold
-  const measureOverflow = useCallback(() => {
-    const container = tabsContainerRef.current;
-    if (!container) return;
+    for (let i = 0; i < strip.length; i++) {
+      const key = tabKey(strip[i]);
+      const tabWidth = tabWidths[i];
+      const overlap = usedWidth > 0 ? TAB_OVERLAP : 0;
+      const wouldFit = usedWidth + tabWidth - overlap <= maxTabsWidth;
+      const forceFirst = overflowKeys.length === 0 && usedWidth === 0;
 
-    const containerWidth = container.offsetWidth;
-    const maxTabsWidth = containerWidth * OVERFLOW_THRESHOLD;
-    const stages = orderedStages();
-    
-    // Measure total width of all tabs including Connect
-    let totalWidth = 0;
-    for (const stageId of stages) {
-      const tabEl = tabRefs.current.get(stageId);
-      if (tabEl) {
-        totalWidth += tabEl.offsetWidth - 12; // Account for negative margin overlap
+      if (wouldFit || forceFirst) {
+        usedWidth += tabWidth - overlap;
+      } else {
+        overflowKeys.push(key);
       }
     }
-    totalWidth += 12; // Add back first tab's full width (no overlap)
-    
-    const connectEl = tabRefs.current.get("connect");
-    const connectWidth = connectEl?.offsetWidth ?? 80;
-    totalWidth += connectWidth - 12; // Connect also overlaps
 
-    // If total width exceeds threshold, start overflow
-    if (totalWidth > maxTabsWidth) {
-      let usedWidth = 0;
-      const visible: Stage[] = [];
-      const overflow: Stage[] = [];
-
-      // First, measure each tab and determine what fits
-      for (const stageId of stages) {
-        const tabEl = tabRefs.current.get(stageId);
-        if (!tabEl) continue;
-
-        const tabWidth = tabEl.offsetWidth;
-        const marginAdjust = visible.length > 0 ? 12 : 0;
-        const wouldFit = usedWidth + tabWidth - marginAdjust + MORE_BUTTON_WIDTH <= maxTabsWidth;
-
-        if (wouldFit || visible.length === 0) {
-          visible.push(stageId);
-          usedWidth += tabWidth - marginAdjust;
-        } else {
-          overflow.push(stageId);
+    const activeKey = tabKey(activeTabRef.current);
+    if (overflowKeys.includes(activeKey)) {
+      const withoutActive = overflowKeys.filter((k) => k !== activeKey);
+      for (let i = strip.length - 1; i >= 0; i--) {
+        const key = tabKey(strip[i]);
+        if (key !== activeKey && !withoutActive.includes(key)) {
+          withoutActive.push(key);
+          break;
         }
       }
-
-      // Check if Connect fits
-      const connectFits = usedWidth + connectWidth - 12 + MORE_BUTTON_WIDTH <= maxTabsWidth;
-
-      setOverflowStages(overflow);
-      setConnectInOverflow(!connectFits);
-    } else {
-      // Everything fits, no overflow
-      setOverflowStages([]);
-      setConnectInOverflow(false);
+      overflowKeys.length = 0;
+      overflowKeys.push(...withoutActive);
     }
-  }, [orderedStages]);
 
-  // ResizeObserver for container
+    commitMeasuredOverflow(overflowKeys);
+    return true;
+  }, [needsMoreMenu, commitMeasuredOverflow]);
+
+  const measureOverflowRef = useRef(measureOverflow);
+  measureOverflowRef.current = measureOverflow;
+
   useLayoutEffect(() => {
     const container = tabsContainerRef.current;
     if (!container) return;
 
-    const ro = new ResizeObserver(() => {
-      measureOverflow();
-    });
+    let cancelled = false;
+    let attempts = 0;
+
+    const runMeasure = () => {
+      if (cancelled) return;
+      const ready = measureOverflowRef.current();
+      if (!ready && attempts < MEASURE_RETRY_MAX) {
+        attempts += 1;
+        requestAnimationFrame(runMeasure);
+      } else {
+        attempts = 0;
+      }
+    };
+
+    const scheduleMeasure = () => {
+      attempts = 0;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(runMeasure);
+      });
+    };
+
+    scheduleMeasure();
+
+    const ro = new ResizeObserver(scheduleMeasure);
     ro.observe(container);
 
-    // Initial measurement
-    requestAnimationFrame(() => {
-      measureOverflow();
-    });
+    const mainScroll = document.querySelector<HTMLElement>("[data-main-scroll-container]");
+    if (mainScroll) ro.observe(mainScroll);
 
-    return () => ro.disconnect();
-  }, [measureOverflow]);
+    const onSidebarLayout = () => {
+      window.setTimeout(scheduleMeasure, 220);
+    };
+    window.addEventListener(SIDEBAR_LAYOUT_EVENT, onSidebarLayout);
 
-  // Re-measure when active stage or child tabs change
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      measureOverflow();
-    });
-  }, [activeStage, openChildTabs, measureOverflow]);
+    return () => {
+      cancelled = true;
+      ro.disconnect();
+      window.removeEventListener(SIDEBAR_LAYOUT_EVENT, onSidebarLayout);
+    };
+  }, [stripSignature, activeTabKey, needsMoreMenu, isCollapsed]);
 
-  // Close dropdown on click outside
+  const { visible: visibleTabs, overflow: overflowTabs } = resolveTabVisibility(
+    fullStrip,
+    measuredOverflowKeys,
+    visibilityOverrides,
+  );
+  const visibleTabKeys = visibleTabs.map(tabKey).join("|");
+
+  useLayoutEffect(() => {
+    if (!pendingFlipRef.current) return;
+    const before = pendingFlipRef.current;
+    pendingFlipRef.current = null;
+    playTabStripFlip(before);
+  }, [visibleTabKeys, activeTabKey, playTabStripFlip]);
+
+  const selectTab = useCallback(
+    (tab: WorkspaceTab) => {
+      const key = tabKey(tab);
+      const { visible, overflow } = resolveTabVisibility(
+        fullStripRef.current,
+        measuredOverflowKeys,
+        visibilityOverrides,
+      );
+      const isInOverflow = overflow.some((t) => tabKey(t) === key);
+
+      if (!isInOverflow) {
+        onTabSelect(tab);
+        return;
+      }
+
+      const lastUnselected = findLastUnselectedVisibleTab(
+        fullStripRef.current,
+        visible,
+        tab,
+      );
+
+      pendingFlipRef.current = captureVisibleTabPositions();
+
+      if (lastUnselected) {
+        const demoteKey = tabKey(lastUnselected);
+        setVisibilityOverrides((prev) => {
+          const promoted = new Set(prev.promotedToVisible);
+          const demoted = new Set(prev.demotedToOverflow);
+          promoted.add(key);
+          demoted.add(demoteKey);
+          promoted.delete(demoteKey);
+          demoted.delete(key);
+          return { promotedToVisible: promoted, demotedToOverflow: demoted };
+        });
+      }
+
+      onTabSelect(tab);
+    },
+    [
+      measuredOverflowKeys,
+      visibilityOverrides,
+      onTabSelect,
+      captureVisibleTabPositions,
+    ],
+  );
+
+  const setMeasureRef = (key: string, el: HTMLElement | null) => {
+    if (el) measureRefs.current.set(key, el);
+    else measureRefs.current.delete(key);
+  };
+
+  const moreMenuPanelRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!showMoreDropdown) return;
     function handleClickOutside(e: MouseEvent) {
-      if (moreButtonRef.current && !moreButtonRef.current.contains(e.target as Node)) {
-        setShowMoreDropdown(false);
-      }
+      const target = e.target as Node;
+      if (moreButtonRef.current?.contains(target)) return;
+      if (moreMenuPanelRef.current?.contains(target)) return;
+      setShowMoreDropdown(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -332,76 +452,92 @@ export function CustomerContextBar({
     const scrollContainer = document.querySelector<HTMLElement>("[data-main-scroll-container]");
     if (!scrollContainer) return;
 
-    const updateCollapsed = () => {
-      setIsCollapsed(scrollContainer.scrollTop > SCROLL_THRESHOLD);
+    const updateScrollState = () => {
+      const top = scrollContainer.scrollTop;
+      setIsScrolled(top > 0);
+      setIsCollapsed(top > SCROLL_THRESHOLD);
     };
-
     const handleScroll = () => {
       cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(updateCollapsed);
+      rafRef.current = requestAnimationFrame(updateScrollState);
     };
 
     scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
-    
-    requestAnimationFrame(() => {
-      requestAnimationFrame(updateCollapsed);
-    });
-
+    requestAnimationFrame(() => requestAnimationFrame(updateScrollState));
     return () => {
       scrollContainer.removeEventListener("scroll", handleScroll);
       cancelAnimationFrame(rafRef.current);
     };
   }, []);
 
-  const crumbs = buildCrumbs({ from, customerName: customer.name, customerId: customer.id, activeStage, recordId });
+  const crumbs = buildCrumbs({
+    from,
+    customerName: customer.name,
+    customerId: customer.id,
+    activeStage,
+    recordId,
+  });
 
-  // Get visible stages (ordered, excluding overflow)
-  const visibleStages = orderedStages().filter((s) => !overflowStages.includes(s));
+  const moreOverflowSubtitle = buildMoreTabSubtitle(
+    overflowTabs,
+    hiddenParents,
+    stageDisplay,
+  );
+  const moreTabSubtitle = moreOverflowSubtitle || MORE_TAB_DEFAULT_SUBTITLE;
 
-  // Check if More button should be shown
-  const showMoreButton = overflowStages.length > 0 || connectInOverflow;
+  /** More is always shown — Connect and overflow tabs live in its menu. */
+  const showMoreButton = true;
 
-  // Register tab ref
-  const setTabRef = (stageId: Stage | "connect", el: HTMLElement | null) => {
-    if (el) {
-      tabRefs.current.set(stageId, el);
-    } else {
-      tabRefs.current.delete(stageId);
-    }
-  };
+  /** Slot before More — without changing tab z-index rules. */
+  const moreZIndex = (() => {
+    if (visibleTabs.length === 0) return 1;
+    const lastIdx = visibleTabs.length - 1;
+    const lastTab = visibleTabs[lastIdx];
+    const lastZ = tabsEqual(activeTab, lastTab) ? 50 : 10 - lastIdx;
+    return Math.max(1, lastZ - 1);
+  })();
 
   return (
     <div data-insight-rail-anchor="" className="sticky top-0 z-20 bg-transparent">
-      {/* === Customer header (white, top-rounded to match canvas) === */}
-      <div className="rounded-br-[24px] border-b border-border-default bg-white">
-        {/* breadcrumb */}
+      <div
+        className={cn(
+          "rounded-br-[24px] border-b border-border-default bg-transparent transition-[background-color,backdrop-filter] duration-300 ease-out",
+          isScrolled && "bg-gray-100/75 backdrop-blur-md backdrop-saturate-150",
+        )}
+      >
         <div
-          className="flex items-center px-6 transition-all duration-300 ease-out"
-          style={{ height: isCollapsed ? 32 : 44 }}
+          className="flex items-center pl-2 pr-6 transition-all duration-300 ease-out"
+          style={{
+            height: isCollapsed
+              ? HEADER_BREADCRUMB_HEIGHT.collapsed
+              : HEADER_BREADCRUMB_HEIGHT.expanded,
+            paddingBottom: isCollapsed
+              ? HEADER_BREADCRUMB_PB.collapsed
+              : HEADER_BREADCRUMB_PB.expanded,
+          }}
         >
           <Breadcrumbs crumbs={crumbs} onNavigate={navigate} collapsed={isCollapsed} />
         </div>
 
-        {/* title + owners */}
         <div
-          className="flex items-end justify-between gap-4 px-6 transition-all duration-300 ease-out"
+          className="flex items-end justify-between gap-4 pl-2 pr-6 transition-all duration-300 ease-out"
           style={{
-            paddingTop: isCollapsed ? 0 : 4,
-            paddingBottom: isCollapsed ? 8 : 16,
+            paddingTop: isCollapsed ? HEADER_TITLE_PT.collapsed : HEADER_TITLE_PT.expanded,
+            paddingBottom: isCollapsed ? HEADER_TITLE_PB.collapsed : HEADER_TITLE_PB.expanded,
           }}
         >
           <h1
-            className="min-w-0 truncate font-semibold leading-tight tracking-tight text-text-primary transition-all duration-300 ease-out"
+            className="min-w-0 truncate font-bold leading-tight tracking-tight text-text-primary transition-all duration-300 ease-out"
             style={{ fontSize: isCollapsed ? 16 : 26 }}
           >
             {customer.name}
           </h1>
           <p
-            className="shrink-0 whitespace-nowrap text-[12px] text-text-muted pb-[3px] transition-all duration-300 ease-out origin-right"
+            className="shrink-0 whitespace-nowrap pb-[3px] text-[12px] text-text-muted transition-all duration-300 ease-out origin-right"
             style={{
               opacity: isCollapsed ? 0 : 1,
-              transform: isCollapsed ? 'translateX(20px)' : 'translateX(0)',
-              pointerEvents: isCollapsed ? 'none' : 'auto',
+              transform: isCollapsed ? "translateX(20px)" : "translateX(0)",
+              pointerEvents: isCollapsed ? "none" : "auto",
             }}
           >
             AE: {customer.ae}&ensp;·&ensp;CSM: {customer.csm}&ensp;·&ensp;Billing: {customer.billingOwner}
@@ -409,98 +545,151 @@ export function CustomerContextBar({
         </div>
       </div>
 
-      {/* === Tabs — pulled up 1px to collapse header's bottom border === */}
-      <div ref={tabsContainerRef} data-tabs-anchor="" className="-mt-px flex items-end" style={animatingStyle}>
-        {visibleStages.map((stageId, idx) => {
-          const isActive = stageId === activeStage;
-          const isDisabled = disabledStages?.has(stageId) ?? false;
-          const isListDetailStage = LIST_DETAIL_STAGES.includes(stageId);
-          
-          const stageKey = stageId as "quote" | "contract" | "invoicing";
-          const openChildren = isListDetailStage ? openChildTabs[stageKey] : [];
-          const hasOpenChildren = openChildren.length > 0;
-          const currentSelectedChild = isListDetailStage ? selectedChild[stageKey] : undefined;
-
-          if (hasOpenChildren) {
-            const isExpanded = isActive;
-            
-            return (
-              <GroupedTabButton
-                key={stageId}
-                ref={(el) => setTabRef(stageId, el)}
-                parentLabel={stageDisplay[stageId].tab}
-                childIds={openChildren}
-                selectedChildId={currentSelectedChild}
-                isExpanded={isExpanded}
-                first={idx === 0}
-                zIndex={isActive ? 50 : 10 - idx}
-                onParentClick={() => onParentClick(stageKey)}
-                onChildSelect={(childId) => {
-                  onStageChange(stageId);
-                  onChildSelect(stageKey, childId);
-                }}
-                onChildClose={(childId) => onChildClose(stageKey, childId)}
-                onExpandClick={() => onStageChange(stageId)}
-              />
+      <div
+        ref={tabsContainerRef}
+        data-tabs-anchor=""
+        className="relative -mt-px min-w-0 max-w-full overflow-hidden"
+      >
+        {/* Off-screen measure row — stable widths; avoids visible-strip oscillation */}
+        <div
+          className="pointer-events-none absolute -left-[9999px] top-0 flex items-end"
+          aria-hidden
+        >
+          {fullStrip.map((tab, idx) => {
+            const key = tabKey(tab);
+            const isActive = tabsEqual(activeTab, tab);
+            const closable = isTabClosable(tab);
+            const label = tabLabel(tab, stageDisplay);
+            const summary = resolveWorkspaceTabSummary(
+              tab,
+              parentTabSummaries,
+              recordTabSummaries,
             );
-          }
+            return (
+              <Fragment key={`measure-${key}`}>
+                <WorkspaceTabButton
+                  ref={(el) => setMeasureRef(`measure:${key}`, el)}
+                  label={label}
+                  subtitle={summary?.subtitle}
+                  subtitleSeverity={summary?.severity}
+                  active={isActive}
+                  closable={closable}
+                  first={idx === 0}
+                  zIndex={0}
+                  forMeasure
+                  measureLayout="compact"
+                  tabsCompact={false}
+                  onClick={() => {}}
+                  onClose={() => {}}
+                />
+                {closable && (
+                  <WorkspaceTabButton
+                    ref={(el) => setMeasureRef(`measure:${key}:expanded`, el)}
+                    label={label}
+                    subtitle={summary?.subtitle}
+                    subtitleSeverity={summary?.severity}
+                    active={isActive}
+                    closable
+                    first={false}
+                    zIndex={0}
+                    forMeasure
+                    measureLayout="expanded"
+                    tabsCompact={false}
+                    onClick={() => {}}
+                    onClose={() => {}}
+                  />
+                )}
+              </Fragment>
+            );
+          })}
+          <MoreTabButton
+            ref={(el) => setMeasureRef("measure:more", el)}
+            subtitle={moreTabSubtitle}
+            tabsCompact={isCollapsed}
+            isOpen={false}
+            forMeasure
+            onClick={() => {}}
+          />
+        </div>
 
+        <div ref={visibleStripRef} className="flex min-w-0 max-w-full items-end overflow-hidden">
+        {visibleTabs.map((tab, idx) => {
+          const key = tabKey(tab);
+          const isActive = tabsEqual(activeTab, tab);
+          const label = tabLabel(tab, stageDisplay);
+          const closable = isTabClosable(tab);
+          const summary = resolveWorkspaceTabSummary(
+            tab,
+            parentTabSummaries,
+            recordTabSummaries,
+          );
           return (
-            <TabButton
-              key={stageId}
-              ref={(el) => setTabRef(stageId, el)}
-              label={stageDisplay[stageId].tab}
+            <WorkspaceTabButton
+              key={key}
+              dataTabKey={key}
+              label={label}
+              subtitle={summary?.subtitle}
+              subtitleSeverity={summary?.severity}
               active={isActive}
-              disabled={isDisabled}
+              closable={closable}
               first={idx === 0}
               zIndex={isActive ? 50 : 10 - idx}
-              onClick={() => !isDisabled && onStageChange(stageId)}
+              tabsCompact={isCollapsed}
+              onClick={() => selectTab(tab)}
+              onClose={
+                tab.kind === "parent"
+                  ? () => onParentClose(tab.stage)
+                  : () => onRecordClose(tab.stage, tab.recordId)
+              }
             />
           );
         })}
 
-        {/* More dropdown for overflow tabs */}
         {showMoreButton && (
-          <MoreTabButton
+          <MoreMenu
             ref={moreButtonRef}
-            stages={overflowStages}
-            activeStage={activeStage}
-            disabledStages={disabledStages}
-            stageDisplay={stageDisplay}
-            openChildTabs={openChildTabs}
-            showConnect={connectInOverflow}
+            menuPanelRef={moreMenuPanelRef}
+            zIndex={moreZIndex}
+            subtitle={moreTabSubtitle}
+            tabsCompact={isCollapsed}
             isOpen={showMoreDropdown}
             onToggle={() => setShowMoreDropdown((v) => !v)}
-            onStageSelect={(stageId) => {
-              onStageChange(stageId);
+            overflowTabs={overflowTabs}
+            hiddenParents={hiddenParents}
+            disabledParents={disabledParents}
+            activeTab={activeTab}
+            stageDisplay={stageDisplay}
+            onTabSelect={(tab) => {
+              selectTab(tab);
               setShowMoreDropdown(false);
             }}
-            zIndex={1}
+            onRestoreParent={(stage) => {
+              onRestoreParent(stage);
+              setShowMoreDropdown(false);
+            }}
           />
         )}
-
-        {/* Connect tab - only show if not in overflow */}
-        <ConnectTab
-          ref={(el) => setTabRef("connect", el)}
-          zIndex={0}
-          hidden={connectInOverflow}
-        />
+        </div>
       </div>
 
-      {/* === Record context slot — aligned to start of parent tab === */}
       {recordSlot ? (
         <div className="px-6 pt-3 pb-4">
           <div className="w-full">{recordSlot}</div>
         </div>
       ) : (
-        <div className="transition-all duration-300 ease-out" style={{ height: isCollapsed ? 8 : 12 }} />
+        <div
+          className="transition-all duration-300 ease-out"
+          style={{
+            height: isCollapsed ? HEADER_TABS_GAP.collapsed : HEADER_TABS_GAP.expanded,
+          }}
+        />
       )}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Breadcrumbs (unchanged behavior)
+// Breadcrumbs
 // ---------------------------------------------------------------------------
 
 interface Crumb {
@@ -523,7 +712,6 @@ function buildCrumbs({
   recordId?: string;
 }): Crumb[] {
   const crumbs: Crumb[] = [];
-
   const [fromModule, fromGroup] = (from ?? "").split(":");
   const moduleKey = fromModule || defaultModuleForStage(activeStage);
   crumbs.push({
@@ -582,7 +770,7 @@ function Breadcrumbs({
     <nav
       className={cn(
         "flex min-h-0 min-w-0 flex-1 items-center gap-1 overflow-x-auto whitespace-nowrap leading-none text-text-muted transition-all duration-300 ease-out [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-        collapsed ? "text-[11px]" : "text-[13px]"
+        collapsed ? "text-[11px]" : "text-[13px]",
       )}
     >
       {crumbs.map((crumb, idx) => {
@@ -621,426 +809,417 @@ function Breadcrumbs({
 }
 
 // ---------------------------------------------------------------------------
-// Tab button (with subtle shadow for elevation)
+// Tab button — single selected state; optional close
 // ---------------------------------------------------------------------------
 
-const TabButton = forwardRef<
-  HTMLButtonElement,
+const WorkspaceTabButton = forwardRef<
+  HTMLDivElement,
   {
     label: string;
+    subtitle?: string;
+    subtitleSeverity?: StatusSeverity;
     active: boolean;
-    disabled: boolean;
+    closable: boolean;
     first: boolean;
     zIndex: number;
+    dataTabKey?: string;
+    forMeasure?: boolean;
+    /** Off-screen sizing: compact (label only) vs expanded (with close). */
+    measureLayout?: "compact" | "expanded";
+    /** Collapsed context bar — hide subtitle row with animation. */
+    tabsCompact?: boolean;
     onClick: () => void;
+    onClose: () => void;
   }
->(function TabButton({ label, active, disabled, first, zIndex, onClick }, ref) {
+>(function WorkspaceTabButton(
+  {
+    label,
+    subtitle,
+    subtitleSeverity = "gray",
+    active,
+    closable,
+    first,
+    zIndex,
+    dataTabKey,
+    forMeasure,
+    measureLayout = "compact",
+    tabsCompact = false,
+    onClick,
+    onClose,
+  },
+  ref,
+) {
+  const isExpandedLayout =
+    forMeasure ? measureLayout === "expanded" : active || false;
+  const hasSubtitle = Boolean(subtitle);
+  const showSubtitleRow = hasSubtitle && !tabsCompact;
+
   return (
-    <button
+    <div
       ref={ref}
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
+      data-tab-key={dataTabKey}
+      className={cn("group/tab relative inline-flex", !first && "-ml-2.5")}
       style={{ zIndex }}
-      className={cn(
-        "relative inline-flex items-center justify-center",
-        "rounded-b-[16px] rounded-t-none px-6 py-2.5 text-[13px]",
-        "border",
-        "transition-[background-color,border-color,color,box-shadow] duration-200",
-        !first && "-ml-3",
-        active
-          ? "border-blue-600 bg-blue-600 font-semibold text-white shadow-[0_6px_14px_-4px_rgba(37,99,235,0.45)]"
-          : disabled
-          ? "cursor-not-allowed border-gray-200 bg-white text-text-muted/60 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.08)]"
-          : "border-gray-200 bg-white font-medium text-text-secondary shadow-[0_2px_8px_-2px_rgba(0,0,0,0.08)] hover:border-gray-300 hover:text-text-primary hover:shadow-[0_4px_12px_-2px_rgba(0,0,0,0.12)]",
-      )}
     >
-      {label}
-    </button>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={forMeasure}
+        tabIndex={forMeasure ? -1 : undefined}
+        style={{ transitionDuration: TAB_COLLAPSE_MS, transitionTimingFunction: TAB_COLLAPSE_EASE }}
+        className={cn(
+          "relative inline-flex w-max max-w-[220px] items-center text-left",
+          "rounded-b-[16px] rounded-t-none border",
+          "transition-[min-height,padding,gap,background-color,border-color,color,box-shadow]",
+          showSubtitleRow
+            ? cn("min-h-[56px] gap-1.5 py-2 pl-7", closable ? "pr-2.5" : "pr-8")
+            : cn(
+                "min-h-[40px] gap-0 py-2.5 pl-7",
+                closable ? "pr-2.5 group-hover/tab:gap-1.5" : "pr-8",
+              ),
+          closable && showSubtitleRow && "group-hover/tab:pr-2",
+          isExpandedLayout && closable && "pr-2",
+          active
+            ? "border-blue-600 bg-blue-600 text-white shadow-[0_6px_14px_-4px_rgba(37,99,235,0.45)]"
+            : cn(
+                "border-gray-200 bg-white shadow-[0_2px_8px_-2px_rgba(0,0,0,0.08)]",
+                "hover:border-gray-300 hover:bg-gray-100 hover:shadow-[0_4px_12px_-2px_rgba(0,0,0,0.1)]",
+              ),
+        )}
+      >
+        <span
+          className={cn(
+            "flex min-w-0 flex-1 flex-col justify-center overflow-hidden",
+            showSubtitleRow ? "gap-1" : "gap-0",
+          )}
+          style={{ transitionDuration: TAB_COLLAPSE_MS, transitionTimingFunction: TAB_COLLAPSE_EASE }}
+        >
+          <span
+            className={cn(
+              "truncate text-[13px] leading-snug font-semibold transition-colors duration-200",
+              active
+                ? "text-white"
+                : "text-text-secondary group-hover/tab:text-text-primary",
+            )}
+          >
+            {label}
+          </span>
+          {hasSubtitle && (
+            <span
+              className={cn(
+                "grid transition-[grid-template-rows,margin] ease-[cubic-bezier(0.32,0.72,0,1)]",
+                showSubtitleRow ? "mt-0 grid-rows-[1fr]" : "mt-0 grid-rows-[0fr]",
+              )}
+              style={{ transitionDuration: TAB_COLLAPSE_MS }}
+            >
+              <span className="min-h-0 overflow-hidden">
+                <span
+                  className={cn(
+                    "block truncate text-[11px] leading-snug font-medium transition-[opacity,transform] ease-[cubic-bezier(0.32,0.72,0,1)]",
+                    showSubtitleRow
+                      ? "translate-y-0 opacity-100"
+                      : "-translate-y-0.5 opacity-0",
+                    tabStatusClass(subtitleSeverity, active),
+                  )}
+                  style={{ transitionDuration: TAB_COLLAPSE_MS }}
+                >
+                  {subtitle}
+                </span>
+              </span>
+            </span>
+          )}
+        </span>
+        {closable && (
+          <span
+            role="button"
+            tabIndex={forMeasure ? -1 : 0}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.stopPropagation();
+                onClose();
+              }
+            }}
+            className={cn(
+              "inline-flex shrink-0 self-center overflow-hidden transition-[width,opacity,margin-left] ease-out",
+              isExpandedLayout
+                ? "ml-1 w-[18px] opacity-100"
+                : "ml-0 w-0 opacity-0 group-hover/tab:ml-1 group-hover/tab:w-[18px] group-hover/tab:opacity-100",
+            )}
+            style={{ transitionDuration: TAB_COLLAPSE_MS, transitionTimingFunction: TAB_COLLAPSE_EASE }}
+            aria-label={`Close ${label}`}
+          >
+            <span
+              className={cn(
+                "inline-flex h-[18px] w-[18px] items-center justify-center rounded-full transition-colors duration-150",
+                active
+                  ? "text-white/90 hover:bg-white/20 hover:text-white"
+                  : "text-text-muted hover:bg-gray-200/80 hover:text-text-secondary",
+              )}
+            >
+              <X size={11} strokeWidth={2.5} />
+            </span>
+          </span>
+        )}
+      </button>
+    </div>
   );
 });
 
 // ---------------------------------------------------------------------------
-// More tab button — dropdown for overflow tabs
+// More tab + menu — width overflow, user-hidden parents, disabled parents
 // ---------------------------------------------------------------------------
 
 const MoreTabButton = forwardRef<
   HTMLDivElement,
   {
-    stages: Stage[];
-    activeStage: Stage;
-    disabledStages?: Set<Stage>;
-    stageDisplay: Record<Stage, { tab: string; crumb: string }>;
-    openChildTabs: OpenChildTabs;
-    showConnect?: boolean;
+    subtitle: string;
+    tabsCompact?: boolean;
     isOpen: boolean;
-    onToggle: () => void;
-    onStageSelect: (stage: Stage) => void;
-    zIndex: number;
+    forMeasure?: boolean;
+    onClick: () => void;
   }
 >(function MoreTabButton(
-  { stages, activeStage, disabledStages, stageDisplay, openChildTabs, showConnect, isOpen, onToggle, onStageSelect, zIndex },
-  ref
+  { subtitle, tabsCompact = false, isOpen, forMeasure, onClick },
+  ref,
 ) {
-  const itemCount = stages.length + (showConnect ? 1 : 0);
-  
+  const showSubtitleRow = !tabsCompact;
+
   return (
-    <div ref={ref} className="relative -ml-3" style={{ zIndex }}>
+    <div ref={ref} className="group/more relative -ml-2.5 inline-flex">
       <button
         type="button"
-        onClick={onToggle}
+        onClick={onClick}
+        disabled={forMeasure}
+        tabIndex={forMeasure ? -1 : undefined}
+        style={{ transitionDuration: TAB_COLLAPSE_MS, transitionTimingFunction: TAB_COLLAPSE_EASE }}
         className={cn(
-          "relative inline-flex items-center justify-center gap-1.5",
-          "rounded-b-[16px] rounded-t-none px-5 py-2.5 text-[13px]",
-          "border transition-all duration-200",
+          "relative inline-flex w-max max-w-[240px] items-center text-left",
+          "rounded-b-[16px] rounded-t-none border transition-[min-height,padding,gap,background-color,border-color,box-shadow]",
+          showSubtitleRow
+            ? "min-h-[56px] gap-1.5 py-2 pl-7 pr-3"
+            : "min-h-[40px] py-2.5 pl-7 pr-3",
           isOpen
-            ? "border-gray-300 bg-gray-100 font-medium text-text-primary shadow-[0_4px_12px_-2px_rgba(0,0,0,0.12)]"
-            : "border-gray-200 bg-white font-medium text-text-secondary shadow-[0_2px_8px_-2px_rgba(0,0,0,0.08)] hover:border-gray-300 hover:text-text-primary",
+            ? "border-gray-300 bg-gray-100 shadow-[0_4px_12px_-2px_rgba(0,0,0,0.12)]"
+            : cn(
+                "border-gray-200 bg-white shadow-[0_2px_8px_-2px_rgba(0,0,0,0.08)]",
+                "hover:border-gray-300 hover:bg-gray-100 hover:shadow-[0_4px_12px_-2px_rgba(0,0,0,0.1)]",
+              ),
         )}
       >
-        More
-        <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-gray-200 text-[10px] font-semibold text-gray-600">
-          {itemCount}
-        </span>
-        <ChevronDown
-          size={14}
-          strokeWidth={2.2}
-          className={cn("transition-transform duration-200", isOpen && "rotate-180")}
-        />
-      </button>
-
-      {/* Dropdown */}
-      {isOpen && (
-        <div
+        <span
           className={cn(
-            "absolute left-0 top-full mt-1.5 z-50",
-            "min-w-[180px] rounded-xl border border-gray-200 bg-white py-1.5",
-            "shadow-xl",
-            "animate-in fade-in slide-in-from-top-2 duration-150",
+            "flex min-w-0 flex-1 flex-col justify-center overflow-hidden",
+            showSubtitleRow ? "gap-1" : "gap-0",
           )}
+          style={{ transitionDuration: TAB_COLLAPSE_MS, transitionTimingFunction: TAB_COLLAPSE_EASE }}
         >
-          {stages.map((stageId) => {
-            const isActive = stageId === activeStage;
-            const isDisabled = disabledStages?.has(stageId) ?? false;
-            const isListDetailStage = LIST_DETAIL_STAGES.includes(stageId);
-            const stageKey = stageId as "quote" | "contract" | "invoicing";
-            const openChildren = isListDetailStage ? openChildTabs[stageKey] : [];
-            const hasOpenChildren = openChildren.length > 0;
-
-            return (
-              <button
-                key={stageId}
-                type="button"
-                onClick={() => !isDisabled && onStageSelect(stageId)}
-                disabled={isDisabled}
+          <span
+            className={cn(
+              "truncate text-[13px] font-semibold leading-snug transition-colors duration-200",
+              isOpen
+                ? "text-text-primary"
+                : "text-text-secondary group-hover/more:text-text-primary",
+            )}
+          >
+            More
+          </span>
+          <span
+            className={cn(
+              "grid transition-[grid-template-rows] ease-[cubic-bezier(0.32,0.72,0,1)]",
+              showSubtitleRow ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+            )}
+            style={{ transitionDuration: TAB_COLLAPSE_MS }}
+          >
+            <span className="min-h-0 overflow-hidden">
+              <span
                 className={cn(
-                  "flex w-full items-center justify-between gap-3 px-4 py-2 text-left text-[13px]",
-                  "transition-colors duration-150",
-                  isActive
-                    ? "bg-blue-50 font-semibold text-blue-700"
-                    : isDisabled
-                    ? "cursor-not-allowed text-text-muted/60"
-                    : "font-medium text-text-primary hover:bg-gray-50",
+                  "block truncate text-[11px] font-medium leading-snug text-text-muted transition-[opacity,transform] ease-[cubic-bezier(0.32,0.72,0,1)]",
+                  showSubtitleRow
+                    ? "translate-y-0 opacity-100"
+                    : "-translate-y-0.5 opacity-0",
+                  "group-hover/more:text-text-secondary",
                 )}
+                style={{ transitionDuration: TAB_COLLAPSE_MS }}
               >
-                <span>{stageDisplay[stageId].tab}</span>
-                {hasOpenChildren && (
-                  <span
-                    className={cn(
-                      "inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-semibold",
-                      isActive ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600",
-                    )}
-                  >
-                    +{openChildren.length}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-          
-          {/* Connect option */}
-          {showConnect && (
-            <>
-              {stages.length > 0 && <div className="my-1.5 border-t border-gray-100" />}
-              <button
-                type="button"
-                className={cn(
-                  "flex w-full items-center gap-2 px-4 py-2 text-left text-[13px]",
-                  "font-medium text-blue-600 hover:bg-blue-50 transition-colors duration-150",
-                )}
-              >
-                <Plus size={13} strokeWidth={2.5} />
-                <span>Connect</span>
-              </button>
-            </>
+                {subtitle}
+              </span>
+            </span>
+          </span>
+        </span>
+        <span
+          className={cn(
+            "inline-flex shrink-0 self-center overflow-hidden transition-[width,opacity,margin-left] ease-out",
+            isOpen
+              ? "ml-1 w-4 opacity-100"
+              : "ml-0 w-0 opacity-0 group-hover/more:ml-1 group-hover/more:w-4 group-hover/more:opacity-100",
           )}
-        </div>
-      )}
+          style={{ transitionDuration: TAB_COLLAPSE_MS, transitionTimingFunction: TAB_COLLAPSE_EASE }}
+          aria-hidden
+        >
+          <ChevronDown
+            size={14}
+            strokeWidth={2.2}
+            className={cn(
+              "shrink-0 text-text-muted transition-transform duration-200",
+              isOpen && "rotate-180",
+            )}
+          />
+        </span>
+      </button>
     </div>
   );
 });
 
-// ---------------------------------------------------------------------------
-// Grouped Tab button (fused pills, horizontal layout)
-// - Parent tab: blue when in list mode, subtle blue when sub-tab is selected
-// - Sub-tabs: white when unselected, blue when selected
-// - Overflow: "More" dropdown when > MAX_VISIBLE_CHILDREN
-// ---------------------------------------------------------------------------
-
-const MAX_VISIBLE_CHILDREN = 3;
-
-const GroupedTabButton = forwardRef<
+const MoreMenu = forwardRef<
   HTMLDivElement,
   {
-    parentLabel: string;
-    childIds: string[];
-    selectedChildId?: string;
-    isExpanded: boolean;
-    first: boolean;
+    menuPanelRef: RefObject<HTMLDivElement | null>;
     zIndex: number;
-    onParentClick: () => void;
-    onChildSelect: (childId: string) => void;
-    onChildClose: (childId: string) => void;
-    onExpandClick: () => void;
+    subtitle: string;
+    tabsCompact?: boolean;
+    isOpen: boolean;
+    onToggle: () => void;
+    overflowTabs: WorkspaceTab[];
+    hiddenParents: Stage[];
+    disabledParents: Stage[];
+    activeTab: WorkspaceTab;
+    stageDisplay: Record<Stage, { tab: string; crumb: string }>;
+    onTabSelect: (tab: WorkspaceTab) => void;
+    onRestoreParent: (stage: Stage) => void;
   }
->(function GroupedTabButton(
+>(function MoreMenu(
   {
-    parentLabel,
-    childIds,
-    selectedChildId,
-    isExpanded,
-    first,
+    menuPanelRef,
     zIndex,
-    onParentClick,
-    onChildSelect,
-    onChildClose,
-    onExpandClick,
+    subtitle,
+    tabsCompact = false,
+    isOpen,
+    onToggle,
+    overflowTabs,
+    hiddenParents,
+    disabledParents,
+    activeTab,
+    stageDisplay,
+    onTabSelect,
+    onRestoreParent,
   },
-  ref
+  ref,
 ) {
-  const [showOverflow, setShowOverflow] = useState(false);
-  const childCount = childIds.length;
-  const hasSelectedChild = selectedChildId !== undefined;
-  
-  // Split children into visible and overflow
-  const visibleChildren = childIds.slice(0, MAX_VISIBLE_CHILDREN);
-  const overflowChildren = childIds.slice(MAX_VISIBLE_CHILDREN);
-  const hasOverflow = overflowChildren.length > 0;
-  const selectedInOverflow = selectedChildId && overflowChildren.includes(selectedChildId);
+  const [menuStyle, setMenuStyle] = useState<{ top: number; left: number } | null>(null);
 
-  // Collapsed state (when not the active stage): show parent with "+N" badge
-  if (!isExpanded) {
-    return (
-      <div ref={ref} className={cn("inline-flex", !first && "-ml-3")} style={{ zIndex }}>
-        <button
-          type="button"
-          onClick={onExpandClick}
-          className={cn(
-            "relative inline-flex items-center gap-1.5",
-            "rounded-b-[16px] rounded-t-none px-5 py-2.5 text-[13px] transition-all duration-200",
-            "border border-gray-200 bg-white font-medium text-text-secondary",
-            "shadow-[0_2px_8px_-2px_rgba(0,0,0,0.08)]",
-            "hover:border-gray-300 hover:text-text-primary",
-          )}
-        >
-          {parentLabel}
-          <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-blue-600 text-[11px] font-semibold text-white">
-            +{childCount}
-          </span>
-        </button>
-      </div>
-    );
-  }
+  const updateMenuPosition = useCallback(() => {
+    const anchor = (ref as RefObject<HTMLDivElement | null>)?.current;
+    if (!anchor) return;
+    const rect = anchor.getBoundingClientRect();
+    setMenuStyle({ top: rect.bottom + 6, left: rect.left });
+  }, [ref]);
 
-  // Expanded state: fused horizontal pills
-  return (
+  useLayoutEffect(() => {
+    if (!isOpen) {
+      setMenuStyle(null);
+      return;
+    }
+    updateMenuPosition();
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+    };
+  }, [isOpen, updateMenuPosition]);
+
+  const menuPanel = isOpen && menuStyle && (
     <div
-      ref={ref}
-      style={{ zIndex: hasSelectedChild ? zIndex : 50 }}
+      ref={menuPanelRef}
+      role="menu"
       className={cn(
-        "relative inline-flex items-stretch",
-        "rounded-b-[18px] rounded-t-none",
-        "border",
-        hasSelectedChild ? "border-blue-400" : "border-blue-600",
-        hasSelectedChild 
-          ? "shadow-[0_4px_12px_-4px_rgba(37,99,235,0.3)]" 
-          : "shadow-[0_6px_14px_-4px_rgba(37,99,235,0.45)]",
-        !first && "-ml-3",
+        "fixed z-[200] min-w-[200px] rounded-xl border border-gray-200 bg-white py-1.5 shadow-xl",
+        "animate-in fade-in slide-in-from-top-2 duration-150",
       )}
+      style={{ top: menuStyle.top, left: menuStyle.left }}
     >
-      {/* Parent tab segment */}
-      <button
-        type="button"
-        onClick={onParentClick}
-        className={cn(
-          "relative inline-flex items-center justify-center",
-          "rounded-bl-[16px] rounded-t-none px-5 py-2.5 text-[13px] transition-all duration-200",
-          hasSelectedChild
-            ? "bg-blue-100 font-medium text-blue-700 hover:bg-blue-200/80"
-            : "bg-blue-600 font-semibold text-white hover:bg-blue-700",
-          childCount > 0 && "border-r",
-          hasSelectedChild ? "border-blue-300" : "border-blue-500",
-        )}
-      >
-        {parentLabel}
-      </button>
-
-      {/* Visible child tabs */}
-      {visibleChildren.map((childId, idx) => {
-        const isSelected = childId === selectedChildId;
-        const isLastVisible = idx === visibleChildren.length - 1 && !hasOverflow;
-        
+      {overflowTabs.map((tab) => {
+        const isActive = tabsEqual(activeTab, tab);
+        const label = tabLabel(tab, stageDisplay);
         return (
-          <div
-            key={childId}
-            onClick={() => onChildSelect(childId)}
+          <button
+            key={tabKey(tab)}
+            type="button"
+            role="menuitem"
+            onClick={() => onTabSelect(tab)}
             className={cn(
-              "relative inline-flex items-center gap-1.5 cursor-pointer",
-              "px-3 py-2.5 text-[13px] transition-all duration-200",
-              isLastVisible && "rounded-br-[16px]",
-              !isLastVisible && "border-r",
-              isSelected
-                ? "bg-blue-600 font-semibold text-white border-blue-500"
-                : "bg-blue-100 font-medium text-blue-700 hover:bg-blue-200/80 border-blue-300",
+              "flex w-full items-center px-4 py-2 text-left text-[13px] transition-colors",
+              isActive
+                ? "bg-blue-50 font-semibold text-blue-700"
+                : "font-medium text-text-primary hover:bg-gray-50",
             )}
           >
-            <span className="truncate max-w-[100px]">{childId}</span>
-            <span
-              role="button"
-              tabIndex={0}
-              onClick={(e) => {
-                e.stopPropagation();
-                onChildClose(childId);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.stopPropagation();
-                  onChildClose(childId);
-                }
-              }}
-              className={cn(
-                "inline-flex items-center justify-center shrink-0",
-                "h-[18px] w-[18px] rounded-full",
-                "transition-all duration-150",
-                isSelected
-                  ? "bg-white/20 text-white/90 hover:bg-white/30 hover:text-white"
-                  : "bg-blue-200 text-blue-600 hover:bg-blue-300 hover:text-blue-700",
-              )}
-              aria-label={`Close ${childId}`}
-            >
-              <X size={11} strokeWidth={2.5} />
-            </span>
-          </div>
+            {label}
+          </button>
         );
       })}
 
-      {/* Overflow "More" button */}
-      {hasOverflow && (
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setShowOverflow(!showOverflow)}
-            className={cn(
-              "inline-flex items-center gap-1 h-full",
-              "rounded-br-[16px] px-3 py-2.5 text-[13px] transition-all duration-200",
-              "border-l",
-              selectedInOverflow
-                ? "bg-blue-600 font-semibold text-white border-blue-500"
-                : "bg-blue-100 font-medium text-blue-700 hover:bg-blue-200/80 border-blue-300",
-            )}
-          >
-            +{overflowChildren.length}
-            <ChevronRight size={14} className={cn("transition-transform", showOverflow && "rotate-90")} />
-          </button>
-          
-          {/* Overflow dropdown */}
-          {showOverflow && (
-            <div
-              className={cn(
-                "absolute right-0 top-full mt-1 z-50",
-                "flex flex-col min-w-[160px]",
-                "rounded-lg border border-gray-200 bg-white",
-                "shadow-lg",
-                "animate-in fade-in slide-in-from-top-2 duration-150",
-                "overflow-hidden",
-              )}
-            >
-              {overflowChildren.map((childId, idx) => {
-                const isSelected = childId === selectedChildId;
-                const isLast = idx === overflowChildren.length - 1;
-                
-                return (
-                  <div
-                    key={childId}
-                    onClick={() => {
-                      onChildSelect(childId);
-                      setShowOverflow(false);
-                    }}
-                    className={cn(
-                      "flex items-center justify-between gap-2 cursor-pointer",
-                      "px-3 py-2 text-[13px] transition-all duration-150",
-                      !isLast && "border-b border-gray-100",
-                      isSelected
-                        ? "bg-blue-50 font-semibold text-blue-700"
-                        : "bg-white font-medium text-gray-700 hover:bg-gray-50",
-                    )}
-                  >
-                    <span className="truncate">{childId}</span>
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onChildClose(childId);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.stopPropagation();
-                          onChildClose(childId);
-                        }
-                      }}
-                      className={cn(
-                        "inline-flex items-center justify-center shrink-0",
-                        "h-[20px] w-[20px] rounded-full",
-                        "transition-all duration-150",
-                        isSelected
-                          ? "text-blue-500 hover:bg-blue-100"
-                          : "text-gray-400 hover:bg-gray-200",
-                      )}
-                      aria-label={`Close ${childId}`}
-                    >
-                      <X size={12} strokeWidth={2.5} />
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+      {hiddenParents.length > 0 && overflowTabs.length > 0 && (
+        <div className="my-1.5 border-t border-gray-100" />
       )}
+
+      {hiddenParents.map((stage) => (
+        <button
+          key={`hidden-${stage}`}
+          type="button"
+          role="menuitem"
+          onClick={() => onRestoreParent(stage)}
+          className="flex w-full items-center px-4 py-2 text-left text-[13px] font-medium text-text-primary transition-colors hover:bg-gray-50"
+        >
+          {stageDisplay[stage].tab}
+        </button>
+      ))}
+
+      {disabledParents.length > 0 && (overflowTabs.length > 0 || hiddenParents.length > 0) && (
+        <div className="my-1.5 border-t border-gray-100" />
+      )}
+
+      {disabledParents.map((stage) => (
+        <div
+          key={`disabled-${stage}`}
+          title={DISABLED_TOOLTIP}
+          className="flex w-full cursor-not-allowed items-center px-4 py-2 text-[13px] font-medium text-text-muted/60"
+        >
+          {stageDisplay[stage].tab}
+        </div>
+      ))}
+
+      <div className="my-1.5 border-t border-gray-100" />
+
+      <button
+        type="button"
+        role="menuitem"
+        className="flex w-full flex-col gap-0.5 px-4 py-2.5 text-left transition-colors hover:bg-gray-50"
+      >
+        <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-blue-600">
+          <Plus size={13} strokeWidth={2.5} aria-hidden className="shrink-0" />
+          Connect
+        </span>
+        <span className="text-[11px] font-medium text-text-muted">
+          {CONNECT_TAB_SUMMARY.subtitle}
+        </span>
+      </button>
+    </div>
+  );
+
+  return (
+    <div ref={ref} className="relative shrink-0" style={{ zIndex: isOpen ? 50 : zIndex }}>
+      <MoreTabButton
+        subtitle={subtitle}
+        tabsCompact={tabsCompact}
+        isOpen={isOpen}
+        onClick={onToggle}
+      />
+      {menuPanel && createPortal(menuPanel, document.body)}
     </div>
   );
 });
-
-const ConnectTab = forwardRef<HTMLButtonElement, { zIndex: number; hidden?: boolean }>(
-  function ConnectTab({ zIndex, hidden }, ref) {
-    return (
-      <button
-        ref={ref}
-        type="button"
-        style={{ zIndex }}
-        className={cn(
-          "relative -ml-3 inline-flex items-center justify-center gap-1.5",
-          "rounded-b-[16px] rounded-t-none px-6 py-2.5 text-[13px] transition-all",
-          "border border-gray-200 bg-white font-medium text-blue-600 hover:border-blue-300 hover:text-blue-700",
-          hidden && "invisible pointer-events-none",
-        )}
-        tabIndex={hidden ? -1 : undefined}
-        aria-hidden={hidden}
-      >
-        <Plus size={13} strokeWidth={2.5} aria-hidden />
-        Connect
-      </button>
-    );
-  }
-);

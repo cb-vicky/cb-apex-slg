@@ -189,7 +189,7 @@ export function InvoicingStageContent({ invoice, contract }: Props) {
             <div className="min-w-0 flex-1 space-y-0.5">
               {isSubmitted ? (
                 <>
-                  <h2 className="text-base font-semibold leading-tight text-text-primary">
+                  <h2 className="text-base font-bold leading-tight text-text-primary">
                     Awaiting approval before send
                   </h2>
                   <p className="text-[13px] leading-snug text-text-secondary">
@@ -198,7 +198,7 @@ export function InvoicingStageContent({ invoice, contract }: Props) {
                 </>
               ) : (
                 <>
-                  <h2 className="text-base font-semibold leading-tight text-text-primary">
+                  <h2 className="text-base font-bold leading-tight text-text-primary">
                     Review before send
                   </h2>
                   <p className="text-[13px] leading-snug text-text-secondary">
@@ -240,7 +240,7 @@ export function InvoicingStageContent({ invoice, contract }: Props) {
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-50">
                   <AlertCircle size={16} className="text-amber-600" />
                 </div>
-                <h2 className="text-[15px] font-semibold text-text-primary">Send for approval?</h2>
+                <h2 className="text-[15px] font-bold text-text-primary">Send for approval?</h2>
               </div>
               <button
                 onClick={() => setShowConfirmModal(false)}

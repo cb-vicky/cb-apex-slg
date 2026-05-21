@@ -54,7 +54,7 @@ function PlaceholderState({ item, onBack }: { item: QueueItem; onBack: () => voi
                 ? "This queue item routes to the customer workspace: align the active contract, billing, and renewal timing for a late commercial renewal (no PDF extraction in this prototype)."
                 : item.scenario === "Amendment"
                   ? "The amendment ingestion flow is not wired in this prototype."
-                  : "Extraction has not been run for this queue item yet. Full ingestion runs on the Zenith (new business) and Verdant (early renewal) queue samples."}
+                  : "Extraction has not been run for this queue item yet. Full ingestion runs on the Zenith Analytics new business queue sample."}
           </p>
         </div>
       </div>

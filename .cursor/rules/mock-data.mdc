@@ -15,5 +15,6 @@ When editing mock data, context, or types:
 1. All records link to `customerId`. Index rows carry `customerId` + relevant `recordId` for deep-linking.
 2. Keep seed data rich enough to render all sections without empty placeholders — use realistic enterprise values and edge cases.
 3. Don't fall back to another customer's data when a record is missing. Pass `null` and let empty / disabled states handle it (see `docs/11-workspace-cleanup-and-gating.md` for the Pioneer/Zenith null-guard fix).
-4. Use-case matrix: each customer should continue to showcase a distinct lifecycle stage (Echo Corp = renewal, Lumina = healthy, Northlane = enforcement issue, Pioneer = no contract, Verdant = burn-down risk, Zenith = ingested).
-5. RevRec data must not imply cash-based recognition.
+4. Ingest state lives in **`IngestProvider`** (`ingest-context-core.ts` barrel). Persona: **`DemoPersonaContext`**, not `WorkbenchRoleContext`.
+5. Use-case matrix: each customer showcases a distinct lifecycle stage — see `docs/08-mock-data.md` table.
+6. RevRec data must not imply cash-based recognition.

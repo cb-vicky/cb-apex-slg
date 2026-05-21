@@ -1,75 +1,90 @@
 # Outer Shell & Page Layout
 
-The outer shell is already built in `src/components/layout/` (`AppShell.tsx`, `TopNav.tsx`, `Sidebar.tsx`). **Do NOT redesign or replace it.** Work inside the existing white content canvas.
+The outer shell is built in `src/components/layout/` (`AppShell.tsx`, `TopNav.tsx`, `Sidebar.tsx`). **Do NOT redesign or replace it.** Work inside the existing content canvas.
 
-## Shell anatomy (from Chargebee product UI)
+## Shell anatomy
 
-### A. Top Header Bar (dark)
+### A. Top header bar (dark teal)
 
-- Dark background (#1a1d21 or similar charcoal)
-- **Left side:** Chargebee logo icon (orange on dark), then site/entity selector "Echo-corp echocorp.test.charge..." with green dot, then entity/timezone selector "Germany Europe/Berlin (CET)"
-- **Right side:** notification bell, "Configure Chargebee" button, developer console icon, lightbulb/tips, star/favorites, help/question mark, user avatar (orange circle)
-- Spans full width
+- Background: `#012A38` (Chargebee dark teal)
+- Height: **36px** compact bar
+- **Left:** Chargebee logo (orange mark on dark), site/entity selector ("Echo-corp echocorp.test.charge…"), entity/timezone ("Germany Europe/Berlin")
+- **Right:** notification bell, Configure Chargebee, dev console, tips, favorites, help, **demo persona switcher** (Operator / Approver), user avatar
+- Orange logo tab bleeds under the sidebar (absolute positioning)
+- **No separate search row** below the header (older plans had a ⌘K search row — removed)
 
-### B. Search Row
+### B. Left sidebar (grey, integrated)
 
-- Directly below the dark header
-- White/light background row
-- Contains a search input: "Search anything... ⌘K"
-- Sits above the sidebar + content area
+- Background: `bg-grey-100` — merges visually with the content frame (not a white card-in-card)
+- Width: **228px** expanded, **48px** collapsed; persisted in `localStorage` (`apex-sidebar-collapsed`)
+- **Flat nav list** — no Desk / Records / Catalog groups
+- Collapse control + non-functional **"Go to ⌘K"** affordance at bottom
+- Active row: orange left accent + semibold label
+- Several items are **disabled stubs** (Credit notes, Product Catalog, Entitlements, Usages, RevenueStory, Signals)
 
-### C. Left Sidebar
+**Primary nav items (live):**
 
-- White background, no border-right (or very subtle)
-- **Desk** group: **My Workbench** → `/`, **Queue** → `/queue`, **Approvals** → `/approvals` (each row uses a chevron; active state uses orange gradient accent)
-- Small **orange dot** on the trailing edge of **My Workbench** when session state has pending approvals or in-flight Early Renewal closure ingestions; **Approvals** gets a dot when any approval is **Pending Approval** (see `docs/10-workbench-home.md`)
-- Further groups (Records, Catalog, Insights) follow the same row pattern
-- Compact text-only style, ~180px wide in the prototype
+| Label | Path | Notes |
+|---|---|---|
+| My Workbench | `/` | Default landing |
+| Customers | `/customers` | |
+| Prospects | `/prospects` | New-business queue view |
+| Quotes | `/quotes` | |
+| Contracts | `/contracts` | |
+| Invoices | `/invoices` | |
+| Collections | `/collections` | `ModuleStubPage` |
+| RevRec | `/revrec` | `ModuleStubPage` |
+| Communications | `/communications` | `ModuleStubPage` |
+| Tasks | `/workbench` | Same `WorkbenchHome` as `/` |
 
-### D. Content Area Background
+**Redirects (not sidebar entries):**
 
-- Light gray background behind the content frame
-- Content frame: large rounded white card with subtle shadow
-- Generous padding around the white frame
+- `/queue` → `/?tab=queue`
+- `/approvals` → `/?tab=approvals`
 
-## Layout rules inside the white canvas
+Queue and Approvals are **Workbench tabs**, not standalone sidebar modules.
 
-Use the existing rounded white canvas as the main page surface. Do **not** nest another full-page wrapper card inside it.
+### C. Content area
+
+- Outer frame: `#012A38` full-screen; inner scroll area `bg-grey-100` with `rounded-tr-[24px]`
+- `WorkspaceShellContext` sets customer workspace inner bg to `bg-gray-100`
+- **No nested full-page white wrapper card** inside the canvas
+
+## Layout rules inside the canvas
+
+Use the existing rounded content surface. Do **not** nest another full-page wrapper card inside it.
 
 ### Recommended internal page spacing
 
-- Horizontal padding: 24px to 32px
-- Top padding: 24px
-- Vertical gap between major sections: 16px to 20px
+- Horizontal padding: **24px** (`px-6`)
+- Top padding: **24px** (`pt-6`) on index/workbench pages; workspace uses `pt-2` below chrome
+- Vertical gap between major sections: **16–20px**
+- Customer workspace content: `max-w-[1020px]` (list) / `max-w-[860px]` (detail), centered
 
 ### Section card usage
 
-Use section cards inside the page, but do **not** nest giant cards inside giant cards. Content should feel like structured sections on a page, not cards floating inside another card soup.
+Use section cards inside pages sparingly:
 
-Use shadcn cards sparingly and consistently. Prefer:
-
-- Subtle border
-- White or slightly tinted surface
-- Modest rounding
-- Compact spacing
+- Subtle border, white surface, `rounded-2xl` or `rounded-xl`
 - Clear section titles
+- Content should feel like structured sections on a page, not cards floating inside another card soup
 
-### Tailwind structure for detail pages
-
-```
-- page root:     h-full w-full overflow-auto
-- inner wrapper: flex flex-col gap-4 px-6 py-6
-- body:          centered column (max-w-860 detail, max-w-1020 list)
-```
-
-### Standard detail-page structure
+### Tailwind structure for customer detail
 
 ```
-- customer header (CustomerContextBar)
-- journey rail
-- optional record slot (RecordHeader glass card, portaled)
-- centered main column with stacked content sections
-- floating insight rail (see docs/03-customer-workspace.md)
+- workspace root:  flex flex-1 flex-col bg-gray-100
+- context bar:     CustomerContextBar (sticky chrome)
+- content:         relative flex-1, data-workspace-content
+- inner column:    mx-auto px-6 pt-2 pb-12 max-w-[860|1020]
+- record actions:  RecordHeader portaled into recordSlot (optional)
 ```
 
-The insight rail is no longer a fixed column. Instead it floats as an icon stack on the right (xl: breakpoint and above), expanding to a 340px panel on click. The panel pushes main content via dynamic padding. See `docs/03-customer-workspace.md` for full InsightRail spec.
+### Standard customer workspace structure
+
+```
+- CustomerContextBar (breadcrumb + title + file-folder tabs + record slot)
+- centered main column with stage content
+- optional RecordHeader action pill when viewing a record
+```
+
+Workspace chrome is `CustomerContextBar` + optional `RecordHeader` action pill — see `docs/03-customer-workspace.md`.

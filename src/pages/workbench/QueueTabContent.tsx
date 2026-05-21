@@ -3,13 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { Plug, Upload, FileText, Plug2, Sparkles, Mail } from "lucide-react";
 import { currency, shortDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/primitives";
-import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStrip";
 import { ListTable, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
 import { UploadModal } from "@/components/contracts/UploadModal";
 import { QueueIntegrationsModal } from "@/components/queue/QueueIntegrationsModal";
 import { useIngestContext } from "@/context/IngestContext";
 import { useDemoPersona } from "@/context/DemoPersonaContext";
-import { queueGroupMeta, type QueueItem, type QueueSource } from "@/data/queue-data";
+import type { QueueItem, QueueSource } from "@/data/queue-data";
 import { queueItemKindLabel } from "@/data/workbench-tasks";
 import { openDrawer } from "@/store/drawer-store";
 
@@ -33,7 +32,7 @@ function SourceBadge({ source, detail }: { source: QueueSource; detail?: string 
     Email: {
       icon: Mail,
       tone: "border-gray-200 bg-gray-100 text-gray-600",
-      label: "Email",
+      label: "via Email",
     },
   };
   const { icon: Icon, tone, label } = config[source];
@@ -46,25 +45,6 @@ function SourceBadge({ source, detail }: { source: QueueSource; detail?: string 
       {label}
     </span>
   );
-}
-
-function buildGroups(items: QueueItem[]): Record<string, QueueItem[]> {
-  const groups: Record<string, QueueItem[]> = {
-    "pending-review": [],
-    "in-progress": [],
-    "invoice-review": [],
-    ingested: [],
-    failed: [],
-  };
-  for (const q of items) {
-    for (const meta of queueGroupMeta) {
-      if (meta.match(q)) {
-        groups[meta.key].push(q);
-        break;
-      }
-    }
-  }
-  return groups;
 }
 
 function rowSubtitle(q: QueueItem): string {
@@ -82,22 +62,46 @@ const listColumns: Column[] = [
   { key: "id", label: "Queue ID", width: "120px", sortable: true },
   { key: "doc", label: "Document", width: "260px", sortable: true },
   { key: "scenario", label: "Scenario", width: "120px" },
-  { key: "customer", label: "Customer", width: "150px", sortable: true },
+  { key: "source", label: "Source", width: "120px" },
   { key: "tcv", label: "TCV", width: "110px", align: "right" },
-  { key: "source", label: "Source", width: "110px" },
   { key: "uploaded", label: "Uploaded", width: "110px", sortable: true },
   { key: "status", label: "Status", width: "120px" },
 ];
+
+export function QueueTabToolbar() {
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [connectOpen, setConnectOpen] = useState(false);
+
+  return (
+    <>
+      {uploadOpen && <UploadModal onClose={() => setUploadOpen(false)} />}
+      {connectOpen && <QueueIntegrationsModal onClose={() => setConnectOpen(false)} />}
+      <div className="flex shrink-0 items-center gap-2 pb-2.5">
+        <button
+          type="button"
+          onClick={() => setConnectOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border-default bg-white px-3 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:bg-surface-muted"
+        >
+          <Plug size={13} strokeWidth={2} />
+          Connect
+        </button>
+        <button
+          type="button"
+          onClick={() => setUploadOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-blue-700"
+        >
+          <Upload size={13} strokeWidth={2} />
+          Import
+        </button>
+      </div>
+    </>
+  );
+}
 
 export function QueueTabContent() {
   const navigate = useNavigate();
   const { queueItems, approvalRequests } = useIngestContext();
   const { persona } = useDemoPersona();
-
-  const [uploadOpen, setUploadOpen] = useState(false);
-  const [connectOpen, setConnectOpen] = useState(false);
-
-  const groups = buildGroups(queueItems);
 
   function handleRowClick(q: QueueItem) {
     const pendingInvoiceApproval = approvalRequests.find(
@@ -164,93 +168,49 @@ export function QueueTabContent() {
     navigate(`/queue/${q.id}`);
   }
 
-  const pendingCount = groups["pending-review"].length;
-  const inProgressCount = groups["in-progress"].length;
-  const invoiceReviewCount = groups["invoice-review"].length;
-  const ingestedCount = groups["ingested"].length;
-  const failedCount = groups["failed"].length;
-  const tcvPending =
-    groups["pending-review"].reduce((s, q) => s + q.tcv, 0) +
-    groups["invoice-review"].reduce((s, q) => s + q.tcv, 0);
-
-  const metrics: MetricCard[] = [
-    { label: "Pending review", value: pendingCount, variant: pendingCount > 0 ? "warning" : "default" },
-    { label: "In progress", value: inProgressCount },
-    {
-      label: "Invoice review",
-      value: invoiceReviewCount,
-      variant: invoiceReviewCount > 0 ? "warning" : "default",
-    },
-    { label: "TCV in queue", value: currency(tcvPending), variant: tcvPending > 0 ? "warning" : "default" },
-    { label: "Recently ingested", value: ingestedCount },
-    { label: "Failed / Rejected", value: failedCount, variant: failedCount > 0 ? "danger" : "default" },
-  ];
-
   return (
-    <>
-      {uploadOpen && <UploadModal onClose={() => setUploadOpen(false)} />}
-      {connectOpen && <QueueIntegrationsModal onClose={() => setConnectOpen(false)} />}
-      <div className="flex flex-col">
-        <div className="mb-5 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setUploadOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-blue-700"
-          >
-            <Upload size={13} strokeWidth={2} />
-            Import
-          </button>
-          <button
-            type="button"
-            onClick={() => setConnectOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border-default bg-white px-3 py-1.5 text-[12px] font-medium text-text-secondary transition-colors hover:bg-surface-muted"
-          >
-            <Plug size={13} strokeWidth={2} />
-            Connect
-          </button>
-        </div>
-        <MetricStrip metrics={metrics} />
-        <div className="mt-5">
-          {queueItems.length === 0 ? (
+    <div className="flex min-h-0 flex-1 flex-col">
+      {queueItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-3xl border border-border-default bg-white py-16 text-center">
               <p className="text-[14px] font-medium text-text-secondary">No queue items</p>
               <p className="mt-1 text-[12px] text-text-muted">
                 Import a signed contract or connect an external source to populate the queue.
               </p>
             </div>
-          ) : (
-            <ListTable columns={listColumns}>
-              {queueItems.map((q) => (
-                <ListRow key={q.id} onClick={() => handleRowClick(q)}>
-                  <ListCell width="200px" className="font-medium text-text-primary">
-                    {queueItemKindLabel(q)}
-                  </ListCell>
-                  <ListCell width="120px" className="font-medium text-blue-600">{q.id}</ListCell>
-                  <ListCell width="260px" noTruncate className="text-[13px]">
-                    <FileText size={14} className="shrink-0 text-text-muted" strokeWidth={2} />
-                    <span className="min-w-0 truncate font-medium text-text-primary">
-                      {q.documentName}
-                      <span className="font-normal text-text-muted"> · {rowSubtitle(q)}</span>
-                    </span>
-                  </ListCell>
-                  <ListCell width="120px" className="text-text-secondary">{q.scenario}</ListCell>
-                  <ListCell width="150px" className="font-medium">{q.customerName}</ListCell>
-                  <ListCell width="110px" align="right" className="tabular-nums">
-                    {q.tcv > 0 ? currency(q.tcv) : "—"}
-                  </ListCell>
-                  <ListCell width="110px" noTruncate>
-                    <SourceBadge source={q.source} detail={q.sourceDetail} />
-                  </ListCell>
-                  <ListCell width="110px" className="text-text-secondary">{shortDate(q.uploadedAt)}</ListCell>
-                  <ListCell width="120px" noTruncate>
-                    <StatusBadge status={q.status} />
-                  </ListCell>
-                </ListRow>
-              ))}
-            </ListTable>
-          )}
-        </div>
-      </div>
-    </>
+      ) : (
+        <ListTable
+          columns={listColumns}
+          scrollable
+          maxBodyHeight="calc(100vh - 220px)"
+        >
+          {queueItems.map((q) => (
+            <ListRow key={q.id} onClick={() => handleRowClick(q)}>
+              <ListCell width="200px" className="font-medium text-text-primary">
+                {queueItemKindLabel(q)}
+              </ListCell>
+              <ListCell width="120px" className="font-medium text-blue-600">{q.id}</ListCell>
+              <ListCell width="260px" noTruncate className="text-[13px]">
+                <FileText size={14} className="shrink-0 text-text-muted" strokeWidth={2} />
+                <span className="min-w-0 truncate font-medium text-text-primary">
+                  {q.documentName}
+                  <span className="font-normal text-text-muted"> · {rowSubtitle(q)}</span>
+                </span>
+              </ListCell>
+              <ListCell width="120px" className="text-text-secondary">{q.scenario}</ListCell>
+              <ListCell width="120px" noTruncate>
+                <SourceBadge source={q.source} detail={q.sourceDetail} />
+              </ListCell>
+              <ListCell width="110px" align="right" className="tabular-nums">
+                {q.tcv > 0 ? currency(q.tcv) : "—"}
+              </ListCell>
+              <ListCell width="110px" className="text-text-secondary">{shortDate(q.uploadedAt)}</ListCell>
+              <ListCell width="120px" noTruncate>
+                <StatusBadge status={q.status} />
+              </ListCell>
+            </ListRow>
+          ))}
+        </ListTable>
+      )}
+    </div>
   );
 }

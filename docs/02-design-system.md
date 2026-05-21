@@ -4,22 +4,34 @@
 
 ## Visual tone
 
-- **Enterprise product** — strong information hierarchy, subtle, premium, operational
-- **Calm and dense-but-readable** — not marketing, not flashy, not a dashboard
-- **Neutral surfaces + subtle borders** — let content hierarchy carry the design
-- **Small orange accents** for active states (Chargebee brand), used sparingly
-- **Compact spacing in tables**, icons only when useful
+- **Functional, aesthetic, clean** — Chargebee operational product, not marketing
+- **Calm and readable** — generous padding in tables and cards; hierarchy from typography and spacing, not cramming
+- **Neutral warm surfaces** — `grey-100` canvas, white cards, subtle `border-border-default`
+- **Chargebee orange** (`--color-cb-orange`, `--color-cb-orange-light`) — sidebar active nav, NBA card accents, brand moments
+- **Blue** (`text-blue-600`, `bg-blue-50`) — workbench tab underline, record actions, primary link CTAs
+- **Inter** body; **Sora** (`font-heading`) for page titles and customer name
+- Icons only when useful
 
-Avoid: giant empty hero areas, oversized marketing cards, nested tabs, random charts, generic dashboard feel.
+Avoid: giant empty hero areas, oversized marketing cards, nested tabs, random charts, generic dashboard feel, spreadsheet-tight row density.
+
+### What we moved away from
+
+Older docs described **"dense-but-readable"**, **compact table cramming**, and a **fixed ~320px insight rail**. The current UI instead uses:
+
+- Browser-style **file-folder tabs** in `CustomerContextBar`
+- **Drawer overlays** (`EntityDrawer`, 75% width, `rounded-l-[24px]`)
+- **Rounded list tables** (`rounded-3xl` white container, `py-3` rows, `text-[14px]`)
+- Intelligence in **tab content** (Account 360 NBA/AI) and **Workbench**, not a persistent right column
 
 ## Spacing & layout
 
-See `docs/01-shell-and-layout.md` for shell spec. Inside the white content canvas:
+See `docs/01-shell-and-layout.md` for shell spec. Inside content areas:
 
-- Internal horizontal padding: 24–32px
-- Top padding: 24px
-- Vertical gap between major sections: 16–20px
-- Right insight rail: ~320px, sticky when practical, collapses below main on smaller widths
+- Index/workbench horizontal padding: **24px** (`px-6`)
+- List table container: `rounded-3xl border bg-white`
+- Table rows: `py-3`, column headers `text-[11px] uppercase tracking-wide
+- Workbench greeting: `text-[30px]` semibold
+- Sidebar nav: `text-[13px]`, `py-[6px]` rows
 
 ## Full status badge catalog
 
@@ -76,14 +88,14 @@ Cancelled, Low Risk, **Closed** (contract closed neutrally)
 
 ## Shared severity color tokens
 
-Used across tab statuses, insights, and callouts:
+Used across insights and callouts:
 
 | Severity | Class | Use |
 |---|---|---|
 | green | `text-emerald-600` | healthy, active, complete |
 | amber | `text-amber-600` | pending, review, warning |
 | red | `text-red-600` | overdue, blocked, critical |
-| blue | `text-blue-600` | informational, draft, neutral |
+| blue | `text-blue-600` | informational, draft, links |
 
 ## Theme tokens (`index.css` `@theme`)
 
@@ -91,129 +103,70 @@ Prototype CSS variables include Chargebee orange (`--color-cb-orange`) and neutr
 
 ## Reusable component inventory
 
-Components live under `src/components/revenue-workspace/`, `src/components/index-page/`, `src/components/ui/`.
+Components live under `src/components/revenue-workspace/`, `src/components/index-page/`, `src/components/ui/`, `src/components/common/`, `src/components/transitions/`.
 
-### Workspace primitives
+### Workspace chrome (live)
 
-- `CustomerWorkspaceHeader` — stable customer header (name, entity, metrics, risk badges)
-- `RevenueJourneyRail` — lifecycle stage rail with status labels
-- `CustomerContextBar` — combined header + tabs + optional record slot; orchestrates the workspace chrome
-- `RecordHeader` — **glass card** portaled into `RecordSlotContext` (see below)
-- `RecordSlotContext` — React context providing a portal target for stage content to render its record header
-- `InsightRail` — **floating icon stack + panel** (see below)
-- `SectionCard` — shared section wrapper with title + slot
+- **`CustomerContextBar`** — sticky workspace chrome: breadcrumb, customer title (collapses on scroll), file-folder tabs with grouped child tabs, optional `recordSlot`
+- **`RecordHeader`** — **action-only** slim glass pill (`rounded-full`, `bg-white/65`, `backdrop-blur-md`) portaled into `RecordSlotContext`
+- **`RecordSlotContext`** — portal target for stage-rendered record actions
+- **`SectionCard`** — shared section wrapper with title + slot
 
-#### RecordHeader (glass card)
+### Workspace types
 
-A semi-transparent glass card that floats below the tabs when viewing a specific record (quote, contract, invoice).
-
-**Visual treatment:**
-- `bg-white/65` + `backdrop-blur-md` + `backdrop-saturate-150`
-- `shadow-[0_8px_24px_-12px_rgba(17,24,39,0.18)]`
-- `rounded-2xl` with `px-5 py-2.5` padding
-
-**Left side:**
-- Back link (optional): flat text with left arrow (e.g. "All contracts")
-- ID pill: `border-blue-300 bg-blue-50` with bold `text-blue-700` ID
-- Optional pill tag (e.g. "v3") and dropdown chevron
-
-**Right side:**
-- Flat text action buttons separated by `1px` vertical dividers (`mx-3 h-4 w-px bg-gray-300`)
-- Optional overflow menu (`MoreHorizontal` icon)
-
-#### InsightRail (floating)
-
-No longer a fixed 320px column. Instead:
-
-**Collapsed state:** Vertical icon stack (`rounded-full border bg-white shadow`) pinned to viewport right, positioned from `[data-tabs-anchor]` bottom + 80px offset.
-
-**Expanded state:** 340px floating panel, same fixed positioning. Panel has:
-- White card with `rounded-2xl`, border, deep shadow
-- Header: "Insights" title + collapse button
-- Accordion body: Open Tasks, Account Details, Linked Records
-
-Content push: When panel opens, `[data-workspace-content]` receives dynamic `padding-right`.
+- `stage.ts` — `Stage` union (`customer` | `tasks` | `threads` | `quote` | …)
 
 ### Per-tab content components
 
-Each lifecycle stage has a `<Stage>StageContent.tsx` that composes its sections:
-- `customer/CustomerStageContent.tsx`
+Each lifecycle stage has a `<Stage>StageContent.tsx`:
+
+- `customer/CustomerStageContent.tsx` (Overview)
+- `tasks/TasksStageContent.tsx`
+- `threads/ThreadsStageContent.tsx`
 - `quote/QuoteStageContent.tsx`
 - `contract/ContractStageContent.tsx`
 - `invoicing/InvoicingStageContent.tsx`
 - `payment/PaymentStageContent.tsx`
 - `revrec/RevRecStageContent.tsx`
 
-Sections below are reusable building blocks. See `docs/04-lifecycle-tabs.md` for what each tab renders.
+### Drawer & overlay primitives
+
+- **`EntityDrawer`** (`src/components/common/EntityDrawer.tsx`) — global 75% right panel, orchestrated by `src/store/drawer-store.ts`
+- **`UnifiedFlowShell`** — multi-step flows (ingest → invoice review → close_prior / grace)
+- **`IngestDrawer`** — ingest/approval body; `presentation="default"` (drawer) or `"page"` (full-page grid)
 
 ### Visual primitives
 
-- Status badge — `StatusBadge` (see color catalog above)
-- Risk badge, stage badge, tiny metric pill
-- Key-value rows (`KV`)
-- Compact entity chips
-- Timeline row (`TimelineRow`)
-- `ActionButton` — consistent action styling for record context bar
+- `StatusBadge`, `KV`, `TimelineRow`, `ActionButton`
+- Index: `PageHeader`, `MetricStrip`, `FilterBar`, `ListTable` / `ListRow` / `ListCell`
 
 ### Ingest drawer primitives
 
-- `IngestFieldGroup` — bordered card wrapper for ingest form sections with header chrome + optional status chip
-  - Header: `bg-gray-50` with bold title, optional subtitle
-  - Chip tones: `valid` (emerald), `warning` (amber), `error` (red), `neutral` (gray border)
-  - Body: white surface with `px-5 py-4` padding
-  - Supports `forwardRef` for scroll-to-section behavior
-- `DrawerStackedField` — label + input stacked vertically for drawer forms
-- `DrawerRailIndent` — left padding wrapper for sub-content inside drawer sections
-- `DrawerSelectShell` / `DrawerNativeSelect` — select input shells for drawer forms
-- `ValidationPanel` — validation status list with clickable items + comments toggle (see layouts below)
+- `IngestFieldGroup` — bordered card wrapper for ingest sections with header chrome + optional status chip
+- `DrawerStackedField`, `DrawerRailIndent`, `DrawerSelectShell`, `DrawerNativeSelect`
+- `ValidationPanel` — `vertical` | `horizontal` | `sidebar` layouts
 
 #### ValidationPanel layouts
 
-`ValidationPanel` supports three layouts via the `layout` prop:
+**`vertical`** — Full-height column for 25% left column in full-page ingest: sticky header, scrollable validation list, comments toggle.
 
-**`vertical` (default)** — Full-height column layout for the 25% left column in full-page ingest:
-- Sticky header with title + comments toggle button
-- Scrollable list of validation items with status icons and hints
-- Active item has left border accent + white background
-- Comments toggle switches between validation list and `ApprovalCommentsCard`
+**`horizontal`** — Compact row for narrow contexts: inline chips + expandable comments.
 
-**`horizontal`** — Compact row layout for drawer or narrow contexts:
-- Single row: title + inline validation chips + comments toggle
-- Chips are clickable buttons with status icons
-- Comments expand below in a bordered section
+**`sidebar`** — Minimal vertical list for tight spaces.
 
-**`sidebar`** — Minimal layout for tight spaces:
-- Compact vertical list without sticky header
-- Smaller icons (14px) and tighter spacing
-- No chevron indicators
-
-Status icons:
-- `valid` → emerald `CheckCircle2`
-- `warning` → amber `AlertCircle`
-- `error` → red `AlertCircle`
-- `pending` → gray dot
-
-Comments toggle shows badge with count when comments exist.
+Status icons: `valid` → emerald check; `warning` / `error` → amber/red alert; `pending` → gray dot.
 
 ### Ingest field group chip tones
 
-| Tone | Border / BG | Text | Use case |
-|------|-------------|------|----------|
-| `valid` | emerald-200 / emerald-50 | emerald-700 | Validation passed, mapped |
-| `warning` | amber-200 / amber-50 | amber-700 | Needs attention, unmapped lines |
-| `error` | red-200 / red-50 | red-700 | Blocking error, invalid |
-| `neutral` | border-subtle / white | text-secondary | Default, informational |
-
-### Index-page primitives
-
-- `MetricStrip` — top 4–5 summary cards
-- `GroupedSection` — named priority bucket with top-5 rows + "View all"
-- `GroupedRow` — a single priority row
-- `ListTable` / `ListRow` / `ListCell` — filtered list view
-- `PageHeader` — index-page header
+| Tone | Use case |
+|------|----------|
+| `valid` | Validation passed, mapped |
+| `warning` | Needs attention, unmapped lines |
+| `error` | Blocking error |
+| `neutral` | Default, informational |
 
 ## Section card usage rules
 
-- Use section cards inside the page, **not** nested inside a giant outer card
-- Subtle border, white or slightly tinted surface, modest rounding, compact spacing, clear section titles
-- Content should feel like structured sections on a page, not cards floating inside another card soup
+- Use section cards inside pages, **not** nested inside a giant outer card
+- `rounded-2xl` or `rounded-xl`, subtle border, white surface, clear titles
+- Account 360 uses divider-based list rows inside cards where appropriate (support/comms, lifecycle strips)

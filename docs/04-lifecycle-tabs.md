@@ -1,20 +1,20 @@
 # Lifecycle Tabs — Per-Tab Specifications
 
-Detail specs for each tab inside the `CustomerRevenueWorkspace`. Read alongside `docs/03-customer-workspace.md` (shell anatomy) and `docs/07-dynamic-status.md` (status/insight derivation).
+Detail specs for each tab inside the `CustomerRevenueWorkspace`. Read alongside `docs/03-customer-workspace.md` (shell anatomy) and `docs/07-dynamic-status.md` (insight/NBA derivation).
 
-Tab order: **Customer → Quote → Contract → Invoicing → Payment → RevRec**.
+Tab order: **Overview → Tasks → Threads → Quotes → Contracts → Invoicing → Collections → RevRec**.
 
-> **Note on the right insight rail:** the rail is consistent across all tabs (Account Details / Open Tasks / Linked Records). It does **not** vary per tab. See `docs/03-customer-workspace.md` for its full anatomy.
+> **Shell note:** The live UI uses **`CustomerContextBar`** file-folder tabs. Intelligence lives in **tab content** and dedicated **Tasks** / **Threads** tabs.
 >
-> **Next Best Actions** and **AI Insights** (previously in the rail) now belong inside each tab's main content area. On **Account 360**, they appear as the **lead anchor** of the page; on Quote / Contract / Invoicing / etc., they sit next to the record they refer to. Derivation lives in `derive-stage-data.ts` — e.g. `getQuoteInsights`, `getQuoteActions` for the Quote tab, `getPrimaryCustomerAction` / `getCustomerInsightsEnriched` on Account 360.
+> **Next Best Actions** and **AI Insights** appear in **main stage content**. On **Overview (Account 360)**, they are the **lead anchor** (`CustomerNbaAiRow.tsx`). On Quote / Contract / Invoicing / etc., they sit next to the record they refer to. Derivation: `derive-stage-data.ts`.
 
 ---
 
-## Customer tab (Account 360)
+## Overview tab (Account 360)
 
-**Purpose:** Account-level operating view for Billing, Finance Ops, and RevOps — prioritized actions first, then snapshot, support/comms, lifecycle strips, and activity. Not a generic CRM profile; CRM owners and linked records live in the **insight rail**.
+**Purpose:** Account-level operating view for Billing, Finance Ops, and RevOps — prioritized actions first, then snapshot, support/comms, lifecycle strips, and activity. Not a generic CRM profile.
 
-**Record context bar:** Hidden (customer is the record).
+**Record actions:** Hidden (customer is the record).
 
 Component: `CustomerStageContent` composes the sections below.
 
@@ -66,7 +66,35 @@ Three **stacked** sections (full width, not a 3-column grid). No table headers; 
 | Legacy multi-action list (if needed elsewhere) | `getCustomerActions(customer)` |
 | Compact insight strings | `getCustomerInsights(customer)` |
 
-Account metadata, health, tasks, and external linked records remain in the **insight rail** (`Open Tasks`, `Account Details`, `Linked Records`).
+Cross-customer tasks and comms also have dedicated tabs (see below). External linked records can be surfaced in stage content via `getCustomerExternalLinkedRecords` when needed.
+
+---
+
+## Tasks tab
+
+**Purpose:** Customer-scoped operational task list — work items that span billing, collections, and lifecycle stages.
+
+**Record actions:** Hidden.
+
+Component: `TasksStageContent` (`src/components/revenue-workspace/tasks/`).
+
+**Data:** `src/data/customer-tasks.ts` — per-customer tasks with priority, assignee, due date, status, and deep-link destinations.
+
+**Design:** Section cards or divider-based rows consistent with Account 360 list patterns (gray priority dot, color on hover). Tasks may overlap with Workbench `deriveWorkbenchTasks` sources but are **customer-filtered** here.
+
+---
+
+## Threads tab
+
+**Purpose:** Email and communication thread history for the customer — operational context for billing disputes and renewals.
+
+**Record actions:** Hidden.
+
+Component: `ThreadsStageContent` (`src/components/revenue-workspace/threads/`).
+
+**Data:** `src/data/email-threads.ts`.
+
+**Design:** Divider-based rows; subject + meta; no full message body in list chrome (prototype summaries only).
 
 ---
 
@@ -110,7 +138,7 @@ Render contextually inside the stage content — typically near the Approvals an
 - **Next best action** — e.g. "Follow up on approval" (with approver + date), "Complete and send quote", "Review discount level". Derivation: `getQuoteActions(quote)`.
 - **AI insights** — e.g. "Discount exceeds policy by 8%", "Payment terms differ from prior contract", "Prepaid credits suggest customer may need higher commitment", "Approval pending for 6 days with Sarah Chen", "Contract term differs from CRM opportunity". Derivation: `getQuoteInsights(quote, contract)`.
 
-Linked records and open tasks are in the insight rail — no need to duplicate here.
+Linked records appear in related-record sections when relevant — no global rail.
 
 ---
 
@@ -246,7 +274,7 @@ Render contextually inside the stage content — near the Enforcement section (b
 - **Next best actions** — e.g. "Resolve overdue invoice" (with ID, amount), "Collect PO for held invoice", "Start renewal planning" (<90 days), "Resolve enforcement blockers", **"Process credit note CN-xxx"** (closure), **"Review termination invoice INV-xxx"** (closure). Derivation: `getContractActions(contract, customerInvoices)`.
 - **AI insights** — e.g. "Signed contract differs from approved quote on payment terms", "Invoice should have been generated already", "Product mapping incomplete for one SKU", "Minimum commit will exhaust in 41 days at current burn", "Renewal in 73 days — start planning", **"Contract closing in X days — wind-down period active"**, **"Credit note CN-xxx pending — $X"**, **"Settlement requires approval"**. Derivation: `getContractInsights(contract, customerInvoices)`.
 
-Linked quote / invoices / tasks live in the insight rail.
+Related records appear in stage sections (source quote, invoices, etc.).
 
 ---
 
@@ -329,7 +357,7 @@ Render contextually inside the stage content — typically near the Review Check
 
 ---
 
-## Payment / Collections tab
+## Collections tab (Payment stage)
 
 **Purpose:** Collections + Cash Application + AR Handoff workspace answering: What is outstanding? Which invoices are overdue, promised, or disputed? What is the next collection action? Has cash been matched?
 

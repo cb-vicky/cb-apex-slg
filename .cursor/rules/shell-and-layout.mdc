@@ -1,5 +1,5 @@
 ---
-description: Outer app shell (TopNav, Sidebar, AppShell)
+description: Outer shell layout constraints
 globs: src/components/layout/**,src/App.tsx,src/main.tsx
 alwaysApply: false
 ---
@@ -8,13 +8,14 @@ alwaysApply: false
 
 When editing the outer shell:
 
-- **`docs/01-shell-and-layout.md`** — shell anatomy (dark top header, search row, white sidebar, content area background), internal spacing, Tailwind layout structure
-- **`docs/02-design-system.md`** — design tone, visual style
-- **`docs/06-routing.md`** — route order constraints and sidebar navigation mapping
+- **`docs/01-shell-and-layout.md`** — teal TopNav (36px, no search row), grey sidebar (228/48px), content canvas
+- **`docs/02-design-system.md`** — design tone
+- **`docs/06-routing.md`** — routes and sidebar mapping
 
 ## Non-negotiable rules
 
-1. **Do NOT redesign or replace the outer shell** (top nav, site switcher, left sidebar, rounded white content canvas).
-2. **Do NOT create a full-page wrapper card** inside the content area — work inside the existing white canvas.
-3. Sidebar items point to **index routes** (`/customers`, `/quotes`, `/contracts`, `/invoices`, `/approvals`, `/queue`), not hardcoded record IDs.
-5. **Desk nav dots:** **My Workbench** may show a trailing orange dot when there are pending approvals or in-flight `pendingRenewalIngestions`; **Approvals** may show a dot when any approval is **Pending Approval**. See `docs/10-workbench-home.md`.
+1. **Do NOT redesign or replace the outer shell** (top nav, site switcher, left sidebar, rounded content canvas).
+2. **Do NOT create a full-page wrapper card** inside the content area.
+3. Sidebar points to **index routes** and Workbench — not `/queue` or `/approvals` (those redirect to `/?tab=`).
+4. Queue and Approvals are **Workbench tabs**, not sidebar Desk items.
+5. Demo **persona switcher** is in TopNav — not a Workbench page control.

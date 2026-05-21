@@ -130,7 +130,7 @@ export function SectionCard({
   return (
     <div className={cn("overflow-hidden rounded-3xl border border-border-default bg-white", className)}>
       <div className="flex items-center justify-between gap-3 bg-white px-5 pt-4 pb-3">
-        <h3 className="font-sora text-[14px] font-semibold leading-tight tracking-normal text-text-primary">{title}</h3>
+        <h3 className="font-sora text-[14px] font-bold leading-tight tracking-normal text-text-primary">{title}</h3>
         {actions}
       </div>
       <div className={cn("px-5 pb-4 pt-1", bodyClassName)}>{children}</div>

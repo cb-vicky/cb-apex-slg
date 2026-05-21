@@ -67,7 +67,7 @@ export function ApprovalSettingsModal({ initial, onSave, onSkip }: Props) {
         {/* Header */}
         <div className="flex items-start justify-between border-b border-border-default px-6 py-4">
           <div className="min-w-0 pr-3">
-            <h2 className="text-[15px] font-semibold text-text-primary">
+            <h2 className="text-[15px] font-bold text-text-primary">
               Approval settings for subsequent invoices?
             </h2>
           </div>

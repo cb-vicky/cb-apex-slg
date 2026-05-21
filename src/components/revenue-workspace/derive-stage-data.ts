@@ -12,7 +12,7 @@ import {
 } from "@/data/billing-data";
 import { getRevenueArrangement, type RevenueArrangement } from "@/data/revrec-data";
 import { getTicketsForCustomer } from "@/data/support-data";
-import type { Stage } from "./RevenueJourneyRail";
+import type { Stage } from "./stage";
 import { currency, shortDate } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------

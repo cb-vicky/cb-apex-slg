@@ -76,7 +76,7 @@ export function UploadModal({ onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border-default px-6 py-4">
           <div>
-            <h2 className="text-[15px] font-semibold text-text-primary">Upload Signed Contract</h2>
+            <h2 className="text-[15px] font-bold text-text-primary">Upload Signed Contract</h2>
             <p className="mt-0.5 text-[12px] text-text-muted">
               Upload a signed contract document to begin the ingestion workflow.
             </p>

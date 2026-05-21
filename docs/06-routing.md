@@ -1,136 +1,141 @@
 # Routing & Navigation
 
-Routes are declared in `src/App.tsx`. The principle: **every detail route renders through the shared `CustomerRevenueWorkspace` shell** — no standalone detail pages.
+Routes are declared in `src/App.tsx`. The principle: **every customer detail route renders through `CustomerRevenueWorkspace`** — no standalone customer detail pages.
 
-## Workbench (`/` and `/workbench`)
+Global overlay: `<EntityDrawer />` is mounted once in `App.tsx` (outside `<Routes>`) for drawer-first ingest, approval, and transition flows.
 
-Both **`/`** and **`/workbench`** render **`WorkbenchHome`**.
-
-- **My Tasks** (default tab) — operational task list + summary stats; destinations are existing routes (`/queue/:id`, `/approvals/invoices/:id` with optional query params, `/customers/:customerId?tab=…`). See `docs/10-workbench-home.md`.
-- **Getting Started** — role-aware onboarding content (milestones, rails, footer); unchanged component composition from before My Tasks existed.
-
-The in-page role switcher (Billing Manager / Billing Operator) applies to both tabs.
-
-## Canonical route model
-
-### Index routes (list tables)
+## Provider tree
 
 ```
-/customers                  — CustomersIndex (list table)
-/quotes                     — QuotesIndex (list table)
-/contracts                  — ContractsIndex (list table)
-/invoices                   — InvoicesIndex (list table)
-/approvals                  — ApprovalsIndex
-/queue                      — QueueIndex
+RootErrorBoundary
+  IngestProvider          ← ingest-context-core + state
+    DemoPersonaProvider   ← Operator / Approver (TopNav)
+      WorkspaceShellProvider  ← customer workspace bg toggle
+        AppShell
+          Routes + EntityDrawer
 ```
 
-All module index pages render as flat list tables with a top metric strip. No grouped priority landing pattern — simpler, faster navigation.
+## Workbench
 
-### Canonical detail shell
+| Route | Component |
+|---|---|
+| `/` | `WorkbenchHome` |
+| `/workbench` | `WorkbenchHome` (same) |
 
-```
-/customers/:customerId                                 — default to Customer (Account 360) tab
-/customers/:customerId?tab=customer                    — Account 360 tab
-/customers/:customerId?tab=quote&quoteId=QT-…          — Quote tab with record selected
-/customers/:customerId?tab=contract&contractId=CON-…   — Contract tab with record selected
-/customers/:customerId?tab=invoicing&invoiceId=INV-…   — Invoicing tab with record selected
-/customers/:customerId?tab=payment                     — Payment tab
-/customers/:customerId?tab=revrec                      — RevRec tab
-```
+**Tabs** via `?tab=` query param:
 
-Optional **hash** on the same shell (e.g. `/customers/cust_…?tab=customer#support-comms-anchor`) scrolls to in-tab anchors — used by Account 360 deep links such as “View tickets” when escalations are the primary action.
+| `?tab=` | Default | Content |
+|---|---|---|
+| *(none)* | ✓ | Your tasks (`WorkbenchTaskList`) |
+| `queue` | | `QueueTabContent` |
+| `approvals` | | `ApprovalsTabContent` |
 
-### Resource alias routes (backward compatibility)
+Redirects:
+- `/queue` → `/?tab=queue`
+- `/approvals` → `/?tab=approvals`
 
-These render through the same shell, **not** redirect. They resolve the customer from the resource record and pass the correct initial tab + selected record.
-
-```
-/quotes/:quoteId        — resolves quoteId → customerId, renders shell with tab=quote&quoteId
-/contracts/:contractId  — resolves contractId → customerId, renders shell with tab=contract&contractId
-/invoices/:invoiceId    — resolves invoiceId → customerId, renders shell with tab=invoicing&invoiceId
-```
-
-### Queue & approvals routes
+## Index routes
 
 ```
-/queue                                    — QueueIndex (Inbox > Queue, replaces /contracts/ingest entry point)
-/queue?group=pending-review               — pending review group filter
-/queue/:queueItemId                       — QueueIngestPage (standalone, not in workspace shell)
-                                            • Ingestable (`ingestable` + `sampleId`): renders `IngestDrawer` `presentation="page"` (25% fields · 25% comments · 50% document)
-                                            • Zenith new business → **QI-2026-0002** (`sample2`)
-                                            • Verdant early renewal → **QI-2026-0006** (`sample3`)
-                                            • Northlane late renewal → **QI-2026-0003** (placeholder shell today)
-                                            • Unknown id → not-found state
-/approvals                                — ApprovalsIndex
-/approvals/invoices/:invoiceId            — ApprovalDetailPage
-/approvals/invoices/:invoiceId?ingestId=… — Approval Detail (full page) entered from a fresh ingest cycle.
-                                            Optional `?from=approvals` when opened from drawer **Open comments**.
-                                            The `ingestId` triggers the merchant **Approval Settings** modal after the first-invoice approve toast when `firstApprovalCompletedFor[ingestId]` is still false; saving/skipping leads to the **Setup complete** success panel.
+/customers       → CustomersIndex
+/prospects       → ProspectsIndex
+/quotes          → QuotesIndex
+/contracts       → ContractsIndex
+/invoices        → InvoicesIndex
+/collections     → ModuleStubPage
+/revrec          → ModuleStubPage
+/communications  → ModuleStubPage
 ```
 
-The `/queue/:queueItemId` route replaces the legacy `/contracts/ingest?sample=N` URL. Ingest UI breadcrumb (inside **`IngestDrawer`**) reads **Queue > {id}** and may append **> {documentName}** on full page. There is no route-order constraint with `/contracts/:contractId`.
+## Canonical customer detail shell
+
+```
+/customers/:customerId
+/customers/:customerId?tab=customer|tasks|threads|quote|contract|invoicing|payment|revrec
+/customers/:customerId?tab=quote&quoteId=QT-…
+/customers/:customerId?tab=contract&contractId=CON-…
+/customers/:customerId?tab=invoicing&invoiceId=INV-…
+```
+
+Optional hash anchors (e.g. `#support-comms-anchor` on Overview).
+
+Closure / renewal handoff query params:
+- `closeIntent=early-renewal|late-renewal`
+- `queueItemId=QI-…`
+- `closureFor=CON-…` (on approval URLs)
+
+## Resource alias routes
+
+Render through the same shell (no redirect). Page components resolve `customerId` from the record:
+
+```
+/quotes/:quoteId        → QuoteDetailPage → CustomerRevenueWorkspace (tab=quote)
+/contracts/:contractId  → ContractDetailPage → tab=contract
+/invoices/:invoiceId     → InvoiceDetailPage → tab=invoicing
+```
+
+## Queue & approvals detail routes
+
+```
+/queue/:queueItemId              → QueueIngestPage (full-page IngestDrawer, presentation="page")
+/approvals/invoices/:invoiceId   → ApprovalDetailPage (full-page 25/25/50 grid)
+```
+
+**Primary ingest path (demo):** `UploadModal` / Queue tab row → `openDrawer({ entityType: "queue_item", mode: "ingest", … })` via `drawer-store.ts`. Full-page URL remains valid for deep links and bookmarking.
+
+Approval URL sync: `useApprovalUrlDrawerSync` opens the drawer from `/approvals/invoices/:id?ingestId=&step=` — see `docs/13-drawer-and-flows.md`.
 
 ## Stage / tab type
 
 ```typescript
-type Stage = "customer" | "quote" | "contract" | "invoicing" | "payment" | "revrec"
+type Stage =
+  | "customer"   // Overview tab label
+  | "tasks"
+  | "threads"
+  | "quote"
+  | "contract"
+  | "invoicing"
+  | "payment"    // Collections tab label
+  | "revrec"
 ```
 
-## Tab resolution logic (inside workspace)
+## Tab resolution (inside workspace)
 
-1. Read `?tab` param from URL search params (default: `"customer"` for `/customers/:customerId`)
-2. Read record ID param (`?quoteId`, `?contractId`, `?invoiceId`)
-3. Pass `initialStage` and `selectedRecordId` to `CustomerRevenueWorkspace`
-4. Journey rail clicking updates the tab param in URL (or local state for prototype)
-
-## Alias route resolution
-
-For `/quotes/:quoteId` (and friends): the page component (`QuoteDetailPage`, `ContractDetailPage`, `InvoiceDetailPage`) resolves the customer from the record and renders `CustomerRevenueWorkspace` with the correct `initialStage` and `selectedRecordId`.
-
-Known past bug (fixed): Pioneer Systems and Zenith Analytics previously inherited Echo Corp's data as a fallback due to a missing null guard in `CustomerDetailPage`. Both now correctly pass `null` quote/contract when no data exists, triggering the appropriate empty/disabled states.
+1. Read `?tab` from URL (default `"customer"` for `/customers/:customerId`)
+2. Read `?quoteId`, `?contractId`, `?invoiceId`
+3. Pass `initialStage` + `selectedRecordId` to `CustomerRevenueWorkspace`
+4. Tab clicks update URL search params
 
 ## Deep-linking examples
 
 ```
-From Customers index (row click):
-  navigate("/customers/cust_echo_001?tab=customer&from=customers")
+From Customers index:
+  /customers/cust_echo_001?tab=customer&from=customers
 
-From Quotes index (row click):
-  navigate("/customers/cust_echo_001?tab=quote&quoteId=QT-2026-0042&from=quotes")
+From Quotes index:
+  /customers/cust_echo_001?tab=quote&quoteId=QT-2026-0042&from=quotes
 
-From Contracts index (row click):
-  navigate("/customers/cust_echo_001?tab=contract&contractId=CON-2024-0189&from=contracts")
+From Workbench task row (drawer):
+  openDrawer({ entityType: "queue_item", entityId: "QI-2026-0002", mode: "ingest" })
 
-From Invoices index (row click):
-  navigate("/customers/cust_echo_001?tab=invoicing&invoiceId=INV-2026-0034&from=invoices")
+From Workbench task row (navigate):
+  /approvals/invoices/INV-INGEST-002?ingestId=QI-2026-0002
 ```
 
-## Full navigation chain (Queue → ingest → first-invoice approval)
+## Full navigation chain (ingest → approval)
 
-See `docs/09-contract-ingestion.md` for the end-to-end flow. Key route transitions:
+See `docs/09-contract-ingestion.md`. Summary:
 
 ```
-/queue                                                  — click Import
-  → upload modal opens
-  → click sample → loading animation
-/queue/QI-2026-0002                                     — full-page ingest (Zenith)
-  → Ingest contract → session contract + invoice + navigate to `/contracts/CON-…`
-/approvals/invoices/<sessionInvoiceId>?ingestId=QI-2026-0002 — approval detail (25/25/50)
-  → Approve → toast → ApprovalSettingsModal when first cycle
-  → save / skip policy → "All set" success panel
-/customers/<customerId>?tab=…                         — customer shell (contract / invoicing tabs)
+/?tab=queue → Import → sample2 → EntityDrawer (or /queue/QI-2026-0002 full page)
+  → Ingest contract → customer contract tab / session invoice
+  → /approvals/invoices/:id?ingestId=… → Approve → ApprovalSettingsModal → success panel
 ```
 
-For non-ingest approvals (where there is no `ingestId` query param), the toast is followed by a direct navigation to `/invoices/:invoiceId?from=approvals` and no settings modal appears.
+Early Renewal (`sample3`) short-circuits to `closeIntent` + `CloseContractPane` instead of standard ingest finish.
 
 ## Sidebar navigation
 
-Sidebar items point to **index routes**, not hardcoded record IDs. The Desk section currently lists:
+`Sidebar.tsx` points to **index routes** and Workbench — not hardcoded record IDs. Queue and Approvals are **not** sidebar entries; use Workbench tabs.
 
-- **My Workbench** → `/`
-- **Queue** → `/queue` (replaces the previous disabled "Inbox" entry; this is the operational landing for every contract pending ingestion)
-- **Approvals** → `/approvals`
-
-**Notification dots** (small orange circles on the trailing edge of the row): **My Workbench** shows when there are pending invoice approvals in session **or** an Early Renewal closure is in flight (`pendingRenewalIngestions`). **Approvals** shows when any approval request is **Pending Approval**. See `docs/10-workbench-home.md`.
-
-Other groups (Records, Catalog, Insights) are unchanged. See `src/components/layout/Sidebar.tsx`.
+`usePendingWorkbenchCounts` exists for pending approval / in-flight closure counts but is **not currently wired** to sidebar notification dots.

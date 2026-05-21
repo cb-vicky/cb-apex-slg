@@ -1,22 +1,22 @@
 ---
-description: Grouped priority landing + filtered list index pages
-globs: src/pages/CustomersIndex.tsx,src/pages/QuotesIndex.tsx,src/pages/ContractsIndex.tsx,src/pages/InvoicesIndex.tsx,src/pages/ApprovalsIndex.tsx,src/components/index-page/**
+description: Module index pages and list table primitives
+globs: src/pages/*Index.tsx,src/components/index-page/**
 alwaysApply: false
 ---
 
 # Index Pages
 
-When editing a module index page or its primitives, read:
+When editing module index pages:
 
-- **`docs/05-index-pages.md`** — shared anatomy, per-module metric strips, group definitions, column specs, click flows
-- **`docs/06-routing.md`** — how row clicks deep-link into the customer shell (`/customers/:customerId?tab=…&<id>=…`)
-- **`docs/02-design-system.md`** — badge catalog, spacing
-- **`docs/08-mock-data.md`** — seed records available to populate groups
+- **`docs/05-index-pages.md`** — list table + MetricStrip + FilterBar anatomy
+- **`docs/06-routing.md`** — row click → customer shell deep links
+- **`docs/02-design-system.md`** — table styling (`rounded-3xl`, readable row padding)
+- **`docs/08-mock-data.md`** — seed data and session merges
 
 ## Key rules
 
-1. Default landing = **All list** (flat table). **Focus** (grouped priority) is opt-in via toggle or `?view=groups`.
-2. Groups show top 5 rows sorted by: urgency → value → date.
-3. Same component handles both grouped and filtered list modes, toggled by `?group=…` query param.
-4. Every row click navigates to the customer shell with the right tab + record ID.
-5. Sidebar items point to **index routes**, not hardcoded record IDs.
+1. Default landing is **list table + metric strip** — not grouped priority buckets.
+2. Row clicks navigate to **`/customers/:id?tab=…`** with record params — same customer shell.
+3. **Prospects** (`/prospects`) is a live index — new-business queue rows.
+4. Contracts index has **no** upload CTA — ingest via Workbench Queue.
+5. Queue / Approvals lists live on Workbench tabs — no standalone index pages.

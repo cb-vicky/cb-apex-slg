@@ -6,12 +6,18 @@ All state lives in mock data files + React context. No backend.
 
 ```
 src/data/
-  mock-data.ts          — customers, quotes, contracts, invoices, tasks (core)
-  revrec-data.ts        — revenue arrangements, obligations, schedules
-  support-data.ts       — support tickets, email summaries
-  billing-data.ts       — payments, collection cases, credit notes
-  ingest-data.ts        — ingestion samples, extracted contracts, approvals
-  gettingStarted.ts     — workbench home milestones
+  mock-data.ts              — customers, quotes, contracts, invoices (core)
+  revrec-data.ts            — revenue arrangements, obligations, schedules
+  support-data.ts           — support tickets, email summaries
+  billing-data.ts           — payments, collection cases, credit notes
+  ingest-data.ts            — extracted contract samples (sample2–4), approval types
+  queue-data.ts             — queue seeds, getQueueItemBySample
+  approval-policy.ts        — merchant policy, PendingRenewalIngestion, grace types
+  workbench-tasks.ts        — deriveWorkbenchTasks, WorkbenchTask, stats
+  customer-tasks.ts         — per-customer tasks for Tasks tab
+  email-threads.ts          — threads for Threads tab
+  contract-transition.ts    — drawer flow types, ContractGraceExtension
+  zenith-ingest-session.ts  — Zenith new-business session helpers
 ```
 
 ## Core record types (from `mock-data.ts`)
@@ -208,9 +214,17 @@ Added fields (from Customer tab work):
 
 ## React context
 
-### `src/context/IngestContext.tsx`
+### Ingest context (split for HMR)
 
-- `selectedSample` — which sample was chosen (`sample1` | `sample2` | `sample3` | `null`)
+| File | Role |
+|---|---|
+| `IngestContext.tsx` | Barrel re-export |
+| `ingest-context-core.ts` | `createContext` + `useIngestContext` |
+| `IngestProvider.tsx` | All state + actions (~370 lines) |
+
+Key state (non-exhaustive):
+
+- `selectedSample` — `sample2` | `sample3` | `sample4` | `null`
 - `sessionCustomers` — customers created during the session
 - `sessionProductSkus` — product SKUs created during the session
 - `sessionContracts: Contract[]` — runtime contracts created by auto-ingest (e.g. Scheduled renewal after closure approval). Merged into `customerContracts` inside `CustomerRevenueWorkspace`.
@@ -238,19 +252,31 @@ Added fields (from Customer tab work):
 - `setPendingRenewalIngestion(contractId, data)` / `clearPendingRenewalIngestion(contractId)` — manage pending state
 - `renewalToast` — `{ message, customerId } | null` — blue toast shown when a renewal is auto-scheduled after approval
 - `showRenewalToast(message, customerId)` / `clearRenewalToast()` — toast control
+- `contractGraceExtensions` — map of `contractId → GraceExtension` for late renewal
+- `workbenchTaskSnapshotRef` — highlights newly surfaced tasks on Workbench
 
-Uses `useState` only — no localStorage / sessionStorage. Refresh resets all session state.
+Uses `useState` only — no localStorage / sessionStorage (except sidebar collapse). Refresh resets ingest session state.
 
-### `src/context/WorkbenchRoleContext.tsx`
+### `src/context/DemoPersonaContext.tsx`
 
-- Controls Billing Manager (Admin) vs Billing Operator persona for the Workbench **Getting Started** tab
+- **`persona`:** `"operator"` | `"approver"` (TopNav switcher)
+- Filters **`deriveWorkbenchTasks`** visibility and some ingest CTAs (e.g. Review invoice when ingested)
+
+### `src/context/WorkspaceShellContext.tsx`
+
+- Toggles customer workspace inner background (`bg-gray-100`) when active
+
+### `src/store/drawer-store.ts`
+
+- Global **`EntityDrawer`** open/close, entity type, mode (`ingest`, `approval`, `transition`, …)
 
 ### Workbench task derivation (`src/data/workbench-tasks.ts`)
 
-- **`deriveWorkbenchTasks(context)`** — merges tasks from: (1) merged **queue** items (`Pending Review` / `In Progress`), (2) **approval requests** (`Pending Approval`), (3) open **customer tasks** from the `tasks` export in this file
-- **`groupWorkbenchTasks`** / **`computeWorkbenchStats`** — grouping and summary-strip numbers for **My Tasks**
-- **`WorkbenchTaskContext`** — minimal shape: `queueItems`, `approvalRequests`, `contractClosures`, `pendingRenewalIngestions` (typically from `useIngestContext()`)
-- Closure approvals (`CN-CLOSE-*`, `INV-TERM-*`) pair with **`pendingRenewalIngestions`** for Early Renewal deep links (`?closureFor=&queueItemId=`)
+- **`deriveWorkbenchTasks(context, { persona })`** — queue + approvals + customer tasks + closure-related items
+- **`computeWorkbenchStats`** — five stat cards on Your tasks tab (includes grace extensions)
+- **`groupWorkbenchTasks`** — exists but **Your tasks tab uses flat severity-sorted table** (grouping unused in UI)
+- Tasks may navigate via **`destination`** (route) or **`drawer`** (opens `EntityDrawer`)
+- Closure approvals (`CN-CLOSE-*`, `INV-TERM-*`) pair with **`pendingRenewalIngestions`**
 
 ## Use-case matrix — what each customer showcases
 

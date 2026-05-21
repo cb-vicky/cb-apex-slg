@@ -41,7 +41,7 @@ export const IngestFieldGroup = forwardRef<HTMLDivElement, IngestFieldGroupProps
       >
         <div className="flex items-center justify-between gap-3 border-b border-border-subtle px-5 py-3">
           <div className="min-w-0">
-            <h3 className="truncate font-sora text-[14px] font-semibold leading-tight tracking-normal text-text-primary">
+            <h3 className="truncate font-sora text-[14px] font-bold leading-tight tracking-normal text-text-primary">
               {title}
             </h3>
             {subtitle ? (

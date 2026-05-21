@@ -57,7 +57,7 @@ export function ThreadsStageContent({ customer }: Props) {
         {/* Thread List — Left Column */}
         <div className="flex w-[360px] shrink-0 flex-col border-r border-border-default bg-white">
           <div className="flex items-center justify-between border-b border-border-default px-4 py-3">
-            <h2 className="font-sora text-[16px] font-semibold text-text-primary">Threads</h2>
+            <h2 className="font-sora text-[16px] font-bold text-text-primary">Threads</h2>
             <button
               type="button"
               onClick={handleCompose}

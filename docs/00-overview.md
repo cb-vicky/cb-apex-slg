@@ -7,7 +7,7 @@ Build a **customer-centric revenue workspace** for SLG (sales-led growth) compan
 ## Core UX idea
 
 - The **Customer** is the page shell
-- Quote / Contract / Invoicing / Payment / RevRec are lifecycle stages inside that shell
+- Overview, Tasks, Threads, Quote, Contract, Invoicing, Payment, and RevRec are lifecycle stages inside that shell
 - Opening a quote or a contract should ultimately land the user inside the same shared customer workspace
 - The active stage and selected record change depending on where the user came from
 - Avoid a generic "Customer details" page in the middle — the customer context is persistent across all stages
@@ -21,7 +21,7 @@ Build a **customer-centric revenue workspace** for SLG (sales-led growth) compan
 - **Finance Manager / CFO** — approves write-offs, reviews aging, period close approval, journal export sign-off
 - **RevOps / AE / CSM** — context-only views (secondary)
 
-The prototype does not implement permissions. Actions are present for all users. Role sensitivity is reflected in label tone and action ordering.
+The prototype does not implement permissions. Actions are present for all users. The **demo persona switcher** in TopNav (Operator / Approver) filters Workbench task visibility and some ingest CTAs.
 
 ## Realistic SLG billing context
 
@@ -41,19 +41,17 @@ Seed customer: **Echo Corp** (AI infrastructure), with linked quote QT-2026-0042
 
 ## Design tone
 
-- Enterprise product
-- Strong information hierarchy
-- Subtle and premium
-- Operational, not flashy
-- Clean but not empty
+- **Functional, aesthetic, clean** — operational workspace with Chargebee flavor
+- **Strong information hierarchy** — subtle borders, neutral surfaces, restrained color
+- **Readable spacing** — not spreadsheet-tight; tables and cards breathe
+- **Chargebee orange** for brand/active sidebar nav; **blue** for workbench tabs and record actions
+- **Typography:** Inter body, Sora for primary headings
+- Status badges with restrained semantic colors
 
 Use:
-- Neutral backgrounds
-- Subtle borders
-- Small orange accents for active states (Chargebee brand)
-- Readable typography hierarchy
-- Status badges with restrained colors
-- Compact spacing in tables
+- Neutral `grey-100` / white surfaces
+- Large purposeful radii (`rounded-3xl` tables, `rounded-2xl` section cards)
+- Small orange accents for active sidebar states
 - Icons only when useful
 
 Avoid:
@@ -62,6 +60,7 @@ Avoid:
 - Too many nested tabs
 - Random charts without purpose
 - Generic dashboard feel
+- Legacy "tight-dense" table cramming or fixed 320px insight columns
 
 ## What "good" looks like
 
@@ -76,12 +75,12 @@ The final result should feel like:
 
 ## Top-level acceptance principles
 
-A. The page fits naturally inside the existing outer shell and white content canvas.
+A. The page fits naturally inside the existing outer shell and content canvas.
 B. No giant blank area remains; pages feel intentionally laid out.
 C. Quote and Contract details share one customer-centric shell.
-D. The active record is always visible through a context bar.
+D. The active record is visible through tab chrome + optional action pill (`RecordHeader`).
 E. The main content is different for each lifecycle stage.
-F. The right rail provides useful AI / operational context.
+F. Intelligence (NBA, AI insights, tasks) lives in **stage content** and Workbench — not a fixed right rail.
 G. Uses realistic enterprise billing / SLG language throughout.
 H. Feels closer to a Figma-quality prototype than a raw admin screen.
 I. Every row click from any index page lands in the same customer-centric shell with the correct tab and record active.
@@ -90,7 +89,7 @@ K. Mock data is rich enough to render all sections without empty placeholders; r
 
 ## Non-negotiable constraints
 
-1. The outer shell already exists and should remain intact (top nav, site switcher, left sidebar, rounded white content canvas).
+1. The outer shell already exists and should remain intact (top nav, site switcher, left sidebar, rounded content canvas).
 2. Do NOT redesign or replace the outer shell.
 3. Do NOT create another full-page wrapper card inside the content area.
 4. Work only inside the existing main content canvas and make new layouts feel naturally fitted.

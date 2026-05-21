@@ -1,22 +1,22 @@
 ---
-description: Workbench Home / Getting Started page
-globs: src/pages/workbench/**,src/components/getting-started/**
+description: Workbench home tabs and task derivation
+globs: src/pages/workbench/**
 alwaysApply: false
 ---
 
 # Workbench Home
 
-When editing the Workbench (`WorkbenchHome`, `WorkbenchTaskList`) or Getting Started components:
+When editing Workbench (`WorkbenchHome`, tab content, `WorkbenchTaskList`):
 
-- **`docs/10-workbench-home.md`** — **My Tasks** vs **Getting Started** tabs, `deriveWorkbenchTasks`, summary strip, grouped list, sidebar dots, ingest handoff URLs
-- **`docs/02-design-system.md`** — overall design tone
-- **`docs/09-contract-ingestion.md`** — when wiring queue / approval / Early Renewal behavior
+- **`docs/10-workbench-home.md`** — Your tasks | Queue | Approvals, persona, stats, drawer destinations
+- **`docs/09-contract-ingestion.md`** — queue ingest, Import, UnifiedFlowShell
+- **`docs/02-design-system.md`** — tone and tab styling (blue active underline)
 
 ## Key rules
 
-1. **Tabs:** **My Tasks** (default) and **Getting Started**. Role switcher **top-right** via `WorkbenchRoleContext`; applies to both tabs.
-2. **My Tasks:** Data from `deriveWorkbenchTasks(IngestContext snapshot)` — queue + approvals + customer tasks; no duplicate global state. Rows navigate to existing routes only.
-3. **Getting Started:** Unchanged composition — `GettingStartedHeader`, `SummaryStrip`, `EnvironmentBanner`, `MilestoneGrid` / operator layout, `OperatorRail`, `FooterCallout`.
-4. Two personas on Getting Started: **Billing Manager (Admin)** = 8-milestone grid; **Billing Operator** = 6 milestones + sticky rail.
-5. Milestone status pills: green = Complete, amber = In progress, gray = Not started, red = Blocked.
-6. Fits inside the existing white content frame — no outer wrapper card.
+1. **Tabs:** **Your tasks** (default) | **Queue** | **Approvals** — via `?tab=queue|approvals`.
+2. **Persona:** Operator / Approver in **TopNav** (`DemoPersonaContext`) — filters `deriveWorkbenchTasks`.
+3. **Your tasks:** Flat severity-sorted table; data from `IngestContext` only — no duplicate global state.
+4. **Queue tab:** Import opens `UploadModal` → drawer-first ingest (`EntityDrawer`).
+5. **Getting Started** components are **not** mounted — do not document as active without wiring.
+6. No outer wrapper card inside the canvas.

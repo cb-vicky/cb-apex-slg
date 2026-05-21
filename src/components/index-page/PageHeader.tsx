@@ -41,7 +41,7 @@ export function PageHeader({
             {backLabel}
           </button>
         )}
-        <h1 className="text-[24px] font-semibold leading-none tracking-tight text-text-primary">{title}</h1>
+        <h1 className="text-[24px] font-bold leading-none tracking-tight text-text-primary">{title}</h1>
         {filterLabel && (
           <span className="rounded-md border border-cb-orange/30 bg-cb-orange/10 px-2 py-0.5 text-[12px] font-medium leading-4 text-cb-orange">
             {filterLabel}

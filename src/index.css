@@ -57,6 +57,7 @@ body {
 h1,
 h2 {
   font-family: var(--font-sora);
+  font-weight: 700;
 }
 
 #root {

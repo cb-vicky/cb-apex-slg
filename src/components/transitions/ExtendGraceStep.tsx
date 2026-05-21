@@ -547,7 +547,7 @@ export function ExtendGraceStep({
                     <div className="flex flex-col gap-4">
                       <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
                         <div className="border-b border-border-subtle px-5 py-3">
-                          <h3 className="font-sora text-[14px] font-semibold text-text-primary">Late renewal action</h3>
+                          <h3 className="font-sora text-[14px] font-bold text-text-primary">Late renewal action</h3>
                         </div>
                         <div className="px-5 py-4">
                           <FormField label="What would you like to do?">
@@ -651,7 +651,7 @@ function ExtendGraceBody({
       {/* Grace settings card */}
       <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
         <div className="border-b border-border-subtle px-5 py-3">
-          <h3 className="font-sora text-[14px] font-semibold text-text-primary">Grace period settings</h3>
+          <h3 className="font-sora text-[14px] font-bold text-text-primary">Grace period settings</h3>
         </div>
         <div className="flex flex-col gap-4 px-5 py-4">
           <FormField label="Grace duration (days)">
@@ -737,7 +737,7 @@ function ScheduleRenewalBody({
       {/* Renewal details card */}
       <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
         <div className="border-b border-border-subtle px-5 py-3">
-          <h3 className="font-sora text-[14px] font-semibold text-text-primary">Renewal details</h3>
+          <h3 className="font-sora text-[14px] font-bold text-text-primary">Renewal details</h3>
         </div>
         <div className="flex flex-col gap-4 px-5 py-4">
           <div className="grid grid-cols-2 gap-3">
@@ -800,7 +800,7 @@ function CancelContractBody({
       {/* Cancellation details card */}
       <div className="overflow-hidden rounded-2xl border border-border-default bg-white">
         <div className="border-b border-border-subtle px-5 py-3">
-          <h3 className="font-sora text-[14px] font-semibold text-text-primary">Cancellation details</h3>
+          <h3 className="font-sora text-[14px] font-bold text-text-primary">Cancellation details</h3>
         </div>
         <div className="flex flex-col gap-4 px-5 py-4">
           <FormField

@@ -5,7 +5,7 @@ export function ModuleStubPage({ title }: { title: string }) {
       <p className="mb-1 text-[12px] font-semibold uppercase tracking-wider text-text-muted">
         Coming soon
       </p>
-      <h1 className="font-sora text-[22px] font-semibold text-text-primary">{title}</h1>
+      <h1 className="font-sora text-[22px] font-bold text-text-primary">{title}</h1>
       <p className="mt-2 max-w-md text-[13px] text-text-secondary">
         This module index is a placeholder in the prototype shell.
       </p>

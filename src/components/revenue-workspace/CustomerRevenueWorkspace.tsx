@@ -3,14 +3,22 @@ import { useNavigate } from "react-router-dom";
 import { CheckCircle2 } from "lucide-react";
 import type { Customer, Quote, Contract, Invoice, Task, ContractClosure } from "@/data/mock-data";
 import { getInvoices, getQuoteLineage, getQuotesForCustomer, getContractsForCustomer } from "@/data/mock-data";
-import { extractedSample3 } from "@/data/ingest-data";
 import { getCollectionCasesForCustomer } from "@/data/billing-data";
 import { getRevenueArrangement } from "@/data/revrec-data";
 import { useIngestContext } from "@/context/IngestContext";
 import { useWorkspaceShell } from "@/context/WorkspaceShellContext";
 import { openDrawer } from "@/store/drawer-store";
-import { CustomerContextBar, type OpenChildTabs, type SelectedChildPerStage } from "./CustomerContextBar";
-import { type Stage } from "./RevenueJourneyRail";
+import { CustomerContextBar } from "./CustomerContextBar";
+import { buildRecordTabSummaries, deriveParentTabSummaries } from "./derive-tab-summaries";
+import type { Stage } from "./stage";
+import {
+  isListDetailStage,
+  isListMode,
+  isRecordDetail,
+  type ListDetailStage,
+  type OpenRecordTab,
+  type WorkspaceTab,
+} from "./workspace-tabs";
 import { QuoteStageContent } from "./quote/QuoteStageContent";
 import { ContractStageContent } from "./contract/ContractStageContent";
 import { CustomerStageContent } from "./customer/CustomerStageContent";
@@ -23,9 +31,9 @@ import type { CustomerTask } from "@/data/customer-tasks";
 import { QuoteListView } from "./quote/QuoteListView";
 import { ContractListView, type PendingIngestionContract } from "./contract/ContractListView";
 import { InvoiceListView } from "./invoicing/InvoiceListView";
-import { CloseContractPane } from "@/components/contracts/CloseContractPane";
-import type { IncomingRenewalPreview } from "@/components/contracts/CloseContractPane";
+import { CloseContractPane, type IncomingRenewalPreview } from "@/components/contracts/CloseContractPane";
 import { mergeContractsWithRuntimeClosures } from "./derive-stage-data";
+import { extractedSample3 } from "@/data/ingest-data";
 import { RecordSlotContext } from "./RecordSlot";
 import { cn } from "@/lib/utils";
 
@@ -60,9 +68,15 @@ export function CustomerRevenueWorkspace({
   void _tasks;
   const navigate = useNavigate();
   const { setCustomer360Active } = useWorkspaceShell();
-  const [activeStage, setActiveStage] = useState<Stage>(
-    closeIntent ? "contract" : initialStage
-  );
+  const initialActiveTab: WorkspaceTab = useMemo(() => {
+    if (closeIntent) return { kind: "parent", stage: "contract" };
+    if (activeRecordId && isListDetailStage(initialStage)) {
+      return { kind: "record", stage: initialStage, recordId: activeRecordId };
+    }
+    return { kind: "parent", stage: initialStage };
+  }, [closeIntent, initialStage, activeRecordId]);
+
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>(initialActiveTab);
   const { 
     contractClosures, 
     applyContractClosure, 
@@ -84,24 +98,21 @@ export function CustomerRevenueWorkspace({
     return () => setCustomer360Active(false);
   }, [setCustomer360Active]);
 
-  // When closeIntent is present, force list mode (so user sees context before pane opens)
-  const [viewMode, setViewMode] = useState<"list" | "detail">(
-    closeIntent ? "list" : activeRecordId ? "detail" : "list",
-  );
-
   const [activeQuote, setActiveQuote] = useState<Quote | null>(quote);
   const [activeContract, setActiveContract] = useState<Contract | null>(contract);
   const [showClosePane, setShowClosePane] = useState(false);
 
-  // Track open child tabs across stages (persistent until explicitly closed)
-  const [openChildTabs, setOpenChildTabs] = useState<OpenChildTabs>({
-    quote: [],
-    contract: [],
-    invoicing: [],
+  const [hiddenParentStages, setHiddenParentStages] = useState<Set<Stage>>(new Set());
+  const [openRecordTabs, setOpenRecordTabs] = useState<OpenRecordTab[]>(() => {
+    const stage = closeIntent ? "contract" : initialStage;
+    if (activeRecordId && isListDetailStage(stage)) {
+      return [{ stage, recordId: activeRecordId }];
+    }
+    return [];
   });
 
-  // Track which child is currently selected per stage
-  const [selectedChild, setSelectedChild] = useState<SelectedChildPerStage>({});
+  const activeStage: Stage =
+    activeTab.kind === "parent" ? activeTab.stage : activeTab.stage;
 
   const customerQuotes = getQuotesForCustomer(customer.id);
   // Merge runtime session contracts so auto-ingested Scheduled renewals appear
@@ -164,19 +175,6 @@ export function CustomerRevenueWorkspace({
     });
   }, [customerInvoicesRaw, invoiceStatusOverrides]);
 
-  // Toast auto-dismiss
-  useEffect(() => {
-    if (!closureToast) return;
-    const timer = setTimeout(() => clearClosureToast(), 2400);
-    return () => clearTimeout(timer);
-  }, [closureToast, clearClosureToast]);
-
-  useEffect(() => {
-    if (!renewalToast) return;
-    const timer = setTimeout(() => clearRenewalToast(), 3500);
-    return () => clearTimeout(timer);
-  }, [renewalToast, clearRenewalToast]);
-
   // Build incoming renewal preview from sample3 data when triggered from queue
   const incomingRenewal: IncomingRenewalPreview | undefined = closeIntent === "early-renewal" && queueItemId
     ? {
@@ -195,6 +193,19 @@ export function CustomerRevenueWorkspace({
         })),
       }
     : undefined;
+
+  // Toast auto-dismiss
+  useEffect(() => {
+    if (!closureToast) return;
+    const timer = setTimeout(() => clearClosureToast(), 2400);
+    return () => clearTimeout(timer);
+  }, [closureToast, clearClosureToast]);
+
+  useEffect(() => {
+    if (!renewalToast) return;
+    const timer = setTimeout(() => clearRenewalToast(), 3500);
+    return () => clearTimeout(timer);
+  }, [renewalToast, clearRenewalToast]);
 
   function handleContractClosure(closure: ContractClosure) {
     if (!activeContract) return;
@@ -307,106 +318,101 @@ export function CustomerRevenueWorkspace({
   const revenueArrangement = effectiveContract ? getRevenueArrangement(effectiveContract.id) : undefined;
 
   const isListStage = LIST_STAGES.includes(activeStage);
-  const inListMode = viewMode === "list" && isListStage;
+  const inListMode = isListMode(activeTab);
 
-  // Stages that present a per-record bar (the glass card under the tabs).
-  // Customer/Payment/RevRec don't have list-then-detail or a record context bar.
   const hasRecordBar =
-    !inListMode &&
+    isRecordDetail(activeTab) &&
     Boolean(
-      (activeStage === "quote" && !!activeQuote) ||
-        (activeStage === "contract" && !!effectiveContract) ||
-        (activeStage === "invoicing" && !!effectiveInvoice && !!effectiveContract),
+      (activeTab.stage === "quote" && !!activeQuote) ||
+        (activeTab.stage === "contract" && !!effectiveContract) ||
+        (activeTab.stage === "invoicing" && !!effectiveInvoice && !!effectiveContract),
     );
 
   const [recordSlotEl, setRecordSlotEl] = useState<HTMLDivElement | null>(null);
 
-  // The ID shown in the breadcrumb's record crumb.
   const currentRecordId = inListMode
     ? undefined
-    : activeStage === "quote"
-    ? activeQuote?.id
-    : activeStage === "contract"
-    ? effectiveContract?.id
-    : activeStage === "invoicing" && effectiveInvoice
-    ? effectiveInvoice.id
-    : activeStage === "payment" && primaryCase
-    ? primaryCase.invoiceId
-    : activeStage === "revrec" && revenueArrangement
-    ? revenueArrangement.id
-    : activeRecordId;
+    : activeTab.kind === "record"
+      ? activeTab.recordId
+      : activeStage === "payment" && primaryCase
+        ? primaryCase.invoiceId
+        : activeStage === "revrec" && revenueArrangement
+          ? revenueArrangement.id
+          : undefined;
 
-  function handleStageChange(stage: Stage) {
-    setActiveStage(stage);
-    // If the stage has a selected child, go to detail view; otherwise list view
-    const stageKey = stage as "quote" | "contract" | "invoicing";
-    if (LIST_STAGES.includes(stage) && selectedChild[stageKey]) {
-      setViewMode("detail");
-    } else {
-      setViewMode("list");
-    }
-  }
-
-  // Handle parent tab click — deselect child and show list view
-  function handleParentClick(stage: "quote" | "contract" | "invoicing") {
-    setActiveStage(stage);
-    setSelectedChild((prev) => ({ ...prev, [stage]: undefined }));
-    setViewMode("list");
-  }
-
-  // Add a child tab to the open tabs and select it
-  function addChildTab(stage: "quote" | "contract" | "invoicing", childId: string) {
-    setOpenChildTabs((prev) => ({
-      ...prev,
-      [stage]: prev[stage].includes(childId) ? prev[stage] : [...prev[stage], childId],
-    }));
-    setSelectedChild((prev) => ({ ...prev, [stage]: childId }));
-    setViewMode("detail");
-  }
-
-  // Select a child tab (when clicking on an existing sub-tab)
-  function handleChildSelect(stage: "quote" | "contract" | "invoicing", childId: string) {
-    setSelectedChild((prev) => ({ ...prev, [stage]: childId }));
-    setViewMode("detail");
-    
-    // Update the active record based on stage
-    if (stage === "quote") {
-      const q = customerQuotes.find((q) => q.id === childId);
+  function syncRecordForTab(tab: WorkspaceTab) {
+    if (tab.kind !== "record") return;
+    if (tab.stage === "quote") {
+      const q = customerQuotes.find((q) => q.id === tab.recordId);
       if (q) setActiveQuote(q);
-    } else if (stage === "contract") {
-      const c = contractsForListView.find((c) => c.id === childId);
+    } else if (tab.stage === "contract") {
+      const c = contractsForListView.find((c) => c.id === tab.recordId);
       if (c) setActiveContract(c);
-    } else if (stage === "invoicing") {
-      const inv = invoicesForListView.find((i) => i.id === childId);
+    } else if (tab.stage === "invoicing") {
+      const inv = invoicesForListView.find((i) => i.id === tab.recordId);
       if (inv) setActiveInvoice(inv);
     }
   }
 
-  // Close a child tab
-  function handleChildClose(stage: "quote" | "contract" | "invoicing", childId: string) {
-    setOpenChildTabs((prev) => ({
-      ...prev,
-      [stage]: prev[stage].filter((id) => id !== childId),
-    }));
-    
-    // If closing the selected child, select another or go to list
-    if (selectedChild[stage] === childId) {
-      const remaining = openChildTabs[stage].filter((id) => id !== childId);
-      if (remaining.length > 0) {
-        const newSelected = remaining[remaining.length - 1];
-        setSelectedChild((prev) => ({ ...prev, [stage]: newSelected }));
-        // Update the active record
-        handleChildSelect(stage, newSelected);
-      } else {
-        setSelectedChild((prev) => ({ ...prev, [stage]: undefined }));
-        setViewMode("list");
-      }
+  function handleTabSelect(tab: WorkspaceTab) {
+    setActiveTab(tab);
+    syncRecordForTab(tab);
+  }
+
+  function openRecordTab(stage: ListDetailStage, recordId: string) {
+    setOpenRecordTabs((prev) => {
+      if (prev.some((r) => r.stage === stage && r.recordId === recordId)) return prev;
+      return [...prev, { stage, recordId }];
+    });
+    const tab: WorkspaceTab = { kind: "record", stage, recordId };
+    setActiveTab(tab);
+    syncRecordForTab(tab);
+  }
+
+  function handleParentClose(stage: Stage) {
+    if (stage === "customer") return;
+    setHiddenParentStages((prev) => new Set([...prev, stage]));
+    if (activeTab.kind === "parent" && activeTab.stage === stage) {
+      setActiveTab({ kind: "parent", stage: "customer" });
     }
   }
 
+  function handleRestoreParent(stage: Stage) {
+    setHiddenParentStages((prev) => {
+      const next = new Set(prev);
+      next.delete(stage);
+      return next;
+    });
+    setActiveTab({ kind: "parent", stage });
+  }
+
+  function handleRecordClose(stage: ListDetailStage, recordId: string) {
+    const closingActive =
+      activeTab.kind === "record" &&
+      activeTab.stage === stage &&
+      activeTab.recordId === recordId;
+
+    setOpenRecordTabs((prev) => {
+      const next = prev.filter((r) => !(r.stage === stage && r.recordId === recordId));
+      if (closingActive) {
+        const sameStage = next.filter((r) => r.stage === stage);
+        if (sameStage.length > 0) {
+          const last = sameStage[sameStage.length - 1];
+          const tab: WorkspaceTab = { kind: "record", stage, recordId: last.recordId };
+          setActiveTab(tab);
+          syncRecordForTab(tab);
+        } else if (!hiddenParentStages.has(stage)) {
+          setActiveTab({ kind: "parent", stage });
+        } else {
+          setActiveTab({ kind: "parent", stage: "customer" });
+        }
+      }
+      return next;
+    });
+  }
+
   function renderContent() {
-    // List view for applicable stages
-    if (viewMode === "list" && isListStage) {
+    if (inListMode && isListStage) {
       switch (activeStage) {
         case "quote":
           return (
@@ -414,7 +420,7 @@ export function CustomerRevenueWorkspace({
               quotes={customerQuotes}
               onSelect={(q) => {
                 setActiveQuote(q);
-                addChildTab("quote", q.id);
+                openRecordTab("quote", q.id);
               }}
             />
           );
@@ -425,7 +431,7 @@ export function CustomerRevenueWorkspace({
               pendingIngestions={pendingIngestionContracts}
               onSelect={(c) => {
                 setActiveContract(c);
-                addChildTab("contract", c.id);
+                openRecordTab("contract", c.id);
               }}
             />
           );
@@ -435,7 +441,7 @@ export function CustomerRevenueWorkspace({
               invoices={invoicesForListView}
               onSelect={(inv) => {
                 setActiveInvoice(inv);
-                addChildTab("invoicing", inv.id);
+                openRecordTab("invoicing", inv.id);
               }}
             />
           );
@@ -480,10 +486,44 @@ export function CustomerRevenueWorkspace({
     }
   }
 
+  const parentTabSummaries = useMemo(
+    () =>
+      deriveParentTabSummaries({
+        customer,
+        quotes: customerQuotes,
+        contracts: contractsForListView,
+        invoices: invoicesForListView,
+        invoiceStatusOverrides,
+        contractClosures,
+        contractGraceExtensions,
+        primaryContractId: effectiveContract?.id ?? null,
+      }),
+    [
+      customer,
+      customerQuotes,
+      contractsForListView,
+      invoicesForListView,
+      invoiceStatusOverrides,
+      contractClosures,
+      contractGraceExtensions,
+      effectiveContract?.id,
+    ],
+  );
+
+  const recordTabSummaries = useMemo(
+    () =>
+      buildRecordTabSummaries({
+        quotes: customerQuotes,
+        contracts: contractsForListView,
+        invoices: invoicesForListView,
+        invoiceStatusOverrides,
+      }),
+    [customerQuotes, contractsForListView, invoicesForListView, invoiceStatusOverrides],
+  );
+
   function handleTaskClick(task: CustomerTask) {
-    // Navigate to the relevant stage based on task action
     if (task.action?.stage) {
-      setActiveStage(task.action.stage);
+      setActiveTab({ kind: "parent", stage: task.action.stage });
     }
     // TODO: Open drawer if task.action?.drawer is set
     // For now, just switch tabs. Drawer integration can be added later.
@@ -493,20 +533,18 @@ export function CustomerRevenueWorkspace({
     <div className="flex flex-1 flex-col bg-gray-100">
       <CustomerContextBar
         customer={customer}
-        quote={activeQuote}
-        contract={effectiveContract}
-        invoice={effectiveInvoice}
-        arrangement={revenueArrangement}
-        activeStage={activeStage}
-        onStageChange={handleStageChange}
+        activeTab={activeTab}
+        hiddenParentStages={hiddenParentStages}
+        openRecordTabs={openRecordTabs}
         disabledStages={disabledStages}
         from={from}
         recordId={currentRecordId}
-        openChildTabs={openChildTabs}
-        selectedChild={selectedChild}
-        onChildSelect={handleChildSelect}
-        onChildClose={handleChildClose}
-        onParentClick={handleParentClick}
+        onTabSelect={handleTabSelect}
+        onParentClose={handleParentClose}
+        onRecordClose={handleRecordClose}
+        onRestoreParent={handleRestoreParent}
+        parentTabSummaries={parentTabSummaries}
+        recordTabSummaries={recordTabSummaries}
         recordSlot={hasRecordBar ? <div ref={setRecordSlotEl} /> : null}
       />
 

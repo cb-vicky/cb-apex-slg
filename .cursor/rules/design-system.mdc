@@ -8,11 +8,13 @@ alwaysApply: false
 
 When editing shared UI primitives, badges, or visual components:
 
-- **`docs/02-design-system.md`** — visual tone, full status badge catalog (green/amber/blue/red/gray), line-type badges, obligation-type badges, risk badges, severity color tokens, component inventory
+- **`docs/02-design-system.md`** — visual tone, badge catalog, spacing, drawer primitives
 
 ## Key rules
 
-1. Use shadcn cards sparingly — subtle border, white/tinted surface, modest rounding, compact spacing.
-2. Enterprise tone: dense-but-readable, neutral surfaces, small orange accents for active states only.
-3. Status badges use the shared color map in `StatusBadge`. Any new status should extend the catalog, not invent new colors.
-4. Icons only when useful. No random illustrations, no marketing-style visuals.
+1. **Tone:** Functional, aesthetic, clean — Chargebee flavor. Readable spacing, not tight-dense cramming.
+2. Use shadcn cards sparingly — subtle border, white surface, `rounded-2xl` / `rounded-3xl` where appropriate.
+3. **Orange** for sidebar active nav and brand moments; **blue** for workbench tabs and record action links.
+4. Status badges use the shared color map in `StatusBadge`. Extend the catalog, don't invent new colors.
+5. Do **not** assume a fixed insight rail or journey rail — live UI uses `CustomerContextBar` + tab content.
+6. Icons only when useful. No marketing-style visuals.

@@ -474,7 +474,7 @@ export function CloseContractPane({
               <X size={16} />
             </button>
             <div className="flex flex-col">
-              <h2 className="text-[15px] font-semibold text-text-primary">
+              <h2 className="text-[15px] font-bold text-text-primary">
                 Close contract early
               </h2>
               <nav className="flex items-center gap-1.5 text-[11px] text-text-muted">

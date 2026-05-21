@@ -2,10 +2,14 @@
 
 Covers the full pipeline from a signed contract entering the system to the first invoice being approved and the merchant's approval policy being captured.
 
+**Drawer orchestration:** See **`docs/13-drawer-and-flows.md`** for `EntityDrawer`, `openDrawer`, `UnifiedFlowShell`, flow steps, and entry-point matrix.
+
 **Key files:**
-- `src/components/layout/Sidebar.tsx` — Desk > **Queue** entry
-- `src/pages/QueueIndex.tsx` — Queue landing (grouped + filtered)
-- `src/pages/QueueIngestPage.tsx` — **Full-page shell** for ingestable rows: renders `IngestDrawer` with `presentation="page"`; non-ingestable rows use `PlaceholderState`
+- `src/pages/workbench/QueueTabContent.tsx` — **primary Queue landing** (Workbench tab)
+- `src/components/common/EntityDrawer.tsx` + `src/store/drawer-store.ts` — **drawer-first** ingest/approval (75% overlay)
+- `src/components/transitions/UnifiedFlowShell.tsx` — multi-step flows (ingest → invoice review → close_prior)
+- `src/pages/QueueIngestPage.tsx` — full-page shell (`presentation="page"`) for `/queue/:queueItemId` deep links
+- `src/context/IngestProvider.tsx`, `ingest-context-core.ts` — session state
 - `src/components/transitions/IngestDrawer.tsx` — **Single implementation** for queue ingest (drawer + full page via `presentation`); body uses **25% / 35% / 40%** grid on full page (validation + comments · fields · document preview)
 - `src/components/transitions/IngestFieldGroup.tsx` — **New** — reusable field group card with header chrome + optional status chip; hosts all flat section components inside the ingest drawer fields column
 - `src/components/transitions/panels/*` — document preview panes (`IngestDocumentPreviewPane`, etc.)
@@ -30,25 +34,35 @@ Covers the full pipeline from a signed contract entering the system to the first
 - `src/data/ingest-data.ts` — extracted contract samples (`sample2` new business, `sample3` early renewal, `sample4` late renewal) + `ApprovalRequest` / `ApprovalComment` types
 - `src/data/approval-policy.ts` — merchant policy + `PendingRenewalIngestion`
 - `src/context/IngestContext.tsx` — queue overrides, approvals, **`ensureQueueIngestDiscussion`**, **`submitInvoiceForApproval`** (merges pre-ingest stub), sessions, closures, renewal toasts, **`contractGraceExtensions`**
-- `src/pages/ApprovalsIndex.tsx`
 - `src/pages/ApprovalDetailPage.tsx` — **Full-page** invoice / credit note / termination approval: same **25/25/50** grid as ingest page; `ApprovalDocumentPreviewPane` + `approval-doc-ui` helpers; `ApprovalCommentsCard`; post-closure Early Renewal auto-ingest
 - `src/components/approvals/InvoiceApprovalDrawer.tsx` — drawer parity; "Open comments" navigates to full approval page (optional `?ingestId=` / `?from=approvals`)
 - `src/components/approvals/approval-document-preview.tsx` — shared Invoice | Contract preview toolbar + body
 - `src/components/approvals/approval-doc-ui.ts` — shared doc kind + copy strings + preview variant
 - `src/components/approvals/approval-comments.tsx` — `ApprovalCommentsCard` + composer (@-mentions)
 - `src/components/approvals/InvoiceHTMLPreview.tsx`, `ApprovalSettingsModal.tsx`
-- `src/pages/workbench/WorkbenchHome.tsx`, `WorkbenchTaskList.tsx` — **My Tasks** (`docs/10-workbench-home.md`, `src/data/workbench-tasks.ts`)
+- `src/pages/workbench/WorkbenchHome.tsx`, `WorkbenchTaskList.tsx` — **Your tasks** tab (`docs/10-workbench-home.md`)
 
 ---
 
 ## Implementation snapshot (layout & session)
 
+### Primary path: drawer-first
+
+Most demo flows open ingest via **`openDrawer`** (`drawer-store.ts`):
+
+- **Workbench Queue tab** row click
+- **`UploadModal`** after sample pick (`sample2` / `sample3` / `sample4`)
+- **Prospects index** new-business rows
+- Contract **Transition** / late renewal **Resolve** from workspace
+
+`EntityDrawer`: 25% backdrop + **75%** white panel, `rounded-l-[24px]`. Body uses `IngestDrawer` `presentation="default"` or `UnifiedFlowShell` for multi-step scenarios.
+
 ### Queue ingest — drawer vs full page
 
 | Surface | Layout | Comments | Document |
 |--------|--------|----------|----------|
-| **Drawer** (`EntityDrawer` / overlay, `presentation="default"`) | Fixed-width form rail (~420px) + preview (hidden `<md`, flex grow) | No middle column in drawer | `IngestDocumentPreviewPane` |
-| **Full page** (`QueueIngestPage` → `presentation="page"`) | CSS grid **`25%` · `35%` · `40%`** of the content shell (`grid-cols-[minmax(0,25%)_minmax(0,35%)_minmax(0,40%)]`) | **`ValidationPanel`** + **`ApprovalCommentsCard`** combined in left column. Middle column **`#FAFAFA`** rail, `p-4` | Preview column keeps width even when collapsed (empty canvas + expand strip) |
+| **Drawer** (`EntityDrawer`, `presentation="default"`) | Form rail + preview split | No left validation column in narrow drawer | `IngestDocumentPreviewPane` |
+| **Full page** (`QueueIngestPage` → `presentation="page"`) | Grid **`25%` · `35%` · `40%`** | **`ValidationPanel`** + **`ApprovalCommentsCard`** in left column. Middle `#FAFAFA` fields rail | Preview column; collapsible with width preserved |
 
 ### IngestFieldGroup component
 
@@ -106,7 +120,12 @@ When extraction flags `customer_not_found`, **`CustomerMappingSection`** shows *
 
 ## Workbench handoff
 
-**My Workbench** (`/`, tab **My Tasks**) is the operator ↔ approver handoff surface: `deriveWorkbenchTasks` (in `src/data/workbench-tasks.ts`) reads **the same `IngestContext`** as this flow — merged queue rows, `approvalRequests` (including **stub** `APR-INGEST-*` rows while queue ingest is open), `pendingRenewalIngestions`, and mock customer tasks. After **Ingest contract** (standard new business), the first-invoice approval appears grouped by customer; after **Proceed to close prior contract** (Early Renewal), the closure approval appears under **Verdant Health** with **Critical** severity and `?closureFor=&queueItemId=` when applicable. No extra session layer beyond `IngestContext`.
+**Workbench** (`/`, tabs **Your tasks | Queue | Approvals**) is the operator ↔ approver handoff surface. `deriveWorkbenchTasks` reads the same **`IngestContext`** — merged queue rows, `approvalRequests` (including stub `APR-INGEST-*` during open ingest), `pendingRenewalIngestions`, customer tasks.
+
+- **Demo persona** (TopNav): Operator vs Approver filters visible tasks
+- After **Ingest contract**: first-invoice approval surfaces in Approvals tab / Your tasks
+- After **Proceed to close prior contract** (Early Renewal): closure approval under Verdant Health, Critical severity, `?closureFor=&queueItemId=`
+- Task rows may open **`EntityDrawer`** or navigate to full-page approval URL
 
 ---
 
@@ -127,17 +146,19 @@ Every signed document lands in the **Queue**. Sources surfaced in mock data:
 | **CPQ**        | Native Quote → Contract handoff             | Visual indication only — labelled "via CPQ" |
 | **Email**      | Forwarded to a billing inbox                 | Visual indication only |
 
-The header on `/queue` exposes:
-- **Connect** (secondary) — opens `QueueIntegrationsModal` listing Salesforce, DocuSign, Ironclad, HubSpot, NetSuite, Workday, PandaDoc with Connected / Available status.
-- **Import** (primary, blue) — opens `UploadModal` (the drag-and-drop + sample picker, moved here from the Contracts index).
+**Workbench → Queue tab** toolbar exposes:
+- **Connect** (secondary) — `QueueIntegrationsModal`
+- **Import** (primary) — `UploadModal` → resolves `getQueueItemBySample` → **`openDrawer`** (or navigate to `/queue/:id` for full-page)
 
-The Contracts index no longer has an Upload button — uploading contracts is exclusively a Queue action.
+Contracts index has no Upload button.
+
+`/queue` redirects to `/?tab=queue`.
 
 ---
 
-## Queue index page (`/queue`)
+## Queue tab (`/?tab=queue`)
 
-Same pattern as other module index pages (`docs/05-index-pages.md`). Default landing is the grouped view; URL params toggle list / group-filter modes.
+List table pattern aligned with other indexes (`docs/05-index-pages.md`). Row clicks prefer **`EntityDrawer`**; full-page `/queue/:queueItemId` remains for direct URLs.
 
 ### Metric strip
 - Pending review (count, warning when > 0)
@@ -171,9 +192,11 @@ Triggered from: Queue > **Import** button. Behaviour preserved from the previous
 
 1. **Choose** — drag-and-drop area (visual only) + two sample document buttons
 2. **Loading** — animated progress bar (~3.2s) cycling through extraction messages
-3. **Done** — auto-navigates to `/queue/:queueItemId` (resolved via `getQueueItemBySample`)
+3. **Done** — opens **`EntityDrawer`** for ingest (primary) or navigates to `/queue/:queueItemId` (full-page alternative)
 
-The file upload UI is non-functional — only the sample documents drive the prototype flow.
+Samples: `sample2` → `QI-2026-0002`, `sample3` → `QI-2026-0006`, `sample4` → late renewal flow.
+
+The file upload UI is non-functional — only sample buttons drive the prototype.
 
 ---
 
@@ -457,9 +480,8 @@ Comments are **not** on Invoice Detail; invoice approval **drawer** links to ful
 ### Standard new business (Zenith Analytics, `QI-2026-0002`, `sample2`)
 
 ```
- 1. Sidebar > Desk > Queue                                        — /queue
- 2. Open row Zenith Analytics (QI-2026-0002)                       — /queue/QI-2026-0002
-      OR Import modal → sample2 → resolves same queue id
+ 1. Workbench → Queue tab                                         — /?tab=queue
+ 2. Open row OR Import → sample2 → EntityDrawer (or /queue/QI-2026-0002 full page)
  3. Full-page IngestDrawer: validation + comments | fields | Document preview
  4. Resolve customer-not-found path if testing exception UX; map catalog SKUs as needed
  5. Click "Ingest contract"
@@ -482,9 +504,8 @@ Comments are **not** on Invoice Detail; invoice approval **drawer** links to ful
 ### Early Renewal (Verdant Health, `QI-2026-0006`, `sample3`)
 
 ```
- 1. Sidebar > Desk > Queue                                        — /queue
- 2. Open row Verdant Health (QI-2026-0006)                         — /queue/QI-2026-0006
-      OR Import modal → sample3 → same id
+ 1. Workbench → Queue tab
+ 2. Open row OR Import → sample3 → drawer / full page
  3. Full-page IngestDrawer: validation + comments | fields | Document preview
  4. Review extracted fields → early renewal callouts / validation as implemented
  5. Click "Next" or "Proceed to close prior contract"

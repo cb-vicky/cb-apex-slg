@@ -631,8 +631,6 @@ export function IngestDrawer({
   function handleLateRenewalQueueFinish(q: QueueItem) {
     if (!q.activeContractId || !q.customerId) return;
 
-    // Create the scheduled renewal contract — reflects operator-chosen (possibly backdated)
-    // effective date, end date, and billing frequency from the ingest form.
     const renewalContract: Contract = {
       id: "CON-2026-0NL1",
       customerId: q.customerId,
@@ -728,8 +726,6 @@ export function IngestDrawer({
       pendingContractId: "CON-2026-0NL1",
     });
 
-    // Late Renewal reuses the same `ingest_invoice` scenario as Early Renewal,
-    // so the drawer/steps/components are identical. Just advance to close_prior.
     const { flow } = getDrawerState();
     if (flow?.scenario === "ingest_invoice" || flow?.scenario === "late_renewal_resolve") {
       patchFlowSession({
@@ -769,11 +765,6 @@ export function IngestDrawer({
       handleLateRenewalQueueFinish(q);
       return;
     }
-    if (!q.sampleId) {
-      handleEarlyRenewalQueueFinish(q);
-      return;
-    }
-
     const resolvedCustomerId =
       customerId === INGEST_DRAWER_NEW_CUSTOMER_ID ? ZENITH_CUSTOMER_ID : customerId;
     const contractId =
@@ -823,7 +814,7 @@ export function IngestDrawer({
       }),
     );
 
-    const result = buildIngestResult(q.sampleId, resolvedCustomerId, {
+    const result = buildIngestResult(q.sampleId ?? "sample2", resolvedCustomerId, {
       customerLabel: sessionCustomer.name,
       contractId,
       invoiceId,
@@ -1136,7 +1127,7 @@ export function IngestDrawer({
             <div className="min-w-0">
               <div className="mb-1 flex flex-wrap items-center gap-2">
                 <StatusBadge status={entityStateToBadge(entityStatus)} />
-                <h2 className="truncate text-[15px] font-semibold text-text-primary">
+                <h2 className="truncate text-[15px] font-bold text-text-primary">
                   {priorContract?.id ?? "Contract transition"}
                 </h2>
               </div>

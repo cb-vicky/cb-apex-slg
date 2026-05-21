@@ -9,7 +9,7 @@ import {
   getTasks,
 } from "@/data/mock-data";
 import { CustomerRevenueWorkspace } from "@/components/revenue-workspace/CustomerRevenueWorkspace";
-import type { Stage } from "@/components/revenue-workspace/RevenueJourneyRail";
+import type { Stage } from "@/components/revenue-workspace/stage";
 import { recordCustomerVisit } from "@/lib/recent-customers";
 import { useIngestContext } from "@/context/IngestContext";
 

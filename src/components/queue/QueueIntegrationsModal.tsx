@@ -72,7 +72,7 @@ export function QueueIntegrationsModal({ onClose }: Props) {
       <div className="relative z-10 flex max-h-[85vh] w-[640px] flex-col rounded-xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-border-default px-6 py-4">
           <div>
-            <h2 className="flex items-center gap-2 text-[15px] font-semibold text-text-primary">
+            <h2 className="flex items-center gap-2 text-[15px] font-bold text-text-primary">
               <Plug size={15} className="text-cb-orange" />
               Connect a source
             </h2>

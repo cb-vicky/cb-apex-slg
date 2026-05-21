@@ -1,21 +1,42 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ChevronRight, PanelLeftClose, PanelLeftOpen, Search, Command } from "lucide-react";
-import { useIngestContext } from "@/context/IngestContext";
-import { useDemoPersona } from "@/context/DemoPersonaContext";
-import { deriveWorkbenchTasks } from "@/data/workbench-tasks";
-
+import type { LucideIcon } from "lucide-react";
+import {
+  Activity,
+  BarChart3,
+  ChartLine,
+  ChevronDown,
+  Receipt,
+  Coins,
+  Command,
+  File,
+  FileSignature,
+  Home,
+  List,
+  Mail,
+  MinusCircle,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Search,
+  Shield,
+  Tag,
+  UserPlus,
+  Users,
+  Zap,
+} from "lucide-react";
 interface NavItem {
   label: string;
   path: string;
-}
-
-interface NavSection {
-  items: NavItem[];
+  icon: LucideIcon;
+  /** Stub / parent routes — chevron appears inline on hover. */
+  showChevron?: boolean;
 }
 
 const SIDEBAR_COLLAPSED_KEY = "apex-sidebar-collapsed";
+
+/** Fired when sidebar width changes (collapse toggle). */
+export const SIDEBAR_LAYOUT_EVENT = "apex-sidebar-layout";
 
 function readSidebarCollapsed(): boolean {
   if (typeof window === "undefined") return false;
@@ -35,37 +56,43 @@ const DISABLED_NAV_PATHS = new Set([
   "/signals",
 ]);
 
-const navSections: NavSection[] = [
+const navItems: NavItem[] = [
+  { label: "My Workbench", path: "/", icon: Home },
+  { label: "Customers", path: "/customers", icon: Users },
+  { label: "Prospects", path: "/prospects", icon: UserPlus },
+  { label: "Quotes", path: "/quotes", icon: File },
+  { label: "Contracts", path: "/contracts", icon: FileSignature },
+  { label: "Invoices", path: "/invoices", icon: Receipt },
   {
-    items: [{ label: "My Workbench", path: "/" }],
+    label: "Credit notes",
+    path: "/credit-notes",
+    icon: MinusCircle,
+    showChevron: true,
+  },
+  { label: "Collections", path: "/collections", icon: Coins },
+  { label: "RevRec", path: "/revrec", icon: ChartLine },
+  { label: "Communications", path: "/communications", icon: Mail },
+  { label: "Tasks", path: "/workbench", icon: List },
+  {
+    label: "Product Catalog",
+    path: "/product-catalog",
+    icon: Tag,
+    showChevron: true,
   },
   {
-    items: [
-      { label: "Customers", path: "/customers" },
-      { label: "Prospects", path: "/prospects" },
-      { label: "Quotes", path: "/quotes" },
-      { label: "Contracts", path: "/contracts" },
-      { label: "Invoices", path: "/invoices" },
-      { label: "Credit notes", path: "/credit-notes" },
-      { label: "Collections", path: "/collections" },
-      { label: "RevRec", path: "/revrec" },
-      { label: "Communications", path: "/communications" },
-      { label: "Tasks", path: "/workbench" },
-    ],
+    label: "Entitlements",
+    path: "/entitlements",
+    icon: Shield,
+    showChevron: true,
   },
+  { label: "Usages", path: "/usages", icon: Activity, showChevron: true },
   {
-    items: [
-      { label: "Product Catalog", path: "/product-catalog" },
-      { label: "Entitlements", path: "/entitlements" },
-      { label: "Usages", path: "/usages" },
-    ],
+    label: "RevenueStory",
+    path: "/revenuestory",
+    icon: BarChart3,
+    showChevron: true,
   },
-  {
-    items: [
-      { label: "RevenueStory", path: "/revenuestory" },
-      { label: "Signals", path: "/signals" },
-    ],
-  },
+  { label: "Signals", path: "/signals", icon: Zap, showChevron: true },
 ];
 
 // ---------------------------------------------------------------------------
@@ -74,16 +101,18 @@ const navSections: NavSection[] = [
 
 function NavRow({
   label,
+  icon: Icon,
   active,
   disabled,
   onClick,
-  dot,
+  showChevron,
 }: {
   label: string;
+  icon: LucideIcon;
   active: boolean;
   disabled?: boolean;
   onClick: () => void;
-  dot?: boolean;
+  showChevron?: boolean;
 }) {
   return (
     <button
@@ -91,38 +120,31 @@ function NavRow({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "group relative flex w-full items-center gap-2 overflow-hidden rounded-md px-2.5 py-[3px] text-left text-[13px] transition-colors duration-150",
+        "group/navrow relative flex w-full items-center gap-1.5 overflow-hidden rounded-md px-2 py-[6px] text-left font-sans text-[13px] font-normal leading-tight transition-[colors,font-weight] duration-150",
         disabled
           ? "cursor-not-allowed text-text-muted opacity-55"
           : active
-            ? "bg-gradient-to-r from-cb-orange/[0.18] to-transparent font-semibold text-cb-orange"
-            : "font-medium text-[#012A38] hover:bg-black/[0.04] hover:text-cb-orange",
+            ? "bg-gradient-to-r from-cb-orange/[0.16] via-cb-orange/[0.06] to-transparent font-bold text-cb-orange"
+            : "text-[#2d3940] hover:bg-black/[0.04] hover:font-semibold",
       )}
     >
-      {/* Left active accent — kept mounted to avoid paint flicker on route changes. */}
-      <span
+      <Icon
+        size={14}
+        strokeWidth={active ? 2.25 : 2}
         aria-hidden
-        className={cn(
-          "absolute left-0 top-0.5 bottom-0.5 w-[3px] rounded-r-full bg-cb-orange transition-opacity duration-150",
-          active ? "opacity-100" : "opacity-0",
-        )}
+        className="shrink-0"
       />
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      {dot && (
-        <span
-          aria-label="has pending items"
-          className="h-1.5 w-1.5 shrink-0 rounded-full bg-cb-orange"
-        />
-      )}
-      <ChevronRight
-        size={12}
-        strokeWidth={2.25}
-        aria-hidden
-        className={cn(
-          "shrink-0",
-          active ? "opacity-100" : "opacity-30 group-hover:opacity-70",
+      <span className="flex min-w-0 flex-1 items-center gap-0.5">
+        <span className="truncate">{label}</span>
+        {showChevron && (
+          <ChevronDown
+            size={11}
+            strokeWidth={2.25}
+            aria-hidden
+            className="shrink-0 text-current opacity-0 transition-opacity duration-150 group-hover/navrow:opacity-55"
+          />
         )}
-      />
+      </span>
     </button>
   );
 }
@@ -143,49 +165,8 @@ export function Sidebar() {
     } catch {
       /* ignore */
     }
+    window.dispatchEvent(new CustomEvent(SIDEBAR_LAYOUT_EVENT, { detail: { collapsed: next } }));
   }
-  const {
-    approvalRequests,
-    pendingRenewalIngestions,
-    queueItems,
-    contractClosures,
-    contractGraceExtensions,
-  } = useIngestContext();
-  const { persona } = useDemoPersona();
-
-  const taskContext = useMemo(
-    () => ({
-      queueItems,
-      approvalRequests,
-      contractClosures,
-      pendingRenewalIngestions,
-      contractGraceExtensions,
-    }),
-    [
-      queueItems,
-      approvalRequests,
-      contractClosures,
-      pendingRenewalIngestions,
-      contractGraceExtensions,
-    ],
-  );
-
-  const pendingApprovalCount = approvalRequests.filter(
-    (r) => r.status === "Pending Approval",
-  ).length;
-  const inflightClosures = Object.keys(pendingRenewalIngestions).length;
-
-  const workbenchTaskCount = useMemo(
-    () => deriveWorkbenchTasks(taskContext, { persona }).length,
-    [taskContext, persona],
-  );
-
-  /** Persona-scoped: Operator = queue/lifecycle work + renewal pipeline; Approver = items in their task list. */
-  const workbenchHasDot =
-    workbenchTaskCount > 0 ||
-    (persona === "operator" && inflightClosures > 0) ||
-    (persona === "approver" && pendingApprovalCount > 0);
-
   function isActive(path: string) {
     if (path === "/") {
       return location.pathname === "/";
@@ -204,13 +185,13 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "relative z-[0] flex shrink-0 flex-col overflow-hidden rounded-tl-[24px] bg-grey-100 pt-6 pb-3 font-sora transition-[width] duration-200 ease-out",
-        collapsed ? "w-12" : "w-[200px]",
+        "group/sidebar relative z-[0] flex shrink-0 flex-col overflow-hidden rounded-tl-[24px] bg-grey-100 pt-6 pb-3 font-sora transition-[width] duration-200 ease-out",
+        collapsed ? "w-12" : "w-[220px]",
       )}
     >
       <div
         className={cn(
-          "flex min-h-0 flex-1 flex-col px-2",
+          "flex min-h-0 flex-1 flex-col pl-3 pr-2",
           collapsed ? "overflow-hidden" : "overflow-y-auto",
         )}
       >
@@ -221,29 +202,29 @@ export function Sidebar() {
             collapsed && "flex-col gap-0",
           )}
         >
-          <div className="min-w-0 flex-1 rounded-md bg-gradient-to-r from-cb-orange to-transparent p-px">
+          <div className="min-w-0 flex-1 rounded-md bg-transparent p-px transition-[background] duration-150 has-[:hover]:bg-gradient-to-r has-[:hover]:from-cb-orange has-[:hover]:to-grey-300">
             <button
               type="button"
-              title="Search (⌘K)"
+              aria-label="Go to"
               className={cn(
-                "group/search flex w-full items-center gap-2 rounded-[5px] bg-grey-100 px-2 py-[5px] text-left text-[13px] font-medium text-[#012A38] transition-colors hover:bg-cb-orange hover:text-white",
+                "group/goto flex w-full items-center gap-2 rounded-[5px] bg-grey-100 px-2 py-[6px] text-left font-sans text-[13px] font-normal text-[#2d3940] transition-colors",
                 collapsed && "gap-0",
               )}
             >
               <Search
                 size={14}
                 strokeWidth={2}
-                className="shrink-0 text-cb-orange transition-colors group-hover/search:text-white"
+                className="shrink-0 transition-colors group-hover/goto:text-cb-orange"
                 aria-hidden
               />
               {!collapsed && (
-                <>
-                  <span className="flex-1 truncate">Search</span>
-                  <span className="flex shrink-0 items-center gap-px text-text-muted transition-colors group-hover/search:text-white/70">
-                    <Command size={12} strokeWidth={2.25} aria-hidden />
-                    <span className="text-[11px] font-semibold leading-none">K</span>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate">Go to</span>
+                  <span className="flex shrink-0 items-center gap-px rounded border border-black/[0.1] px-1 py-0.5 text-[11px] font-normal leading-none text-[#9aa5ad]">
+                    <Command size={11} strokeWidth={2} aria-hidden />
+                    <span>K</span>
                   </span>
-                </>
+                </span>
               )}
             </button>
           </div>
@@ -251,7 +232,7 @@ export function Sidebar() {
             <button
               type="button"
               onClick={() => setCollapsedPersist(true)}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-black/[0.06] hover:text-cb-orange"
+              className="pointer-events-none flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-secondary opacity-0 transition-[opacity,colors] duration-150 hover:bg-black/[0.06] hover:text-cb-orange group-hover/sidebar:pointer-events-auto group-hover/sidebar:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100"
               aria-expanded={true}
               aria-controls="app-sidebar-nav"
               title="Collapse navigation"
@@ -267,7 +248,7 @@ export function Sidebar() {
             <button
               type="button"
               onClick={() => setCollapsedPersist(false)}
-              className="flex h-8 w-full items-center justify-center rounded-md text-[#012A38] transition-colors hover:bg-black/[0.06] hover:text-cb-orange"
+              className="pointer-events-none flex h-8 w-full items-center justify-center rounded-md text-[#2d3940] opacity-0 transition-[opacity,colors] duration-150 hover:bg-black/[0.06] hover:text-cb-orange group-hover/sidebar:pointer-events-auto group-hover/sidebar:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100"
               title="Expand navigation"
               aria-label="Expand navigation"
             >
@@ -275,34 +256,24 @@ export function Sidebar() {
             </button>
           </div>
         ) : (
-          <div id="app-sidebar-nav" className="mt-5 flex min-h-0 flex-1 flex-col">
-            {navSections.map((section, si) => (
-              <div key={si}>
-                {si > 0 && (
-                  <div
-                    className="my-4 border-0 border-t border-black/[0.06]"
-                    aria-hidden
+          <div id="app-sidebar-nav" className="mt-1 flex min-h-0 flex-1 flex-col font-sans">
+            <div className="flex flex-col">
+              {navItems.map((item) => {
+                const disabled = DISABLED_NAV_PATHS.has(item.path);
+                const active = !disabled && isActive(item.path);
+                return (
+                  <NavRow
+                    key={item.path}
+                    label={item.label}
+                    icon={item.icon}
+                    active={active}
+                    disabled={disabled}
+                    onClick={() => navigate(item.path)}
+                    showChevron={item.showChevron}
                   />
-                )}
-                <div className="flex flex-col">
-                  {section.items.map((item) => {
-                    const disabled = DISABLED_NAV_PATHS.has(item.path);
-                    const active = !disabled && isActive(item.path);
-                    const dot = item.path === "/" && workbenchHasDot;
-                    return (
-                      <NavRow
-                        key={`${si}-${item.label}`}
-                        label={item.label}
-                        active={active}
-                        disabled={disabled}
-                        onClick={() => navigate(item.path)}
-                        dot={dot}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

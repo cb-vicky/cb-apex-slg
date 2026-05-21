@@ -14,7 +14,7 @@ export function AiChatPanel({ onClose }: AiChatPanelProps) {
     >
       <header className="flex shrink-0 items-center gap-2 border-b border-border-default px-4 py-3">
         <Sparkles size={16} strokeWidth={2} className="shrink-0 text-cb-orange" aria-hidden />
-        <h2 className="truncate font-sora text-[14px] font-semibold text-text-primary">
+        <h2 className="truncate font-sora text-[14px] font-bold text-text-primary">
           AI assistant
         </h2>
         <button

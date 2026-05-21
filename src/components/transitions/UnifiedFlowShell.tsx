@@ -105,7 +105,7 @@ function UnifiedFlowShellHeader({
             <X size={16} />
           </button>
           <div className="flex flex-col">
-            <h1 className="truncate text-[16px] font-semibold text-text-primary">
+            <h1 className="truncate text-[16px] font-bold text-text-primary">
               {isNewDeal ? "New Contract" : (customerName ?? "Customer")}
             </h1>
             {processTag && !isNewDeal && (

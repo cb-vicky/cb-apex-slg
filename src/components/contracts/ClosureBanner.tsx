@@ -46,7 +46,7 @@ export function ClosureBanner({ closure }: Props) {
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <h3 className="font-sora text-[14px] font-semibold text-amber-900">
+          <h3 className="font-sora text-[14px] font-bold text-amber-900">
             Contract closing on {formatDate(closure.effectiveDate)}
           </h3>
           <span className="flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[12px] font-medium leading-4 text-amber-700">

@@ -33,7 +33,7 @@ export function CustomerNbaCard({ action }: Props) {
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-orange-700">Next best action</p>
-            <h2 className="mt-1 text-[15px] font-semibold leading-snug text-text-primary">
+            <h2 className="mt-1 text-[15px] font-bold leading-snug text-text-primary">
               {action.label}
             </h2>
           </div>

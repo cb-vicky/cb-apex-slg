@@ -15,11 +15,14 @@ export interface Column {
 interface Props {
   columns: Column[];
   children: ReactNode;
+  /** When set, the table body scrolls while the header stays fixed. */
+  scrollable?: boolean;
+  maxBodyHeight?: string;
 }
 
-export function ListTable({ columns, children }: Props) {
+export function ListTable({ columns, children, scrollable, maxBodyHeight }: Props) {
   return (
-    <div className="overflow-hidden rounded-3xl border border-border-default bg-white">
+    <div className="flex flex-col overflow-hidden rounded-3xl border border-border-default bg-white">
       <div className="flex min-h-[40px] shrink-0 items-center gap-3 border-b border-border-subtle bg-white px-4 pt-4 pb-2">
         {columns.map((col) => (
           <span
@@ -42,7 +45,12 @@ export function ListTable({ columns, children }: Props) {
           </span>
         ))}
       </div>
-      <div className="divide-y divide-border-subtle">{children}</div>
+      <div
+        className={cn("divide-y divide-border-subtle", scrollable && "min-h-0 overflow-y-auto")}
+        style={scrollable && maxBodyHeight ? { maxHeight: maxBodyHeight } : undefined}
+      >
+        {children}
+      </div>
     </div>
   );
 }
