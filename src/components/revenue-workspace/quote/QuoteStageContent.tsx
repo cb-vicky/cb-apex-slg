@@ -10,6 +10,7 @@ import { QuoteApprovalsSection } from "./QuoteApprovalsSection";
 import { QuoteCrmSection } from "./QuoteCrmSection";
 import { QuoteRelatedSection } from "./QuoteRelatedSection";
 import { QuoteTimelineSection } from "./QuoteTimelineSection";
+import { WorkspaceSectionAnchor } from "../WorkspaceSectionAnchor";
 
 interface Props {
   quote: Quote;
@@ -97,17 +98,31 @@ export function QuoteStageContent({ quote, quoteVersions }: Props) {
   return (
     <div className="flex flex-col gap-3">
       <RecordHeader actions={headerActions} overflowItems={overflowItems} />
-      <QuoteOverviewSection quote={quote} />
-      <QuoteApprovalsSection
-        approval={quote.approval}
-        comments={quote.comments}
-        teamCommentsUnread={quote.teamCommentsUnread}
-      />
-      <QuotePricingSection products={quote.products} />
-      <QuoteTermsSection terms={quote.commercialTerms} />
-      <QuoteCrmSection quote={quote} />
-      <QuoteRelatedSection quote={quote} />
-      <QuoteTimelineSection timeline={quote.timeline} />
+      <WorkspaceSectionAnchor id="ws-section-quote-overview">
+        <QuoteOverviewSection quote={quote} />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-quote-approvals">
+        <QuoteApprovalsSection
+          approval={quote.approval}
+          comments={quote.comments}
+          teamCommentsUnread={quote.teamCommentsUnread}
+        />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-quote-pricing">
+        <QuotePricingSection products={quote.products} />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-quote-terms">
+        <QuoteTermsSection terms={quote.commercialTerms} />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-quote-crm">
+        <QuoteCrmSection quote={quote} />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-quote-related">
+        <QuoteRelatedSection quote={quote} />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-quote-timeline">
+        <QuoteTimelineSection timeline={quote.timeline} />
+      </WorkspaceSectionAnchor>
     </div>
   );
 }

@@ -6,7 +6,7 @@ export function ContractEnforcementSection({ enforcement }: { enforcement: Contr
   const hasIssues = enforcement.blockingIssues.length > 0 || enforcement.productMappingIssues.length > 0;
 
   return (
-    <div id="workspace-contract-enforcement" className="scroll-mt-28">
+    <div id="ws-section-contract-enforcement" data-ws-section="ws-section-contract-enforcement" className="scroll-mt-28">
       <SectionCard title="Enforcement & Activation" className={hasIssues ? "border-red-200" : ""}>
       <div className="grid grid-cols-2 gap-x-8">
         <div className="min-w-0 divide-y divide-border-subtle">

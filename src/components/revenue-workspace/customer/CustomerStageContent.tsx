@@ -11,6 +11,7 @@ import { CustomerMetricsSection } from "./CustomerMetricsSection";
 import { SupportCommsSection } from "./SupportCommsSection";
 import { LifecycleSummarySection } from "./LifecycleSummarySection";
 import { CustomerTimelineSection } from "./CustomerTimelineSection";
+import { WorkspaceSectionAnchor } from "../WorkspaceSectionAnchor";
 import {
   getCustomerExternalLinkedRecords,
   deriveCustomerHealth,
@@ -68,15 +69,37 @@ export function CustomerStageContent({ customer }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      <CustomerNbaCard action={action} />
-      <CustomerMetricsSection customer={customer} />
-      <LinkedRecordsSection records={linked} />
-      <AccountDetailsSection customer={customer} health={health} />
-      <OpenTasksSection tasks={openTasks} />
-      <AiInsightsCard insights={insights} />
-      <SupportCommsSection customerId={customer.id} />
-      <LifecycleSummarySection customerId={customer.id} />
-      <CustomerTimelineSection customerId={customer.id} />
+      <WorkspaceSectionAnchor id="ws-section-customer-nba">
+        <CustomerNbaCard action={action} />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-customer-metrics">
+        <CustomerMetricsSection customer={customer} />
+      </WorkspaceSectionAnchor>
+      {linked.length > 0 ? (
+        <WorkspaceSectionAnchor id="ws-section-customer-linked">
+          <LinkedRecordsSection records={linked} />
+        </WorkspaceSectionAnchor>
+      ) : null}
+      <WorkspaceSectionAnchor id="ws-section-customer-account">
+        <AccountDetailsSection customer={customer} health={health} />
+      </WorkspaceSectionAnchor>
+      {openTasks.length > 0 ? (
+        <WorkspaceSectionAnchor id="ws-section-customer-open-tasks">
+          <OpenTasksSection tasks={openTasks} />
+        </WorkspaceSectionAnchor>
+      ) : null}
+      <WorkspaceSectionAnchor id="ws-section-customer-insights">
+        <AiInsightsCard insights={insights} />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-customer-support">
+        <SupportCommsSection customerId={customer.id} />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-customer-lifecycle">
+        <LifecycleSummarySection customerId={customer.id} />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-customer-activity">
+        <CustomerTimelineSection customerId={customer.id} />
+      </WorkspaceSectionAnchor>
     </div>
   );
 }

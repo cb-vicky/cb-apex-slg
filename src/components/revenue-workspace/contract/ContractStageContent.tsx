@@ -19,6 +19,7 @@ import { ContractTimelineSection } from "./ContractTimelineSection";
 import { ClosureSummaryCard } from "@/components/contracts/ClosureSummaryCard";
 import { ClosureBanner } from "@/components/contracts/ClosureBanner";
 import { ScheduledBanner } from "@/components/contracts/ScheduledBanner";
+import { WorkspaceSectionAnchor } from "../WorkspaceSectionAnchor";
 
 interface Props {
   contract: Contract;
@@ -56,7 +57,7 @@ export function ContractStageContent({
     contract.enforcement.productMappingIssues.length > 0;
 
   const scrollToEnforcement = useCallback(() => {
-    document.getElementById("workspace-contract-enforcement")?.scrollIntoView({
+    document.getElementById("ws-section-contract-enforcement")?.scrollIntoView({
       behavior: "smooth",
       block: "start",
     });
@@ -224,25 +225,48 @@ export function ContractStageContent({
         </div>
       )}
 
-      <ContractOverviewSection contract={contract} />
+      <WorkspaceSectionAnchor id="ws-section-contract-overview">
+        <ContractOverviewSection contract={contract} />
+      </WorkspaceSectionAnchor>
 
-      {/* Closure summary card (after overview, when closure exists) */}
-      {hasClosure && contract.closure && (
-        <ClosureSummaryCard
-          closure={contract.closure}
-          contractId={contract.id}
-          customerId={contract.customerId}
-        />
-      )}
+      {hasClosure && contract.closure ? (
+        <WorkspaceSectionAnchor id="ws-section-contract-closure">
+          <ClosureSummaryCard
+            closure={contract.closure}
+            contractId={contract.id}
+            customerId={contract.customerId}
+          />
+        </WorkspaceSectionAnchor>
+      ) : null}
 
-      <ContractTermsSection products={contract.products} />
+      <WorkspaceSectionAnchor id="ws-section-contract-terms">
+        <ContractTermsSection products={contract.products} />
+      </WorkspaceSectionAnchor>
       <ContractEnforcementSection enforcement={contract.enforcement} />
-      <ContractBillingSection schedule={billingScheduleView} />
-      <ContractAmendmentsSection amendments={contract.amendments} renewalDate={contract.renewalDate} coTermBehavior={contract.coTermBehavior} />
-      <ContractFinanceSection contract={contract} />
-      <ContractDifferencesSection differences={contract.comparisonToQuote} />
-      <ContractDocumentsSection contract={contract} />
-      <ContractTimelineSection timeline={contract.timeline} />
+      <WorkspaceSectionAnchor id="ws-section-contract-billing">
+        <ContractBillingSection schedule={billingScheduleView} />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-contract-amendments">
+        <ContractAmendmentsSection
+          amendments={contract.amendments}
+          renewalDate={contract.renewalDate}
+          coTermBehavior={contract.coTermBehavior}
+        />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-contract-finance">
+        <ContractFinanceSection contract={contract} />
+      </WorkspaceSectionAnchor>
+      {contract.comparisonToQuote.length > 0 ? (
+        <WorkspaceSectionAnchor id="ws-section-contract-differences">
+          <ContractDifferencesSection differences={contract.comparisonToQuote} />
+        </WorkspaceSectionAnchor>
+      ) : null}
+      <WorkspaceSectionAnchor id="ws-section-contract-documents">
+        <ContractDocumentsSection contract={contract} />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-contract-timeline">
+        <ContractTimelineSection timeline={contract.timeline} />
+      </WorkspaceSectionAnchor>
     </div>
   );
 }

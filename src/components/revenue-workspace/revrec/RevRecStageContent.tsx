@@ -4,6 +4,7 @@ import { ArrangementOverviewSection } from "./ArrangementOverviewSection";
 import { ObligationsSection } from "./ObligationsSection";
 import { RecognitionScheduleSection } from "./RecognitionScheduleSection";
 import { CloseReadinessSection } from "./CloseReadinessSection";
+import { WorkspaceSectionAnchor } from "../WorkspaceSectionAnchor";
 
 interface Props {
   contract: Contract;
@@ -26,19 +27,27 @@ export function RevRecStageContent({ contract }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      <ArrangementOverviewSection arrangement={arrangement} />
-      <ObligationsSection obligations={arrangement.obligations} />
-      <RecognitionScheduleSection
-        schedule={arrangement.schedule}
-        amendmentImpacts={arrangement.amendmentImpacts}
-        invoiceImpacts={arrangement.invoiceImpacts}
-      />
-      <CloseReadinessSection
-        blockers={arrangement.closeBlockers}
-        journalExports={arrangement.journalExports}
-        adjustments={arrangement.adjustments}
-        arrangement={arrangement}
-      />
+      <WorkspaceSectionAnchor id="ws-section-revrec-overview">
+        <ArrangementOverviewSection arrangement={arrangement} />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-revrec-obligations">
+        <ObligationsSection obligations={arrangement.obligations} />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-revrec-schedule">
+        <RecognitionScheduleSection
+          schedule={arrangement.schedule}
+          amendmentImpacts={arrangement.amendmentImpacts}
+          invoiceImpacts={arrangement.invoiceImpacts}
+        />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-revrec-close">
+        <CloseReadinessSection
+          blockers={arrangement.closeBlockers}
+          journalExports={arrangement.journalExports}
+          adjustments={arrangement.adjustments}
+          arrangement={arrangement}
+        />
+      </WorkspaceSectionAnchor>
     </div>
   );
 }

@@ -13,6 +13,7 @@ import { InvoiceDeliverySection } from "./InvoiceDeliverySection";
 import { InvoicingScheduleSection } from "./InvoicingScheduleSection";
 import { openDrawer } from "@/store/drawer-store";
 import { currency } from "@/lib/utils";
+import { WorkspaceSectionAnchor } from "../WorkspaceSectionAnchor";
 
 interface Props {
   invoice: Invoice;
@@ -225,11 +226,21 @@ export function InvoicingStageContent({ invoice, contract }: Props) {
         </section>
       )}
 
-      <InvoicingOverviewSection invoice={displayInvoice} enrichment={enrichment} />
-      <InvoiceCompositionSection invoice={displayInvoice} enrichment={enrichment} />
-      <BillingBasisSection invoice={displayInvoice} enrichment={enrichment} contract={contract} />
-      <InvoiceDeliverySection enrichment={enrichment} creditNotes={creditNotes} />
-      <InvoicingScheduleSection invoice={displayInvoice} enrichment={enrichment} schedule={schedule} />
+      <WorkspaceSectionAnchor id="ws-section-invoice-overview">
+        <InvoicingOverviewSection invoice={displayInvoice} enrichment={enrichment} />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-invoice-composition">
+        <InvoiceCompositionSection invoice={displayInvoice} enrichment={enrichment} />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-invoice-billing-basis">
+        <BillingBasisSection invoice={displayInvoice} enrichment={enrichment} contract={contract} />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-invoice-delivery">
+        <InvoiceDeliverySection enrichment={enrichment} creditNotes={creditNotes} />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-invoice-schedule">
+        <InvoicingScheduleSection invoice={displayInvoice} enrichment={enrichment} schedule={schedule} />
+      </WorkspaceSectionAnchor>
 
       {showConfirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">

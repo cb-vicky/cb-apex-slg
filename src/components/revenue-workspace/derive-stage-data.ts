@@ -39,9 +39,25 @@ export function derivePriorityChips(
   if (customer.openAr > 0) {
     chips.push({ label: "OPEN AR", value: currency(customer.openAr), severity: "red" });
   }
-  const overdueCount = customerInvoices.filter((i) => i.status === "Overdue").length;
-  if (overdueCount > 0 && customer.openAr === 0) {
-    chips.push({ label: "OVERDUE", value: `${overdueCount} invoice${overdueCount > 1 ? "s" : ""}`, severity: "red" });
+  const overdueInvoices = customerInvoices.filter((i) => i.status === "Overdue");
+  if (overdueInvoices.length > 0) {
+    const overdueTotal = overdueInvoices.reduce((s, i) => s + i.amount, 0);
+    chips.push({
+      label: "OVERDUE",
+      value:
+        overdueTotal > 0
+          ? currency(overdueTotal)
+          : `${overdueInvoices.length} inv`,
+      severity: "red",
+    });
+  }
+  const pendingReview = customerInvoices.filter((i) => i.status === "Pending Review").length;
+  if (pendingReview > 0) {
+    chips.push({
+      label: "REVIEW",
+      value: `${pendingReview} invoice${pendingReview > 1 ? "s" : ""}`,
+      severity: "amber",
+    });
   }
   if (contract && contract.enforcement.blockingIssues.length > 0) {
     chips.push({ label: "ENFORCEMENT", value: "Blocked", severity: "red" });

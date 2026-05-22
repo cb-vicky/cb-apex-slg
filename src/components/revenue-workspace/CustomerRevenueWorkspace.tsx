@@ -35,6 +35,8 @@ import { CloseContractPane, type IncomingRenewalPreview } from "@/components/con
 import { mergeContractsWithRuntimeClosures } from "./derive-stage-data";
 import { extractedSample3 } from "@/data/ingest-data";
 import { RecordSlotContext } from "./RecordSlot";
+import { WorkspaceDetailNav } from "./WorkspaceDetailNav";
+import { getDetailNavItems } from "./workspace-detail-nav";
 import { cn } from "@/lib/utils";
 
 // Stages that use a list-then-detail pattern
@@ -320,6 +322,26 @@ export function CustomerRevenueWorkspace({
   const isListStage = LIST_STAGES.includes(activeStage);
   const inListMode = isListMode(activeTab);
 
+  const detailNavItems = useMemo(() => {
+    if (inListMode) return [];
+    return getDetailNavItems({
+      stage: activeStage,
+      customer,
+      quote: activeQuote,
+      contract: effectiveContract,
+      quotes: customerQuotes,
+      contracts: contractsForListView,
+    });
+  }, [
+    inListMode,
+    activeStage,
+    customer,
+    activeQuote,
+    effectiveContract,
+    customerQuotes,
+    contractsForListView,
+  ]);
+
   const hasRecordBar =
     isRecordDetail(activeTab) &&
     Boolean(
@@ -548,10 +570,7 @@ export function CustomerRevenueWorkspace({
         recordSlot={hasRecordBar ? <div ref={setRecordSlotEl} /> : null}
       />
 
-      {/* Main content area — light grey bg, content cards centered.
-          Detail content reads at max-w-860; list views (Quotes / Contracts /
-          Invoicing tables) get a wider 1020px column so columns aren't
-          cramped. */}
+      {/* Detail nav sits left of cards (pl-5 = 20px, gap-8 = 32px); nav width 160px. */}
       <RecordSlotContext.Provider value={recordSlotEl}>
         <div
           data-workspace-content
@@ -559,11 +578,21 @@ export function CustomerRevenueWorkspace({
         >
           <div
             className={cn(
-              "mx-auto px-6 pt-2 pb-12",
-              inListMode ? "max-w-[1020px]" : "max-w-[860px]",
+              "flex pl-5 pt-2 pb-12",
+              !inListMode && detailNavItems.length > 0 && "gap-8",
             )}
           >
-            {renderContent()}
+            {!inListMode && detailNavItems.length > 0 ? (
+              <WorkspaceDetailNav items={detailNavItems} />
+            ) : null}
+            <div
+              className={cn(
+                "min-w-0 shrink-0",
+                inListMode ? "max-w-[1020px]" : "max-w-[860px]",
+              )}
+            >
+              {renderContent()}
+            </div>
           </div>
         </div>
       </RecordSlotContext.Provider>

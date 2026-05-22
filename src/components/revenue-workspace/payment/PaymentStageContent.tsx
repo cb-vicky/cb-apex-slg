@@ -8,6 +8,7 @@ import { ArOverviewSection } from "./ArOverviewSection";
 import { OpenReceivablesSection } from "./OpenReceivablesSection";
 import { CollectionsWorkflowSection } from "./CollectionsWorkflowSection";
 import { CashApplicationSection } from "./CashApplicationSection";
+import { WorkspaceSectionAnchor } from "../WorkspaceSectionAnchor";
 
 interface Props {
   customer: Customer;
@@ -33,10 +34,23 @@ export function PaymentStageContent({ customer }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      <ArOverviewSection summary={summary} primaryCase={primaryCase} />
-      <OpenReceivablesSection invoices={customerInvoices} cases={cases} />
-      <CollectionsWorkflowSection cases={cases} />
-      <CashApplicationSection payments={payments} creditNotes={creditNotes} cases={cases} invoices={customerInvoices} />
+      <WorkspaceSectionAnchor id="ws-section-payment-ar">
+        <ArOverviewSection summary={summary} primaryCase={primaryCase} />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-payment-receivables">
+        <OpenReceivablesSection invoices={customerInvoices} cases={cases} />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-payment-collections">
+        <CollectionsWorkflowSection cases={cases} />
+      </WorkspaceSectionAnchor>
+      <WorkspaceSectionAnchor id="ws-section-payment-cash">
+        <CashApplicationSection
+          payments={payments}
+          creditNotes={creditNotes}
+          cases={cases}
+          invoices={customerInvoices}
+        />
+      </WorkspaceSectionAnchor>
     </div>
   );
 }

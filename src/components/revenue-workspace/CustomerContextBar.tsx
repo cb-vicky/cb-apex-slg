@@ -5,6 +5,7 @@ import {
   useEffect,
   useLayoutEffect,
   useCallback,
+  useMemo,
   forwardRef,
   type ReactNode,
   type RefObject,
@@ -15,8 +16,15 @@ import { SIDEBAR_LAYOUT_EVENT } from "@/components/layout/Sidebar";
 import { ChevronDown, ChevronRight, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Customer } from "@/data/mock-data";
+import { getContractsForCustomer, getInvoices } from "@/data/mock-data";
+import { useIngestContext } from "@/context/IngestContext";
 import type { Stage } from "./stage";
-import type { StatusSeverity } from "./derive-stage-data";
+import {
+  derivePriorityChips,
+  mergeInvoiceStatuses,
+  type PriorityChip,
+  type StatusSeverity,
+} from "./derive-stage-data";
 import {
   buildMoreTabSubtitle,
   CONNECT_TAB_SUMMARY,
@@ -46,12 +54,27 @@ const SCROLL_THRESHOLD = 40;
 const HEADER_BREADCRUMB_HEIGHT = { expanded: 40, collapsed: 28 } as const;
 const HEADER_BREADCRUMB_PB = { expanded: 2, collapsed: 1 } as const;
 const HEADER_TITLE_PT = { expanded: 2, collapsed: 0 } as const;
-const HEADER_TITLE_PB = { expanded: 16, collapsed: 4 } as const;
-const HEADER_TABS_GAP = { expanded: 12, collapsed: 4 } as const;
+const HEADER_TITLE_PB = { expanded: 16, collapsed: 10 } as const;
+const HEADER_TABS_GAP = { expanded: 12, collapsed: 10 } as const;
 const MORE_BUTTON_WIDTH = 96;
 const OVERFLOW_THRESHOLD = 1;
-/** Negative margin overlap between adjacent folder tabs */
-const TAB_OVERLAP = 10;
+/** Negative margin overlap between adjacent folder tabs (px) — must match TAB_OVERLAP_CLASS */
+const TAB_OVERLAP = 18;
+const TAB_OVERLAP_CLASS = "-ml-[18px]";
+/** Experimental angled folder-tab corners — square left edge, curvy right edge */
+const TAB_CORNER_RADIUS =
+  "rounded-tl-none rounded-bl-none rounded-tr-[36px] rounded-br-[36px]";
+/** Minimum tab width (px) — keeps label + close control from colliding when many tabs are open */
+const TAB_MIN_WIDTH_PARENT = 92;
+const TAB_MIN_WIDTH_CLOSABLE = 160;
+const TAB_MIN_WIDTH_CLASS = {
+  parent: "min-w-[92px]",
+  closable: "min-w-[160px]",
+} as const;
+
+function tabMinWidthPx(tab: WorkspaceTab): number {
+  return isTabClosable(tab) ? TAB_MIN_WIDTH_CLOSABLE : TAB_MIN_WIDTH_PARENT;
+}
 const MEASURE_RETRY_MAX = 16;
 const TAB_FLIP_EASING = "cubic-bezier(0.25, 0.1, 0.25, 1)";
 const TAB_FLIP_MS = 280;
@@ -159,6 +182,7 @@ export function CustomerContextBar({
   recordSlot,
 }: Props) {
   const navigate = useNavigate();
+  const { invoiceStatusOverrides } = useIngestContext();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const rafRef = useRef<number>(0);
@@ -265,12 +289,13 @@ export function CustomerContextBar({
     const tabWidths = strip.map((tab) => {
       const key = tabKey(tab);
       const isActive = tabsEqual(activeTabRef.current, tab);
+      let natural = widthOf(`measure:${key}`);
       if (isTabClosable(tab) && isActive) {
         const expanded = widthOf(`measure:${key}:expanded`);
-        const compact = widthOf(`measure:${key}`);
-        return expanded > 0 ? expanded : compact;
+        const compact = natural;
+        natural = expanded > 0 ? expanded : compact;
       }
-      return widthOf(`measure:${key}`);
+      return Math.max(natural, tabMinWidthPx(tab));
     });
 
     if (tabWidths.some((w) => w === 0)) return false;
@@ -375,6 +400,20 @@ export function CustomerContextBar({
     visibilityOverrides,
   );
   const visibleTabKeys = visibleTabs.map(tabKey).join("|");
+  /** Stretch visible tabs only when nothing overflows and mins still fit the bar. */
+  const tabsFillWidth =
+    overflowTabs.length === 0 &&
+    (() => {
+      const container = tabsContainerRef.current;
+      if (!container || visibleTabs.length === 0) return true;
+      const moreW = measureRefs.current.get("measure:more")?.offsetWidth ?? MORE_BUTTON_WIDTH;
+      const maxW = Math.max(0, container.offsetWidth - moreW + TAB_OVERLAP);
+      const minSum = visibleTabs.reduce(
+        (sum, tab, i) => sum + tabMinWidthPx(tab) - (i > 0 ? TAB_OVERLAP : 0),
+        0,
+      );
+      return minSum <= maxW;
+    })();
 
   useLayoutEffect(() => {
     if (!pendingFlipRef.current) return;
@@ -478,6 +517,21 @@ export function CustomerContextBar({
     recordId,
   });
 
+  const customerInvoices = useMemo(
+    () => mergeInvoiceStatuses(getInvoices(customer.id), invoiceStatusOverrides),
+    [customer.id, invoiceStatusOverrides],
+  );
+
+  const primaryContract = useMemo(() => {
+    const contracts = getContractsForCustomer(customer.id);
+    return contracts.find((c) => c.status === "Active") ?? contracts[0] ?? null;
+  }, [customer.id]);
+
+  const priorityChips = useMemo(
+    () => derivePriorityChips(customer, customerInvoices, primaryContract),
+    [customer, customerInvoices, primaryContract],
+  );
+
   const moreOverflowSubtitle = buildMoreTabSubtitle(
     overflowTabs,
     hiddenParents,
@@ -501,7 +555,7 @@ export function CustomerContextBar({
     <div data-insight-rail-anchor="" className="sticky top-0 z-20 bg-transparent">
       <div
         className={cn(
-          "rounded-br-[24px] border-b border-border-default bg-transparent transition-[background-color,backdrop-filter] duration-300 ease-out",
+          "bg-transparent transition-[background-color,backdrop-filter] duration-300 ease-out",
           isScrolled && "bg-gray-100/75 backdrop-blur-md backdrop-saturate-150",
         )}
       >
@@ -520,35 +574,29 @@ export function CustomerContextBar({
         </div>
 
         <div
-          className="flex items-end justify-between gap-4 pl-2 pr-6 transition-all duration-300 ease-out"
+          className="flex items-end justify-between gap-4 rounded-br-[0px] pl-2 pr-6 transition-all duration-300 ease-out"
           style={{
             paddingTop: isCollapsed ? HEADER_TITLE_PT.collapsed : HEADER_TITLE_PT.expanded,
             paddingBottom: isCollapsed ? HEADER_TITLE_PB.collapsed : HEADER_TITLE_PB.expanded,
           }}
         >
-          <h1
-            className="min-w-0 truncate font-bold leading-tight tracking-tight text-text-primary transition-all duration-300 ease-out"
-            style={{ fontSize: isCollapsed ? 16 : 26 }}
-          >
-            {customer.name}
-          </h1>
-          <p
-            className="shrink-0 whitespace-nowrap pb-[3px] text-[12px] text-text-muted transition-all duration-300 ease-out origin-right"
-            style={{
-              opacity: isCollapsed ? 0 : 1,
-              transform: isCollapsed ? "translateX(20px)" : "translateX(0)",
-              pointerEvents: isCollapsed ? "none" : "auto",
-            }}
-          >
-            AE: {customer.ae}&ensp;·&ensp;CSM: {customer.csm}&ensp;·&ensp;Billing: {customer.billingOwner}
-          </p>
+          <div className="min-w-0 flex-1">
+            <h1
+              className="truncate font-bold leading-tight tracking-tight text-text-primary transition-all duration-300 ease-out"
+              style={{ fontSize: isCollapsed ? 16 : 32 }}
+            >
+              {customer.name}
+            </h1>
+            <CustomerTeamMeta customer={customer} collapsed={isCollapsed} />
+          </div>
+          <CustomerPriorityChips chips={priorityChips} collapsed={isCollapsed} />
         </div>
       </div>
 
       <div
         ref={tabsContainerRef}
         data-tabs-anchor=""
-        className="relative -mt-px min-w-0 max-w-full overflow-hidden"
+        className="relative -mt-px w-full min-w-0 overflow-x-clip overflow-y-visible"
       >
         {/* Off-screen measure row — stable widths; avoids visible-strip oscillation */}
         <div
@@ -612,7 +660,10 @@ export function CustomerContextBar({
           />
         </div>
 
-        <div ref={visibleStripRef} className="flex min-w-0 max-w-full items-end overflow-hidden">
+        <div
+          ref={visibleStripRef}
+          className="flex w-full min-w-0 items-end overflow-x-clip overflow-y-visible pb-1"
+        >
         {visibleTabs.map((tab, idx) => {
           const key = tabKey(tab);
           const isActive = tabsEqual(activeTab, tab);
@@ -635,6 +686,7 @@ export function CustomerContextBar({
               first={idx === 0}
               zIndex={isActive ? 50 : 10 - idx}
               tabsCompact={isCollapsed}
+              fillWidth={tabsFillWidth}
               onClick={() => selectTab(tab)}
               onClose={
                 tab.kind === "parent"
@@ -684,6 +736,73 @@ export function CustomerContextBar({
           }}
         />
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Customer header — team meta + priority chips
+// ---------------------------------------------------------------------------
+
+const PRIORITY_CHIP_TONE: Record<PriorityChip["severity"], string> = {
+  red: "border-red-200/90 bg-red-50 text-red-800",
+  amber: "border-amber-200/90 bg-amber-50 text-amber-900",
+};
+
+function CustomerTeamMeta({
+  customer,
+  collapsed,
+}: {
+  customer: Customer;
+  collapsed?: boolean;
+}) {
+  return (
+    <p
+      className={cn(
+        "pt-1.5 text-[12px] text-text-muted transition-all duration-300 ease-out",
+        collapsed
+          ? "pointer-events-none h-0 overflow-hidden pt-0 opacity-0"
+          : "whitespace-nowrap",
+      )}
+    >
+      AE: {customer.ae}&ensp;·&ensp;CSM: {customer.csm}&ensp;·&ensp;Billing:{" "}
+      {customer.billingOwner}
+    </p>
+  );
+}
+
+function CustomerPriorityChips({
+  chips,
+  collapsed,
+}: {
+  chips: PriorityChip[];
+  collapsed?: boolean;
+}) {
+  if (chips.length === 0) return null;
+
+  return (
+    <div
+      className={cn(
+        "flex max-w-[58%] shrink-0 flex-wrap items-end justify-end gap-1.5 pb-0.5 transition-all duration-300 ease-out",
+        collapsed && "pointer-events-none opacity-0",
+      )}
+      aria-label="Customer priority signals"
+    >
+      {chips.map((chip) => (
+        <span
+          key={`${chip.label}-${chip.value}`}
+          className={cn(
+            "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold leading-tight",
+            PRIORITY_CHIP_TONE[chip.severity],
+          )}
+          title={`${chip.label}: ${chip.value}`}
+        >
+          <span className="text-[10px] font-bold uppercase tracking-wide opacity-75">
+            {chip.label}
+          </span>
+          <span className="font-semibold">{chip.value}</span>
+        </span>
+      ))}
     </div>
   );
 }
@@ -828,6 +947,8 @@ const WorkspaceTabButton = forwardRef<
     measureLayout?: "compact" | "expanded";
     /** Collapsed context bar — hide subtitle row with animation. */
     tabsCompact?: boolean;
+    /** Distribute tab width evenly across the full tab bar (no width overflow). */
+    fillWidth?: boolean;
     onClick: () => void;
     onClose: () => void;
   }
@@ -844,6 +965,7 @@ const WorkspaceTabButton = forwardRef<
     forMeasure,
     measureLayout = "compact",
     tabsCompact = false,
+    fillWidth = false,
     onClick,
     onClose,
   },
@@ -853,12 +975,17 @@ const WorkspaceTabButton = forwardRef<
     forMeasure ? measureLayout === "expanded" : active || false;
   const hasSubtitle = Boolean(subtitle);
   const showSubtitleRow = hasSubtitle && !tabsCompact;
+  const minWidthClass = closable ? TAB_MIN_WIDTH_CLASS.closable : TAB_MIN_WIDTH_CLASS.parent;
 
   return (
     <div
       ref={ref}
       data-tab-key={dataTabKey}
-      className={cn("group/tab relative inline-flex", !first && "-ml-2.5")}
+      className={cn(
+        "group/tab relative",
+        fillWidth ? cn("flex-1", minWidthClass) : "inline-flex",
+        !forMeasure && !first && TAB_OVERLAP_CLASS,
+      )}
       style={{ zIndex }}
     >
       <button
@@ -868,35 +995,33 @@ const WorkspaceTabButton = forwardRef<
         tabIndex={forMeasure ? -1 : undefined}
         style={{ transitionDuration: TAB_COLLAPSE_MS, transitionTimingFunction: TAB_COLLAPSE_EASE }}
         className={cn(
-          "relative inline-flex w-max max-w-[220px] items-center text-left",
-          "rounded-b-[16px] rounded-t-none border",
+          "relative inline-flex items-center justify-center text-center",
+          minWidthClass,
+          fillWidth ? "w-full max-w-none" : "w-max max-w-[220px]",
+          TAB_CORNER_RADIUS,
+          "border",
           "transition-[min-height,padding,gap,background-color,border-color,color,box-shadow]",
           showSubtitleRow
-            ? cn("min-h-[56px] gap-1.5 py-2 pl-7", closable ? "pr-2.5" : "pr-8")
-            : cn(
-                "min-h-[40px] gap-0 py-2.5 pl-7",
-                closable ? "pr-2.5 group-hover/tab:gap-1.5" : "pr-8",
-              ),
-          closable && showSubtitleRow && "group-hover/tab:pr-2",
-          isExpandedLayout && closable && "pr-2",
+            ? cn("min-h-[56px] gap-1.5 py-2", closable ? "px-5 pr-9" : "px-5")
+            : cn("min-h-[40px] gap-0 py-2.5", closable ? "px-5 pr-9" : "px-5"),
           active
-            ? "border-blue-600 bg-blue-600 text-white shadow-[0_6px_14px_-4px_rgba(37,99,235,0.45)]"
+            ? "border-blue-600 bg-blue-600 text-white shadow-[0_8px_18px_-4px_rgba(37,99,235,0.5)]"
             : cn(
-                "border-gray-200 bg-white shadow-[0_2px_8px_-2px_rgba(0,0,0,0.08)]",
-                "hover:border-gray-300 hover:bg-gray-100 hover:shadow-[0_4px_12px_-2px_rgba(0,0,0,0.1)]",
+                "border-gray-200 bg-white shadow-[0_3px_10px_-2px_rgba(0,0,0,0.14),0_1px_3px_0_rgba(0,0,0,0.06)]",
+                "hover:border-gray-300 hover:bg-gray-100 hover:shadow-[0_6px_16px_-3px_rgba(0,0,0,0.16),0_2px_4px_0_rgba(0,0,0,0.06)]",
               ),
         )}
       >
         <span
           className={cn(
-            "flex min-w-0 flex-1 flex-col justify-center overflow-hidden",
+            "flex w-full min-w-0 flex-1 flex-col items-center justify-center overflow-hidden text-center",
             showSubtitleRow ? "gap-1" : "gap-0",
           )}
           style={{ transitionDuration: TAB_COLLAPSE_MS, transitionTimingFunction: TAB_COLLAPSE_EASE }}
         >
           <span
             className={cn(
-              "truncate text-[13px] leading-snug font-semibold transition-colors duration-200",
+              "w-full truncate text-center text-[13px] leading-snug font-semibold transition-colors duration-200",
               active
                 ? "text-white"
                 : "text-text-secondary group-hover/tab:text-text-primary",
@@ -915,7 +1040,7 @@ const WorkspaceTabButton = forwardRef<
               <span className="min-h-0 overflow-hidden">
                 <span
                   className={cn(
-                    "block truncate text-[11px] leading-snug font-medium transition-[opacity,transform] ease-[cubic-bezier(0.32,0.72,0,1)]",
+                    "block w-full truncate text-center text-[11px] leading-snug font-medium transition-[opacity,transform] ease-[cubic-bezier(0.32,0.72,0,1)]",
                     showSubtitleRow
                       ? "translate-y-0 opacity-100"
                       : "-translate-y-0.5 opacity-0",
@@ -944,10 +1069,10 @@ const WorkspaceTabButton = forwardRef<
               }
             }}
             className={cn(
-              "inline-flex shrink-0 self-center overflow-hidden transition-[width,opacity,margin-left] ease-out",
+              "absolute top-1/2 right-2 z-10 inline-flex h-[18px] w-[18px] -translate-y-1/2 items-center justify-center transition-opacity ease-out",
               isExpandedLayout
-                ? "ml-1 w-[18px] opacity-100"
-                : "ml-0 w-0 opacity-0 group-hover/tab:ml-1 group-hover/tab:w-[18px] group-hover/tab:opacity-100",
+                ? "opacity-100"
+                : "pointer-events-none opacity-0 group-hover/tab:pointer-events-auto group-hover/tab:opacity-100",
             )}
             style={{ transitionDuration: TAB_COLLAPSE_MS, transitionTimingFunction: TAB_COLLAPSE_EASE }}
             aria-label={`Close ${label}`}
@@ -989,7 +1114,13 @@ const MoreTabButton = forwardRef<
   const showSubtitleRow = !tabsCompact;
 
   return (
-    <div ref={ref} className="group/more relative -ml-2.5 inline-flex">
+    <div
+      ref={ref}
+      className={cn(
+        "group/more relative inline-flex shrink-0",
+        !forMeasure && TAB_OVERLAP_CLASS,
+      )}
+    >
       <button
         type="button"
         onClick={onClick}
@@ -997,29 +1128,30 @@ const MoreTabButton = forwardRef<
         tabIndex={forMeasure ? -1 : undefined}
         style={{ transitionDuration: TAB_COLLAPSE_MS, transitionTimingFunction: TAB_COLLAPSE_EASE }}
         className={cn(
-          "relative inline-flex w-max max-w-[240px] items-center text-left",
-          "rounded-b-[16px] rounded-t-none border transition-[min-height,padding,gap,background-color,border-color,box-shadow]",
+          "relative inline-flex w-max max-w-[240px] items-center justify-center text-center",
+          TAB_CORNER_RADIUS,
+          "border transition-[min-height,padding,gap,background-color,border-color,box-shadow]",
           showSubtitleRow
-            ? "min-h-[56px] gap-1.5 py-2 pl-7 pr-3"
-            : "min-h-[40px] py-2.5 pl-7 pr-3",
+            ? "min-h-[56px] gap-1.5 px-5 py-2"
+            : "min-h-[40px] px-5 py-2.5",
           isOpen
-            ? "border-gray-300 bg-gray-100 shadow-[0_4px_12px_-2px_rgba(0,0,0,0.12)]"
+            ? "border-gray-300 bg-gray-100 shadow-[0_6px_16px_-3px_rgba(0,0,0,0.16),0_2px_4px_0_rgba(0,0,0,0.06)]"
             : cn(
-                "border-gray-200 bg-white shadow-[0_2px_8px_-2px_rgba(0,0,0,0.08)]",
-                "hover:border-gray-300 hover:bg-gray-100 hover:shadow-[0_4px_12px_-2px_rgba(0,0,0,0.1)]",
+                "border-gray-200 bg-white shadow-[0_3px_10px_-2px_rgba(0,0,0,0.14),0_1px_3px_0_rgba(0,0,0,0.06)]",
+                "hover:border-gray-300 hover:bg-gray-100 hover:shadow-[0_6px_16px_-3px_rgba(0,0,0,0.16),0_2px_4px_0_rgba(0,0,0,0.06)]",
               ),
         )}
       >
         <span
           className={cn(
-            "flex min-w-0 flex-1 flex-col justify-center overflow-hidden",
+            "flex w-full min-w-0 flex-1 flex-col items-center justify-center overflow-hidden text-center",
             showSubtitleRow ? "gap-1" : "gap-0",
           )}
           style={{ transitionDuration: TAB_COLLAPSE_MS, transitionTimingFunction: TAB_COLLAPSE_EASE }}
         >
           <span
             className={cn(
-              "truncate text-[13px] font-semibold leading-snug transition-colors duration-200",
+              "w-full truncate text-center text-[13px] font-semibold leading-snug transition-colors duration-200",
               isOpen
                 ? "text-text-primary"
                 : "text-text-secondary group-hover/more:text-text-primary",
@@ -1037,7 +1169,7 @@ const MoreTabButton = forwardRef<
             <span className="min-h-0 overflow-hidden">
               <span
                 className={cn(
-                  "block truncate text-[11px] font-medium leading-snug text-text-muted transition-[opacity,transform] ease-[cubic-bezier(0.32,0.72,0,1)]",
+                  "block w-full truncate text-center text-[11px] font-medium leading-snug text-text-muted transition-[opacity,transform] ease-[cubic-bezier(0.32,0.72,0,1)]",
                   showSubtitleRow
                     ? "translate-y-0 opacity-100"
                     : "-translate-y-0.5 opacity-0",
@@ -1052,10 +1184,10 @@ const MoreTabButton = forwardRef<
         </span>
         <span
           className={cn(
-            "inline-flex shrink-0 self-center overflow-hidden transition-[width,opacity,margin-left] ease-out",
+            "absolute top-1/2 right-2.5 z-10 inline-flex w-4 -translate-y-1/2 items-center justify-center transition-opacity ease-out",
             isOpen
-              ? "ml-1 w-4 opacity-100"
-              : "ml-0 w-0 opacity-0 group-hover/more:ml-1 group-hover/more:w-4 group-hover/more:opacity-100",
+              ? "opacity-100"
+              : "pointer-events-none opacity-0 group-hover/more:pointer-events-auto group-hover/more:opacity-100",
           )}
           style={{ transitionDuration: TAB_COLLAPSE_MS, transitionTimingFunction: TAB_COLLAPSE_EASE }}
           aria-hidden
