@@ -7,7 +7,7 @@ import { useIngestContext } from "@/context/IngestContext";
 import { currency, shortDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/primitives";
 import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStrip";
-import { ListTable, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
+import { ListTable, ListCreateRow, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
 import { FilterBar, type FilterTag, type FilterOption } from "@/components/index-page/FilterBar";
 import { PageHeader } from "@/components/index-page/PageHeader";
 import { IndexPageFrame } from "@/components/index-page/IndexPageFrame";
@@ -86,7 +86,7 @@ export function CustomersIndex() {
     <IndexPageFrame
       headerRef={scrollRef}
       headerScrolled={isScrolled}
-      header={<PageHeader title="Customers" createLabel="Create" />}
+      header={<PageHeader title="Customers" />}
       metrics={<MetricStrip metrics={metrics} />}
       filterBar={
         <FilterBar
@@ -99,6 +99,11 @@ export function CustomersIndex() {
       }
     >
       <ListTable columns={listColumns}>
+        <ListCreateRow
+          label="New customer"
+          columnCount={listColumns.length}
+          firstColumnWidth={listColumns[0].width}
+        />
         {customersMerged.map((c) => (
           <ListRow key={c.id} onClick={() => navigate(`/customers/${c.id}?tab=customer&from=customers`)}>
             <ListCell width="180px" className="font-medium text-text-primary">{c.name}</ListCell>

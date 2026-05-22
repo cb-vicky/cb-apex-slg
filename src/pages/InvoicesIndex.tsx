@@ -7,7 +7,7 @@ import { mergeInvoiceStatuses } from "@/components/revenue-workspace/derive-stag
 import { currency, shortDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/primitives";
 import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStrip";
-import { ListTable, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
+import { ListTable, ListCreateRow, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
 import { FilterBar, type FilterTag, type FilterOption } from "@/components/index-page/FilterBar";
 import { PageHeader } from "@/components/index-page/PageHeader";
 import { IndexPageFrame } from "@/components/index-page/IndexPageFrame";
@@ -109,6 +109,11 @@ export function InvoicesIndex() {
       }
     >
       <ListTable columns={listColumns}>
+        <ListCreateRow
+          label="New invoice"
+          columnCount={listColumns.length}
+          firstColumnWidth={listColumns[0].width}
+        />
         {invoicesView.map((inv) => {
           const c = customersMerged.find((cu) => cu.id === inv.customerId);
           return (

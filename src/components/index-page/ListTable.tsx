@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { Plus } from "lucide-react";
 import type { ReactNode, TdHTMLAttributes } from "react";
 import { WTable, WThead, WTh, WTbody, WTd } from "@/components/ui/data-table";
 
@@ -65,6 +66,48 @@ export function ListTable({ columns, children, scrollable, maxBodyHeight }: Prop
         </WTable>
       </div>
     </div>
+  );
+}
+
+/** Notion-style first-row affordance for creating a record (UI only; wire onClick later). */
+export function ListCreateRow({
+  label,
+  columnCount,
+  firstColumnWidth,
+  onClick = () => {},
+}: {
+  label: string;
+  columnCount: number;
+  firstColumnWidth?: string;
+  onClick?: () => void;
+}) {
+  const trailingCells = Math.max(0, columnCount - 1);
+
+  return (
+    <tr
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className="group cursor-pointer border-b border-border-subtle/60 transition-colors hover:bg-gray-50/90"
+    >
+      <ListCell width={firstColumnWidth} className="py-3">
+        <span className="inline-flex items-center gap-1.5 text-[14px] font-medium text-text-muted transition-colors group-hover:text-blue-600">
+          <Plus size={14} strokeWidth={2.25} aria-hidden className="shrink-0 opacity-70 group-hover:opacity-100" />
+          {label}
+        </span>
+      </ListCell>
+      {Array.from({ length: trailingCells }, (_, i) => (
+        <ListCell key={i} aria-hidden>
+          {" "}
+        </ListCell>
+      ))}
+    </tr>
   );
 }
 

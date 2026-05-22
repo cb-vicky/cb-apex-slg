@@ -7,7 +7,7 @@ import { mergeContractsWithRuntimeClosures } from "@/components/revenue-workspac
 import { currency, shortDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/primitives";
 import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStrip";
-import { ListTable, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
+import { ListTable, ListCreateRow, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
 import { FilterBar, type FilterTag, type FilterOption } from "@/components/index-page/FilterBar";
 import { PageHeader } from "@/components/index-page/PageHeader";
 import { IndexPageFrame } from "@/components/index-page/IndexPageFrame";
@@ -114,6 +114,11 @@ export function ContractsIndex() {
       }
     >
       <ListTable columns={listColumns}>
+        <ListCreateRow
+          label="New contract"
+          columnCount={listColumns.length}
+          firstColumnWidth={listColumns[0].width}
+        />
         {contractsView.map((c) => {
           const cu = customersMerged.find((x) => x.id === c.customerId);
           return (

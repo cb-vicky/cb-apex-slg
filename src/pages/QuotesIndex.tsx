@@ -5,7 +5,7 @@ import { quotes, customers } from "@/data/mock-data";
 import { currency, shortDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/primitives";
 import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStrip";
-import { ListTable, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
+import { ListTable, ListCreateRow, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
 import { FilterBar, type FilterTag, type FilterOption } from "@/components/index-page/FilterBar";
 import { PageHeader } from "@/components/index-page/PageHeader";
 import { IndexPageFrame } from "@/components/index-page/IndexPageFrame";
@@ -65,7 +65,7 @@ export function QuotesIndex() {
     <IndexPageFrame
       headerRef={scrollRef}
       headerScrolled={isScrolled}
-      header={<PageHeader title="Quotes" createLabel="Create" />}
+      header={<PageHeader title="Quotes" />}
       metrics={<MetricStrip metrics={metrics} />}
       filterBar={
         <FilterBar
@@ -78,6 +78,11 @@ export function QuotesIndex() {
       }
     >
       <ListTable columns={listColumns}>
+        <ListCreateRow
+          label="New quote"
+          columnCount={listColumns.length}
+          firstColumnWidth={listColumns[0].width}
+        />
         {quotes.map((q) => {
           const c = customers.find((cu) => cu.id === q.customerId);
           return (

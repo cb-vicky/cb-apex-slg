@@ -4,7 +4,7 @@ import { useIngestContext } from "@/context/IngestContext";
 import { currency, shortDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/primitives";
 import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStrip";
-import { ListTable, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
+import { ListTable, ListCreateRow, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
 import { FilterBar, type FilterTag, type FilterOption } from "@/components/index-page/FilterBar";
 import { PageHeader } from "@/components/index-page/PageHeader";
 import { IndexPageFrame } from "@/components/index-page/IndexPageFrame";
@@ -98,36 +98,33 @@ export function ProspectsIndex() {
         />
       }
     >
-      {prospects.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-3xl border border-border-default bg-white px-6 py-12 text-center">
-          <p className="text-[13px] text-text-muted">
-            No new business contracts pending ingestion.
-          </p>
-        </div>
-      ) : (
-        <ListTable columns={listColumns}>
-          {prospects.map((item) => (
-            <ListRow key={item.id} onClick={() => handleRowClick(item)}>
-              <ListCell width="200px" className="font-medium text-text-primary">
-                {item.customerName}
-              </ListCell>
-              <ListCell width="260px" className="text-text-secondary">
-                {item.documentName}
-              </ListCell>
-              <ListCell width="110px" align="right" className="font-medium">
-                {currency(item.tcv)}
-              </ListCell>
-              <ListCell width="100px">{item.source}</ListCell>
-              <ListCell width="110px">
-                {shortDate(item.uploadedAt.slice(0, 10))}
-              </ListCell>
-              <ListCell width="130px">
-                <StatusBadge status="Pending Ingestion" />
-              </ListCell>
-            </ListRow>
-          ))}
-        </ListTable>
-      )}
+      <ListTable columns={listColumns}>
+        <ListCreateRow
+          label="New prospect"
+          columnCount={listColumns.length}
+          firstColumnWidth={listColumns[0].width}
+        />
+        {prospects.map((item) => (
+          <ListRow key={item.id} onClick={() => handleRowClick(item)}>
+            <ListCell width="200px" className="font-medium text-text-primary">
+              {item.customerName}
+            </ListCell>
+            <ListCell width="260px" className="text-text-secondary">
+              {item.documentName}
+            </ListCell>
+            <ListCell width="110px" align="right" className="font-medium">
+              {currency(item.tcv)}
+            </ListCell>
+            <ListCell width="100px">{item.source}</ListCell>
+            <ListCell width="110px">
+              {shortDate(item.uploadedAt.slice(0, 10))}
+            </ListCell>
+            <ListCell width="130px">
+              <StatusBadge status="Pending Ingestion" />
+            </ListCell>
+          </ListRow>
+        ))}
+      </ListTable>
     </IndexPageFrame>
   );
 }
