@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useLocation, useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
@@ -25,27 +25,26 @@ import {
   Users,
   Zap,
 } from "lucide-react";
+import { useAssistantWorkspace } from "@/lib/assistantWorkspace";
+import {
+  PRODUCT_NAV_COLLAPSED_W,
+  PRODUCT_NAV_FULL_W,
+  PRODUCT_NAV_PEEK_SHIFT_PX,
+  PRODUCT_NAV_PEEK_TRANSFORM_EASE,
+  PRODUCT_NAV_PEEK_TRANSFORM_MS,
+  useProductNavCollapse,
+} from "@/lib/productNavCollapse";
+import { useIsMd } from "@/lib/useIsMd";
+
 interface NavItem {
   label: string;
   path: string;
   icon: LucideIcon;
-  /** Stub / parent routes — chevron appears inline on hover. */
   showChevron?: boolean;
 }
 
-const SIDEBAR_COLLAPSED_KEY = "apex-sidebar-collapsed";
-
 /** Fired when sidebar width changes (collapse toggle). */
 export const SIDEBAR_LAYOUT_EVENT = "apex-sidebar-layout";
-
-function readSidebarCollapsed(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
 
 const DISABLED_NAV_PATHS = new Set([
   "/credit-notes",
@@ -95,10 +94,6 @@ const navItems: NavItem[] = [
   { label: "Signals", path: "/signals", icon: Zap, showChevron: true },
 ];
 
-// ---------------------------------------------------------------------------
-// Building blocks
-// ---------------------------------------------------------------------------
-
 function NavRow({
   label,
   icon: Icon,
@@ -122,10 +117,10 @@ function NavRow({
       className={cn(
         "group/navrow relative flex w-full items-center gap-1.5 overflow-hidden rounded-md px-2 py-[6px] text-left font-sans text-[13px] font-normal leading-tight transition-[colors,font-weight] duration-150",
         disabled
-          ? "cursor-not-allowed text-text-muted opacity-55"
+          ? "cursor-not-allowed text-gray-400 opacity-55"
           : active
-            ? "bg-gradient-to-r from-cb-orange/[0.16] via-cb-orange/[0.06] to-transparent font-bold text-cb-orange"
-            : "text-[#2d3940] hover:bg-black/[0.04] hover:font-semibold",
+            ? "bg-gradient-to-r from-cb-orange/25 via-cb-orange/10 to-transparent font-bold text-cb-orange"
+            : "text-gray-600 hover:bg-black/[0.06] hover:font-semibold hover:text-gray-900",
       )}
     >
       <Icon
@@ -149,24 +144,24 @@ function NavRow({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Sidebar
-// ---------------------------------------------------------------------------
-
 export function Sidebar() {
-  const [collapsed, setCollapsed] = useState(readSidebarCollapsed);
+  const { mode } = useAssistantWorkspace();
+  const productNav = useProductNavCollapse();
+  const isMd = useIsMd();
+  const collapsed = productNav.collapsed;
   const location = useLocation();
   const navigate = useNavigate();
 
-  function setCollapsedPersist(next: boolean) {
-    setCollapsed(next);
-    try {
-      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0");
-    } catch {
-      /* ignore */
-    }
-    window.dispatchEvent(new CustomEvent(SIDEBAR_LAYOUT_EVENT, { detail: { collapsed: next } }));
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent(SIDEBAR_LAYOUT_EVENT, { detail: { collapsed } }),
+    );
+  }, [collapsed]);
+
+  if (mode === "workspace") {
+    return null;
   }
+
   function isActive(path: string) {
     if (path === "/") {
       return location.pathname === "/";
@@ -182,33 +177,51 @@ export function Sidebar() {
     return location.pathname.startsWith(path);
   }
 
+  const width = collapsed ? PRODUCT_NAV_COLLAPSED_W : PRODUCT_NAV_FULL_W;
+
   return (
     <aside
-      className={cn(
-        "group/sidebar relative z-[0] flex shrink-0 flex-col overflow-hidden rounded-tl-[24px] bg-grey-100 pt-6 pb-3 font-sora transition-[width] duration-200 ease-out",
-        collapsed ? "w-12" : "w-[220px]",
-      )}
+      aria-label="Primary navigation"
+      style={{
+        width,
+        viewTransitionName: isMd ? "product-nav" : undefined,
+        transform: productNav.peekNudgeActive
+          ? `translate3d(-${PRODUCT_NAV_PEEK_SHIFT_PX}px, 0, 0)`
+          : undefined,
+        transition: productNav.peekNudgeActive
+          ? `transform ${PRODUCT_NAV_PEEK_TRANSFORM_MS}ms ${PRODUCT_NAV_PEEK_TRANSFORM_EASE}`
+          : undefined,
+      }}
+      className="group/sidebar relative z-[0] flex h-full shrink-0 flex-col overflow-hidden bg-grey-100 font-sora transition-[width] duration-[320ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
     >
       <div
         className={cn(
-          "flex min-h-0 flex-1 flex-col pl-3 pr-2",
-          collapsed ? "overflow-hidden" : "overflow-y-auto",
+          "flex min-h-0 flex-1 flex-col pt-5",
+          collapsed
+            ? "items-center overflow-hidden"
+            : "overflow-y-auto pl-3",
         )}
       >
-        {/* Search + collapse (expanded) */}
         <div
           className={cn(
-            "flex items-center gap-1.5",
-            collapsed && "flex-col gap-0",
+            "flex gap-1.5",
+            collapsed ? "w-full flex-col items-center gap-0" : "items-center",
           )}
         >
-          <div className="min-w-0 flex-1 rounded-md bg-transparent p-px transition-[background] duration-150 has-[:hover]:bg-gradient-to-r has-[:hover]:from-cb-orange has-[:hover]:to-grey-300">
+          <div
+            className={cn(
+              "rounded-md bg-transparent p-px transition-[background] duration-150 has-[:hover]:bg-gradient-to-r has-[:hover]:from-cb-orange has-[:hover]:to-black/10",
+              collapsed ? "w-8 shrink-0" : "min-w-0 flex-1",
+            )}
+          >
             <button
               type="button"
               aria-label="Go to"
               className={cn(
-                "group/goto flex w-full items-center gap-2 rounded-[5px] bg-grey-100 px-2 py-[6px] text-left font-sans text-[13px] font-normal text-[#2d3940] transition-colors",
-                collapsed && "gap-0",
+                "group/goto flex items-center gap-2 rounded-[5px] bg-black/[0.06] font-sans text-[13px] font-normal text-gray-700 transition-colors hover:bg-black/[0.08]",
+                collapsed
+                  ? "h-8 w-8 shrink-0 justify-center gap-0 p-0"
+                  : "w-full px-2 py-[6px] text-left",
               )}
             >
               <Search
@@ -231,8 +244,8 @@ export function Sidebar() {
           {!collapsed && (
             <button
               type="button"
-              onClick={() => setCollapsedPersist(true)}
-              className="pointer-events-none flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-secondary opacity-0 transition-[opacity,colors] duration-150 hover:bg-black/[0.06] hover:text-cb-orange group-hover/sidebar:pointer-events-auto group-hover/sidebar:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100"
+              onClick={productNav.requestCollapse}
+              className="pointer-events-none flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-500 opacity-0 transition-[opacity,colors] duration-150 hover:bg-black/[0.06] hover:text-cb-orange group-hover/sidebar:pointer-events-auto group-hover/sidebar:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100"
               aria-expanded={true}
               aria-controls="app-sidebar-nav"
               title="Collapse navigation"
@@ -247,8 +260,8 @@ export function Sidebar() {
           <div className="mt-3 flex flex-col items-center">
             <button
               type="button"
-              onClick={() => setCollapsedPersist(false)}
-              className="pointer-events-none flex h-8 w-full items-center justify-center rounded-md text-[#2d3940] opacity-0 transition-[opacity,colors] duration-150 hover:bg-black/[0.06] hover:text-cb-orange group-hover/sidebar:pointer-events-auto group-hover/sidebar:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100"
+              onClick={productNav.requestExpand}
+              className="pointer-events-none flex h-8 w-full items-center justify-center rounded-md text-gray-600 opacity-0 transition-[opacity,colors] duration-150 hover:bg-black/[0.06] hover:text-cb-orange group-hover/sidebar:pointer-events-auto group-hover/sidebar:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100"
               title="Expand navigation"
               aria-label="Expand navigation"
             >

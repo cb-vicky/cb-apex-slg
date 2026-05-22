@@ -189,22 +189,24 @@ export function QueueTabContent() {
                 {queueItemKindLabel(q)}
               </ListCell>
               <ListCell width="120px" className="font-medium text-blue-600">{q.id}</ListCell>
-              <ListCell width="260px" noTruncate className="text-[13px]">
-                <FileText size={14} className="shrink-0 text-text-muted" strokeWidth={2} />
-                <span className="min-w-0 truncate font-medium text-text-primary">
-                  {q.documentName}
-                  <span className="font-normal text-text-muted"> · {rowSubtitle(q)}</span>
+              <ListCell width="260px" className="text-[13px]">
+                <span className="inline-flex min-w-0 items-center gap-2">
+                  <FileText size={14} className="shrink-0 text-text-muted" strokeWidth={2} />
+                  <span className="font-medium text-text-primary">
+                    {q.documentName}
+                    <span className="font-normal text-text-muted"> · {rowSubtitle(q)}</span>
+                  </span>
                 </span>
               </ListCell>
               <ListCell width="120px" className="text-text-secondary">{q.scenario}</ListCell>
-              <ListCell width="120px" noTruncate>
+              <ListCell width="120px">
                 <SourceBadge source={q.source} detail={q.sourceDetail} />
               </ListCell>
               <ListCell width="110px" align="right" className="tabular-nums">
                 {q.tcv > 0 ? currency(q.tcv) : "—"}
               </ListCell>
               <ListCell width="110px" className="text-text-secondary">{shortDate(q.uploadedAt)}</ListCell>
-              <ListCell width="120px" noTruncate>
+              <ListCell width="120px">
                 <StatusBadge status={q.status} />
               </ListCell>
             </ListRow>

@@ -10,6 +10,7 @@ import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStri
 import { ListTable, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
 import { FilterBar, type FilterTag, type FilterOption } from "@/components/index-page/FilterBar";
 import { PageHeader } from "@/components/index-page/PageHeader";
+import { IndexPageFrame } from "@/components/index-page/IndexPageFrame";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -82,12 +83,12 @@ export function CustomersIndex() {
   ];
 
   return (
-    <div className="flex flex-1 w-full flex-col bg-grey-100">
-      <div ref={scrollRef} className={`sticky top-0 z-10 bg-grey-100 rounded-tl-[24px] px-6 pt-5 pb-3 transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.04)]" : ""}`}>
-        <PageHeader title="Customers" createLabel="Create" />
-      </div>
-      <div className="flex flex-col gap-5 px-6 pt-2 pb-7">
-        <MetricStrip metrics={metrics} />
+    <IndexPageFrame
+      headerRef={scrollRef}
+      headerScrolled={isScrolled}
+      header={<PageHeader title="Customers" createLabel="Create" />}
+      metrics={<MetricStrip metrics={metrics} />}
+      filterBar={
         <FilterBar
           filters={filters}
           onFiltersChange={setFilters}
@@ -95,31 +96,32 @@ export function CustomersIndex() {
           resultCount={customersMerged.length}
           resultLabel="customers"
         />
-        <ListTable columns={listColumns}>
-          {customersMerged.map((c) => (
-            <ListRow key={c.id} onClick={() => navigate(`/customers/${c.id}?tab=customer&from=customers`)}>
-              <ListCell width="180px" className="font-medium text-text-primary">{c.name}</ListCell>
-              <ListCell width="100px" align="right">
-                {currency(c.arr)}
-              </ListCell>
-              <ListCell width="100px" align="right" className={c.openAr > 0 ? "text-red-600 font-medium" : ""}>
-                {currency(c.openAr)}
-              </ListCell>
-              <ListCell width="80px" align="right">
-                {c.activeContractCount}
-              </ListCell>
-              <ListCell width="80px" align="right">
-                {c.openQuoteCount}
-              </ListCell>
-              <ListCell width="110px">{c.nextRenewalDate ? shortDate(c.nextRenewalDate) : "—"}</ListCell>
-              <ListCell width="120px" noTruncate>
-                {c.riskBadges.length > 0 ? <StatusBadge status={`${c.riskBadges.length} flags`} /> : <span className="text-emerald-600 text-[12px]">Healthy</span>}
-              </ListCell>
-              <ListCell width="120px">{c.billingOwner}</ListCell>
-            </ListRow>
-          ))}
-        </ListTable>
-      </div>
-    </div>
+      }
+    >
+      <ListTable columns={listColumns}>
+        {customersMerged.map((c) => (
+          <ListRow key={c.id} onClick={() => navigate(`/customers/${c.id}?tab=customer&from=customers`)}>
+            <ListCell width="180px" className="font-medium text-text-primary">{c.name}</ListCell>
+            <ListCell width="100px" align="right">
+              {currency(c.arr)}
+            </ListCell>
+            <ListCell width="100px" align="right" className={c.openAr > 0 ? "text-red-600 font-medium" : ""}>
+              {currency(c.openAr)}
+            </ListCell>
+            <ListCell width="80px" align="right">
+              {c.activeContractCount}
+            </ListCell>
+            <ListCell width="80px" align="right">
+              {c.openQuoteCount}
+            </ListCell>
+            <ListCell width="110px">{c.nextRenewalDate ? shortDate(c.nextRenewalDate) : "—"}</ListCell>
+            <ListCell width="120px">
+              {c.riskBadges.length > 0 ? <StatusBadge status={`${c.riskBadges.length} flags`} /> : <span className="text-emerald-600 text-[12px]">Healthy</span>}
+            </ListCell>
+            <ListCell width="120px">{c.billingOwner}</ListCell>
+          </ListRow>
+        ))}
+      </ListTable>
+    </IndexPageFrame>
   );
 }

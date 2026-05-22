@@ -7,6 +7,7 @@ import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStri
 import { ListTable, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
 import { FilterBar, type FilterTag, type FilterOption } from "@/components/index-page/FilterBar";
 import { PageHeader } from "@/components/index-page/PageHeader";
+import { IndexPageFrame } from "@/components/index-page/IndexPageFrame";
 import { openDrawer } from "@/store/drawer-store";
 import type { QueueItem } from "@/data/queue-data";
 
@@ -82,15 +83,12 @@ export function ProspectsIndex() {
   };
 
   return (
-    <div className="flex flex-1 w-full flex-col bg-grey-100">
-      <div
-        ref={scrollRef}
-        className={`sticky top-0 z-10 bg-grey-100 rounded-tl-[24px] px-6 pt-5 pb-3 transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.04)]" : ""}`}
-      >
-        <PageHeader title="Prospects" />
-      </div>
-      <div className="flex flex-col gap-5 px-6 pt-2 pb-7">
-        <MetricStrip metrics={metrics} />
+    <IndexPageFrame
+      headerRef={scrollRef}
+      headerScrolled={isScrolled}
+      header={<PageHeader title="Prospects" />}
+      metrics={<MetricStrip metrics={metrics} />}
+      filterBar={
         <FilterBar
           filters={filters}
           onFiltersChange={setFilters}
@@ -98,37 +96,38 @@ export function ProspectsIndex() {
           resultCount={prospects.length}
           resultLabel="prospects"
         />
-        {prospects.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 rounded-3xl border border-border-default bg-white px-6 py-12 text-center">
-            <p className="text-[13px] text-text-muted">
-              No new business contracts pending ingestion.
-            </p>
-          </div>
-        ) : (
-          <ListTable columns={listColumns}>
-            {prospects.map((item) => (
-              <ListRow key={item.id} onClick={() => handleRowClick(item)}>
-                <ListCell width="200px" className="font-medium text-text-primary">
-                  {item.customerName}
-                </ListCell>
-                <ListCell width="260px" className="text-text-secondary truncate">
-                  {item.documentName}
-                </ListCell>
-                <ListCell width="110px" align="right" className="font-medium">
-                  {currency(item.tcv)}
-                </ListCell>
-                <ListCell width="100px">{item.source}</ListCell>
-                <ListCell width="110px">
-                  {shortDate(item.uploadedAt.slice(0, 10))}
-                </ListCell>
-                <ListCell width="130px" noTruncate>
-                  <StatusBadge status="Pending Ingestion" />
-                </ListCell>
-              </ListRow>
-            ))}
-          </ListTable>
-        )}
-      </div>
-    </div>
+      }
+    >
+      {prospects.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 rounded-3xl border border-border-default bg-white px-6 py-12 text-center">
+          <p className="text-[13px] text-text-muted">
+            No new business contracts pending ingestion.
+          </p>
+        </div>
+      ) : (
+        <ListTable columns={listColumns}>
+          {prospects.map((item) => (
+            <ListRow key={item.id} onClick={() => handleRowClick(item)}>
+              <ListCell width="200px" className="font-medium text-text-primary">
+                {item.customerName}
+              </ListCell>
+              <ListCell width="260px" className="text-text-secondary">
+                {item.documentName}
+              </ListCell>
+              <ListCell width="110px" align="right" className="font-medium">
+                {currency(item.tcv)}
+              </ListCell>
+              <ListCell width="100px">{item.source}</ListCell>
+              <ListCell width="110px">
+                {shortDate(item.uploadedAt.slice(0, 10))}
+              </ListCell>
+              <ListCell width="130px">
+                <StatusBadge status="Pending Ingestion" />
+              </ListCell>
+            </ListRow>
+          ))}
+        </ListTable>
+      )}
+    </IndexPageFrame>
   );
 }

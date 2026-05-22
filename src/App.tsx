@@ -2,6 +2,12 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { DemoPersonaProvider } from "@/context/DemoPersonaContext";
 import { IngestProvider } from "@/context/IngestContext";
 import { WorkspaceShellProvider } from "@/context/WorkspaceShellContext";
+import { AssistantChatsProvider } from "@/lib/assistantChatsContext";
+import { AssistantWorkspaceProvider } from "@/lib/assistantWorkspace";
+import { ProductNavCollapseProvider } from "@/lib/productNavCollapse";
+import { SessionsRailCollapseProvider } from "@/lib/sessionsRailCollapse";
+import { SuiteProductProvider } from "@/lib/suiteNav";
+import { SuiteLayoutRefreshProvider } from "@/lib/suiteLayoutRefresh";
 import { AppShell } from "@/components/layout/AppShell";
 import { WorkbenchHome } from "@/pages/workbench/WorkbenchHome";
 import { CustomersIndex } from "@/pages/CustomersIndex";
@@ -22,6 +28,12 @@ import { RootErrorBoundary } from "@/components/common/RootErrorBoundary";
 export default function App() {
   return (
     <RootErrorBoundary>
+    <AssistantWorkspaceProvider>
+      <AssistantChatsProvider>
+        <SuiteLayoutRefreshProvider>
+          <SuiteProductProvider>
+            <ProductNavCollapseProvider>
+              <SessionsRailCollapseProvider>
     <IngestProvider>
       <DemoPersonaProvider>
         <WorkspaceShellProvider>
@@ -66,6 +78,12 @@ export default function App() {
         </WorkspaceShellProvider>
         </DemoPersonaProvider>
       </IngestProvider>
+              </SessionsRailCollapseProvider>
+            </ProductNavCollapseProvider>
+          </SuiteProductProvider>
+        </SuiteLayoutRefreshProvider>
+      </AssistantChatsProvider>
+    </AssistantWorkspaceProvider>
     </RootErrorBoundary>
   );
 }

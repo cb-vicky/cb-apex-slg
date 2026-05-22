@@ -8,6 +8,7 @@ import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStri
 import { ListTable, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
 import { FilterBar, type FilterTag, type FilterOption } from "@/components/index-page/FilterBar";
 import { PageHeader } from "@/components/index-page/PageHeader";
+import { IndexPageFrame } from "@/components/index-page/IndexPageFrame";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -61,12 +62,12 @@ export function QuotesIndex() {
   ];
 
   return (
-    <div className="flex flex-1 w-full flex-col bg-grey-100">
-      <div ref={scrollRef} className={`sticky top-0 z-10 bg-grey-100 rounded-tl-[24px] px-6 pt-5 pb-3 transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.04)]" : ""}`}>
-        <PageHeader title="Quotes" createLabel="Create" />
-      </div>
-      <div className="flex flex-col gap-5 px-6 pt-2 pb-7">
-        <MetricStrip metrics={metrics} />
+    <IndexPageFrame
+      headerRef={scrollRef}
+      headerScrolled={isScrolled}
+      header={<PageHeader title="Quotes" createLabel="Create" />}
+      metrics={<MetricStrip metrics={metrics} />}
+      filterBar={
         <FilterBar
           filters={filters}
           onFiltersChange={setFilters}
@@ -74,31 +75,32 @@ export function QuotesIndex() {
           resultCount={quotes.length}
           resultLabel="quotes"
         />
-        <ListTable columns={listColumns}>
-          {quotes.map((q) => {
-            const c = customers.find((cu) => cu.id === q.customerId);
-            return (
-              <ListRow key={q.id} onClick={() => navigate(`/customers/${q.customerId}?tab=quote&quoteId=${q.id}&from=quotes`)}>
-                <ListCell width="130px" className="font-medium text-blue-600">{q.id}</ListCell>
-                <ListCell width="150px" className="font-medium">{c?.name ?? "—"}</ListCell>
-                <ListCell width="100px">{q.quoteType}</ListCell>
-                <ListCell width="90px">{q.source}</ListCell>
-                <ListCell width="100px" align="right" className="tabular-nums">
-                  {currency(q.tcv)}
-                </ListCell>
-                <ListCell width="80px" align="right">
-                  {q.discountPct}%
-                </ListCell>
-                <ListCell width="120px" noTruncate>
-                  <StatusBadge status={q.status} />
-                </ListCell>
-                <ListCell width="100px">{shortDate(q.expiryDate)}</ListCell>
-                <ListCell width="110px" className="text-text-secondary">{q.owner}</ListCell>
-              </ListRow>
-            );
-          })}
-        </ListTable>
-      </div>
-    </div>
+      }
+    >
+      <ListTable columns={listColumns}>
+        {quotes.map((q) => {
+          const c = customers.find((cu) => cu.id === q.customerId);
+          return (
+            <ListRow key={q.id} onClick={() => navigate(`/customers/${q.customerId}?tab=quote&quoteId=${q.id}&from=quotes`)}>
+              <ListCell width="130px" className="font-medium text-blue-600">{q.id}</ListCell>
+              <ListCell width="150px" className="font-medium">{c?.name ?? "—"}</ListCell>
+              <ListCell width="100px">{q.quoteType}</ListCell>
+              <ListCell width="90px">{q.source}</ListCell>
+              <ListCell width="100px" align="right" className="tabular-nums">
+                {currency(q.tcv)}
+              </ListCell>
+              <ListCell width="80px" align="right">
+                {q.discountPct}%
+              </ListCell>
+              <ListCell width="120px">
+                <StatusBadge status={q.status} />
+              </ListCell>
+              <ListCell width="100px">{shortDate(q.expiryDate)}</ListCell>
+              <ListCell width="110px" className="text-text-secondary">{q.owner}</ListCell>
+            </ListRow>
+          );
+        })}
+      </ListTable>
+    </IndexPageFrame>
   );
 }

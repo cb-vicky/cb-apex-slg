@@ -1,49 +1,57 @@
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
 import { TopNav } from "./TopNav";
 import { Sidebar } from "./Sidebar";
-import { AskAiRail } from "./AskAiRail";
-import { AiChatPanel } from "./AiChatPanel";
+import { AIAgentSidebar } from "@/components/assistant/AIAgentSidebar";
+import { useAssistantWorkspace } from "@/lib/assistantWorkspace";
+import { useIsMd } from "@/lib/useIsMd";
 import { useWorkspaceShell } from "@/context/WorkspaceShellContext";
 import { cn } from "@/lib/utils";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { isCustomer360Active } = useWorkspaceShell();
-  const [aiChatOpen, setAiChatOpen] = useState(false);
-
-  useEffect(() => {
-    if (!aiChatOpen) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setAiChatOpen(false);
-    }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [aiChatOpen]);
+  const { mode } = useAssistantWorkspace();
+  const isMd = useIsMd();
+  const showMain = mode === "sidebar";
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-[#012A38]">
+    <div className="flex h-dvh w-screen flex-col overflow-hidden bg-[#012A38]">
       <TopNav />
       <div className="relative z-[1] flex min-h-0 flex-1 overflow-hidden">
         <Sidebar />
-        <main className="relative z-[2] flex min-h-0 min-w-0 flex-1 flex-col bg-grey-100 pt-4 pb-3 pl-0">
-          <div className="relative flex min-h-0 min-w-0 flex-1 flex-row overflow-hidden">
-            <div
-              data-main-scroll-container=""
-              className={cn(
-                "min-h-0 min-w-0 flex-1 overflow-auto rounded-tl-[24px]",
-                isCustomer360Active ? "bg-gray-100" : "bg-grey-100",
-              )}
+        <div
+          className={cn(
+            "relative flex min-h-0 min-w-0 flex-1 flex-row overflow-hidden bg-grey-100",
+            "pt-0 pb-3 pl-3",
+          )}
+        >
+          {showMain ? (
+            <main
+              id="main-content"
+              className="relative z-[2] flex min-h-0 min-w-0 flex-1 flex-col pl-0"
+              style={isMd ? { viewTransitionName: "main-content" } : undefined}
             >
-              {children}
-            </div>
-            {aiChatOpen ? (
-              <div className="box-border flex min-h-0 w-[min(360px,40vw)] max-w-[min(360px,90vw)] shrink-0 pl-1.5 pr-3">
-                <AiChatPanel onClose={() => setAiChatOpen(false)} />
+              <div
+                data-main-scroll-container=""
+                className={cn(
+                  "min-h-0 min-w-0 flex-1 overflow-auto rounded-tl-[24px] rounded-tr-[24px]",
+                  isCustomer360Active ? "bg-gray-100" : "bg-grey-100",
+                )}
+              >
+                {children}
               </div>
-            ) : null}
+            </main>
+          ) : null}
+          <div
+            className={cn(
+              "flex min-h-0 overflow-hidden",
+              showMain
+                ? "w-auto shrink-0"
+                : "min-w-0 flex-1 rounded-tl-[24px] rounded-tr-[24px]",
+            )}
+          >
+            <AIAgentSidebar />
           </div>
-        </main>
-        <AskAiRail active={aiChatOpen} onToggle={() => setAiChatOpen((open) => !open)} />
+        </div>
       </div>
     </div>
   );

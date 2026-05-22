@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { ChevronUp, ChevronDown } from "lucide-react";
-import type { ReactNode, ThHTMLAttributes, TdHTMLAttributes } from "react";
+import type { ReactNode, ThHTMLAttributes, TdHTMLAttributes, TableHTMLAttributes, HTMLAttributes } from "react";
 
 /** Shared table shell for workspace tabular data — zebra rows, single-line cells, calm enterprise header. */
 export function WorkspaceTableShell({ children, className }: { children: ReactNode; className?: string }) {
@@ -11,16 +11,39 @@ export function WorkspaceTableShell({ children, className }: { children: ReactNo
   );
 }
 
-export function WTable({ children, className }: { children: ReactNode; className?: string }) {
-  return <table className={cn("w-full min-w-[640px] text-[13px]", className)}>{children}</table>;
+export function WTable({
+  children,
+  className,
+  style,
+  ...rest
+}: TableHTMLAttributes<HTMLTableElement>) {
+  return (
+    <table
+      {...rest}
+      className={cn("w-full min-w-[640px] text-[13px]", className)}
+      style={style}
+    >
+      {children}
+    </table>
+  );
 }
 
-export function WThead({ children, className }: { children: ReactNode; className?: string }) {
+export function WThead({
+  children,
+  className,
+  sticky,
+}: {
+  children: ReactNode;
+  className?: string;
+  /** Keep header visible inside a vertically scrolling table container. */
+  sticky?: boolean;
+}) {
   return (
     <thead>
       <tr
         className={cn(
           "border-b border-border-subtle bg-gray-50 text-[11px] font-semibold uppercase tracking-wider text-text-muted",
+          sticky && "sticky top-0 z-[1]",
           className,
         )}
       >
@@ -74,8 +97,19 @@ export function WTbody({ children, striped = false }: { children: ReactNode; str
   );
 }
 
-export function WTr({ children, className }: { children: ReactNode; className?: string }) {
-  return <tr className={cn("transition-colors hover:bg-surface-muted/70", className)}>{children}</tr>;
+export function WTr({
+  children,
+  className,
+  ...rest
+}: HTMLAttributes<HTMLTableRowElement> & { children: ReactNode }) {
+  return (
+    <tr
+      {...rest}
+      className={cn("transition-colors hover:bg-surface-muted/70", className)}
+    >
+      {children}
+    </tr>
+  );
 }
 
 export function WTd({

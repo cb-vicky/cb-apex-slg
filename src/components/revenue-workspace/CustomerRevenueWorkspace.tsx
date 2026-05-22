@@ -38,6 +38,7 @@ import { RecordSlotContext } from "./RecordSlot";
 import { WorkspaceDetailNav } from "./WorkspaceDetailNav";
 import { getDetailNavItems } from "./workspace-detail-nav";
 import { cn } from "@/lib/utils";
+import { useIsXl } from "@/lib/useIsXl";
 
 // Stages that use a list-then-detail pattern
 const LIST_STAGES: Stage[] = ["quote", "contract", "invoicing"];
@@ -70,6 +71,7 @@ export function CustomerRevenueWorkspace({
   void _tasks;
   const navigate = useNavigate();
   const { setCustomer360Active } = useWorkspaceShell();
+  const isXl = useIsXl();
   const initialActiveTab: WorkspaceTab = useMemo(() => {
     if (closeIntent) return { kind: "parent", stage: "contract" };
     if (activeRecordId && isListDetailStage(initialStage)) {
@@ -570,7 +572,7 @@ export function CustomerRevenueWorkspace({
         recordSlot={hasRecordBar ? <div ref={setRecordSlotEl} /> : null}
       />
 
-      {/* Detail nav sits left of cards (pl-5 = 20px, gap-8 = 32px); nav width 160px. */}
+      {/* Detail nav: Notion-style line rail on all detail views (xl+). */}
       <RecordSlotContext.Provider value={recordSlotEl}>
         <div
           data-workspace-content
@@ -578,21 +580,18 @@ export function CustomerRevenueWorkspace({
         >
           <div
             className={cn(
-              "flex pl-5 pt-2 pb-12",
-              !inListMode && detailNavItems.length > 0 && "gap-8",
+              "grid min-w-0 px-6 pt-2 pb-12",
+              inListMode
+                ? "grid-cols-[1fr_minmax(0,min(1020px,100%))_1fr]"
+                : "grid-cols-[1fr_minmax(0,min(860px,100%))_1fr]",
             )}
           >
-            {!inListMode && detailNavItems.length > 0 ? (
-              <WorkspaceDetailNav items={detailNavItems} />
+            {!inListMode && isXl && detailNavItems.length > 0 ? (
+              <div className="col-start-1 row-start-1 hidden justify-self-end pr-4 xl:block">
+                <WorkspaceDetailNav items={detailNavItems} variant="notion" />
+              </div>
             ) : null}
-            <div
-              className={cn(
-                "min-w-0 shrink-0",
-                inListMode ? "max-w-[1020px]" : "max-w-[860px]",
-              )}
-            >
-              {renderContent()}
-            </div>
+            <div className="col-start-2 row-start-1 min-w-0">{renderContent()}</div>
           </div>
         </div>
       </RecordSlotContext.Provider>

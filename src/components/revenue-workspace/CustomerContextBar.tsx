@@ -50,10 +50,8 @@ import {
 
 const SCROLL_THRESHOLD = 40;
 
-/** Breadcrumb ↔ customer title stack — expanded / collapsed */
-const HEADER_BREADCRUMB_HEIGHT = { expanded: 40, collapsed: 28 } as const;
-const HEADER_BREADCRUMB_PB = { expanded: 2, collapsed: 1 } as const;
-const HEADER_TITLE_PT = { expanded: 2, collapsed: 0 } as const;
+/** Customer title stack — expanded / collapsed (breadcrumb lives in same row) */
+const HEADER_TITLE_PT = { expanded: 18, collapsed: 8 } as const;
 const HEADER_TITLE_PB = { expanded: 16, collapsed: 10 } as const;
 const HEADER_TABS_GAP = { expanded: 12, collapsed: 10 } as const;
 const MORE_BUTTON_WIDTH = 96;
@@ -61,9 +59,9 @@ const OVERFLOW_THRESHOLD = 1;
 /** Negative margin overlap between adjacent folder tabs (px) — must match TAB_OVERLAP_CLASS */
 const TAB_OVERLAP = 18;
 const TAB_OVERLAP_CLASS = "-ml-[18px]";
-/** Experimental angled folder-tab corners — square left edge, curvy right edge */
+/** Folder-tab corners — subtle left edge, curvy right edge */
 const TAB_CORNER_RADIUS =
-  "rounded-tl-none rounded-bl-none rounded-tr-[36px] rounded-br-[36px]";
+  "rounded-tl-[4px] rounded-bl-[4px] rounded-tr-[36px] rounded-br-[36px]";
 /** Minimum tab width (px) — keeps label + close control from colliding when many tabs are open */
 const TAB_MIN_WIDTH_PARENT = 92;
 const TAB_MIN_WIDTH_CLOSABLE = 160;
@@ -383,7 +381,7 @@ export function CustomerContextBar({
     if (mainScroll) ro.observe(mainScroll);
 
     const onSidebarLayout = () => {
-      window.setTimeout(scheduleMeasure, 220);
+      scheduleMeasure();
     };
     window.addEventListener(SIDEBAR_LAYOUT_EVENT, onSidebarLayout);
 
@@ -560,30 +558,17 @@ export function CustomerContextBar({
         )}
       >
         <div
-          className="flex items-center pl-2 pr-6 transition-all duration-300 ease-out"
-          style={{
-            height: isCollapsed
-              ? HEADER_BREADCRUMB_HEIGHT.collapsed
-              : HEADER_BREADCRUMB_HEIGHT.expanded,
-            paddingBottom: isCollapsed
-              ? HEADER_BREADCRUMB_PB.collapsed
-              : HEADER_BREADCRUMB_PB.expanded,
-          }}
-        >
-          <Breadcrumbs crumbs={crumbs} onNavigate={navigate} collapsed={isCollapsed} />
-        </div>
-
-        <div
-          className="flex items-end justify-between gap-4 rounded-br-[0px] pl-2 pr-6 transition-all duration-300 ease-out"
+          className="flex items-end justify-between gap-4 rounded-br-[0px] pl-4 pr-8 transition-all duration-300 ease-out"
           style={{
             paddingTop: isCollapsed ? HEADER_TITLE_PT.collapsed : HEADER_TITLE_PT.expanded,
             paddingBottom: isCollapsed ? HEADER_TITLE_PB.collapsed : HEADER_TITLE_PB.expanded,
           }}
         >
-          <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <Breadcrumbs crumbs={crumbs} onNavigate={navigate} collapsed={isCollapsed} />
             <h1
               className="truncate font-bold leading-tight tracking-tight text-text-primary transition-all duration-300 ease-out"
-              style={{ fontSize: isCollapsed ? 16 : 32 }}
+              style={{ fontSize: isCollapsed ? 16 : 28 }}
             >
               {customer.name}
             </h1>
@@ -662,7 +647,7 @@ export function CustomerContextBar({
 
         <div
           ref={visibleStripRef}
-          className="flex w-full min-w-0 items-end overflow-x-clip overflow-y-visible pb-1"
+          className="flex w-full min-w-0 items-end overflow-x-clip overflow-y-visible pb-1 pr-6"
         >
         {visibleTabs.map((tab, idx) => {
           const key = tabKey(tab);
@@ -725,8 +710,8 @@ export function CustomerContextBar({
       </div>
 
       {recordSlot ? (
-        <div className="px-6 pt-3 pb-4">
-          <div className="w-full">{recordSlot}</div>
+        <div className="flex justify-end pl-4 pr-8 pt-3 pb-4">
+          {recordSlot}
         </div>
       ) : (
         <div
@@ -888,7 +873,7 @@ function Breadcrumbs({
   return (
     <nav
       className={cn(
-        "flex min-h-0 min-w-0 flex-1 items-center gap-1 overflow-x-auto whitespace-nowrap leading-none text-text-muted transition-all duration-300 ease-out [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        "flex w-full min-w-0 shrink-0 items-center gap-1 overflow-x-auto whitespace-nowrap leading-none text-text-muted transition-all duration-300 ease-out [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         collapsed ? "text-[11px]" : "text-[13px]",
       )}
     >

@@ -10,6 +10,7 @@ import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStri
 import { ListTable, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
 import { FilterBar, type FilterTag, type FilterOption } from "@/components/index-page/FilterBar";
 import { PageHeader } from "@/components/index-page/PageHeader";
+import { IndexPageFrame } from "@/components/index-page/IndexPageFrame";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -97,12 +98,12 @@ export function ContractsIndex() {
   ];
 
   return (
-    <div className="flex flex-1 w-full flex-col bg-grey-100">
-      <div ref={scrollRef} className={`sticky top-0 z-10 bg-grey-100 rounded-tl-[24px] px-6 pt-5 pb-3 transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.04)]" : ""}`}>
-        <PageHeader title="Contracts" />
-      </div>
-      <div className="flex flex-col gap-5 px-6 pt-2 pb-7">
-        <MetricStrip metrics={metrics} />
+    <IndexPageFrame
+      headerRef={scrollRef}
+      headerScrolled={isScrolled}
+      header={<PageHeader title="Contracts" />}
+      metrics={<MetricStrip metrics={metrics} />}
+      filterBar={
         <FilterBar
           filters={filters}
           onFiltersChange={setFilters}
@@ -110,30 +111,31 @@ export function ContractsIndex() {
           resultCount={contractsView.length}
           resultLabel="contracts"
         />
-        <ListTable columns={listColumns}>
-          {contractsView.map((c) => {
-            const cu = customersMerged.find((x) => x.id === c.customerId);
-            return (
-              <ListRow key={c.id} onClick={() => navigate(`/customers/${c.customerId}?tab=contract&contractId=${c.id}&from=contracts`)}>
-                <ListCell width="140px" className="font-medium text-blue-600">{c.id}</ListCell>
-                <ListCell width="150px" className="font-medium">{cu?.name ?? "—"}</ListCell>
-                <ListCell width="100px" align="right" className="tabular-nums">
-                  {currency(c.tcv)}
-                </ListCell>
-                <ListCell width="90px">{c.term}</ListCell>
-                <ListCell width="110px">{c.renewalDate ? shortDate(c.renewalDate) : "—"}</ListCell>
-                <ListCell width="110px" noTruncate>
-                  <StatusBadge status={c.enforcement.enforcementStatus} />
-                </ListCell>
-                <ListCell width="90px" noTruncate>
-                  <StatusBadge status={c.status} />
-                </ListCell>
-                <ListCell width="110px" className="text-text-secondary">{c.owner}</ListCell>
-              </ListRow>
-            );
-          })}
-        </ListTable>
-      </div>
-    </div>
+      }
+    >
+      <ListTable columns={listColumns}>
+        {contractsView.map((c) => {
+          const cu = customersMerged.find((x) => x.id === c.customerId);
+          return (
+            <ListRow key={c.id} onClick={() => navigate(`/customers/${c.customerId}?tab=contract&contractId=${c.id}&from=contracts`)}>
+              <ListCell width="140px" className="font-medium text-blue-600">{c.id}</ListCell>
+              <ListCell width="150px" className="font-medium">{cu?.name ?? "—"}</ListCell>
+              <ListCell width="100px" align="right" className="tabular-nums">
+                {currency(c.tcv)}
+              </ListCell>
+              <ListCell width="90px">{c.term}</ListCell>
+              <ListCell width="110px">{c.renewalDate ? shortDate(c.renewalDate) : "—"}</ListCell>
+              <ListCell width="110px">
+                <StatusBadge status={c.enforcement.enforcementStatus} />
+              </ListCell>
+              <ListCell width="90px">
+                <StatusBadge status={c.status} />
+              </ListCell>
+              <ListCell width="110px" className="text-text-secondary">{c.owner}</ListCell>
+            </ListRow>
+          );
+        })}
+      </ListTable>
+    </IndexPageFrame>
   );
 }

@@ -1,0 +1,575 @@
+@theme {
+  @keyframes assistant-minimize-from-mirror {
+    from {
+      transform: scaleX(-1);
+      opacity: 0.82;
+    }
+    to {
+      transform: scaleX(1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes assistant-minimize-to-mirror {
+    from {
+      transform: scaleX(1);
+      opacity: 0.82;
+    }
+    to {
+      transform: scaleX(-1);
+      opacity: 1;
+    }
+  }
+
+  --animate-assistant-minimize-from-mirror: assistant-minimize-from-mirror 0.32s
+    cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-assistant-minimize-to-mirror: assistant-minimize-to-mirror 0.32s
+    cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  /**
+   * Billing tab: minimize glyph eases in from the right (matches left-rail
+   * `collapsePeek` transform timing on the aside).
+   */
+  @keyframes billing-tab-collapse-glyph-in {
+    from {
+      transform: translateX(4px);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  --animate-billing-tab-collapse-glyph-in: billing-tab-collapse-glyph-in 220ms
+    cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  /** Billing tab: expand glyph eases in from the left (reverse of collapse). */
+  @keyframes billing-tab-expand-glyph-in {
+    from {
+      transform: translateX(-4px);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  --animate-billing-tab-expand-glyph-in: billing-tab-expand-glyph-in 220ms
+    cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  /** Left rail dock: `ChargebeeLeftNav` rows stagger during collapse/expand flight. */
+  @keyframes nav-rail-wave-out {
+    from {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+    to {
+      opacity: 0;
+      transform: translate3d(-18px, 0, 0);
+    }
+  }
+
+  @keyframes nav-rail-wave-in {
+    from {
+      opacity: 0;
+      transform: translate3d(-14px, 0, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  /** Soft horizontal sweep for in-progress “reasoning” copy */
+  @keyframes reasoning-shimmer {
+    0%,
+    100% {
+      background-position: 100% 50%;
+    }
+    50% {
+      background-position: 0% 50%;
+    }
+  }
+
+  --animate-reasoning-shimmer: reasoning-shimmer 3s ease-in-out infinite;
+
+  /** Chat bubbles: eases height + opacity instead of a hard pop */
+  @keyframes chat-row-unfurl {
+    from {
+      opacity: 0;
+      max-height: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      max-height: 1200px;
+      transform: translateY(0);
+    }
+  }
+
+  --animate-chat-row-unfurl: chat-row-unfurl 0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+
+  /** Reasoning rows: animate row track from 0fr → 1fr so height eases to its natural value */
+  @keyframes reasoning-row-enter {
+    from {
+      opacity: 0;
+      grid-template-rows: 0fr;
+    }
+    to {
+      opacity: 1;
+      grid-template-rows: 1fr;
+    }
+  }
+
+  --animate-reasoning-row-enter: reasoning-row-enter 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  /** Session / empty-state: light lift + fade when switching threads */
+  @keyframes session-surface-in {
+    from {
+      opacity: 0;
+      transform: translateY(5px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  --animate-session-surface-in: session-surface-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  /**
+   * Sessions list: scrim is opacity-only so backdrop-filter is not broken by
+   * a transformed parent (browsers may skip or flatten blur behind transforms).
+   */
+  @keyframes sessions-scrim-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  --animate-sessions-scrim-in: sessions-scrim-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  @keyframes sessions-pills-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  --animate-sessions-pills-in: sessions-pills-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) 0.04s both;
+
+  /** Assistant workspace: glass header/footer fade-in (blur stays on via utilities). */
+  @keyframes workspace-glass-settle {
+    from {
+      opacity: 0.72;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  /** Finishes with width flight; delayed so it does not stack on the hero motion. */
+  --animate-workspace-glass-settle: workspace-glass-settle 450ms
+    cubic-bezier(0.22, 1, 0.36, 1) 260ms both;
+
+  /** Nav + main content underneath while assistant panel resizes to dock */
+  @keyframes workspace-chrome-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  --animate-workspace-chrome-fade-in: workspace-chrome-fade-in 0.75s
+    ease-out 0.1s both;
+
+  /**
+   * Top-bar light pass — soft white band slides left → right across the
+   * product bar when the user enters workspace mode. Reads as the chrome
+   * acknowledging the mode change in a quick one-beat motion alongside
+   * the column flight (Idea D). The element on which this animates must
+   * set `background-image` + `background-size`; we only drive
+   * `background-position-x` and `opacity` from here so the band can be
+   * customized per surface (light/dark gradient bar).
+   */
+  @keyframes workspace-topbar-sweep {
+    0% {
+      opacity: 0;
+      background-position-x: -30%;
+    }
+    20% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      background-position-x: 130%;
+    }
+  }
+
+  --animate-workspace-topbar-sweep: workspace-topbar-sweep 520ms
+    cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  /** White product tab: subtle “promote” on assistant ↔ billing swap (no bottom shadow — seamless with left rail) */
+  @keyframes workspace-product-tab {
+    from {
+      opacity: 0.9;
+      transform: translateY(1px) scale(0.99);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  --animate-workspace-product-tab: workspace-product-tab 0.9s
+    cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  /**
+   * Suite nav main-tab label flip. The white shell stays anchored; only the
+   * inner product label flips in place. Outgoing label exits upward, incoming
+   * label rises from below — together they read as a slot-reel rolling up.
+   * Runs alongside the bar-wide `workspace-topbar-sweep` so the shell never
+   * has to traverse anywhere; the sweep covers the surrounding strip reflow.
+   */
+  @keyframes suite-product-subtitle-in {
+    from {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  --animate-suite-product-subtitle-in: suite-product-subtitle-in 0.22s
+    cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  @keyframes suite-product-subtitle-out {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(-3px);
+    }
+  }
+
+  --animate-suite-product-subtitle-out: suite-product-subtitle-out 0.2s
+    cubic-bezier(0.4, 0, 1, 1) both;
+
+  @keyframes suite-nav-link-in {
+    from {
+      opacity: 0;
+      transform: translate3d(-6px, 0, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  --animate-suite-nav-link-in: suite-nav-link-in 0.28s
+    cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  /** Workspace artifact table: reveal after activation delay (matches 300ms skeleton) */
+  @keyframes artifact-table-reveal {
+    from {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  --animate-artifact-table-reveal: artifact-table-reveal 0.3s
+    cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  /**
+   * Assistant nav island (workspace mode pill containing "← back to" +
+   * "jump to ▾"): fades in and settles down from a few pixels above as
+   * the header grows. Slightly longer than `suite-nav-link-in` so the
+   * inner buttons land *after* the pill backdrop is already in place.
+   */
+  @keyframes assistant-nav-island-in {
+    from {
+      opacity: 0;
+      transform: translate3d(0, -4px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  --animate-assistant-nav-island-in: assistant-nav-island-in 0.45s
+    cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/**
+ * View Transitions API (Chromium 111+, Safari 18+).
+ *
+ * `view-transition-name`s tagged at the React layer:
+ *
+ *   - `assistant-column`  — the assistant wrapper that becomes the
+ *                           whole workspace in workspace mode and a
+ *                           320 px (resizable) sidebar otherwise.
+ *   - `main-content`      — `<main>`. Mounted only in sidebar mode.
+ *   - `product-nav`       — the 260 px product (left) navigation aside.
+ *                           Mounted only in sidebar mode; unmounts on
+ *                           workspace enter so OLD drifts off and there
+ *                           is no NEW.
+ *   - `sessions-rail`     — the sessions sub-rail inside the assistant
+ *                           workspace. Mounted only in workspace mode.
+ *
+ * The default UA group animation already morphs position + size for
+ * shared elements; we tune timing and suppress the inner image
+ * crossfade where content reflows mid-flight.
+ *
+ * `flipWithVT` sets two attributes on `<html>` for the duration of the
+ * transition:
+ *
+ *   - `data-vt-running="true"` (any VT) so other components can opt out
+ *     of their own live CSS transitions while the browser owns the
+ *     screen.
+ *   - `data-vt-kind="<intent>"` — one of `workspace`, `product-nav`,
+ *     `sessions-rail`, `assistant-dock` — so keyframes can scope per
+ *     intent. Each rail/dock kind animates ONLY its own pseudos; the
+ *     workspace kind animates the column + main + both rails together.
+ *
+ * Selectors use `:root[attr]::pseudo` with NO space — VT pseudos live
+ * on the root element itself, not as a descendant, so the descendant
+ * combinator (space) silently fails to match.
+ */
+::view-transition-group(product-nav),
+::view-transition-group(sessions-rail) {
+  animation-duration: 320ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:root[data-vt-kind="workspace"]::view-transition-group(assistant-column),
+:root[data-vt-kind="workspace"]::view-transition-group(main-content) {
+  animation-duration: 460ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Rail dock toggles: reflow siblings instantly; only the rail width morphs. */
+:root[data-vt-kind="product-nav"]::view-transition-group(main-content),
+:root[data-vt-kind="product-nav"]::view-transition-group(assistant-column),
+:root[data-vt-kind="sessions-rail"]::view-transition-group(assistant-column),
+:root[data-vt-kind="sessions-rail"]::view-transition-group(main-content),
+:root[data-vt-kind="assistant-dock"]::view-transition-group(main-content) {
+  animation-duration: 0ms;
+}
+
+/**
+ * Product nav (left) rail — drift-left on OLD, slide-in from off-left
+ * on NEW. Scoped to its own dock kind plus the workspace flight (the
+ * rail unmounts on workspace-enter, so the workspace VT animates the
+ * unpaired OLD off-screen). A sessions-rail or assistant-dock toggle
+ * does NOT touch these pseudos, so the product nav stays put while
+ * other rails move.
+ */
+:root[data-vt-kind="product-nav"]::view-transition-old(product-nav),
+:root[data-vt-kind="product-nav"]::view-transition-new(product-nav),
+:root[data-vt-kind="workspace"]::view-transition-old(product-nav),
+:root[data-vt-kind="workspace"]::view-transition-new(product-nav) {
+  width: 100%;
+  height: 100%;
+  object-fit: none;
+  object-position: 0 0;
+}
+
+:root[data-vt-kind="product-nav"]::view-transition-old(product-nav),
+:root[data-vt-kind="product-nav"]::view-transition-new(product-nav) {
+  animation: none;
+}
+
+:root[data-vt-kind="workspace"]::view-transition-old(product-nav) {
+  animation: vt-column-old-drift-left 320ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+:root[data-vt-kind="workspace"]::view-transition-new(product-nav) {
+  animation: vt-column-new-slide 380ms cubic-bezier(0.22, 1, 0.36, 1) 60ms
+    backwards;
+}
+
+/**
+ * Sessions sub-rail — same drift-left choreography as the product nav
+ * (visually they sit in the same leftmost column slot, just owned by
+ * different surfaces depending on mode). Scoped to its own dock kind
+ * plus the workspace flight (the rail mounts/unmounts on workspace
+ * enter/exit).
+ */
+:root[data-vt-kind="sessions-rail"]::view-transition-old(sessions-rail),
+:root[data-vt-kind="sessions-rail"]::view-transition-new(sessions-rail),
+:root[data-vt-kind="workspace"]::view-transition-old(sessions-rail),
+:root[data-vt-kind="workspace"]::view-transition-new(sessions-rail) {
+  width: 100%;
+  height: 100%;
+  object-fit: none;
+  object-position: 0 0;
+}
+
+:root[data-vt-kind="sessions-rail"]::view-transition-old(sessions-rail),
+:root[data-vt-kind="workspace"]::view-transition-old(sessions-rail) {
+  animation: vt-column-old-drift-left 320ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+:root[data-vt-kind="sessions-rail"]::view-transition-new(sessions-rail),
+:root[data-vt-kind="workspace"]::view-transition-new(sessions-rail) {
+  animation: vt-column-new-slide 380ms cubic-bezier(0.22, 1, 0.36, 1) 60ms
+    backwards;
+}
+
+/**
+ * Assistant-column choreography — OLD's drift direction matches the
+ * column's collapse direction:
+ *
+ *  - kind="workspace" (sidebar ↔ workspace, large box morph): OLD
+ *    drifts slightly RIGHT (+6 px) as it fades. Workspace flight feels
+ *    like the outgoing chrome being pushed off the right edge.
+ *
+ *  - kind="assistant-dock" (right-sidebar dock, panelWidth → 32 px):
+ *    the column collapses TOWARD the right (left edge moves
+ *    rightward), so OLD drifts RIGHT (~14 px) to match.
+ *
+ *  NEW uses the same `vt-column-new-slide` keyframe in both — starts
+ *  at `translateX(-12px)` and lands at `0`, paired with
+ *  `object-position: 70% 0` so the content reads as settling into the
+ *  widened column.
+ *
+ *  Scoping these to "workspace" and "assistant-dock" only means a
+ *  product-nav or sessions-rail toggle leaves the assistant column's
+ *  pseudos untouched — no cross-talk.
+ */
+:root[data-vt-kind="workspace"]::view-transition-old(assistant-column),
+:root[data-vt-kind="workspace"]::view-transition-new(assistant-column),
+:root[data-vt-kind="assistant-dock"]::view-transition-old(assistant-column),
+:root[data-vt-kind="assistant-dock"]::view-transition-new(assistant-column) {
+  width: 100%;
+  height: 100%;
+  object-fit: none;
+}
+
+:root[data-vt-kind="workspace"]::view-transition-old(assistant-column) {
+  object-position: 100% 0;
+  animation: vt-column-old-fade 260ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+:root[data-vt-kind="assistant-dock"]::view-transition-old(assistant-column) {
+  object-position: 100% 0;
+  animation: vt-column-old-drift-right 320ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+:root[data-vt-kind="workspace"]::view-transition-new(assistant-column),
+:root[data-vt-kind="assistant-dock"]::view-transition-new(assistant-column) {
+  object-position: 70% 0;
+  animation: vt-column-new-slide 380ms cubic-bezier(0.22, 1, 0.36, 1) 60ms
+    backwards;
+}
+
+/*
+ * `main-content` fade rules are scoped to the workspace flight ONLY.
+ * During a rail-only or dock-only collapse the body just reflows —
+ * UA-default crossfade reads fine, so we don't add per-rail rules for
+ * `main-content` (a center-anchored `object-fit:none` rule for it made
+ * the rail collapse feel wonky in earlier attempts).
+ */
+:root[data-vt-kind="workspace"]::view-transition-old(main-content) {
+  animation: vt-fade-out 240ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+:root[data-vt-kind="workspace"]::view-transition-new(main-content) {
+  animation: vt-fade-in 320ms cubic-bezier(0.22, 1, 0.36, 1) 140ms backwards;
+}
+
+@keyframes vt-column-old-fade {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(6px, 0, 0);
+  }
+}
+
+/*
+ * Rail-collapse drift keyframes. Each rail collapses toward its pinned
+ * edge — left rail toward the LEFT (right edge moves leftward), right
+ * sidebar toward the RIGHT (left edge moves rightward) — so OLD's
+ * drift direction is mirrored per side to match the geometric motion.
+ *
+ * Why staged: a simple opacity-and-translate-together keyframe makes
+ * the drift invisible because OLD is fading just as fast as it's
+ * moving. We hold opacity at 1 through the first 55% (drift only),
+ * then fade out in the back half. Drift = headline, fade = follow-
+ * through.
+ */
+@keyframes vt-column-old-drift-left {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  55% {
+    opacity: 1;
+    transform: translate3d(-10px, 0, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(-14px, 0, 0);
+  }
+}
+
+@keyframes vt-column-old-drift-right {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(94px, 0, 0);
+  }
+}
+
+@keyframes vt-column-new-slide {
+  from {
+    opacity: 0;
+    transform: translate3d(-12px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+
+@keyframes vt-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes vt-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+

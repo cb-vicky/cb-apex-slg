@@ -115,7 +115,7 @@ export function ApprovalsTabContent() {
               </ListCell>
               <ListCell width="130px" className="text-text-secondary">{req.submittedBy}</ListCell>
               <ListCell width="120px" className="text-text-secondary">{shortDate(req.submittedAt)}</ListCell>
-              <ListCell width="130px" noTruncate>
+              <ListCell width="130px">
                 <StatusBadge status={req.effectiveStatus} />
               </ListCell>
             </ListRow>

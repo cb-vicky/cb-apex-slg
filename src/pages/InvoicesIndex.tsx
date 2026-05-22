@@ -10,6 +10,7 @@ import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStri
 import { ListTable, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
 import { FilterBar, type FilterTag, type FilterOption } from "@/components/index-page/FilterBar";
 import { PageHeader } from "@/components/index-page/PageHeader";
+import { IndexPageFrame } from "@/components/index-page/IndexPageFrame";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -92,12 +93,12 @@ export function InvoicesIndex() {
   ];
 
   return (
-    <div className="flex flex-1 w-full flex-col bg-grey-100">
-      <div ref={scrollRef} className={`sticky top-0 z-10 bg-grey-100 rounded-tl-[24px] px-6 pt-5 pb-3 transition-shadow duration-200${isScrolled ? " shadow-[0_2px_8px_rgba(0,0,0,0.04)]" : ""}`}>
-        <PageHeader title="Invoices" />
-      </div>
-      <div className="flex flex-col gap-5 px-6 pt-2 pb-7">
-        <MetricStrip metrics={metrics} />
+    <IndexPageFrame
+      headerRef={scrollRef}
+      headerScrolled={isScrolled}
+      header={<PageHeader title="Invoices" />}
+      metrics={<MetricStrip metrics={metrics} />}
+      filterBar={
         <FilterBar
           filters={filters}
           onFiltersChange={setFilters}
@@ -105,28 +106,29 @@ export function InvoicesIndex() {
           resultCount={invoicesView.length}
           resultLabel="invoices"
         />
-        <ListTable columns={listColumns}>
-          {invoicesView.map((inv) => {
-            const c = customersMerged.find((cu) => cu.id === inv.customerId);
-            return (
-              <ListRow key={inv.id} onClick={() => navigate(`/customers/${inv.customerId}?tab=invoicing&invoiceId=${inv.id}&from=invoices`)}>
-                <ListCell width="130px" className="font-medium text-blue-600">{inv.id}</ListCell>
-                <ListCell width="150px" className="font-medium">{c?.name ?? "—"}</ListCell>
-                <ListCell width="130px">{inv.contractId || "—"}</ListCell>
-                <ListCell width="100px" align="right" className="tabular-nums">
-                  {currency(inv.amount)}
-                </ListCell>
-                <ListCell width="100px">{shortDate(inv.dueDate)}</ListCell>
-                <ListCell width="110px" noTruncate>
-                  <StatusBadge status={inv.status} />
-                </ListCell>
-                <ListCell width="110px" className="text-text-secondary">{inv.owner}</ListCell>
-                <ListCell width="160px" className="text-text-muted">{inv.holdReason || "—"}</ListCell>
-              </ListRow>
-            );
-          })}
-        </ListTable>
-      </div>
-    </div>
+      }
+    >
+      <ListTable columns={listColumns}>
+        {invoicesView.map((inv) => {
+          const c = customersMerged.find((cu) => cu.id === inv.customerId);
+          return (
+            <ListRow key={inv.id} onClick={() => navigate(`/customers/${inv.customerId}?tab=invoicing&invoiceId=${inv.id}&from=invoices`)}>
+              <ListCell width="130px" className="font-medium text-blue-600">{inv.id}</ListCell>
+              <ListCell width="150px" className="font-medium">{c?.name ?? "—"}</ListCell>
+              <ListCell width="130px">{inv.contractId || "—"}</ListCell>
+              <ListCell width="100px" align="right" className="tabular-nums">
+                {currency(inv.amount)}
+              </ListCell>
+              <ListCell width="100px">{shortDate(inv.dueDate)}</ListCell>
+              <ListCell width="110px">
+                <StatusBadge status={inv.status} />
+              </ListCell>
+              <ListCell width="110px" className="text-text-secondary">{inv.owner}</ListCell>
+              <ListCell width="160px" className="text-text-muted">{inv.holdReason || "—"}</ListCell>
+            </ListRow>
+          );
+        })}
+      </ListTable>
+    </IndexPageFrame>
   );
 }

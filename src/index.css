@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./assistant-chrome.css";
 
 @theme {
   --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -32,6 +33,39 @@
   --color-info: #2563eb;
   --color-info-bg: #eff6ff;
   --color-mature-blue: #111827;
+
+  /* Assistant panel (ported from agentic-reference) */
+  --color-primary-25: #f2f6f7;
+  --color-primary-50: #e6f2ff;
+  --color-primary-100: #b4d9fe;
+  --color-primary-200: #82bffd;
+  --color-primary-300: #50a5fc;
+  --color-primary-400: #1e8cfb;
+  --color-primary-500: #0472e1;
+  --color-primary-600: #0359af;
+  --color-primary-700: #023f7d;
+  --color-primary-800: #01264b;
+  --color-primary-900: #000d19;
+  --color-neutral-0: #ffffff;
+  --color-neutral-25: #f7f7f8;
+  --color-neutral-50: #f0f1f3;
+  --color-neutral-100: #e1e2e6;
+  --color-neutral-200: #c4c6cc;
+  --color-neutral-300: #a7aaaf;
+  --color-neutral-400: #8a8d93;
+  --color-neutral-500: #62676d;
+  --color-neutral-600: #505458;
+  --color-neutral-700: #3e4247;
+  --color-neutral-800: #2c3035;
+  --color-neutral-900: #1a1d21;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: calc(1.25 / 0.8125);
+}
+
+@layer utilities {
+  .squircle {
+    corner-shape: squircle;
+  }
 }
 
 *,
@@ -60,9 +94,18 @@ h2 {
   font-weight: 700;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 #root {
   min-height: 100vh;
   display: flex;
+  width: 100%;
 }
 
 /*

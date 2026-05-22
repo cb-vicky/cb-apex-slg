@@ -1,13 +1,38 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { Bell, ChevronDown, Code2, HelpCircle, Lightbulb, Settings, Star, UserCircle } from "lucide-react";
+import {
+  Bell,
+  ChevronDown,
+  Code2,
+  HelpCircle,
+  Lightbulb,
+  Settings,
+  Star,
+  Undo2,
+  UserCircle,
+} from "lucide-react";
 import cbLogoWhite from "@/assets/cb-logo-white.svg";
+import { TopBarSweepLayer } from "@/components/assistant/TopBarSweepLayer";
 import { useDemoPersona } from "@/context/DemoPersonaContext";
 import type { DemoPersona } from "@/types/demo-persona";
+import {
+  WORKSPACE_FLIGHT_EASE_ENTER,
+  WORKSPACE_TOPBAR_MORPH_MS,
+  useAssistantWorkspace,
+} from "@/lib/assistantWorkspace";
+import { useTopBarSweep } from "@/lib/topBarSweep";
+import {
+  WORKSPACE_BAR_BG,
+  WORKSPACE_BAR_GRADIENT,
+} from "@/lib/workspaceBar";
 import { cn } from "@/lib/utils";
 
-const MENU_WIDTH_PX = 176; // 11rem
+const MENU_WIDTH_PX = 176;
+const APEX_BAR_BG = "#012A38";
+
+const ASSISTANT_NAV_PILL =
+  "bg-white/10 ring-1 ring-white/15 backdrop-blur-[2px] squircle inline-flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-full px-2 text-[14px] font-normal leading-none transition-[opacity,colors,box-shadow] duration-200 hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40";
 
 function PersonaSwitcher() {
   const navigate = useNavigate();
@@ -102,9 +127,6 @@ function PersonaSwitcher() {
           )}
         >
           Operator
-          <span className="ml-auto block max-w-[5.5rem] truncate pl-1 text-[10px] font-normal text-gray-500">
-            Queue & submit
-          </span>
         </button>
         <button
           type="button"
@@ -119,9 +141,6 @@ function PersonaSwitcher() {
           )}
         >
           Approver
-          <span className="ml-auto block max-w-[5.5rem] truncate pl-1 text-[10px] font-normal text-gray-500">
-            Act on approvals
-          </span>
         </button>
       </div>,
       document.body,
@@ -136,7 +155,7 @@ function PersonaSwitcher() {
         className="flex h-7 max-w-[9.5rem] items-center gap-1 rounded border border-white/15 bg-white/[0.06] px-2 text-left text-[11px] text-gray-200 transition-colors hover:border-white/25 hover:bg-white/10"
         aria-expanded={open}
         aria-haspopup="listbox"
-        title="Demo persona — switch Operator vs Approver"
+        title="Demo persona"
       >
         <UserCircle size={14} className="shrink-0 text-gray-300" aria-hidden />
         <span className="min-w-0 flex-1 truncate font-medium">{label}</span>
@@ -147,60 +166,161 @@ function PersonaSwitcher() {
   );
 }
 
-export function TopNav() {
+function NavIconButton({ children }: { children: React.ReactNode }) {
   return (
-    <header className="relative z-0 flex h-[36px] shrink-0 items-center justify-between overflow-visible bg-[#012A38] px-[12px] text-[rgba(17,24,39,1)]">
-      {/* Logo tab — absolute so it can extend below header. Top 28px visible in header,
-          bottom portion bleeds under sidebar (which is z-[1] and covers it). */}
-      <div className="absolute left-[12px] top-[8px] flex h-[52px] w-[24px] items-start justify-center rounded-t-md bg-cb-orange pt-[7px]">
-        <img src={cbLogoWhite} alt="Chargebee" className="h-[13px] w-[13px] shrink-0" width={13} height={13} />
+    <button
+      type="button"
+      className="flex h-7 w-7 items-center justify-center rounded text-gray-400 transition-colors hover:bg-white/10 hover:text-gray-200"
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Site + entity selectors from the original apex top bar (sidebar mode). */
+function SiteEntitySelectors() {
+  return (
+    <div className="flex h-full items-center gap-[8px]">
+      <button
+        type="button"
+        className="flex items-center gap-1.5 rounded px-2 py-1 text-[12px] text-gray-300 hover:bg-white/10"
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        <span className="font-medium text-white">Echo-corp</span>
+        <span className="text-gray-400">echocorp.test.charge...</span>
+        <ChevronDown size={12} className="text-gray-400" aria-hidden />
+      </button>
+      <button
+        type="button"
+        className="flex items-center gap-1.5 rounded px-2 py-1 text-[12px] text-gray-300 hover:bg-white/10"
+      >
+        <span className="font-medium text-white">Germany</span>
+        <span className="text-gray-400">Europe/Berlin (CET)</span>
+        <ChevronDown size={12} className="text-gray-400" aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+export function TopNav() {
+  const { mode, exit, prefersReducedMotion } = useAssistantWorkspace();
+  const isWorkspace = mode === "workspace";
+
+  const { sweepNonce } = useTopBarSweep(isWorkspace, prefersReducedMotion);
+
+  const headerHeight = isWorkspace
+    ? `calc(36px + env(safe-area-inset-top))`
+    : "36px";
+  const headerTransition = prefersReducedMotion
+    ? undefined
+    : `height ${WORKSPACE_TOPBAR_MORPH_MS}ms ${WORKSPACE_FLIGHT_EASE_ENTER}, background-color ${WORKSPACE_TOPBAR_MORPH_MS}ms ${WORKSPACE_FLIGHT_EASE_ENTER}`;
+
+  return (
+    <header
+      className={cn(
+        "relative z-0 flex shrink-0 items-center justify-between overflow-visible px-[12px] font-sora",
+        isWorkspace && "pt-[env(safe-area-inset-top)]",
+      )}
+      style={{
+        backgroundColor: isWorkspace ? WORKSPACE_BAR_BG : APEX_BAR_BG,
+        height: headerHeight,
+        transition: headerTransition,
+      }}
+      aria-label={isWorkspace ? "Chargebee Assistant" : "Application header"}
+    >
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-0"
+        style={{
+          backgroundImage: WORKSPACE_BAR_GRADIENT,
+          opacity: isWorkspace ? 1 : 0,
+          transition: prefersReducedMotion
+            ? undefined
+            : `opacity ${WORKSPACE_TOPBAR_MORPH_MS}ms ${WORKSPACE_FLIGHT_EASE_ENTER}`,
+        }}
+      />
+      <TopBarSweepLayer nonce={sweepNonce} />
+
+      {/* Left cluster */}
+      <div
+        className={cn(
+          "relative z-10 flex min-w-0 flex-1 items-center gap-[8px]",
+          isWorkspace ? "text-white/95" : "text-gray-300",
+        )}
+      >
+        <div className="squircle flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-cb-orange">
+          <img
+            src={cbLogoWhite}
+            alt="Chargebee"
+            className="h-[13px] w-[13px] shrink-0"
+            width={13}
+            height={13}
+          />
+        </div>
+
+        {isWorkspace ? (
+          <>
+            <h1 className="font-sora text-[13px] font-normal tracking-tight text-white">
+              <span className="font-bold">chargebee</span>{" "}
+              <span className="font-normal">assistant</span>
+            </h1>
+            <button
+              type="button"
+              onClick={exit}
+              aria-label="Back to app"
+              className={cn(
+                "assistant-nav-back group/back ml-1",
+                ASSISTANT_NAV_PILL,
+                prefersReducedMotion ? "" : "motion-safe:animate-suite-nav-link-in",
+              )}
+            >
+              <Undo2
+                className="h-3.5 w-3.5 shrink-0 transition-transform duration-200 ease-out group-hover/back:-translate-x-0.5"
+                strokeWidth={1.85}
+                aria-hidden
+              />
+              <span className="whitespace-nowrap">back to app</span>
+            </button>
+          </>
+        ) : (
+          <SiteEntitySelectors />
+        )}
       </div>
 
-      {/* Left */}
-      <div className="flex h-full items-center gap-[8px]">
-        {/* Spacer for logo width */}
-        <div className="h-[28px] w-[24px] shrink-0 self-end" aria-hidden />
-
-        {/* Site selector */}
-        <button className="flex items-center gap-1.5 rounded px-2 py-1 text-[12px] text-gray-300 hover:bg-white/10">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-          <span className="font-medium text-white">Echo-corp</span>
-          <span className="text-gray-400">echocorp.test.charge...</span>
-          <ChevronDown size={12} className="text-gray-400" />
-        </button>
-
-        {/* Entity / timezone */}
-        <button className="flex items-center gap-1.5 rounded px-2 py-1 text-[12px] text-gray-300 hover:bg-white/10">
-          <span className="font-medium text-white">Germany</span>
-          <span className="text-gray-400">Europe/Berlin (CET)</span>
-          <ChevronDown size={12} className="text-gray-400" />
-        </button>
-      </div>
-
-      {/* Right */}
-      <div className="flex items-center gap-1.5">
+      {/* Right cluster — unchanged from apex */}
+      <div
+        className={cn(
+          "relative z-10 flex shrink-0 items-center gap-1.5",
+          isWorkspace ? "text-white/95" : "text-gray-300",
+        )}
+      >
         <PersonaSwitcher />
-        <NavIconButton><Bell size={15} /></NavIconButton>
-        <button className="flex items-center gap-1.5 rounded px-2 py-1 text-[12px] text-gray-300 hover:bg-white/10">
+        <NavIconButton>
+          <Bell size={15} />
+        </NavIconButton>
+        <button
+          type="button"
+          className="flex items-center gap-1.5 rounded px-2 py-1 text-[12px] text-gray-300 transition-colors hover:bg-white/10"
+        >
           <Settings size={13} />
           <span>Configure Chargebee</span>
         </button>
-        <NavIconButton><Code2 size={15} /></NavIconButton>
-        <NavIconButton><Lightbulb size={15} /></NavIconButton>
-        <NavIconButton><Star size={15} /></NavIconButton>
-        <NavIconButton><HelpCircle size={15} /></NavIconButton>
+        <NavIconButton>
+          <Code2 size={15} />
+        </NavIconButton>
+        <NavIconButton>
+          <Lightbulb size={15} />
+        </NavIconButton>
+        <NavIconButton>
+          <Star size={15} />
+        </NavIconButton>
+        <NavIconButton>
+          <HelpCircle size={15} />
+        </NavIconButton>
         <div className="ml-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-cb-orange text-[10px] font-semibold text-white">
           A
         </div>
       </div>
     </header>
-  );
-}
-
-function NavIconButton({ children }: { children: React.ReactNode }) {
-  return (
-    <button className="flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:bg-white/10 hover:text-gray-200">
-      {children}
-    </button>
   );
 }
