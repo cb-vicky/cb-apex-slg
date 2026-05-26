@@ -218,7 +218,7 @@ export function Sidebar() {
               type="button"
               aria-label="Go to"
               className={cn(
-                "group/goto flex items-center gap-2 rounded-[5px] bg-black/[0.06] font-sans text-[13px] font-normal text-gray-700 transition-colors hover:bg-black/[0.08]",
+                "group/goto flex items-center gap-2 rounded-[5px] border border-black/[0.06] bg-white font-sans text-[13px] font-normal text-gray-700 transition-colors hover:bg-white",
                 collapsed
                   ? "h-8 w-8 shrink-0 justify-center gap-0 p-0"
                   : "w-full px-2 py-[6px] text-left",
