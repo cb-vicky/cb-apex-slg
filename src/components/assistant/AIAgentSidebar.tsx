@@ -846,9 +846,10 @@ export function AIAgentSidebar() {
   const replyGenerationRef = useRef(0);
   const initialWidth = useMemo(() => readStoredSidebarWidth(), []);
   const panelWidthRef = useRef(initialWidth);
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const [isPanelActive, setIsPanelActive] = useState(true);
   const asideRef = useRef<HTMLElement>(null);
+  const syncedWorkspaceOnMountRef = useRef(false);
   const [panelWidth, setPanelWidth] = useState(initialWidth);
   const [collapsedStripHover, setCollapsedStripHover] = useState(false);
   /**
@@ -1098,6 +1099,15 @@ export function AIAgentSidebar() {
     const t = window.setInterval(() => setSessionListTimeTick((c) => c + 1), 60_000);
     return () => window.clearInterval(t);
   }, [sessionsOpen, isWorkspace]);
+
+  /** Collapsed-by-default: if a prior session left workspace mode, show main content + dock strip. */
+  useLayoutEffect(() => {
+    if (syncedWorkspaceOnMountRef.current) return;
+    syncedWorkspaceOnMountRef.current = true;
+    if (isWorkspace && !expanded) {
+      exitWorkspace();
+    }
+  }, [isWorkspace, expanded, exitWorkspace]);
 
   /**
    * Drive the sidebar-only active/inactive state.

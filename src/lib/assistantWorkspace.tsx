@@ -89,23 +89,14 @@ export function AssistantWorkspaceProvider({
 }: {
   children: ReactNode;
 }) {
-  /**
-   * On compact viewports (`<md`) the assistant is the default full-screen
-   * experience — there's no useful "sidebar" framing on a phone. The
-   * breakpoint check wins over any persisted value (a desktop user who
-   * last left in `workspace` mode and then opens on a phone still sees
-   * workspace, while a desktop user who last left in `sidebar` and then
-   * opens on a phone is upgraded to `workspace` automatically).
-   * Otherwise the last-used mode is restored from `localStorage`.
-   */
-  const [mode, setMode] = useState<WorkspaceMode>(() => {
-    if (isCompactViewportSync()) return "workspace";
-    return readStringSetting<WorkspaceMode>(
+  /** Last-used mode from `localStorage`; defaults to sidebar (main + docked assistant). */
+  const [mode, setMode] = useState<WorkspaceMode>(() =>
+    readStringSetting<WorkspaceMode>(
       PERSIST_KEYS.assistantMode,
       WORKSPACE_MODES,
       "sidebar",
-    );
-  });
+    ),
+  );
   const prefersReducedMotion = useMediaPrefersReducedMotion();
   const isCompactViewport = useIsCompactViewport();
 

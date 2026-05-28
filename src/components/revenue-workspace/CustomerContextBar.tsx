@@ -47,6 +47,8 @@ import {
   type VisibilityOverrides,
   type WorkspaceTab,
 } from "./workspace-tabs";
+import { usePaymentCollectionsChrome } from "./payment/PaymentCollectionsChromeContext";
+import { PaymentDockedTabButton } from "./payment/PaymentDockedTabButton";
 
 const SCROLL_THRESHOLD = 40;
 
@@ -196,6 +198,9 @@ export function CustomerContextBar({
   const moreButtonRef = useRef<HTMLDivElement>(null);
 
   const activeStage = activeTab.kind === "parent" ? activeTab.stage : activeTab.stage;
+  const paymentChrome = usePaymentCollectionsChrome();
+  const collectionsSubTabsDocked =
+    activeStage === "payment" && (paymentChrome?.subTabsDocked ?? false);
   const disabled = disabledStages ?? EMPTY_DISABLED_STAGES;
   const activeTabKey = tabKey(activeTab);
 
@@ -649,40 +654,52 @@ export function CustomerContextBar({
           ref={visibleStripRef}
           className="flex w-full min-w-0 items-end overflow-x-clip overflow-y-visible pb-1 pr-6"
         >
-        {visibleTabs.map((tab, idx) => {
-          const key = tabKey(tab);
-          const isActive = tabsEqual(activeTab, tab);
-          const label = tabLabel(tab, stageDisplay);
-          const closable = isTabClosable(tab);
-          const summary = resolveWorkspaceTabSummary(
-            tab,
-            parentTabSummaries,
-            recordTabSummaries,
-          );
-          return (
-            <WorkspaceTabButton
-              key={key}
-              dataTabKey={key}
-              label={label}
-              subtitle={summary?.subtitle}
-              subtitleSeverity={summary?.severity}
-              active={isActive}
-              closable={closable}
-              first={idx === 0}
-              zIndex={isActive ? 50 : 10 - idx}
-              tabsCompact={isCollapsed}
-              fillWidth={tabsFillWidth}
-              onClick={() => selectTab(tab)}
-              onClose={
-                tab.kind === "parent"
-                  ? () => onParentClose(tab.stage)
-                  : () => onRecordClose(tab.stage, tab.recordId)
-              }
+        {collectionsSubTabsDocked && paymentChrome ? (
+          <div className="min-w-0 flex-1 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]">
+            <PaymentDockedTabButton
+              active
+              collectionsTab={paymentChrome.collectionsTab}
+              promiseToPayCount={paymentChrome.promiseToPayCount}
+              onSelectCollections={() => onTabSelect({ kind: "parent", stage: "payment" })}
+              onSubTabChange={paymentChrome.setCollectionsTab}
             />
-          );
-        })}
+          </div>
+        ) : (
+          visibleTabs.map((tab, idx) => {
+            const key = tabKey(tab);
+            const isActive = tabsEqual(activeTab, tab);
+            const label = tabLabel(tab, stageDisplay);
+            const closable = isTabClosable(tab);
+            const summary = resolveWorkspaceTabSummary(
+              tab,
+              parentTabSummaries,
+              recordTabSummaries,
+            );
+            return (
+              <WorkspaceTabButton
+                key={key}
+                dataTabKey={key}
+                label={label}
+                subtitle={summary?.subtitle}
+                subtitleSeverity={summary?.severity}
+                active={isActive}
+                closable={closable}
+                first={idx === 0}
+                zIndex={isActive ? 50 : 10 - idx}
+                tabsCompact={isCollapsed}
+                fillWidth={tabsFillWidth}
+                onClick={() => selectTab(tab)}
+                onClose={
+                  tab.kind === "parent"
+                    ? () => onParentClose(tab.stage)
+                    : () => onRecordClose(tab.stage, tab.recordId)
+                }
+              />
+            );
+          })
+        )}
 
-        {showMoreButton && (
+        {showMoreButton && !collectionsSubTabsDocked && (
           <MoreMenu
             ref={moreButtonRef}
             menuPanelRef={moreMenuPanelRef}

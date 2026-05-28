@@ -81,6 +81,35 @@ export interface Payment {
   reversals: number;
 }
 
+/** Invoice paid after the due date (Collections → Delayed payments). */
+export interface DelayedPayment {
+  customerId: string;
+  invoiceId: string;
+  amount: number;
+  daysLate: number;
+  paidOn: string;
+}
+
+export type PromiseToPayLogStatus = "paid" | "pending";
+
+export interface PromiseToPayLogEntry {
+  id: string;
+  status: PromiseToPayLogStatus;
+  headline: string;
+  promisedFor?: string;
+  loggedOn: string;
+  loggedByName: string;
+  loggedByInitials: string;
+}
+
+/** Promise-to-pay activity grouped by invoice (Collections → Promise to pay tab). */
+export interface PromiseToPayInvoiceGroup {
+  customerId: string;
+  invoiceId: string;
+  amount: number;
+  logs: PromiseToPayLogEntry[];
+}
+
 // ---------------------------------------------------------------------------
 // COLLECTION CASE
 // ---------------------------------------------------------------------------
@@ -316,7 +345,7 @@ export const payments: Payment[] = [
     amount: 4200,
     method: "Wire Transfer",
     bankReference: "WT-ECHO-20260215-4200",
-    receiptDate: "2026-02-15",
+    receiptDate: "2026-02-23",
     matchStatus: "matched",
     allocations: [{ invoiceId: "INV-2026-0012", amount: 4200 }],
     reversals: 0,
@@ -353,6 +382,106 @@ export const payments: Payment[] = [
     matchStatus: "matched",
     allocations: [{ invoiceId: "INV-2025-0310", amount: 108000 }],
     reversals: 0,
+  },
+];
+
+// ---------------------------------------------------------------------------
+// DELAYED PAYMENTS (paid after due date)
+// ---------------------------------------------------------------------------
+
+export const delayedPayments: DelayedPayment[] = [
+  {
+    customerId: "cust_echo_001",
+    invoiceId: "INV-2025-0258",
+    amount: 3400,
+    daysLate: 12,
+    paidOn: "2025-12-13",
+  },
+  {
+    customerId: "cust_verdant_005",
+    invoiceId: "INV-2025-0310",
+    amount: 108000,
+    daysLate: 14,
+    paidOn: "2025-10-15",
+  },
+  {
+    customerId: "cust_northlane_003",
+    invoiceId: "INV-2025-0142",
+    amount: 143520,
+    daysLate: 21,
+    paidOn: "2025-05-22",
+  },
+];
+
+// ---------------------------------------------------------------------------
+// PROMISE TO PAY
+// ---------------------------------------------------------------------------
+
+function ownerInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .map((p) => p[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+export const promiseToPayInvoiceGroups: PromiseToPayInvoiceGroup[] = [
+  {
+    customerId: "cust_echo_001",
+    invoiceId: "INV-2026-0044",
+    amount: 6300,
+    logs: [
+      {
+        id: "PTP-LOG-0044-1",
+        status: "pending",
+        headline: "Customer committed to wire transfer.",
+        promisedFor: "2026-06-15",
+        loggedOn: "2026-05-11",
+        loggedByName: "Lena Patel",
+        loggedByInitials: "LP",
+      },
+    ],
+  },
+  {
+    customerId: "cust_echo_001",
+    invoiceId: "INV-2026-0034",
+    amount: 1200,
+    logs: [
+      {
+        id: "PTP-LOG-0034-1",
+        status: "paid",
+        headline: "Paid on 08 May 2026",
+        loggedOn: "2026-05-08",
+        loggedByName: "Sarah Mitchell",
+        loggedByInitials: "SM",
+      },
+      {
+        id: "PTP-LOG-0034-2",
+        status: "pending",
+        headline: "Customer committed to wire transfer.",
+        promisedFor: "2026-04-10",
+        loggedOn: "2026-05-11",
+        loggedByName: "Lena Patel",
+        loggedByInitials: "LP",
+      },
+    ],
+  },
+  {
+    customerId: "cust_northlane_003",
+    invoiceId: "INV-2026-0040",
+    amount: 31200,
+    logs: [
+      {
+        id: "PTP-LOG-0040-1",
+        status: "pending",
+        headline: "Customer committed to wire transfer.",
+        promisedFor: "2026-05-30",
+        loggedOn: "2026-05-18",
+        loggedByName: "Priya Mehta",
+        loggedByInitials: "PM",
+      },
+    ],
   },
 ];
 
@@ -488,6 +617,72 @@ export function getClosureCreditNotesForCustomer(
 
 export function getPaymentsForCustomer(customerId: string): Payment[] {
   return payments.filter((p) => p.customerId === customerId);
+}
+
+export function getPromiseToPayForCustomer(customerId: string): PromiseToPayInvoiceGroup[] {
+  const seeded = promiseToPayInvoiceGroups.filter((g) => g.customerId === customerId);
+
+  const fromCases = collectionCases
+    .filter((c) => c.customerId === customerId && c.ptpDate)
+    .filter((c) => !seeded.some((s) => s.invoiceId === c.invoiceId))
+    .map((c) => ({
+      customerId: c.customerId,
+      invoiceId: c.invoiceId,
+      amount: c.outstandingAmount,
+      logs: [
+        {
+          id: `PTP-CASE-LOG-${c.id}`,
+          status: "pending" as const,
+          headline: "Customer committed to wire transfer.",
+          promisedFor: c.ptpDate,
+          loggedOn: c.followUpHistory.at(-1)?.date ?? c.ptpDate,
+          loggedByName: c.owner,
+          loggedByInitials: ownerInitials(c.owner),
+        },
+      ],
+    }));
+
+  return [...seeded, ...fromCases].sort((a, b) => {
+    const aDate = a.logs.at(-1)?.loggedOn ?? "";
+    const bDate = b.logs.at(-1)?.loggedOn ?? "";
+    return bDate.localeCompare(aDate);
+  });
+}
+
+export function getDelayedPaymentsForCustomer(
+  customerId: string,
+  customerInvoices?: Invoice[],
+): DelayedPayment[] {
+  const invList = customerInvoices ?? invoices.filter((i) => i.customerId === customerId);
+  const invById = new Map(invList.map((i) => [i.id, i]));
+  const byInvoice = new Map<string, DelayedPayment>();
+
+  for (const row of delayedPayments) {
+    if (row.customerId !== customerId) continue;
+    byInvoice.set(row.invoiceId, row);
+  }
+
+  for (const payment of getPaymentsForCustomer(customerId)) {
+    if (payment.matchStatus !== "matched") continue;
+    for (const alloc of payment.allocations) {
+      const inv = invById.get(alloc.invoiceId);
+      if (!inv) continue;
+      const daysLate = Math.round(
+        (new Date(payment.receiptDate).getTime() - new Date(inv.dueDate).getTime()) / 86400000,
+      );
+      if (daysLate > 0) {
+        byInvoice.set(alloc.invoiceId, {
+          customerId,
+          invoiceId: inv.id,
+          amount: alloc.amount,
+          daysLate,
+          paidOn: payment.receiptDate,
+        });
+      }
+    }
+  }
+
+  return [...byInvoice.values()].sort((a, b) => b.paidOn.localeCompare(a.paidOn));
 }
 
 export function getCollectionCasesForCustomer(customerId: string): CollectionCase[] {

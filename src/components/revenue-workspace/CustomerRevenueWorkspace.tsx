@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { CheckCircle2 } from "lucide-react";
 import type { Customer, Quote, Contract, Invoice, Task, ContractClosure } from "@/data/mock-data";
 import { getInvoices, getQuoteLineage, getQuotesForCustomer, getContractsForCustomer } from "@/data/mock-data";
-import { getCollectionCasesForCustomer } from "@/data/billing-data";
+import { getCollectionCasesForCustomer, getPromiseToPayForCustomer } from "@/data/billing-data";
 import { getRevenueArrangement } from "@/data/revrec-data";
 import { useIngestContext } from "@/context/IngestContext";
 import { useWorkspaceShell } from "@/context/WorkspaceShellContext";
@@ -24,6 +24,10 @@ import { ContractStageContent } from "./contract/ContractStageContent";
 import { CustomerStageContent } from "./customer/CustomerStageContent";
 import { InvoicingStageContent } from "./invoicing/InvoicingStageContent";
 import { PaymentStageContent } from "./payment/PaymentStageContent";
+import {
+  PaymentCollectionsChromeProvider,
+  type PaymentCollectionsTab,
+} from "./payment/PaymentCollectionsChromeContext";
 import { RevRecStageContent } from "./revrec/RevRecStageContent";
 import { TasksStageContent } from "./tasks/TasksStageContent";
 import { ThreadsStageContent } from "./threads/ThreadsStageContent";
@@ -107,6 +111,9 @@ export function CustomerRevenueWorkspace({
   const [showClosePane, setShowClosePane] = useState(false);
 
   const [hiddenParentStages, setHiddenParentStages] = useState<Set<Stage>>(new Set());
+  const [paymentCollectionsTab, setPaymentCollectionsTab] =
+    useState<PaymentCollectionsTab>("overview");
+  const [paymentSubTabsDocked, setPaymentSubTabsDocked] = useState(false);
   const [openRecordTabs, setOpenRecordTabs] = useState<OpenRecordTab[]>(() => {
     const stage = closeIntent ? "contract" : initialStage;
     if (activeRecordId && isListDetailStage(stage)) {
@@ -117,6 +124,12 @@ export function CustomerRevenueWorkspace({
 
   const activeStage: Stage =
     activeTab.kind === "parent" ? activeTab.stage : activeTab.stage;
+
+  useEffect(() => {
+    if (activeStage !== "payment") {
+      setPaymentSubTabsDocked(false);
+    }
+  }, [activeStage]);
 
   const customerQuotes = getQuotesForCustomer(customer.id);
   // Merge runtime session contracts so auto-ingested Scheduled renewals appear
@@ -553,7 +566,19 @@ export function CustomerRevenueWorkspace({
     // For now, just switch tabs. Drawer integration can be added later.
   }
 
+  const paymentChromeValue = useMemo(
+    () => ({
+      collectionsTab: paymentCollectionsTab,
+      setCollectionsTab: setPaymentCollectionsTab,
+      promiseToPayCount: getPromiseToPayForCustomer(customer.id).length,
+      subTabsDocked: paymentSubTabsDocked,
+      setSubTabsDocked: setPaymentSubTabsDocked,
+    }),
+    [paymentCollectionsTab, paymentSubTabsDocked, customer.id],
+  );
+
   return (
+    <PaymentCollectionsChromeProvider value={paymentChromeValue}>
     <div className="flex flex-1 flex-col bg-gray-100">
       <CustomerContextBar
         customer={customer}
@@ -634,6 +659,7 @@ export function CustomerRevenueWorkspace({
         </div>
       )}
     </div>
+    </PaymentCollectionsChromeProvider>
   );
 }
 
