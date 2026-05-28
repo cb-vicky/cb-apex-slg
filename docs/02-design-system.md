@@ -153,39 +153,23 @@ Each lifecycle stage has a `<Stage>StageContent.tsx`:
 
 ### Drawer & overlay primitives
 
-- **`EntityDrawer`** (`src/components/common/EntityDrawer.tsx`) — global 75% right panel, orchestrated by `src/store/drawer-store.ts`
-- **`UnifiedFlowShell`** — multi-step flows (ingest → invoice review → close_prior / grace)
-- **`IngestDrawer`** — ingest/approval body; `presentation="default"` (drawer) or `"page"` (full-page grid)
+- **`EntityDrawer`** (`src/components/common/EntityDrawer.tsx`) — global 75% right panel, simplified to render `InvoiceApprovalDrawer` only (mode `invoice_approval`); orchestrated by `src/store/drawer-store.ts`
+- **`LinkCustomerModal`** (`src/components/ingestion/LinkCustomerModal.tsx`) — 720px centered modal that links a queue item to a new or existing customer; orchestrated by `src/store/link-customer-modal-store.ts`. Replaces the deleted `IngestDrawer` / `UnifiedFlowShell` as the ingestion entry point. Customer selection synced via `useEffect` on `preselectedCustomer`
 
 ### Visual primitives
 
-- `StatusBadge`, `KV`, `TimelineRow`, `ActionButton`
+- `StatusBadge`, `KV`, `TimelineRow`, `ActionButton` (supports `disabled` prop for state-aware CTAs)
 - Index: `PageHeader`, `MetricStrip`, `FilterBar`, `ListTable` / `ListRow` / `ListCell`
 
-### Ingest drawer primitives
+### Customer 360 Ingestion primitives
 
-- `IngestFieldGroup` — bordered card wrapper for ingest sections with header chrome + optional status chip
-- `DrawerStackedField`, `DrawerRailIndent`, `DrawerSelectShell`, `DrawerNativeSelect`
-- `ValidationPanel` — `vertical` | `horizontal` | `sidebar` layouts
+- `IngestionStageContent` — frame/sub router; portals `IngestionActions` into the `RecordHeader` slot
+- `IngestionSummarySection` / `IngestionItemsSection` / `IngestionBillingSection` / `IngestionAddressesSection` / `IngestionAdditionalInfoSection` — Frame 1 section views (each owns its own status indicator + "Mark as done" CTA)
+- `IngestionPdfPreview` — self-contained `min-h-[78vh]` document viewer
+- `IngestionContractPreview` / `IngestionInvoicePreview` — Frame 2 mock previews
+- `IngestionActions` — flat-CTA composition (`Preview` in Frame 1, `Send for approval` + overflow in Frame 2)
 
-#### ValidationPanel layouts
-
-**`vertical`** — Full-height column for 25% left column in full-page ingest: sticky header, scrollable validation list, comments toggle.
-
-**`horizontal`** — Compact row for narrow contexts: inline chips + expandable comments.
-
-**`sidebar`** — Minimal vertical list for tight spaces.
-
-Status icons: `valid` → emerald check; `warning` / `error` → amber/red alert; `pending` → gray dot.
-
-### Ingest field group chip tones
-
-| Tone | Use case |
-|------|----------|
-| `valid` | Validation passed, mapped |
-| `warning` | Needs attention, unmapped lines |
-| `error` | Blocking error |
-| `neutral` | Default, informational |
+Per-section status dots (rendered inside the left context pill on the Ingestion tab): green `done`, amber `review`, red `issues`, gray `pending`.
 
 ## Section card usage rules
 

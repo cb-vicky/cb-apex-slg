@@ -20,20 +20,22 @@ src/
     workbench/              # WorkbenchHome (Your tasks | Queue | Approvals), tab content
   components/
     layout/                 # AppShell, TopNav, Sidebar
-    revenue-workspace/      # CustomerRevenueWorkspace, CustomerContextBar, stages
+    revenue-workspace/      # CustomerRevenueWorkspace, CustomerContextBar, stages,
+                            # ingestion/ (Customer 360 Ingestion tab)
     index-page/             # list table + metric strip primitives
     approvals/              # invoice approval UI + ApprovalSettingsModal
     contracts/              # upload modal, closure modal + ClosureSummaryCard + ClosureBanner
     queue/                  # QueueIntegrationsModal
-    transitions/            # IngestDrawer, UnifiedFlowShell, ValidationPanel, sections/*
+    ingestion/              # LinkCustomerModal (queue → customer linking)
     common/                 # EntityDrawer, RootErrorBoundary
     ui/                     # shared primitives (StatusBadge, KV, SectionCard, etc.)
   data/                     # mock-data, revrec, support, billing, ingest, queue-data,
                             # approval-policy, workbench-tasks, customer-tasks, email-threads,
-                            # contract-transition, zenith-ingest-session
+                            # contract-transition, ingestion-session, zenith-ingest-session
   context/                  # IngestProvider + ingest-context-core, DemoPersonaContext,
                             # WorkspaceShellContext
-  store/                    # drawer-store (global EntityDrawer orchestration)
+  store/                    # drawer-store (EntityDrawer — invoice approval only),
+                            # link-customer-modal-store (LinkCustomerModal)
   hooks/                    # usePendingWorkbenchCounts, useApprovalUrlDrawerSync, useScrolled
 ```
 
@@ -64,21 +66,21 @@ Avoid: giant empty hero areas, oversized marketing cards, nested tabs, random ch
 
 Detailed specs are split across `docs/` so you load only what's relevant. Cursor rules in `.cursor/rules/` auto-attach docs based on which files are being edited, but you can also explicitly reference any doc with `@docs/<file>.md`.
 
-| When you're working on… | Read… |
-|---|---|
-| Anything UI / polish / layout / visual tweak | `docs/02-design-system.md` |
-| The outer shell (TopNav, Sidebar, AppShell) | `docs/01-shell-and-layout.md` |
-| `CustomerRevenueWorkspace` or any lifecycle tab | `docs/03-customer-workspace.md` + `docs/04-lifecycle-tabs.md` |
-| Deriving tab statuses, AI insights, NBAs, health | `docs/07-dynamic-status.md` |
-| A module index page (Customers/Quotes/Contracts/Invoices/Prospects) | `docs/05-index-pages.md` |
-| Routing, URL params, navigation flows | `docs/06-routing.md` |
-| Mock data types, seed entries, use-case matrix | `docs/08-mock-data.md` |
-| The Queue, contract ingestion, or first-invoice approval flow | `docs/09-contract-ingestion.md` + `docs/13-drawer-and-flows.md` |
-| `EntityDrawer`, `UnifiedFlowShell`, or `drawer-store` | `docs/13-drawer-and-flows.md` |
-| Workbench (Your tasks + Queue + Approvals tabs) | `docs/10-workbench-home.md` |
-| Tab gating, list-then-detail behavior | `docs/11-workspace-cleanup-and-gating.md` |
-| Product intent, personas, "what good looks like" | `docs/00-overview.md` |
-| Open questions / assumptions / stubs | `docs/12-open-questions.md` |
+| When you're working on…                                              | Read…                                                              |
+|----------------------------------------------------------------------|--------------------------------------------------------------------|
+| Anything UI / polish / layout / visual tweak                         | `docs/02-design-system.md`                                         |
+| The outer shell (TopNav, Sidebar, AppShell)                          | `docs/01-shell-and-layout.md`                                      |
+| `CustomerRevenueWorkspace` or any lifecycle tab                      | `docs/03-customer-workspace.md` + `docs/04-lifecycle-tabs.md`      |
+| Deriving tab statuses, AI insights, NBAs, health                     | `docs/07-dynamic-status.md`                                        |
+| A module index page (Customers/Quotes/Contracts/Invoices/Prospects)  | `docs/05-index-pages.md`                                           |
+| Routing, URL params, navigation flows                                | `docs/06-routing.md`                                               |
+| Mock data types, seed entries, use-case matrix                       | `docs/08-mock-data.md`                                             |
+| The Queue, contract ingestion, or first-invoice approval flow        | `docs/09-contract-ingestion.md` + `docs/13-drawer-and-flows.md`    |
+| `EntityDrawer`, `LinkCustomerModal`, Customer 360 Ingestion tab, or `drawer-store` | `docs/13-drawer-and-flows.md`                                      |
+| Workbench (Your tasks + Queue + Approvals tabs)                      | `docs/10-workbench-home.md`                                        |
+| Tab gating, list-then-detail behavior                                | `docs/11-workspace-cleanup-and-gating.md`                          |
+| Product intent, personas, "what good looks like"                     | `docs/00-overview.md`                                              |
+| Open questions / assumptions / stubs                                 | `docs/12-open-questions.md`                                        |
 
 `docs/archive/apex-ui-plan-original.md` preserves the full original 2,619-line plan for reference. Do not load it by default.
 
@@ -92,7 +94,7 @@ npm run lint      # eslint
 
 ## Status
 
-Prototype is functionally rich for demo flows. Recent work consolidated navigation around **Workbench**, **drawer-first ingest**, and **refined workspace chrome**.
+Prototype is functionally rich for demo flows. Recent work consolidated navigation around **Workbench**, **Customer 360 Ingestion tab** (LinkCustomerModal → in-workspace review), and **refined workspace chrome**.
 
 ### Current implementation (live UI)
 
@@ -105,7 +107,7 @@ Prototype is functionally rich for demo flows. Recent work consolidated navigati
 **Workbench (`/`):**
 - Tabs: **Your tasks** | **Queue** | **Approvals** (blue underline accent)
 - `deriveWorkbenchTasks` + `DemoPersonaContext` filter operator vs approver views
-- Queue Import opens `UploadModal` → **`EntityDrawer`** (primary ingest path)
+- Queue Import opens `UploadModal` → **`LinkCustomerModal`** → Customer 360 Ingestion tab (primary ingest path)
 
 **Customer workspace:**
 - **`CustomerContextBar`** with restructured header:
@@ -114,12 +116,13 @@ Prototype is functionally rich for demo flows. Recent work consolidated navigati
   - **Center-aligned trapezoidal tabs** — 62px expanded / 30px collapsed, 10px radius, tightly spaced
   - **Context pills** below tab line (inverted trapezoid shape): left info pill + right actions pill
 - **`RecordHeader`** — actions render inside right context pill (no separate glass container)
-- Stages: Overview, Tasks, Threads, Quotes, Contracts, Invoicing, Collections, RevRec
+- Stages: Overview, Tasks, Threads, Quotes, Contracts, **Ingestion (conditional — only when an active session exists)**, Invoicing, Collections, RevRec
 - Content column: `max-w-[1020px]` list / `max-w-[860px]` detail on `bg-gray-100`
+- URL → `activeTab` sync: `CustomerRevenueWorkspace` listens for changes in `initialStage` / `activeRecordId` props and updates internal tab + active record state, so deep links and post-action navigation (e.g. Send-for-approval → invoicing detail) land correctly
 
 **Drawer / flows:**
-- **`EntityDrawer`** — global 75% overlay (`rounded-l-[24px]`) for ingest, approval, transitions
-- **`UnifiedFlowShell`** — multi-step ingest → invoice review → grace / close_prior
-- Full-page ingest still available at `/queue/:queueItemId` for direct URLs
+- **`EntityDrawer`** — simplified global overlay; only renders `InvoiceApprovalDrawer` (mode `invoice_approval`)
+- **`LinkCustomerModal`** — 720px centered modal that links a queue item to a new or existing customer, then routes to `/customers/:id?tab=ingestion`
+- **Customer 360 Ingestion tab** — replaces the old `IngestDrawer` / `UnifiedFlowShell`. Two frames (`Review` → `Preview`); Send-for-approval flips invoice status to `Pending Approval` and lands the user on the new invoice's details page
 
-**Stage type:** `src/components/revenue-workspace/stage.ts` — shared `Stage` union for workspace tabs.
+**Stage type:** `src/components/revenue-workspace/stage.ts` — shared `Stage` union for workspace tabs (includes `ingestion`).

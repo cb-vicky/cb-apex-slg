@@ -185,7 +185,7 @@ Added fields (from Customer tab work):
 
 - `QueueItem` — one document waiting in the Inbox > Queue
   - `sampleId?` — `"sample1" | "sample2" | "sample3"` (which extracted data set to use when ingestable)
-  - `ingestable` — when `false`, **`QueueIngestPage`** shows **`PlaceholderState`** instead of **`IngestDrawer`**
+  - `ingestable` — when `false`, the queue row stays informational only (no `LinkCustomerModal`); use for placeholder scenarios like Late Renewal `QI-2026-0003`
   - `activeContractId?` — for **Early Renewal** and **Late Renewal** rows: prior/active contract the operator must align in workspace
 - `QueueSource` — `"PDF Upload" | "API" | "CPQ" | "Email"`
 - `QueueStatus` — `"Pending Review" | "In Progress" | "Ingested" | "Failed" | "Rejected"`

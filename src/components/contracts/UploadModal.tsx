@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { openDrawer } from "@/store/drawer-store";
 import { X, Upload, FileText, Loader2, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { sampleDocs, analysisMessages } from "@/data/ingest-data";
 import { getQueueItemBySample } from "@/data/queue-data";
 import { useIngestContext } from "@/context/IngestContext";
+import { openLinkCustomerModal } from "@/store/link-customer-modal-store";
 
 interface Props {
   onClose: () => void;
@@ -42,14 +42,14 @@ export function UploadModal({ onClose }: Props) {
     return () => clearInterval(iv);
   }, [step]);
 
-  // Auto-navigate after done
+  // Auto-navigate after done: open the LinkCustomerModal
   useEffect(() => {
     if (step !== "done" || !chosenSample) return;
     const t = setTimeout(() => {
       setSelectedSample(chosenSample);
       const queueItem = getQueueItemBySample(chosenSample);
       if (queueItem) {
-        openDrawer({ entityType: "queue_item", mode: "ingest", entityId: queueItem.id });
+        openLinkCustomerModal(queueItem.id);
       }
       onClose();
     }, 600);

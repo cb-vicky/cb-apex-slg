@@ -5,6 +5,7 @@ export type Stage =
   | "threads"
   | "quote"
   | "contract"
+  | "ingestion"
   | "invoicing"
   | "payment"
   | "revrec";

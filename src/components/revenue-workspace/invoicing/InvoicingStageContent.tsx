@@ -116,6 +116,16 @@ export function InvoicingStageContent({ invoice, contract }: Props) {
       );
       overflow.push({ label: "Issue credit note" });
       overflow.push({ label: "Regenerate" });
+    } else if (effectiveStatus === "Pending Approval") {
+      // Post Send-for-approval state: surface the approval drawer entry point
+      // so the approver persona can decide directly from the invoice page.
+      primary = (
+        <>
+          <ActionButton label="Preview" />
+          <ActionButton label="View in Approvals" onClick={openApprovalDrawer} />
+        </>
+      );
+      overflow.push({ label: "Regenerate" });
     } else if (effectiveStatus === "Pending Review") {
       if (isSubmitted) {
         primary = (

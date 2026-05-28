@@ -65,9 +65,9 @@ Sources from **`deriveWorkbenchTasks`**:
 ## Queue tab
 
 - Replaces legacy `/queue` index page (route redirects here)
-- **Import** → `UploadModal` → `getQueueItemBySample` → **`EntityDrawer`** (primary)
+- **Import** → `UploadModal` → `getQueueItemBySample` → **`openLinkCustomerModal(queueItemId)`** (primary)
 - **Connect** → `QueueIntegrationsModal`
-- Row behavior: ingestable samples open drawer or `UnifiedFlowShell`; ingested + approver persona may show review CTA
+- Row behavior: ingestable samples open `LinkCustomerModal`, which routes the user to `/customers/:id?tab=ingestion` after linking; ingested + approver persona may show review CTA
 
 See `docs/09-contract-ingestion.md` for scenario matrix (`sample2`, `sample3`, `sample4`). Drawer behavior: `docs/13-drawer-and-flows.md`.
 

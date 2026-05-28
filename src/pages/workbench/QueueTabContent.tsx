@@ -11,6 +11,7 @@ import { useDemoPersona } from "@/context/DemoPersonaContext";
 import type { QueueItem, QueueSource } from "@/data/queue-data";
 import { queueItemKindLabel } from "@/data/workbench-tasks";
 import { openDrawer } from "@/store/drawer-store";
+import { openLinkCustomerModal } from "@/store/link-customer-modal-store";
 
 function SourceBadge({ source, detail }: { source: QueueSource; detail?: string }) {
   const config: Record<QueueSource, { icon: typeof FileText; tone: string; label: string }> = {
@@ -125,7 +126,7 @@ export function QueueTabContent() {
       return;
     }
     if (q.status === "Returned" && q.ingestable) {
-      openDrawer({ entityType: "queue_item", mode: "ingest", entityId: q.id });
+      openLinkCustomerModal(q.id);
       return;
     }
     if (q.status === "Ingested" && persona === "approver" && q.invoiceId && pendingInvoiceApproval) {
@@ -158,11 +159,7 @@ export function QueueTabContent() {
       q.ingestable &&
       (q.status === "Pending Review" || q.status === "In Progress")
     ) {
-      openDrawer({
-        entityType: "queue_item",
-        mode: "ingest",
-        entityId: q.id,
-      });
+      openLinkCustomerModal(q.id);
       return;
     }
     navigate(`/queue/${q.id}`);

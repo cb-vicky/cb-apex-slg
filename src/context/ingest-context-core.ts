@@ -11,6 +11,24 @@ import type {
 import type { ContractGraceExtension } from "@/data/contract-transition";
 
 // ---------------------------------------------------------------------------
+// Ingestion Session Types (new Customer 360 Ingestion Tab)
+// ---------------------------------------------------------------------------
+
+export type IngestionSectionId = "summary" | "items" | "billing" | "addresses" | "additional";
+export type IngestionSectionState = "issues" | "review" | "done";
+export type IngestionOverallStatus = "in_review" | "ready" | "awaiting_approval";
+
+export interface IngestionSession {
+  queueItemId: string;
+  customerId: string;
+  sampleId: "sample2" | "sample3" | "sample4";
+  customerLink: "matched" | "created";
+  overallStatus: IngestionOverallStatus;
+  sections: Record<IngestionSectionId, IngestionSectionState>;
+  startedAt: string;
+}
+
+// ---------------------------------------------------------------------------
 // Context value (stable module — survives Vite Fast Refresh)
 // ---------------------------------------------------------------------------
 
@@ -140,6 +158,43 @@ export interface IngestContextValue {
    * surface mid-session. Mutable ref avoids extra renders when the snapshot updates.
    */
   workbenchTaskSnapshotRef: MutableRefObject<string[]>;
+
+  // ---------------------------------------------------------------------------
+  // Ingestion Sessions (new Customer 360 Ingestion Tab)
+  // ---------------------------------------------------------------------------
+
+  /** Active ingestion sessions keyed by queueItemId */
+  ingestionSessions: Record<string, IngestionSession>;
+
+  /** Start a new ingestion session for a queue item */
+  startIngestionSession: (
+    queueItemId: string,
+    customerId: string,
+    sampleId: "sample2" | "sample3" | "sample4",
+    customerLink: "matched" | "created",
+  ) => void;
+
+  /** Update a specific section's state */
+  setIngestionSectionState: (
+    queueItemId: string,
+    section: IngestionSectionId,
+    state: IngestionSectionState,
+  ) => void;
+
+  /** Update the overall status (in_review / ready / awaiting_approval) */
+  setIngestionOverallStatus: (queueItemId: string, status: IngestionOverallStatus) => void;
+
+  /** Discard an ingestion session (clears it from state) */
+  discardIngestion: (queueItemId: string) => void;
+
+  /** Restart ingestion: resets sections to seed states, sets overallStatus to in_review */
+  restartIngestion: (queueItemId: string) => void;
+
+  /** Complete ingestion: clears the session (used after Send for approval) */
+  completeIngestion: (queueItemId: string) => void;
+
+  /** Get active ingestion session for a customer (only one per customer at a time) */
+  getActiveIngestionForCustomer: (customerId: string) => IngestionSession | undefined;
 }
 
 /** @internal — import from this module only in IngestProvider */

@@ -11,6 +11,7 @@ import {
 } from "@/data/workbench-tasks";
 import type { WorkbenchTask } from "@/data/workbench-tasks";
 import { openDrawer } from "@/store/drawer-store";
+import { openLinkCustomerModal } from "@/store/link-customer-modal-store";
 
 // ---------------------------------------------------------------------------
 // Severity pill
@@ -241,6 +242,13 @@ export function WorkbenchTaskList() {
       next.delete(task.id);
       return next;
     });
+
+    // For queue-source ingest tasks, open the LinkCustomerModal instead of the drawer
+    if (task.source === "queue" && task.type === "contract-ingest" && task.drawer?.entityId) {
+      openLinkCustomerModal(task.drawer.entityId);
+      return;
+    }
+
     if (task.drawer) {
       openDrawer(task.drawer);
       return;

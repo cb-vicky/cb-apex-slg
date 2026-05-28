@@ -105,8 +105,8 @@ Merges seed invoices + `sessionInvoices` + `invoiceStatusOverrides`.
 
 Operational queue and approval lists live on **`WorkbenchHome`** (`/?tab=queue`, `/?tab=approvals`), not standalone index pages.
 
-- **Queue tab:** `QueueTabContent` — Import, Connect, row clicks → `EntityDrawer` or `UnifiedFlowShell`
-- **Approvals tab:** `ApprovalsTabContent` — pending approvals; row clicks → drawer or `/approvals/invoices/:id`
+- **Queue tab:** `QueueTabContent` — Import, Connect, row clicks → `LinkCustomerModal` → Customer 360 Ingestion tab
+- **Approvals tab:** `ApprovalsTabContent` — pending approvals; row clicks → `EntityDrawer` (`InvoiceApprovalDrawer`) or `/approvals/invoices/:id`
 
 See `docs/10-workbench-home.md` and `docs/09-contract-ingestion.md`.
 

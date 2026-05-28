@@ -18,6 +18,8 @@ import { cn } from "@/lib/utils";
 import type { Customer } from "@/data/mock-data";
 import { getContractsForCustomer, getInvoices } from "@/data/mock-data";
 import { useIngestContext } from "@/context/IngestContext";
+import type { IngestionSession, IngestionSectionId, IngestionSectionState } from "@/context/ingest-context-core";
+import { getExtractedContract } from "@/data/ingest-data";
 import type { Stage } from "./stage";
 import {
   derivePriorityChips,
@@ -238,6 +240,7 @@ const stageDisplay: Record<Stage, { tab: string; crumb: string }> = {
   threads: { tab: "Threads", crumb: "Threads" },
   quote: { tab: "Quotes", crumb: "Quote" },
   contract: { tab: "Contracts", crumb: "Contract" },
+  ingestion: { tab: "Ingestion", crumb: "Ingestion" },
   invoicing: { tab: "Invoicing", crumb: "Invoice" },
   payment: { tab: "Collections", crumb: "Collection" },
   revrec: { tab: "RevRec", crumb: "Arrangement" },
@@ -285,6 +288,12 @@ const groupLabels: Record<string, string> = {
   "blocked-missing-details": "Blocked – missing details",
 };
 
+/** Invoicing sub-tab type */
+export type InvoicingSubTab = "invoices" | "credit-notes";
+
+/** Ingestion sub-tab type (exported for use in CustomerRevenueWorkspace) */
+export type { IngestionSubTab };
+
 /** Context data for the left info pill */
 interface ContextPillData {
   /** For Overview: ARR */
@@ -307,6 +316,8 @@ interface ContextPillData {
   contractTcv?: number;
   /** For Invoicing parent: Invoice count */
   invoiceCount?: number;
+  /** For Invoicing parent: Credit note count */
+  creditNoteCount?: number;
   /** For Invoice record: Amount */
   invoiceAmount?: number;
   /** For Collections: Open AR */
@@ -330,6 +341,16 @@ interface Props {
   recordSlot?: ReactNode;
   /** Data for the left context info pill */
   contextPillData?: ContextPillData;
+  /** Current invoicing sub-tab (invoices | credit-notes) */
+  invoicingSubTab?: InvoicingSubTab;
+  /** Callback when invoicing sub-tab changes */
+  onInvoicingSubTabChange?: (tab: InvoicingSubTab) => void;
+  /** Active ingestion session for this customer (if any) */
+  ingestionSession?: IngestionSession;
+  /** Current ingestion sub-tab */
+  ingestionSubTab?: IngestionSubTab;
+  /** Callback when ingestion sub-tab changes */
+  onIngestionSubTabChange?: (tab: IngestionSubTab) => void;
 }
 
 const TAB_COLLAPSE_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
@@ -356,20 +377,197 @@ function formatShortDate(dateStr: string): string {
 const CONTEXT_PILL_HEIGHT = 34;
 
 /**
- * Context info pill — shows contextual data based on active tab.
- * Uses inverted trapezoidal shape (wider top, narrower bottom).
+ * Invoicing tab pill — shows tabs for Invoices and Credit Notes counts.
+ * Used in the ContextInfoPill when on the invoicing parent stage.
+ * Features a smooth sliding underline animation when switching tabs.
  */
-function ContextInfoPill({
-  activeTab,
-  customer,
-  contextPillData,
+function InvoicingTabPill({
+  invoiceCount,
+  creditNoteCount,
+  activeSubTab,
+  onSubTabChange,
 }: {
-  activeTab: WorkspaceTab;
-  customer: Customer;
-  contextPillData?: ContextPillData;
+  invoiceCount: number;
+  creditNoteCount: number;
+  activeSubTab: InvoicingSubTab;
+  onSubTabChange: (tab: InvoicingSubTab) => void;
+}) {
+  const pillRef = useRef<HTMLDivElement>(null);
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
+  const invoicesButtonRef = useRef<HTMLButtonElement>(null);
+  const creditNotesButtonRef = useRef<HTMLButtonElement>(null);
+  const invoicesTextRef = useRef<HTMLSpanElement>(null);
+  const creditNotesTextRef = useRef<HTMLSpanElement>(null);
+  
+  const [pillWidth, setPillWidth] = useState(0);
+  const [underlineStyle, setUnderlineStyle] = useState({ left: 0, width: 0 });
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Measure pill width
+  useEffect(() => {
+    if (!pillRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) setPillWidth(entry.contentRect.width);
+    });
+    ro.observe(pillRef.current);
+    setPillWidth(pillRef.current.offsetWidth);
+    return () => ro.disconnect();
+  }, []);
+
+  // Calculate underline position based on active tab
+  const updateUnderlinePosition = useCallback(() => {
+    const pill = pillRef.current;
+    const activeButtonRef = activeSubTab === "invoices" ? invoicesButtonRef : creditNotesButtonRef;
+    const activeTextRef = activeSubTab === "invoices" ? invoicesTextRef : creditNotesTextRef;
+    
+    if (!pill || !activeButtonRef.current || !activeTextRef.current) return;
+    
+    const pillRect = pill.getBoundingClientRect();
+    const buttonRect = activeButtonRef.current.getBoundingClientRect();
+    const textWidth = activeTextRef.current.offsetWidth;
+    
+    // Calculate underline width (50% of text width) and center it under the text
+    const underlineWidth = textWidth * 0.5;
+    const buttonCenter = buttonRect.left - pillRect.left + buttonRect.width / 2;
+    const underlineLeft = buttonCenter - underlineWidth / 2;
+    
+    setUnderlineStyle({
+      left: underlineLeft,
+      width: underlineWidth,
+    });
+    
+    // Mark as initialized after first measurement
+    if (!isInitialized) {
+      requestAnimationFrame(() => setIsInitialized(true));
+    }
+  }, [activeSubTab, isInitialized]);
+
+  // Update underline position when active tab changes or on mount
+  useEffect(() => {
+    updateUnderlinePosition();
+  }, [updateUnderlinePosition, invoiceCount, creditNoteCount]);
+
+  // Also update on window resize
+  useEffect(() => {
+    const handleResize = () => updateUnderlinePosition();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [updateUnderlinePosition]);
+
+  const tabs: { id: InvoicingSubTab; label: string; count: number; buttonRef: React.RefObject<HTMLButtonElement | null>; textRef: React.RefObject<HTMLSpanElement | null> }[] = [
+    { id: "invoices", label: "Invoices", count: invoiceCount, buttonRef: invoicesButtonRef, textRef: invoicesTextRef },
+    { id: "credit-notes", label: "Credit Notes", count: creditNoteCount, buttonRef: creditNotesButtonRef, textRef: creditNotesTextRef },
+  ];
+
+  return (
+    <div
+      ref={pillRef}
+      className="relative inline-flex items-center justify-center"
+      style={{ height: CONTEXT_PILL_HEIGHT, minWidth: 160 }}
+    >
+      <InvertedPillSVG width={pillWidth} height={CONTEXT_PILL_HEIGHT} />
+      <div ref={tabsContainerRef} className="relative z-10 flex items-center gap-4 px-4 py-1.5">
+        {tabs.map((tab) => {
+          const isActive = activeSubTab === tab.id;
+          
+          return (
+            <button
+              key={tab.id}
+              ref={tab.buttonRef}
+              type="button"
+              onClick={() => onSubTabChange(tab.id)}
+              className="group/subtab relative flex flex-col items-center"
+            >
+              <span
+                ref={tab.textRef}
+                className={cn(
+                  "text-[12px] font-semibold transition-colors duration-200",
+                  isActive
+                    ? "text-slate-900"
+                    : "text-slate-500 group-hover/subtab:text-slate-700"
+                )}
+              >
+                {tab.count} {tab.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      
+      {/* Single animated underline that slides between tabs - positioned at bottom of pill */}
+      <span
+        className="absolute bottom-[1px] z-20 h-[2.5px] rounded-full bg-blue-600"
+        style={{
+          left: underlineStyle.left,
+          width: underlineStyle.width,
+          transition: isInitialized 
+            ? "left 280ms cubic-bezier(0.4, 0, 0.2, 1), width 280ms cubic-bezier(0.4, 0, 0.2, 1)"
+            : "none",
+        }}
+      />
+    </div>
+  );
+}
+
+type IngestionSubTab = IngestionSectionId | `pdf-${string}` | "contract-preview" | "invoice-preview";
+
+function getSectionStatusDot(state: IngestionSectionState): "red" | "amber" | "green" | null {
+  switch (state) {
+    case "issues":
+      return "red";
+    case "review":
+      return "amber";
+    case "done":
+      return "green";
+    default:
+      return null;
+  }
+}
+
+/**
+ * Ingestion tab pill — renders section tabs + PDF tabs (Frame 1) or
+ * Back / Contract Preview / Invoice Preview (Frame 2). Underline tracks the
+ * active sub-tab; tab change is delegated to the parent.
+ */
+function IngestionTabPill({
+  session,
+  activeSubTab,
+  onSubTabChange,
+}: {
+  session: IngestionSession;
+  activeSubTab: IngestionSubTab;
+  onSubTabChange: (tab: IngestionSubTab) => void;
 }) {
   const pillRef = useRef<HTMLDivElement>(null);
   const [pillWidth, setPillWidth] = useState(0);
+  const [underlineStyle, setUnderlineStyle] = useState({ left: 0, width: 0 });
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  const extracted = useMemo(() => getExtractedContract(session.sampleId), [session.sampleId]);
+
+  const isFrame2 = activeSubTab === "contract-preview" || activeSubTab === "invoice-preview";
+
+  const sectionTabs: { id: IngestionSectionId; label: string }[] = [
+    { id: "summary", label: "Summary" },
+    { id: "items", label: "Items" },
+    { id: "billing", label: "Billing info" },
+    { id: "addresses", label: "Addresses" },
+    { id: "additional", label: "Additional info" },
+  ];
+
+  const pdfTabs = extracted.documents.map((doc) => ({
+    id: `pdf-${doc.id}` as const,
+    label: doc.name.length > 20 ? doc.name.slice(0, 17) + "..." : doc.name,
+  }));
+
+  const frame2Tabs: { id: IngestionSubTab; label: string }[] = [
+    { id: "contract-preview", label: "Contract Preview" },
+    { id: "invoice-preview", label: "Invoice Preview" },
+  ];
+
+  const tabRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map());
+  const textRefs = useRef<Map<string, HTMLSpanElement | null>>(new Map());
 
   useEffect(() => {
     if (!pillRef.current) return;
@@ -382,9 +580,272 @@ function ContextInfoPill({
     return () => ro.disconnect();
   }, []);
 
+  const updateUnderlinePosition = useCallback(() => {
+    const pill = pillRef.current;
+    const activeButton = tabRefs.current.get(activeSubTab);
+    const activeText = textRefs.current.get(activeSubTab);
+
+    if (!pill || !activeButton || !activeText) return;
+
+    const pillRect = pill.getBoundingClientRect();
+    const buttonRect = activeButton.getBoundingClientRect();
+    const textWidth = activeText.offsetWidth;
+
+    const underlineWidth = textWidth * 0.5;
+    const buttonCenter = buttonRect.left - pillRect.left + buttonRect.width / 2;
+    const underlineLeft = buttonCenter - underlineWidth / 2;
+
+    setUnderlineStyle({
+      left: underlineLeft,
+      width: underlineWidth,
+    });
+
+    if (!isInitialized) {
+      requestAnimationFrame(() => setIsInitialized(true));
+    }
+  }, [activeSubTab, isInitialized]);
+
+  useEffect(() => {
+    updateUnderlinePosition();
+  }, [updateUnderlinePosition]);
+
+  useEffect(() => {
+    const handleResize = () => updateUnderlinePosition();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [updateUnderlinePosition]);
+
+  return (
+    <div
+      ref={pillRef}
+      className="relative inline-flex items-center justify-center"
+      style={{ height: CONTEXT_PILL_HEIGHT, minWidth: 400 }}
+    >
+      <InvertedPillSVG width={pillWidth} height={CONTEXT_PILL_HEIGHT} />
+      <div className="relative z-10 flex items-center gap-1 px-3 py-1.5">
+        {isFrame2 ? (
+          <>
+            {/* Back to ingestion */}
+            <button
+              type="button"
+              onClick={() => onSubTabChange("summary")}
+              className="group/subtab relative flex items-center gap-1 rounded px-2 py-0.5"
+            >
+              <ChevronRight size={11} className="rotate-180 text-slate-400" />
+              <span className="text-[11px] font-medium text-slate-500 group-hover/subtab:text-slate-700 transition-colors duration-200">
+                Back to ingestion
+              </span>
+            </button>
+
+            <span className="mx-1 text-slate-300">|</span>
+
+            {/* Frame 2 preview tabs */}
+            {frame2Tabs.map((tab) => {
+              const isActive = activeSubTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  ref={(el) => { tabRefs.current.set(tab.id, el); }}
+                  type="button"
+                  onClick={() => onSubTabChange(tab.id)}
+                  className="group/subtab relative flex items-center gap-1 rounded px-2 py-0.5"
+                >
+                  <span
+                    ref={(el) => { textRefs.current.set(tab.id, el); }}
+                    className={cn(
+                      "text-[11px] font-medium transition-colors duration-200",
+                      isActive
+                        ? "text-slate-900"
+                        : "text-slate-500 group-hover/subtab:text-slate-700",
+                    )}
+                  >
+                    {tab.label}
+                  </span>
+                </button>
+              );
+            })}
+          </>
+        ) : (
+          <>
+            {/* Section tabs */}
+            {sectionTabs.map((tab) => {
+              const isActive = activeSubTab === tab.id;
+              const dotColor = getSectionStatusDot(session.sections[tab.id]);
+
+              return (
+                <button
+                  key={tab.id}
+                  ref={(el) => { tabRefs.current.set(tab.id, el); }}
+                  type="button"
+                  onClick={() => onSubTabChange(tab.id)}
+                  className="group/subtab relative flex items-center gap-1.5 rounded px-2 py-0.5"
+                >
+                  {dotColor && (
+                    <span
+                      className={cn(
+                        "size-1.5 rounded-full",
+                        dotColor === "red" && "bg-red-500",
+                        dotColor === "amber" && "bg-amber-500",
+                        dotColor === "green" && "bg-emerald-500",
+                      )}
+                    />
+                  )}
+                  <span
+                    ref={(el) => { textRefs.current.set(tab.id, el); }}
+                    className={cn(
+                      "text-[11px] font-medium transition-colors duration-200",
+                      isActive
+                        ? "text-slate-900"
+                        : "text-slate-500 group-hover/subtab:text-slate-700",
+                    )}
+                  >
+                    {tab.label}
+                  </span>
+                </button>
+              );
+            })}
+
+            {/* Pipe separator */}
+            {pdfTabs.length > 0 && (
+              <span className="mx-1 text-slate-300">|</span>
+            )}
+
+            {/* PDF tabs */}
+            {pdfTabs.map((tab) => {
+              const isActive = activeSubTab === tab.id;
+
+              return (
+                <button
+                  key={tab.id}
+                  ref={(el) => { tabRefs.current.set(tab.id, el); }}
+                  type="button"
+                  onClick={() => onSubTabChange(tab.id)}
+                  className="group/subtab relative flex items-center gap-1 rounded px-2 py-0.5"
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className="shrink-0 text-slate-400">
+                    <path d="M4 1h6l4 4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+                    <path d="M10 1v4h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span
+                    ref={(el) => { textRefs.current.set(tab.id, el); }}
+                    className={cn(
+                      "text-[11px] font-medium transition-colors duration-200",
+                      isActive
+                        ? "text-slate-900"
+                        : "text-slate-500 group-hover/subtab:text-slate-700",
+                    )}
+                  >
+                    {tab.label}
+                  </span>
+                </button>
+              );
+            })}
+          </>
+        )}
+      </div>
+
+      {/* Animated underline */}
+      <span
+        className="absolute bottom-[1px] z-20 h-[2.5px] rounded-full bg-blue-600"
+        style={{
+          left: underlineStyle.left,
+          width: underlineStyle.width,
+          transition: isInitialized
+            ? "left 280ms cubic-bezier(0.4, 0, 0.2, 1), width 280ms cubic-bezier(0.4, 0, 0.2, 1)"
+            : "none",
+        }}
+      />
+    </div>
+  );
+}
+
+/**
+ * Context info pill — shows contextual data based on active tab.
+ * Uses inverted trapezoidal shape (wider top, narrower bottom).
+ */
+function ContextInfoPill({
+  activeTab,
+  customer,
+  contextPillData,
+  invoicingSubTab,
+  onInvoicingSubTabChange,
+  ingestionSession,
+  ingestionSubTab,
+  onIngestionSubTabChange,
+}: {
+  activeTab: WorkspaceTab;
+  customer: Customer;
+  contextPillData?: ContextPillData;
+  invoicingSubTab?: InvoicingSubTab;
+  onInvoicingSubTabChange?: (tab: InvoicingSubTab) => void;
+  ingestionSession?: IngestionSession;
+  ingestionSubTab?: IngestionSubTab;
+  onIngestionSubTabChange?: (tab: IngestionSubTab) => void;
+}) {
+  const pillRef = useRef<HTMLDivElement>(null);
+  const [pillWidth, setPillWidth] = useState(0);
+  
   const stage = activeTab.stage;
   const isRecord = activeTab.kind === "record";
   const recordId = isRecord ? activeTab.recordId : undefined;
+  
+  // Check if we should show the invoicing tabbed pill (before hooks to avoid conditional hook calls)
+  const showInvoicingTabPill = !isRecord && stage === "invoicing" && invoicingSubTab && onInvoicingSubTabChange;
+  const showIngestionTabPill = !isRecord && stage === "ingestion" && ingestionSession && ingestionSubTab && onIngestionSubTabChange;
+
+  // Reset width and re-measure when tab changes (not just when coming back from invoicing)
+  // This ensures the pill size matches the new content
+  useEffect(() => {
+    if (showInvoicingTabPill || showIngestionTabPill) return; // Skip when showing tabbed pills
+    
+    // Reset to 0 first to avoid stale width
+    setPillWidth(0);
+    
+    // Wait for DOM to update, then measure
+    const rafId = requestAnimationFrame(() => {
+      if (pillRef.current) {
+        setPillWidth(pillRef.current.offsetWidth);
+      }
+    });
+    
+    return () => cancelAnimationFrame(rafId);
+  }, [stage, isRecord, recordId, showInvoicingTabPill, showIngestionTabPill]);
+
+  // Set up ResizeObserver for dynamic content changes
+  useEffect(() => {
+    if (showInvoicingTabPill || showIngestionTabPill || !pillRef.current) return;
+    
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) setPillWidth(entry.contentRect.width);
+    });
+    ro.observe(pillRef.current);
+    
+    return () => ro.disconnect();
+  }, [showInvoicingTabPill, showIngestionTabPill]);
+
+  // Return the ingestion tabbed pill early if applicable
+  if (showIngestionTabPill) {
+    return (
+      <IngestionTabPill
+        session={ingestionSession}
+        activeSubTab={ingestionSubTab}
+        onSubTabChange={onIngestionSubTabChange}
+      />
+    );
+  }
+  
+  // Return the invoicing tabbed pill early if applicable
+  if (showInvoicingTabPill) {
+    return (
+      <InvoicingTabPill
+        invoiceCount={contextPillData?.invoiceCount ?? 0}
+        creditNoteCount={contextPillData?.creditNoteCount ?? 0}
+        activeSubTab={invoicingSubTab}
+        onSubTabChange={onInvoicingSubTabChange}
+      />
+    );
+  }
 
   // Build the content based on active tab
   let content: ReactNode = null;
@@ -511,6 +972,8 @@ function ContextInfoPill({
         break;
       }
       case "invoicing": {
+        // Tabbed pill is handled above with early return
+        // This is fallback for when invoicingSubTab is not provided
         const count = contextPillData?.invoiceCount ?? 0;
         content = (
           <span className="flex items-center gap-1.5">
@@ -531,6 +994,17 @@ function ContextInfoPill({
             )}>
               {formatCompactCurrency(openAr)}
             </span>
+          </span>
+        );
+        break;
+      }
+      case "ingestion": {
+        // The ingestion tabbed pill handles this case with early return above
+        // This is fallback for when ingestionSubTab is not provided
+        content = (
+          <span className="flex items-center gap-1.5">
+            <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Ingestion</span>
+            <span className="text-[12px] font-medium text-slate-600">In progress</span>
           </span>
         );
         break;
@@ -623,6 +1097,11 @@ export function CustomerContextBar({
   recordTabSummaries = {},
   recordSlot,
   contextPillData,
+  invoicingSubTab,
+  onInvoicingSubTabChange,
+  ingestionSession,
+  ingestionSubTab,
+  onIngestionSubTabChange,
 }: Props) {
   const navigate = useNavigate();
   const { invoiceStatusOverrides } = useIngestContext();
@@ -1209,6 +1688,11 @@ export function CustomerContextBar({
             activeTab={activeTab}
             customer={customer}
             contextPillData={contextPillData}
+            invoicingSubTab={invoicingSubTab}
+            onInvoicingSubTabChange={onInvoicingSubTabChange}
+            ingestionSession={ingestionSession}
+            ingestionSubTab={ingestionSubTab}
+            onIngestionSubTabChange={onIngestionSubTabChange}
           />
           
           {/* Right actions pill */}
@@ -1467,6 +1951,10 @@ const QUIRKY_HEALTHY_MESSAGES: Record<Stage, string[]> = {
   contract: [
     "Contracts are in good standing.",
     "Everything's active and running smoothly.",
+  ],
+  ingestion: [
+    "Contract ingestion in progress.",
+    "Review the extracted data and approve.",
   ],
   invoicing: [
     "All invoices paid or on track!",

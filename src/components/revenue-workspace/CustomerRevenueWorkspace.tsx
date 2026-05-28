@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle2 } from "lucide-react";
 import type { Customer, Quote, Contract, Invoice, Task, ContractClosure } from "@/data/mock-data";
 import { getInvoices, getQuoteLineage, getQuotesForCustomer, getContractsForCustomer } from "@/data/mock-data";
-import { getCollectionCasesForCustomer } from "@/data/billing-data";
+import { getCollectionCasesForCustomer, getCreditNotesForCustomer } from "@/data/billing-data";
 import { getRevenueArrangement } from "@/data/revrec-data";
 import { useIngestContext } from "@/context/IngestContext";
 import { useWorkspaceShell } from "@/context/WorkspaceShellContext";
 import { openDrawer } from "@/store/drawer-store";
-import { CustomerContextBar } from "./CustomerContextBar";
+import { CustomerContextBar, type InvoicingSubTab, type IngestionSubTab } from "./CustomerContextBar";
 import { buildRecordTabSummaries, deriveParentTabSummaries } from "./derive-tab-summaries";
 import type { Stage } from "./stage";
 import {
@@ -27,11 +27,13 @@ import { PaymentStageContent } from "./payment/PaymentStageContent";
 import { RevRecStageContent } from "./revrec/RevRecStageContent";
 import { TasksStageContent } from "./tasks/TasksStageContent";
 import { ThreadsStageContent } from "./threads/ThreadsStageContent";
+import { IngestionStageContent } from "./ingestion/IngestionStageContent";
 import { customerTasks, type CustomerTask } from "@/data/customer-tasks";
 import { emailThreads } from "@/data/email-threads";
 import { QuoteListView } from "./quote/QuoteListView";
 import { ContractListView, type PendingIngestionContract } from "./contract/ContractListView";
 import { InvoiceListView } from "./invoicing/InvoiceListView";
+import { CreditNoteListView } from "./invoicing/CreditNoteListView";
 import { CloseContractPane, type IncomingRenewalPreview } from "@/components/contracts/CloseContractPane";
 import { mergeContractsWithRuntimeClosures } from "./derive-stage-data";
 import { extractedSample3 } from "@/data/ingest-data";
@@ -96,7 +98,10 @@ export function CustomerRevenueWorkspace({
     contractGraceExtensions,
     sessionInvoices,
     queueItems,
+    getActiveIngestionForCustomer,
   } = useIngestContext();
+
+  const activeIngestionSession = getActiveIngestionForCustomer(customer.id);
 
   useEffect(() => {
     setCustomer360Active(true);
@@ -107,7 +112,15 @@ export function CustomerRevenueWorkspace({
   const [activeContract, setActiveContract] = useState<Contract | null>(contract);
   const [showClosePane, setShowClosePane] = useState(false);
 
-  const [hiddenParentStages, setHiddenParentStages] = useState<Set<Stage>>(new Set());
+  const [hiddenParentStagesManual, setHiddenParentStagesManual] = useState<Set<Stage>>(new Set());
+
+  const hiddenParentStages = useMemo(() => {
+    const set = new Set(hiddenParentStagesManual);
+    if (!activeIngestionSession) {
+      set.add("ingestion");
+    }
+    return set;
+  }, [hiddenParentStagesManual, activeIngestionSession]);
   const [openRecordTabs, setOpenRecordTabs] = useState<OpenRecordTab[]>(() => {
     const stage = closeIntent ? "contract" : initialStage;
     if (activeRecordId && isListDetailStage(stage)) {
@@ -179,6 +192,13 @@ export function CustomerRevenueWorkspace({
       return st !== undefined ? { ...inv, status: st } : inv;
     });
   }, [customerInvoicesRaw, invoiceStatusOverrides]);
+
+  /** Credit notes for this customer (all credit notes, not just closure-related) */
+  const { creditNoteStatusOverrides } = useIngestContext();
+  const creditNotesForCustomer = useMemo(
+    () => getCreditNotesForCustomer(customer.id, creditNoteStatusOverrides),
+    [customer.id, creditNoteStatusOverrides],
+  );
 
   // Build incoming renewal preview from sample3 data when triggered from queue
   const incomingRenewal: IncomingRenewalPreview | undefined = closeIntent === "early-renewal" && queueItemId
@@ -284,6 +304,28 @@ export function CustomerRevenueWorkspace({
       : undefined;
 
   const [activeInvoice, setActiveInvoice] = useState<Invoice | undefined>(initialInvoice);
+  const [invoicingSubTab, setInvoicingSubTab] = useState<InvoicingSubTab>("invoices");
+
+  // Ingestion sub-tab state: read from URL search params
+  const [searchParams, setSearchParams] = useSearchParams();
+  const ingestionSubTab = useMemo<IngestionSubTab>(() => {
+    const sub = searchParams.get("sub");
+    if (sub) return sub as IngestionSubTab;
+    const frame = searchParams.get("frame");
+    return frame === "2" ? "contract-preview" : "summary";
+  }, [searchParams]);
+
+  const handleIngestionSubTabChange = useCallback((tab: IngestionSubTab) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("sub", tab);
+    // Handle frame transitions
+    if (tab === "contract-preview" || tab === "invoice-preview") {
+      params.set("frame", "2");
+    } else if (tab.startsWith("pdf-") || ["summary", "items", "billing", "addresses", "additional"].includes(tab)) {
+      params.set("frame", "1");
+    }
+    setSearchParams(params);
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     setActiveQuote(quote);
@@ -346,12 +388,13 @@ export function CustomerRevenueWorkspace({
   ]);
 
   const hasRecordBar =
-    isRecordDetail(activeTab) &&
+    (isRecordDetail(activeTab) &&
     Boolean(
       (activeTab.stage === "quote" && !!activeQuote) ||
         (activeTab.stage === "contract" && !!effectiveContract) ||
         (activeTab.stage === "invoicing" && !!effectiveInvoice && !!effectiveContract),
-    );
+    )) ||
+    (activeStage === "ingestion" && !!activeIngestionSession);
 
   const [recordSlotEl, setRecordSlotEl] = useState<HTMLDivElement | null>(null);
 
@@ -396,20 +439,70 @@ export function CustomerRevenueWorkspace({
 
   function handleParentClose(stage: Stage) {
     if (stage === "customer") return;
-    setHiddenParentStages((prev) => new Set([...prev, stage]));
+    setHiddenParentStagesManual((prev) => new Set([...prev, stage]));
     if (activeTab.kind === "parent" && activeTab.stage === stage) {
       setActiveTab({ kind: "parent", stage: "customer" });
     }
   }
 
   function handleRestoreParent(stage: Stage) {
-    setHiddenParentStages((prev) => {
+    setHiddenParentStagesManual((prev) => {
       const next = new Set(prev);
       next.delete(stage);
       return next;
     });
     setActiveTab({ kind: "parent", stage });
   }
+
+  // Sync `activeTab` whenever URL-driven props (`initialStage` / `activeRecordId`)
+  // actually change — i.e. when something `navigate(...)`s within the same mounted
+  // `CustomerRevenueWorkspace` instance (e.g. Send-for-approval, Discard, deep-link
+  // changes). Internal tab clicks don't change those props, so user-driven tab
+  // selection isn't overridden by this effect.
+  const lastInitialStageRef = useRef(initialStage);
+  const lastActiveRecordIdRef = useRef(activeRecordId);
+  useEffect(() => {
+    const stageChanged = lastInitialStageRef.current !== initialStage;
+    const recordChanged = lastActiveRecordIdRef.current !== activeRecordId;
+    lastInitialStageRef.current = initialStage;
+    lastActiveRecordIdRef.current = activeRecordId;
+
+    if (!stageChanged && !recordChanged) return;
+    if (closeIntent) return;
+
+    if (activeRecordId && isListDetailStage(initialStage)) {
+      const next: WorkspaceTab = {
+        kind: "record",
+        stage: initialStage,
+        recordId: activeRecordId,
+      };
+      setOpenRecordTabs((prev) =>
+        prev.some((r) => r.stage === initialStage && r.recordId === activeRecordId)
+          ? prev
+          : [...prev, { stage: initialStage, recordId: activeRecordId }],
+      );
+      setActiveTab(next);
+      if (initialStage === "invoicing") {
+        const inv = invoicesForListView.find((i) => i.id === activeRecordId);
+        if (inv) setActiveInvoice(inv);
+      } else if (initialStage === "contract") {
+        const c = contractsForListView.find((c) => c.id === activeRecordId);
+        if (c) setActiveContract(c);
+      } else if (initialStage === "quote") {
+        const q = customerQuotes.find((q) => q.id === activeRecordId);
+        if (q) setActiveQuote(q);
+      }
+    } else {
+      setActiveTab({ kind: "parent", stage: initialStage });
+    }
+  }, [
+    initialStage,
+    activeRecordId,
+    closeIntent,
+    invoicesForListView,
+    contractsForListView,
+    customerQuotes,
+  ]);
 
   function handleRecordClose(stage: ListDetailStage, recordId: string) {
     const closingActive =
@@ -461,6 +554,13 @@ export function CustomerRevenueWorkspace({
             />
           );
         case "invoicing":
+          if (invoicingSubTab === "credit-notes") {
+            return (
+              <CreditNoteListView
+                creditNotes={creditNotesForCustomer}
+              />
+            );
+          }
           return (
             <InvoiceListView
               invoices={invoicesForListView}
@@ -498,6 +598,13 @@ export function CustomerRevenueWorkspace({
           <EmptyState message="No contract found for this customer." />
         );
       }
+      case "ingestion":
+        return activeIngestionSession ? (
+          <IngestionStageContent
+            session={activeIngestionSession}
+            customer={customer}
+          />
+        ) : null;
       case "invoicing":
         return effectiveInvoice && effectiveContract ? (
           <InvoicingStageContent invoice={effectiveInvoice} contract={effectiveContract} />
@@ -589,6 +696,7 @@ export function CustomerRevenueWorkspace({
       contractCount: contractsForListView.length,
       contractTcv,
       invoiceCount: invoicesForListView.length,
+      creditNoteCount: creditNotesForCustomer.length,
       invoiceAmount,
       openAr: customer.openAr,
     };
@@ -601,6 +709,7 @@ export function CustomerRevenueWorkspace({
     customerQuotes.length,
     contractsForListView.length,
     invoicesForListView.length,
+    creditNotesForCustomer.length,
   ]);
 
   return (
@@ -619,8 +728,15 @@ export function CustomerRevenueWorkspace({
         onRestoreParent={handleRestoreParent}
         parentTabSummaries={parentTabSummaries}
         recordTabSummaries={recordTabSummaries}
-        recordSlot={hasRecordBar ? <div ref={setRecordSlotEl} /> : null}
+        recordSlot={
+          hasRecordBar ? <div ref={setRecordSlotEl} /> : null
+        }
         contextPillData={contextPillData}
+        invoicingSubTab={invoicingSubTab}
+        onInvoicingSubTabChange={setInvoicingSubTab}
+        ingestionSession={activeIngestionSession}
+        ingestionSubTab={ingestionSubTab}
+        onIngestionSubTabChange={handleIngestionSubTabChange}
       />
 
       {/* Detail nav: Notion-style line rail on all detail views (xl+). */}

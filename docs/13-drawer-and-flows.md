@@ -1,81 +1,104 @@
-# Drawer & Unified Flows
+# Drawer & Customer 360 Ingestion
 
-Reference for the **global overlay** pattern: how `EntityDrawer`, `drawer-store`, and `UnifiedFlowShell` orchestrate ingest, invoice review, approvals, renewals, and grace flows without leaving the Workbench or customer shell.
+Reference for the **global overlay** pattern and the **Customer 360 Ingestion tab** architecture.
 
-**Related:** `docs/09-contract-ingestion.md` (business flows), `docs/06-routing.md` (URLs), `docs/08-mock-data.md` (`contract-transition.ts` types).
+**Architecture change (May 2026):** Contract ingestion has moved from the drawer-based `IngestDrawer` + `UnifiedFlowShell` to a **Customer 360 Ingestion tab** inside `CustomerRevenueWorkspace`. The `EntityDrawer` is now simplified to only handle invoice approvals.
 
----
-
-## Why drawer-first
-
-Most operator paths stay in context:
-
-- Workbench **Queue** / **Your tasks** rows
-- **UploadModal** after sample pick
-- **Prospects** index
-- Contract **Transition**, **Extend grace**, **Resolve renewal** from workspace
-
-Full-page routes (`/queue/:queueItemId`, `/approvals/invoices/:id`) remain for bookmarks and legacy deep links; **Queue tab and Upload default to `openDrawer`**.
+**Related:** `docs/09-contract-ingestion.md` (business flows), `docs/06-routing.md` (URLs), `docs/03-customer-workspace.md` (workspace tabs).
 
 ---
 
-## Architecture
+## Architecture overview
 
 ```
 App.tsx
-  <EntityDrawer />          ← always mounted, z-[60]
+  <EntityDrawer />          ← invoice approval only, z-[60]
+  <LinkCustomerModal />     ← customer linking for ingestion
   <Routes> … </Routes>
 
-drawer-store.ts             ← module singleton + subscribe/emit
+drawer-store.ts             ← simplified: open/close, no flow state
 useDrawerStore.ts           ← React hook (useSyncExternalStore)
 
-EntityDrawer.tsx            ← picks shell by flow + mode
-  ├─ UnifiedFlowShell       ← multi-step flows (stepper + lifecycle peek)
-  ├─ IngestDrawer           ← single-surface ingest / transition / late_renewal
-  └─ InvoiceApprovalDrawer  ← standalone approval (no ingest link)
+EntityDrawer.tsx            ← only renders InvoiceApprovalDrawer
+
+link-customer-modal-store.ts ← modal state for ingestion entry
+useLinkCustomerModalStore.ts ← React hook
+
+CustomerRevenueWorkspace
+  └─ IngestionStageContent  ← when tab=ingestion
 ```
 
-Session business state (queue overrides, approvals, closures, grace) stays in **`IngestProvider`**. The drawer store only holds **UI orchestration**: what is open, which entity, which flow step.
+Session business state (queue overrides, approvals, closures, ingestion sessions) stays in **`IngestProvider`**. The drawer store only holds **UI orchestration** for invoice approval: what is open and which invoice.
 
 ---
 
-## EntityDrawer
+## LinkCustomerModal
 
-**File:** `src/components/common/EntityDrawer.tsx`
+**File:** `src/components/ingestion/LinkCustomerModal.tsx`
+
+The entry point for contract ingestion. Opened via `openLinkCustomerModal(queueItemId)`.
 
 | Property | Value |
 |---|---|
-| Layout | `fixed inset-0`, **25%** backdrop (`bg-black/30`, click to close), **75%** white panel |
-| Panel | `rounded-l-[24px]`, left shadow, full height |
-| Escape | Closes drawer |
+| Layout | Centered modal, **720px** width |
+| Backdrop | `bg-black/30`, click to close |
 | z-index | `60` |
 
-**Shell selection** (simplified):
+**Content:**
+1. Header with document name, extraction confidence, queue ID
+2. Customer search typeahead (existing customers)
+3. "Create new customer" expandable form
+4. "Open in workspace" CTA
 
+**On submit:**
 ```typescript
-if (flow && scenario in ["ingest_invoice", "invoice_only", "late_grace"])
-  → UnifiedFlowShell
-else if (mode === "invoice_approval" && entityType === "invoice")
-  → InvoiceApprovalDrawer
-else
-  → IngestDrawer
+startIngestionSession(queueItemId, customerId, sampleId, customerLink)
+closeModal()
+navigate(`/customers/${customerId}?tab=ingestion`)
 ```
 
-`IngestDrawer` supports `presentation="default"` inside the drawer and `presentation="page"` when embedded in `QueueIngestPage` (full 25/35/40 grid). When `unifiedChrome` is true, sticky header is owned by `UnifiedFlowShell`.
+### Store API
+
+**Files:** `src/store/link-customer-modal-store.ts`, `src/store/useLinkCustomerModalStore.ts`
+
+| Function | Purpose |
+|---|---|
+| `openLinkCustomerModal(queueItemId)` | Open modal with queue item context |
+| `closeLinkCustomerModal()` | Close modal |
+| `getLinkCustomerModalState()` | Get current state |
+| `subscribeLinkCustomerModal()` | Subscribe to changes |
 
 ---
 
-## drawer-store API
+## EntityDrawer (simplified)
+
+**File:** `src/components/common/EntityDrawer.tsx`
+
+Now **only** handles invoice approval. Opens when:
+- `mode === "invoice_approval"`
+- `entityType === "invoice"`
+- `entityId` is set
+
+| Property | Value |
+|---|---|
+| Layout | `fixed inset-0`, **25%** backdrop (`bg-black/30`), **75%** white panel |
+| Panel | `rounded-l-[24px]`, left shadow, full height |
+| z-index | `60` |
+
+**Body:** `InvoiceApprovalDrawer` component.
+
+---
+
+## drawer-store API (simplified)
 
 **Files:** `src/store/drawer-store.ts`, `src/store/useDrawerStore.ts`
 
 | Function | Purpose |
 |---|---|
-| `openDrawer(next)` | Open with entity + optional auto-created `flow` |
-| `closeDrawer()` | Reset to closed initial state |
-| `patchFlowSession(partial)` | Merge into active `flow` (step, ids, flags) |
-| `setFlowStep(step)` | Shorthand for `{ step }` |
-| `getDrawerState()` / `subscribeDrawer()` | Low-level subscribe (hook wraps this) |
+| `openDrawer(next)` | Open with entity type, id, mode, context |
+| `closeDrawer()` | Reset to closed state |
+| `getDrawerState()` | Get current state |
+| `subscribeDrawer()` | Subscribe to changes |
 
 ### `openDrawer` parameters
 
@@ -83,197 +106,128 @@ else
 openDrawer({
   entityType: "queue_item" | "contract" | "invoice" | "transition",
   entityId?: string,
-  mode?: "ingest" | "transition" | "late_renewal" | "invoice_approval",
+  mode?: "invoice_approval",  // only approval mode supported now
   context?: {
-    customerId?, contractId?,
-    latePhase?: "extend" | "resolve",
-    queueItemId?,
+    customerId?,
+    contractId?,
+    queueItemId?,  // for ingest-linked approvals
   },
-  flow?: TransitionFlowSession | null,  // explicit flow; else auto-inferred
-  skipUnifiedFlow?: boolean,            // force IngestDrawer for queue ingest
 })
 ```
 
-### Auto-created flows
-
-When `flow` is omitted:
-
-| Condition | Created flow |
-|---|---|
-| `mode === "ingest"` + `entityType === "queue_item"` + `entityId` (and not `skipUnifiedFlow`) | `scenario: "ingest_invoice"`, `step: "ingest"`, `furthestUnlockedStep: "ingest"` |
-| `mode === "invoice_approval"` + linked `context.queueItemId` | `scenario: "ingest_invoice"`, stepper shown, step depends on persona via URL sync |
-| `mode === "invoice_approval"` without queue link | `scenario: "invoice_only"`, `step: "approval"`, no stepper |
-
-Each auto flow gets a unique `key` (`entityType-entityId-timestamp-random`) for stable React remounting when switching rows quickly.
-
----
-
-## Types (`contract-transition.ts`)
-
-### `DrawerState`
+### Types (`contract-transition.ts`)
 
 ```typescript
-{
+interface DrawerState {
   isOpen: boolean;
   entityType: DrawerEntityType;
   entityId?: string;
   mode?: DrawerMode;
-  flow?: TransitionFlowSession | null;
-  context?: { customerId?, contractId?, latePhase?, queueItemId? };
+  flow?: null;  // flow state removed
+  context?: { customerId?, contractId?, queueItemId? };
 }
 ```
 
-### `TransitionFlowSession`
-
-| Field | Role |
-|---|---|
-| `scenario` | `ingest_invoice` \| `invoice_only` \| `late_grace` \| `late_renewal_resolve` |
-| `step` | Current `FlowStepId` |
-| `queueItemId` / `invoiceId` / `contractId` / `customerId` | Binding to mock + session records |
-| `showStepper` | Horizontal step UI (default true for linked ingest) |
-| `furthestUnlockedStep` | Max step user can jump to via stepper (gates forward nav) |
-| `ingestReadOnly` | Approver peek at ingest step without editing |
-
-### `FlowStepId`
-
-| Step | Typical surface |
-|---|---|
-| `ingest` | `IngestDrawer` — extraction, mapping, catalog |
-| `close_prior` | `EarlyRenewalClosePriorStep` — close active contract before renewal |
-| `grace_extend` | `ExtendGraceStep` — late renewal grace configuration |
-| `invoice_review` | `InvoiceReviewStep` |
-| `approval` | `InvoiceApprovalDrawer` body (invoice-only path) |
-| `approval_settings` | `ApprovalSettingsStep` — merchant policy capture |
-
-### Scenarios → step sequences
-
-**`ingest_invoice` — New Business / default**
-
-1. Contract extraction → 2. Invoice review → 3. Approval settings
-
-**`ingest_invoice` — Early Renewal / Late Renewal**
-
-1. Contract extraction → 2. Close prior → 3. Invoice review → 4. Approval settings
-
-**`late_grace`**
-
-1. Extend grace (or Resolve when `context.latePhase === "resolve"`) → 2. Approval settings
-
-**`invoice_only`**
-
-Single approval surface; optional stepper hidden.
-
 ---
 
-## UnifiedFlowShell
+## Customer 360 Ingestion Tab
 
-**File:** `src/components/transitions/UnifiedFlowShell.tsx`
+Contract ingestion now happens **inside the customer workspace** via the Ingestion tab.
 
-Wraps multi-step flows with:
+### Entry points
 
-1. **Header** — close, customer name (or "New Contract"), scenario tag (Early/Late Renewal), **horizontal stepper**, trailing actions from `UnifiedDrawerChromeContext`
-2. **Lifecycle peek tabs** — Overview, Quotes, Contracts, Invoicing, Collections, RevRec (subset used in practice)
-3. **Step body** — switches on `flow.step`
-
-### Lifecycle peek behavior
-
-Operators can peek at customer workspace sections **inside the drawer** without closing the overlay:
-
-- Default stage follows flow step (`contract` for ingest/close_prior/grace; `invoicing` for review/settings)
-- User can switch tabs; selecting quote/contract/invoice rows renders embedded `*StageContent` / list views
-- **"All contracts"** tab (Early/Late Renewal only) shows `ContractListView` + pending ingestion rows
-
-Returning to the flow step clears peek selections.
-
-### Step gating
-
-`furthestUnlockedStep` limits stepper clicks. Forward progress is committed by primary actions in each step (e.g. **Next** on ingest advances `furthestUnlockedStep` to `invoice_review`).
-
-Approver persona: opening ingest-linked approval may land on `invoice_review` with `ingestReadOnly` on the ingest step.
-
-### Celebration
-
-Brief UI celebration when advancing into `invoice_review` (prototype affordance).
-
----
-
-## Entry points (where `openDrawer` is called)
-
-| Source | Typical `openDrawer` shape |
+| Source | Action |
 |---|---|
-| `UploadModal` | `{ entityType: "queue_item", mode: "ingest", entityId }` → auto `ingest_invoice` |
-| `QueueTabContent` | Status-driven: pending → ingest; invoice review → `step: "invoice_review"`; ingested + approver → approval drawer |
-| `WorkbenchTaskList` | `task.drawer` from `deriveWorkbenchTasks` |
-| `ApprovalsTabContent` | Invoice approval with optional `queueItemId` |
-| `ProspectsIndex` | New-business queue rows |
-| `ContractStageContent` | `mode: "transition"` or `late_renewal` with `latePhase` |
-| `ContractListView` | Pending ingestion row → ingest |
-| `CustomerRevenueWorkspace` | Transition from record actions |
-| `useApprovalUrlDrawerSync` | `/approvals/invoices/:id?ingestId=&step=` opens drawer over page |
+| `UploadModal` | `openLinkCustomerModal(queueItem.id)` |
+| `QueueTabContent` | Row click → `openLinkCustomerModal(q.id)` |
+| `WorkbenchTaskList` | Queue-sourced tasks → `openLinkCustomerModal(task.drawer.entityId)` |
 
-### Workbench task `drawer` field
+### IngestionSession
 
-`WorkbenchTask.drawer?: WorkbenchTaskDrawerLaunch` mirrors `openDrawer` args. **Your tasks** calls `openDrawer(task.drawer)` instead of `navigate(task.destination)` when set.
+Managed in `IngestContext`:
 
----
+```typescript
+interface IngestionSession {
+  queueItemId: string;
+  customerId: string;
+  sampleId: "sample2" | "sample3" | "sample4";
+  customerLink: "matched" | "created";
+  overallStatus: "in_review" | "ready" | "awaiting_approval";
+  sections: Record<IngestionSectionId, IngestionSectionState>;
+  startedAt: string;
+}
+```
 
-## Drawer vs full page
+### Tab visibility
 
-| Surface | When | Layout |
+The Ingestion tab **only appears** when `getActiveIngestionForCustomer(customerId)` returns a session. This is unlike other workspace tabs which are always visible (but may be disabled).
+
+### URL structure
+
+```
+/customers/:id?tab=ingestion&frame=1&sub=summary
+/customers/:id?tab=ingestion&frame=1&sub=items
+/customers/:id?tab=ingestion&frame=2&sub=contract-preview
+```
+
+### Frame 1 (Review)
+
+Sub-tabs via `ContextInfoPill`:
+- Summary, Items, Billing, Addresses, Additional Info, PDFs
+
+Each section has a status indicator (issues/review/done) and "Mark as done" CTA.
+
+### Frame 2 (Preview)
+
+Sub-tabs:
+- `← Back to ingestion` (returns to `?frame=1&sub=summary`)
+- Contract Preview — mock of Chargebee contract
+- Invoice Preview — mock of first invoice
+
+The pill swaps between the Frame-1 and Frame-2 layouts based on `?frame=`. `IngestionStageContent` also normalizes `?sub=` to a valid value for the active frame so cross-frame transitions never land on a blank canvas.
+
+### Actions (right context pill)
+
+`IngestionActions` is **portaled** into the right context pill via `RecordSlotContext` / `RecordHeader` — the same pattern Quote / Contract / Invoicing detail pages use. Only flat-text CTAs live in the pill; there is no status dropdown.
+
+| Frame | Primary CTAs | Overflow (`…`) |
 |---|---|---|
-| **EntityDrawer** | Default for Queue, Upload, tasks, transitions | 75% panel; unified flow or `IngestDrawer` narrow rail + preview |
-| **QueueIngestPage** | `/queue/:id`, Failed/Rejected, or non-drawer fallback | Page canvas; ingestable late renewal may render `UnifiedFlowShell` inline (no overlay) |
-| **ApprovalDetailPage** | `/approvals/invoices/:id` without drawer sync | Full-page 25/25/50 grid |
-
-`QueueIngestPage` intentionally mirrors Workbench drawer content for sample-backed rows so both paths stay identical.
+| Frame 1 | **Preview** (disabled until every section is `done` or `overallStatus === "ready"`) | — |
+| Frame 2 | **Send for approval** | Restart ingestion · Discard contract |
 
 ---
 
-## URL sync (`useApprovalUrlDrawerSync`)
+## Invoice approval flow
 
-**Hook:** `src/hooks/useApprovalUrlDrawerSync.ts`
+After "Send for approval" in the Ingestion tab:
 
-Used on approval routes to open the drawer from query params:
-
-```
-/approvals/invoices/:invoiceId?ingestId=QI-…&step=invoice_review
-```
-
-- `ingestId` → `ingest_invoice` flow with stepper
-- `step` must be in allowed set; approver defaults to `invoice_review` when linked to ingest
-- Cleanup on unmount: `closeDrawer()`
-
-Closure handoff may pass `queueItemId` without `ingestId` for renewal closure approvals.
+1. Contract and invoice are created via `buildSessionContractFromIngestion` / `buildSessionInvoiceFromIngestion`
+2. Invoice is submitted for approval via `submitInvoiceForApproval` and its status is overridden to `"Pending Approval"` via `setInvoiceStatusOverride`
+3. The ingestion session is `completeIngestion`-ed so the Ingestion tab is hidden, and the user is navigated to `/customers/:id?tab=invoicing&invoiceId=INV-...`
+4. `CustomerRevenueWorkspace` syncs `activeTab` from the URL-driven `initialStage` / `activeRecordId` props (via a `useRef`-guarded effect) so the new invoice opens directly in detail view — no flicker back to Overview
+5. Approval can happen via:
+   - `EntityDrawer` with `InvoiceApprovalDrawer` (opened from the **View in Approvals** CTA on the invoice details page or from `Workbench → Approvals`)
+   - Full-page `ApprovalDetailPage` at `/approvals/invoices/:id`
+6. On approve, `setInvoiceStatusOverride(invoiceId, "Approved")` flips the invoice status; the action set on the invoice details page falls back to the default Approved branch
 
 ---
 
-## IngestDrawer modes (non-unified)
+## Deleted components
 
-When `flow` is null or scenario not unified, `IngestDrawer` handles:
+The following were removed as part of the Customer 360 migration:
 
-| `mode` | Use |
-|---|---|
-| `ingest` | Queue item extraction + finish |
-| `transition` | Contract transition from workspace |
-| `late_renewal` | Grace extend / resolve (`context.latePhase`) |
-| `invoice_approval` | Only via `InvoiceApprovalDrawer` shortcut in `EntityDrawer` |
+- `src/components/transitions/UnifiedFlowShell.tsx`
+- `src/components/transitions/IngestDrawer.tsx`
+- `src/components/transitions/ValidationPanel.tsx`
+- `src/components/transitions/IngestDocumentPreviewPane.tsx`
+- `src/components/transitions/IngestFieldGroup.tsx`
+- `src/components/transitions/sections/*`
+- `src/components/transitions/panels/*`
+- `src/pages/QueueIngestPage.tsx`
 
-`entityType` + `entityId` + `context` select seed data (`sample2`/`3`/`4`), customer mapping, and validation chips.
+The `src/components/transitions/` directory no longer exists.
 
-Early Renewal (`sample3`) and Late Renewal (`sample4`) short-circuit standard finish inside `IngestDrawer` — they `patchFlowSession({ step: "close_prior" })` or invoke late-renewal handlers instead of navigating away immediately.
-
----
-
-## Adding a new flow step
-
-1. Add `FlowStepId` and scenario steps in `contract-transition.ts` if needed.
-2. Extend `buildIngestInvoiceSteps` or scenario branch in `UnifiedFlowShell`.
-3. Render step body in `UnifiedFlowShellInner` switch.
-4. Advance via `patchFlowSession` / `setFlowStep` from step component actions.
-5. Open with explicit `flow` in `openDrawer` from the entry point (Queue row, task, etc.).
-6. Update `deriveWorkbenchTasks` if Workbench should open the drawer.
-
-Keep **`IngestContext`** as the source of truth for persisted session outcomes (approvals, queue status, closures).
+Flow-related store functions (`patchFlowSession`, `setFlowStep`) and types (`TransitionFlowSession`, `FlowStepId`, `FlowScenario`) are no longer used.
 
 ---
 
@@ -281,14 +235,14 @@ Keep **`IngestContext`** as the source of truth for persisted session outcomes (
 
 | File | Role |
 |---|---|
-| `src/components/common/EntityDrawer.tsx` | Overlay chrome + shell router |
-| `src/store/drawer-store.ts` | State + `openDrawer` inference |
-| `src/store/useDrawerStore.ts` | React subscription hook |
-| `src/data/contract-transition.ts` | Types, grace extension, intent helpers |
-| `src/components/transitions/UnifiedFlowShell.tsx` | Multi-step shell + stepper |
-| `src/components/transitions/IngestDrawer.tsx` | Ingest/transition body |
-| `src/context/UnifiedDrawerChromeContext.tsx` | Trailing header actions slot |
-| `src/hooks/useApprovalUrlDrawerSync.ts` | Approval URL → drawer |
+| `src/components/common/EntityDrawer.tsx` | Invoice approval overlay only |
+| `src/store/drawer-store.ts` | Simplified drawer state |
+| `src/store/link-customer-modal-store.ts` | LinkCustomerModal state |
+| `src/components/ingestion/LinkCustomerModal.tsx` | Customer linking modal |
+| `src/components/revenue-workspace/ingestion/*` | Ingestion tab components |
+| `src/context/IngestProvider.tsx` | Session state including IngestionSession |
+| `src/data/ingestion-session.ts` | Contract/Invoice builders |
+| `src/components/approvals/InvoiceApprovalDrawer.tsx` | Approval drawer body |
 
 ---
 
@@ -296,13 +250,17 @@ Keep **`IngestContext`** as the source of truth for persisted session outcomes (
 
 **Do**
 
-- Prefer `openDrawer` for new Queue or Workbench entry points.
-- Pass explicit `flow` when opening mid-pipeline (e.g. `step: "invoice_review"`).
-- Use `patchFlowSession` to advance steps; persist outcomes in `IngestContext`.
-- Reuse `UnifiedFlowShell` when the flow has ≥2 gated steps with stepper UX.
+- Use `openLinkCustomerModal(queueItemId)` for new ingestion entry points.
+- Persist ingestion session state in `IngestContext` via `IngestionSession`.
+- Navigate to `/customers/:id?tab=ingestion` after customer linking.
+- Use `openDrawer` only for invoice approval.
+- Render Ingestion-tab CTAs through `RecordHeader` (with `ActionButton` + `OverflowItem`) so they appear in the right context pill — same primitives as other detail pages.
+- After Send-for-approval, drive the new invoice details page entirely from URL params (`?tab=invoicing&invoiceId=...`); rely on `CustomerRevenueWorkspace`'s URL → `activeTab` sync effect rather than imperatively setting tab state.
 
 **Don't**
 
-- Add a second global overlay — extend `EntityDrawer` / `UnifiedFlowShell`.
-- Store invoice/queue business state in `drawer-store` (UI only).
-- Use `/?tab=queue` as the queue landing (no standalone queue index page).
+- Add flow/step state to drawer-store (removed).
+- Reference deleted transition components.
+- Create new drawer modes for ingestion (use Customer 360 tab).
+- Reintroduce a status chip / status dropdown into the Ingestion actions pill — sections drive the gate, not a global selector.
+- Use `useState` initializers to mirror props (e.g. `preselectedCustomer` in `LinkCustomerModal`); use `useEffect` so the state updates when the prop changes.

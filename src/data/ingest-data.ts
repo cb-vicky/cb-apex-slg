@@ -42,6 +42,39 @@ export interface IngestIssue {
   detail?: string;
 }
 
+export interface ExtractedAddress {
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+}
+
+export interface ExtractedAddresses {
+  billing: ExtractedAddress;
+  shipping: ExtractedAddress;
+  sameAsBilling: boolean;
+}
+
+export interface ExtractedClause {
+  title: string;
+  body: string;
+}
+
+export interface ExtractedAdditionalInfo {
+  notes: string[];
+  clauses: ExtractedClause[];
+}
+
+export interface ExtractedDocument {
+  id: string;
+  name: string;
+  kind: "contract" | "sow" | "addendum";
+}
+
+export type IngestionSectionId = "summary" | "items" | "billing" | "addresses" | "additional";
+
 export interface ExtractedContract {
   docId: "sample1" | "sample2" | "sample3" | "sample4";
   documentName: string;
@@ -56,6 +89,11 @@ export interface ExtractedContract {
   products: ExtractedProduct[];
   terms: ExtractedTerms;
   issues: IngestIssue[];
+  addresses: ExtractedAddresses;
+  additionalInfo: ExtractedAdditionalInfo;
+  documents: ExtractedDocument[];
+  /** Per-section issue messages (sections with issues start as "issues" state) */
+  sectionIssues: Partial<Record<IngestionSectionId, string>>;
 }
 
 export interface CreatedObject {
@@ -189,6 +227,35 @@ export const extractedSample1: ExtractedContract = {
     autoRenew: true,
   },
   issues: [],
+  addresses: {
+    billing: {
+      line1: "100 Market Street",
+      line2: "Suite 400",
+      city: "San Francisco",
+      state: "CA",
+      postalCode: "94105",
+      country: "United States",
+    },
+    shipping: {
+      line1: "100 Market Street",
+      line2: "Suite 400",
+      city: "San Francisco",
+      state: "CA",
+      postalCode: "94105",
+      country: "United States",
+    },
+    sameAsBilling: true,
+  },
+  additionalInfo: {
+    notes: ["Existing customer renewal with expanded seat count."],
+    clauses: [
+      { title: "Data Processing Addendum", body: "Standard DPA applies as per prior agreement." },
+    ],
+  },
+  documents: [
+    { id: "doc-echo-1", name: "EchoCorp_MSA_Renewal_2026_Signed.pdf", kind: "contract" },
+  ],
+  sectionIssues: {},
 };
 
 // ---------------------------------------------------------------------------
@@ -208,35 +275,45 @@ export const extractedSample2: ExtractedContract = {
   quoteMatchConfidence: undefined,
   products: [
     {
-      extractedName: "Apex Analytics Pro",
-      extractedSku: "APEX-ANALYTICS-PRO",
-      catalogSku: undefined,
-      matched: false,
-      quantity: 200,
-      unitPrice: 65,
-      discount: 10,
-      billingModel: "Per seat / month",
+      extractedName: "Growth CRM",
+      extractedSku: "GROWTH-CRM",
+      catalogSku: "GROWTH-CRM-YR",
+      matched: true,
+      quantity: 25,
+      unitPrice: 1200,
+      discount: 0,
+      billingModel: "Yearly",
     },
     {
-      extractedName: "Premium Support",
-      extractedSku: "APEX-SUPPORT",
-      catalogSku: "APEX-SUPPORT",
-      matched: true,
+      extractedName: "Onboarding & Training",
+      extractedSku: "ONBOARDING-PKG",
+      catalogSku: undefined,
+      matched: false,
       quantity: 1,
-      unitPrice: 2000,
+      unitPrice: 2500,
       discount: 0,
-      billingModel: "Flat / month",
+      billingModel: "One-time",
+    },
+    {
+      extractedName: "Premium Support Add-on",
+      extractedSku: "SUPPORT-PREMIUM",
+      catalogSku: undefined,
+      matched: false,
+      quantity: 1,
+      unitPrice: 4200,
+      discount: 0,
+      billingModel: "Monthly",
     },
   ],
   terms: {
     term: "12 months",
-    startDate: "2026-05-01",
-    endDate: "2027-04-30",
-    billingFrequency: "Annual upfront",
+    startDate: "2026-07-15",
+    endDate: "2027-07-14",
+    billingFrequency: "Annual, billed upfront",
     paymentTerms: "Net 30",
-    tcv: 155000,
-    arr: 155000,
-    minCommit: 130000,
+    tcv: 36700,
+    arr: 36700,
+    minCommit: 30000,
     prepaidCredits: 0,
     autoRenew: false,
   },
@@ -252,10 +329,47 @@ export const extractedSample2: ExtractedContract = {
       id: "issue-product",
       type: "product_mismatch",
       severity: "blocking",
-      message: "Product SKU not in catalog",
-      detail: "\"APEX-ANALYTICS-PRO\" is not in the product catalog. Map to an existing plan or create a new one.",
+      message: "2 items need mapping",
+      detail: "\"Onboarding & Training\" and \"Premium Support Add-on\" are not in the product catalog. Map to existing plans or create new ones.",
     },
   ],
+  addresses: {
+    billing: {
+      line1: "4th Floor, Lattice Tower",
+      line2: "MG Road",
+      city: "Bangalore",
+      state: "Karnataka",
+      postalCode: "560001",
+      country: "India",
+    },
+    shipping: {
+      line1: "4th Floor, Lattice Tower",
+      line2: "MG Road",
+      city: "Bangalore",
+      state: "Karnataka",
+      postalCode: "560001",
+      country: "India",
+    },
+    sameAsBilling: true,
+  },
+  additionalInfo: {
+    notes: [
+      "New business deal closed by Jordan Kim.",
+      "Customer requires onboarding within 30 days of contract start.",
+    ],
+    clauses: [
+      { title: "SLA Terms", body: "99.9% uptime guarantee with 4-hour response time for critical issues." },
+      { title: "Data Residency", body: "All customer data must be stored within India region." },
+    ],
+  },
+  documents: [
+    { id: "doc-zenith-1", name: "ZenithAnalytics_NewB...", kind: "contract" },
+    { id: "doc-zenith-2", name: "Sow.pdf", kind: "sow" },
+  ],
+  sectionIssues: {
+    items: "2 items need mapping to your catalog",
+    addresses: "Review required — confirm addresses",
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -308,6 +422,35 @@ export const extractedSample3: ExtractedContract = {
     autoRenew: true,
   },
   issues: [],
+  addresses: {
+    billing: {
+      line1: "200 Healthcare Plaza",
+      line2: "Building C",
+      city: "Boston",
+      state: "MA",
+      postalCode: "02210",
+      country: "United States",
+    },
+    shipping: {
+      line1: "200 Healthcare Plaza",
+      line2: "Building C",
+      city: "Boston",
+      state: "MA",
+      postalCode: "02210",
+      country: "United States",
+    },
+    sameAsBilling: true,
+  },
+  additionalInfo: {
+    notes: ["Early renewal to lock in pricing before end of current term."],
+    clauses: [
+      { title: "HIPAA Compliance", body: "Full HIPAA BAA included as standard." },
+    ],
+  },
+  documents: [
+    { id: "doc-verdant-1", name: "VerdantHealth_EarlyRenewal_2026.pdf", kind: "contract" },
+  ],
+  sectionIssues: {},
 };
 
 // ---------------------------------------------------------------------------
@@ -370,6 +513,40 @@ export const extractedSample4: ExtractedContract = {
     autoRenew: true,
   },
   issues: [],
+  addresses: {
+    billing: {
+      line1: "500 Innovation Drive",
+      city: "Austin",
+      state: "TX",
+      postalCode: "78701",
+      country: "United States",
+    },
+    shipping: {
+      line1: "500 Innovation Drive",
+      city: "Austin",
+      state: "TX",
+      postalCode: "78701",
+      country: "United States",
+    },
+    sameAsBilling: true,
+  },
+  additionalInfo: {
+    notes: [
+      "Late renewal — contract expired, customer in grace period.",
+      "Renewal includes seat expansion from 300 to 350.",
+    ],
+    clauses: [
+      { title: "Service Credits", body: "15% service credit applied for Q1 downtime incident." },
+      { title: "Usage Cap", body: "AI credit overage capped at 120% of prepaid block." },
+    ],
+  },
+  documents: [
+    { id: "doc-northlane-1", name: "NorthlaneLabs_LateRenewal_Commercial_2026.pdf", kind: "contract" },
+    { id: "doc-northlane-2", name: "Northlane_Addendum_2026.pdf", kind: "addendum" },
+  ],
+  sectionIssues: {
+    billing: "Confirm billing frequency change from annual to monthly",
+  },
 };
 
 // ---------------------------------------------------------------------------
