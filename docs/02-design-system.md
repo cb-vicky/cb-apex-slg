@@ -107,10 +107,32 @@ Components live under `src/components/revenue-workspace/`, `src/components/index
 
 ### Workspace chrome (live)
 
-- **`CustomerContextBar`** — sticky workspace chrome: breadcrumb, customer title (collapses on scroll), file-folder tabs with grouped child tabs, optional `recordSlot`
-- **`RecordHeader`** — **action-only** slim glass pill (`rounded-full`, `bg-white/65`, `backdrop-blur-md`) portaled into `RecordSlotContext`
+- **`CustomerContextBar`** — sticky workspace chrome with:
+  - **Header rows:** Breadcrumb + team meta (row 1), Customer name + priority chips (row 2)
+  - **Trapezoidal tabs:** Center-aligned, 62px expanded / 30px collapsed, 10px corner radius
+  - **Context pills:** Two inverted trapezoid pills below tab line — left (info) + right (actions)
+- **`RecordHeader`** — renders action CTAs inside the right context pill (no separate container)
 - **`RecordSlotContext`** — portal target for stage-rendered record actions
 - **`SectionCard`** — shared section wrapper with title + slot
+
+### Tab design specs
+
+- **Shape:** Trapezoidal — narrower at top, wider at bottom
+- **Height:** 62px expanded, 30px collapsed (on scroll)
+- **Corner radius:** 10px (reduced from 14px to minimize visual jump during collapse)
+- **Title truncation:** 11 characters for parent tabs, 8 characters for record tabs
+- **Spacing:** Tightly packed, **no** flex-fill stretch — extra space on right
+- **Alignment:** Center-aligned in container
+- **Overlap:** 22px negative margin between adjacent tabs
+
+### Context pill design specs
+
+- **Shape:** Inverted trapezoidal — wider at top, narrower at bottom
+- **Height:** 34px (same for both left and right pills)
+- **Position:** 1px below horizontal separator line (line remains visible)
+- **Fill:** Semi-transparent white (`rgba(255,255,255,0.85)`)
+- **Stroke:** Only on sides and bottom (top edge open — no double border)
+- **Shadow:** Subtle drop shadow (`drop-shadow(0 4px 12px rgba(17,24,39,0.08))`)
 
 ### Workspace types
 

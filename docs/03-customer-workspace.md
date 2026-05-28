@@ -14,19 +14,46 @@ The workspace is **not** the older four-layer model (metric header + journey rai
 
 Component: `CustomerContextBar`
 
-**Top region:**
-- Breadcrumb back to index (`from` query param → Customers / Quotes / etc.)
-- Customer name as primary title — **collapses on scroll** (threshold ~40px) to save vertical space
-- Compact metadata when expanded: AE, CSM, billing owner (no full ARR/TCV ribbon)
+**Header region (two rows):**
 
-**Tab region — file-folder tabs:**
+*Row 1 — Breadcrumb row:*
+- Breadcrumb back to index (left) — `from` query param → Customers / Quotes / etc.
+- Team metadata (right) — AE, CSM, Billing owner
+
+*Row 2 — Customer name row:*
+- Customer name as primary title (left) — **collapses on scroll** (threshold ~40px)
+- Priority chips/tags (right, center-aligned with name) — e.g., "Overdue 2", "Renewal 30d"
+
+**Tab region — file-folder trapezoidal tabs:**
+- **Center-aligned** tabs (extra space accumulates on sides)
 - Stages in order: **Overview → Tasks → Threads → Quotes → Contracts → Invoicing → Collections → RevRec**
 - List-detail stages (Quote, Contract, Invoicing) support **grouped child tabs**: open records appear as closable sub-tabs under the parent tab
-- Child tab persistence via `openChildTabs` / `selectedChildPerStage` state
-- Overflow → **"More"** dropdown when tabs exceed ~90% container width
+- Tab title character limits: **11 chars** for parent tabs, **8 chars** for record tabs (truncate with ellipsis)
+- Tab height: **62px** expanded, **30px** collapsed; corner radius **10px**
+- Tabs do **not** stretch to fill width — tightly spaced
+- Overflow → **"More"** dropdown when tabs exceed container width
 
-**Record slot:**
-- Empty `<div ref>` when a record is selected; `RecordHeader` portals actions into it
+**Context pills (below tab line):**
+
+Two inverted trapezoidal pills (wider at top, narrower at bottom) hang 1px below the horizontal separator line:
+
+*Left info pill — contextual data based on active tab:*
+- Overview: ARR + Next Renewal date
+- Tasks: Critical task count
+- Threads: Unread count (or total thread count)
+- Quotes (parent): Quote count
+- Quote (record): Quote ID | TCV
+- Contracts (parent): Contract count
+- Contract (record): Contract ID | TCV
+- Invoicing (parent): Invoice count
+- Invoice (record): Invoice ID | Amount
+- Collections: Open AR
+- RevRec: Arrangements count
+
+*Right actions pill — record actions:*
+- Only shown when viewing a specific record (not list view)
+- Contains flat text CTAs with pipe dividers + overflow menu (…)
+- Uses same inverted trapezoidal shape as left pill
 
 ### 2. Main content column
 
@@ -36,16 +63,16 @@ Component: `CustomerContextBar`
 
 Stage content components render inside this column. NBA / AI insights / section cards live **in tab content**, not a global right rail.
 
-### 3. RecordHeader (optional action pill)
+### 3. RecordHeader (actions in right pill)
 
-Component: `RecordHeader` (portaled via `RecordSlotContext`)
+Component: `RecordHeader` (portaled via `RecordSlotContext` into the right context pill)
 
 Shown on Quote / Contract / Invoicing when viewing a **specific record** (not list view). Hidden on Overview, Tasks, Threads, Payment, RevRec.
 
-**Current design — action-only pill:**
-- Slim `rounded-full` glass bar: `bg-white/65`, `backdrop-blur-md`, subtle shadow
-- **Right side:** flat text actions + vertical hairline dividers + optional overflow (`…`)
-- **No** ID pill, back link, or dropdown in the live component (older docs described a full ID bar — superseded)
+**Current design — actions in inverted trapezoidal pill:**
+- Actions render inside the right context pill (inverted trapezoid shape)
+- Flat text actions + vertical hairline dividers + optional overflow (`…`)
+- **No** separate ID pill, back link, or glass container — the shape provides the container
 
 State-aware contract actions (Transition, Resolve renewal, Close contract early, etc.) are composed in `ContractStageContent`. See `docs/04-lifecycle-tabs.md`.
 

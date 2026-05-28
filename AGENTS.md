@@ -98,7 +98,8 @@ Prototype is functionally rich for demo flows. Recent work consolidated navigati
 
 **Shell:**
 - Compact **36px** teal top nav (`#012A38`) with **demo persona switcher** (Operator / Approver) — no separate search row
-- **Grey integrated sidebar** (228px expanded / 48px collapsed, `localStorage` persistence) — flat nav list, no Desk group
+- **Grey integrated sidebar** (210px expanded / 48px collapsed) — **defaults to collapsed** on page load, persisted in `localStorage`
+- **AI Assistant sidebar** (right) — **defaults to collapsed** on page load, 320px when expanded
 - `/queue` and `/approvals` redirect to Workbench tabs (`/?tab=queue`, `/?tab=approvals`)
 
 **Workbench (`/`):**
@@ -107,8 +108,12 @@ Prototype is functionally rich for demo flows. Recent work consolidated navigati
 - Queue Import opens `UploadModal` → **`EntityDrawer`** (primary ingest path)
 
 **Customer workspace:**
-- **`CustomerContextBar`** — breadcrumb, scroll-collapsing customer title, **file-folder tabs** with grouped child tabs for quote/contract/invoicing
-- **`RecordHeader`** — slim **action-only** glass pill (portaled via `RecordSlotContext`); no ID pill bar
+- **`CustomerContextBar`** with restructured header:
+  - Row 1: Breadcrumb (left) + Team meta AE/CSM/Billing (right)
+  - Row 2: Customer name (left) + Priority chips (right, center-aligned)
+  - **Center-aligned trapezoidal tabs** — 62px expanded / 30px collapsed, 10px radius, tightly spaced
+  - **Context pills** below tab line (inverted trapezoid shape): left info pill + right actions pill
+- **`RecordHeader`** — actions render inside right context pill (no separate glass container)
 - Stages: Overview, Tasks, Threads, Quotes, Contracts, Invoicing, Collections, RevRec
 - Content column: `max-w-[1020px]` list / `max-w-[860px]` detail on `bg-gray-100`
 

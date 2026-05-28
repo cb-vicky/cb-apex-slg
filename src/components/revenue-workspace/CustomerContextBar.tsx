@@ -118,14 +118,15 @@ function buildInvertedPillPath(W: number, H: number, inset = PILL_INSET, R = PIL
   const L = Math.sqrt(inset * inset + H * H);
   const ux = inset / L;
   const uy = H / L;
+  // Path goes: top-left → down left slant → bottom-left corner → bottom edge → bottom-right corner → up right slant → top-right
+  // Open path so top edge is not stroked
   return [
     `M 0 0`,
+    `L ${inset - R * ux} ${H - R * uy}`,
+    `Q ${inset} ${H} ${inset + R} ${H}`,
+    `L ${W - inset - R} ${H}`,
+    `Q ${W - inset} ${H} ${W - inset + R * ux} ${H - R * uy}`,
     `L ${W} 0`,
-    `L ${W - inset + R * ux} ${H - R * uy}`,
-    `Q ${W - inset} ${H} ${W - inset - R} ${H}`,
-    `L ${inset + R} ${H}`,
-    `Q ${inset} ${H} ${inset - R * ux} ${H - R * uy}`,
-    `L 0 0`,
   ].join(" ");
 }
 
@@ -553,7 +554,7 @@ function ContextInfoPill({
   return (
     <div
       ref={pillRef}
-      className="relative inline-flex items-center justify-center backdrop-blur-sm"
+      className="relative inline-flex items-center justify-center"
       style={{ height: CONTEXT_PILL_HEIGHT, minWidth: 80 }}
     >
       <InvertedPillSVG width={pillWidth} height={CONTEXT_PILL_HEIGHT} />
@@ -584,7 +585,7 @@ function ActionsPillWrapper({ children }: { children: ReactNode }) {
   return (
     <div
       ref={pillRef}
-      className="relative inline-flex items-center justify-center backdrop-blur-sm"
+      className="relative inline-flex items-center justify-center"
       style={{ height: CONTEXT_PILL_HEIGHT, minWidth: 100 }}
     >
       <InvertedPillSVG width={pillWidth} height={CONTEXT_PILL_HEIGHT} />
@@ -1030,23 +1031,29 @@ export function CustomerContextBar({
         )}
       >
         <div
-          className="flex items-end justify-between gap-4 rounded-br-[0px] pl-7 pr-8 transition-all duration-300 ease-out"
+          className="flex flex-col gap-1 rounded-br-[0px] pl-7 pr-8 transition-all duration-300 ease-out"
           style={{
             paddingTop: isCollapsed ? HEADER_TITLE_PT.collapsed : HEADER_TITLE_PT.expanded,
             paddingBottom: isCollapsed ? HEADER_TITLE_PB.collapsed : HEADER_TITLE_PB.expanded,
           }}
         >
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <Breadcrumbs crumbs={crumbs} onNavigate={navigate} collapsed={isCollapsed} />
+          {/* Breadcrumb row with team meta on the right */}
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <Breadcrumbs crumbs={crumbs} onNavigate={navigate} collapsed={isCollapsed} />
+            </div>
+            <CustomerTeamMeta customer={customer} collapsed={isCollapsed} />
+          </div>
+          {/* Customer name row with priority chips on the right (center aligned) */}
+          <div className="flex items-center justify-between gap-4">
             <h1
-              className="truncate font-bold leading-tight tracking-tight text-text-primary transition-all duration-300 ease-out"
+              className="min-w-0 flex-1 truncate font-bold leading-tight tracking-tight text-text-primary transition-all duration-300 ease-out"
               style={{ fontSize: isCollapsed ? 16 : 28 }}
             >
               {customer.name}
             </h1>
-            <CustomerTeamMeta customer={customer} collapsed={isCollapsed} />
+            <CustomerPriorityChips chips={priorityChips} collapsed={isCollapsed} />
           </div>
-          <CustomerPriorityChips chips={priorityChips} collapsed={isCollapsed} />
         </div>
       </div>
 
@@ -1128,7 +1135,7 @@ export function CustomerContextBar({
 
         <div
           ref={visibleStripRef}
-          className="relative flex w-full min-w-0 items-end overflow-x-clip overflow-y-visible pl-4 pr-6"
+          className="relative flex w-full min-w-0 items-end justify-center overflow-x-clip overflow-y-visible px-4"
         >
         {visibleTabs.map((tab, idx) => {
           const key = tabKey(tab);
@@ -1243,10 +1250,8 @@ function CustomerTeamMeta({
   return (
     <p
       className={cn(
-        "pt-1.5 text-[12px] text-text-muted transition-all duration-300 ease-out",
-        collapsed
-          ? "pointer-events-none h-0 overflow-hidden pt-0 opacity-0"
-          : "whitespace-nowrap",
+        "shrink-0 text-[12px] text-text-muted whitespace-nowrap transition-all duration-300 ease-out",
+        collapsed && "pointer-events-none opacity-0",
       )}
     >
       AE: {customer.ae}&ensp;·&ensp;CSM: {customer.csm}&ensp;·&ensp;Billing:{" "}
@@ -1267,7 +1272,7 @@ function CustomerPriorityChips({
   return (
     <div
       className={cn(
-        "flex max-w-[58%] shrink-0 flex-wrap items-end justify-end gap-1.5 pb-0.5 transition-all duration-300 ease-out",
+        "flex max-w-[58%] shrink-0 flex-wrap items-center justify-end gap-1.5 transition-all duration-300 ease-out",
         collapsed && "pointer-events-none opacity-0",
       )}
       aria-label="Customer priority signals"
