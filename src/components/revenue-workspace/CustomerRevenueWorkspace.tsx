@@ -574,7 +574,7 @@ export function CustomerRevenueWorkspace({
       } else if (activeTab.stage === "contract" && effectiveContract) {
         contractTcv = effectiveContract.tcv;
       } else if (activeTab.stage === "invoicing" && effectiveInvoice) {
-        invoiceAmount = effectiveInvoice.total;
+        invoiceAmount = effectiveInvoice.amount;
       }
     }
     
