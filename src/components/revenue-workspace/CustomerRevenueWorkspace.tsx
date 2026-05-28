@@ -27,7 +27,8 @@ import { PaymentStageContent } from "./payment/PaymentStageContent";
 import { RevRecStageContent } from "./revrec/RevRecStageContent";
 import { TasksStageContent } from "./tasks/TasksStageContent";
 import { ThreadsStageContent } from "./threads/ThreadsStageContent";
-import type { CustomerTask } from "@/data/customer-tasks";
+import { customerTasks, type CustomerTask } from "@/data/customer-tasks";
+import { emailThreads } from "@/data/email-threads";
 import { QuoteListView } from "./quote/QuoteListView";
 import { ContractListView, type PendingIngestionContract } from "./contract/ContractListView";
 import { InvoiceListView } from "./invoicing/InvoiceListView";
@@ -553,6 +554,55 @@ export function CustomerRevenueWorkspace({
     // For now, just switch tabs. Drawer integration can be added later.
   }
 
+  // Build context pill data based on active tab
+  const contextPillData = useMemo(() => {
+    const customerTasksList = customerTasks.filter((t) => t.customerId === customer.id);
+    const customerThreads = emailThreads.filter((t) => t.customerId === customer.id);
+    
+    const criticalTaskCount = customerTasksList.filter((t) => t.priority === "critical" && t.status !== "done").length;
+    const unreadThreadCount = customerThreads.filter((t) => t.unread).length;
+    const totalThreadCount = customerThreads.length;
+    
+    // Get record-specific data
+    let quoteTcv: number | undefined;
+    let contractTcv: number | undefined;
+    let invoiceAmount: number | undefined;
+    
+    if (activeTab.kind === "record") {
+      if (activeTab.stage === "quote" && activeQuote) {
+        quoteTcv = activeQuote.tcv;
+      } else if (activeTab.stage === "contract" && effectiveContract) {
+        contractTcv = effectiveContract.tcv;
+      } else if (activeTab.stage === "invoicing" && effectiveInvoice) {
+        invoiceAmount = effectiveInvoice.total;
+      }
+    }
+    
+    return {
+      arr: customer.arr,
+      nextRenewal: customer.nextRenewalDate,
+      criticalTaskCount,
+      unreadThreadCount,
+      totalThreadCount,
+      quoteCount: customerQuotes.length,
+      quoteTcv,
+      contractCount: contractsForListView.length,
+      contractTcv,
+      invoiceCount: invoicesForListView.length,
+      invoiceAmount,
+      openAr: customer.openAr,
+    };
+  }, [
+    customer,
+    activeTab,
+    activeQuote,
+    effectiveContract,
+    effectiveInvoice,
+    customerQuotes.length,
+    contractsForListView.length,
+    invoicesForListView.length,
+  ]);
+
   return (
     <div className="flex flex-1 flex-col bg-gray-100">
       <CustomerContextBar
@@ -570,6 +620,7 @@ export function CustomerRevenueWorkspace({
         parentTabSummaries={parentTabSummaries}
         recordTabSummaries={recordTabSummaries}
         recordSlot={hasRecordBar ? <div ref={setRecordSlotEl} /> : null}
+        contextPillData={contextPillData}
       />
 
       {/* Detail nav: Notion-style line rail on all detail views (xl+). */}

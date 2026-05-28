@@ -21,7 +21,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div
           className={cn(
             "relative flex min-h-0 min-w-0 flex-1 flex-row overflow-hidden bg-grey-100",
-            "pt-0 pb-3 pl-3",
+            "pt-0 pb-3 pl-0",
           )}
         >
           {showMain ? (

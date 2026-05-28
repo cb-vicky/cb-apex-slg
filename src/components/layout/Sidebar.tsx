@@ -192,7 +192,7 @@ export function Sidebar() {
           ? `transform ${PRODUCT_NAV_PEEK_TRANSFORM_MS}ms ${PRODUCT_NAV_PEEK_TRANSFORM_EASE}`
           : undefined,
       }}
-      className="group/sidebar relative z-[0] flex h-full shrink-0 flex-col overflow-hidden bg-grey-100 font-sora transition-[width] duration-[320ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+      className="group/sidebar relative z-[0] flex h-full shrink-0 flex-col overflow-hidden border-r border-gray-300 bg-grey-100 font-sora transition-[width] duration-[320ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
     >
       <div
         className={cn(
