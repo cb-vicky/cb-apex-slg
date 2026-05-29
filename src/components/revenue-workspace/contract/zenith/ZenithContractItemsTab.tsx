@@ -471,12 +471,14 @@ function MatchedItemFoundLayer({
   onApproveMatch,
   onMapExisting,
   onCreateNew,
+  hideSecondaryActions = false,
 }: {
   item: ZenithSummaryLineItem;
   matchedCatalogItemId?: string;
   onApproveMatch: () => void;
   onMapExisting: () => void;
   onCreateNew: () => void;
+  hideSecondaryActions?: boolean;
 }) {
   const catalogItem = getZenithCatalogItemById(matchedCatalogItemId);
   const displayName = catalogItem?.name ?? item.name;
@@ -571,6 +573,7 @@ function MatchedItemFoundLayer({
         </div>
       </div>
 
+      {!hideSecondaryActions ? (
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5">
         <button
           type="button"
@@ -592,6 +595,7 @@ function MatchedItemFoundLayer({
           Create new item
         </button>
       </div>
+      ) : null}
     </div>
   );
 }
@@ -601,6 +605,7 @@ function LineItemExpandedLayer({
   needsMapping,
   panelMode,
   showPanelNav,
+  matchBannerExpanded,
   resolution,
   surfaceTone,
   mappedCatalogId,
@@ -611,6 +616,7 @@ function LineItemExpandedLayer({
   onCreateCatalogFormChange,
   onPanelModeChange,
   onRevealPanelNav,
+  onExpandMatchBanner,
   onItemCreated,
   onApproveMatch,
   onClearResolution,
@@ -624,6 +630,7 @@ function LineItemExpandedLayer({
   needsMapping: boolean;
   panelMode: MappedPanelMode;
   showPanelNav: boolean;
+  matchBannerExpanded: boolean;
   resolution?: LineItemResolutionDetail;
   surfaceTone: ExpandedSurfaceTone;
   mappedCatalogId: string | null;
@@ -635,6 +642,7 @@ function LineItemExpandedLayer({
   hideInlineCreateConfirm?: boolean;
   onPanelModeChange: (mode: MappedPanelMode) => void;
   onRevealPanelNav: () => void;
+  onExpandMatchBanner: () => void;
   onItemCreated: (payload: ZenithCreateItemPayload) => void;
   onApproveMatch?: () => void;
   onClearResolution: () => void;
@@ -663,8 +671,13 @@ function LineItemExpandedLayer({
       ? resolution == null
       : showPanelNav && panelMode !== "match" && resolution == null;
 
+  const showExpandedMatchBanner =
+    !needsMapping &&
+    onApproveMatch != null &&
+    ((!showPanelNav && panelMode === "match") || matchBannerExpanded);
+
   const showMatchCondensedStrip =
-    !needsMapping && onApproveMatch != null && showPanelNav && panelMode !== "match";
+    !needsMapping && onApproveMatch != null && showPanelNav && !matchBannerExpanded;
 
   const layerPaddingClass = flushHorizontal ? "px-0" : "px-3";
 
@@ -686,7 +699,7 @@ function LineItemExpandedLayer({
       {showMatchCondensedStrip && !hideMatchCondensedStrip ? (
         <MatchedItemCondensedStrip
           item={item}
-          onExpandMatch={() => onPanelModeChange("match")}
+          onExpandMatch={onExpandMatchBanner}
           className="mb-3"
         />
       ) : null}
@@ -701,16 +714,19 @@ function LineItemExpandedLayer({
         </div>
       ) : null}
       <div>
-        {panelMode === "match" && !needsMapping && onApproveMatch ? (
-          <MatchedItemFoundLayer
-            item={item}
-            matchedCatalogItemId={
-              mappedCatalogId ?? DEFAULT_MATCHED_CATALOG_ITEM_ID
-            }
-            onApproveMatch={onApproveMatch}
-            onMapExisting={openMapPanel}
-            onCreateNew={openCreatePanel}
-          />
+        {showExpandedMatchBanner ? (
+          <div className={cn(showSegmentedNav || panelMode !== "match" ? "mb-3" : undefined)}>
+            <MatchedItemFoundLayer
+              item={item}
+              matchedCatalogItemId={
+                mappedCatalogId ?? DEFAULT_MATCHED_CATALOG_ITEM_ID
+              }
+              onApproveMatch={onApproveMatch!}
+              onMapExisting={openMapPanel}
+              onCreateNew={openCreatePanel}
+              hideSecondaryActions={showPanelNav}
+            />
+          </div>
         ) : null}
         {panelMode === "map" ? (
           <>
@@ -871,6 +887,7 @@ export function ZenithContractItemsTab() {
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [panelMode, setPanelMode] = useState<MappedPanelMode>("match");
   const [showPanelNav, setShowPanelNav] = useState(false);
+  const [matchBannerExpanded, setMatchBannerExpanded] = useState(true);
   const [mappedCatalogByLine, setMappedCatalogByLine] = useState<Record<string, string>>({});
   const [pendingCatalogByLine, setPendingCatalogByLine] = useState<Record<string, string>>({});
   const [createCatalogFormByLine, setCreateCatalogFormByLine] = useState<
@@ -916,21 +933,34 @@ export function ZenithContractItemsTab() {
     } else if (previous?.kind === "approved") {
       setPanelMode("match");
       setShowPanelNav(false);
+      setMatchBannerExpanded(true);
     }
   }
 
   function resetExpandedPanel() {
     setPanelMode("match");
     setShowPanelNav(false);
+    setMatchBannerExpanded(true);
+  }
+
+  function handlePanelModeChange(mode: MappedPanelMode) {
+    setPanelMode(mode);
+    if (mode === "map" || mode === "create") {
+      setMatchBannerExpanded(false);
+    } else if (mode === "match") {
+      setMatchBannerExpanded(true);
+    }
   }
 
   function openLineItemPanel(item: ZenithSummaryLineItem) {
     if (item.mappingStatus === "needs_mapping") {
       setPanelMode("map");
       setShowPanelNav(true);
+      setMatchBannerExpanded(false);
     } else {
       setPanelMode("match");
       setShowPanelNav(false);
+      setMatchBannerExpanded(true);
     }
   }
 
@@ -1183,7 +1213,7 @@ export function ZenithContractItemsTab() {
     drawerItem != null &&
     drawerMapped &&
     showPanelNav &&
-    panelMode !== "match" &&
+    !matchBannerExpanded &&
     drawerResolution == null;
 
   return (
@@ -1242,7 +1272,7 @@ export function ZenithContractItemsTab() {
           showDrawerMatchStrip && drawerItem ? (
             <MatchedItemCondensedStrip
               item={drawerItem}
-              onExpandMatch={() => setPanelMode("match")}
+              onExpandMatch={() => setMatchBannerExpanded(true)}
               className="px-8"
             />
           ) : undefined
@@ -1284,6 +1314,7 @@ export function ZenithContractItemsTab() {
             needsMapping={Boolean(drawerNeedsMapping)}
             panelMode={panelMode}
             showPanelNav={showPanelNav}
+            matchBannerExpanded={matchBannerExpanded}
             resolution={drawerResolution}
             surfaceTone={drawerSurfaceTone}
             mappedCatalogId={mappedCatalogByLine[drawerItem.id] ?? null}
@@ -1294,8 +1325,9 @@ export function ZenithContractItemsTab() {
             createCatalogForm={getCreateCatalogForm(drawerItem.id, drawerItem)}
             onCreateCatalogFormChange={(next) => updateCreateCatalogForm(drawerItem.id, next)}
             hideInlineCreateConfirm
-            onPanelModeChange={setPanelMode}
+            onPanelModeChange={handlePanelModeChange}
             onRevealPanelNav={() => setShowPanelNav(true)}
+            onExpandMatchBanner={() => setMatchBannerExpanded(true)}
             onItemCreated={(payload) => submitCreateFromDrawer(drawerItem.id, payload)}
             onApproveMatch={drawerMapped ? approveDrawerCatalogMatch : undefined}
             onClearResolution={() => clearLineItemResolution(drawerItem.id)}
