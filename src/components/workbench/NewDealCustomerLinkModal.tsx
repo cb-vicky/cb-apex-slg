@@ -1,13 +1,25 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { X, Check, Info, Link2, UserPlus } from "lucide-react";
+import { X, CircleCheck, Info, Link2, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formInputClass } from "@/components/ui/form-field";
-import { CustomerLinkSearchResults } from "@/components/workbench/CustomerLinkSearchResults";
+import { CreateCustomerForm } from "@/components/workbench/CreateCustomerForm";
+import {
+  buildInitialCreateCustomerForm,
+  isCreateCustomerFormComplete,
+  toSessionCustomerInput,
+  type CreateCustomerFormState,
+} from "@/components/workbench/create-customer-form";
+import { DocumentPreviewTabContent } from "@/components/transitions/IngestDocumentPreviewPane";
+import {
+  CustomerLinkCustomerTable,
+  CustomerLinkSearchBar,
+} from "@/components/workbench/CustomerLinkSearchResults";
+import { CustomerLinkCondensedStrip } from "@/components/workbench/CustomerLinkCondensedStrip";
 import { ExtractedCustomerDetailsCard } from "@/components/workbench/ExtractedCustomerDetailsCard";
-import { defaultCustomerSearchTerm } from "@/lib/customer-search-default";
+import { LinkedCustomerDetailsCard, CUSTOMER_LINK_CARD_WIDTH_CLASS } from "@/components/workbench/LinkedCustomerDetailsCard";
 import type { Contract, Customer } from "@/data/mock-data";
 import { customers as seedCustomers, getContractsForCustomer } from "@/data/mock-data";
+import { customerLinkSearchSeedCustomers } from "@/data/customer-link-search-seed";
 import type { QueueItem } from "@/data/queue-data";
 import { buildZenithSessionCustomer } from "@/data/zenith-ingest-session";
 import {
@@ -36,20 +48,28 @@ export function NewDealCustomerLinkModal({ queueItem, onClose }: Props) {
 
   const siteCustomers = useMemo(() => {
     const byId = new Map(seedCustomers.map((c) => [c.id, c]));
+    customerLinkSearchSeedCustomers.forEach((c) => byId.set(c.id, c));
     sessionCustomers.forEach((c) => byId.set(c.id, c));
     return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
   }, [sessionCustomers]);
 
   const [mode, setMode] = useState<Mode>("link");
-  const [search, setSearch] = useState(() =>
-    defaultCustomerSearchTerm(extracted?.customerName ?? queueItem.customerName),
-  );
+  const [search, setSearch] = useState("");
   const [linkedCustomerId, setLinkedCustomerId] = useState("");
-  const [createForm, setCreateForm] = useState(() => ({
-    name: extracted?.customerName ?? queueItem.customerName,
-    billingLegalEntity: extracted?.customerLegalEntity ?? queueItem.customerName,
-    domain: suggestDomainFromCompanyName(extracted?.customerName ?? queueItem.customerName),
-  }));
+  const initialExtractedSummary = useMemo(
+    () => getExtractedCustomerSummary(extracted, queueItem),
+    [extracted, queueItem],
+  );
+
+  const [createForm, setCreateForm] = useState<CreateCustomerFormState>(() =>
+    buildInitialCreateCustomerForm({
+      company: initialExtractedSummary.company,
+      billingLegalEntity: extracted?.customerLegalEntity ?? queueItem.customerName,
+      domain: suggestDomainFromCompanyName(initialExtractedSummary.company),
+      contactName: initialExtractedSummary.contactName,
+      contactEmail: initialExtractedSummary.contactEmail,
+    }),
+  );
 
   const extractedSummary = useMemo(
     () =>
@@ -57,10 +77,13 @@ export function NewDealCustomerLinkModal({ queueItem, onClose }: Props) {
         extracted,
         queueItem,
         mode === "create"
-          ? { company: createForm.name, domain: createForm.domain }
+          ? {
+              company: createForm.company,
+              domain: suggestDomainFromCompanyName(createForm.company),
+            }
           : undefined,
       ),
-    [extracted, queueItem, mode, createForm.name, createForm.domain],
+    [extracted, queueItem, mode, createForm.company],
   );
 
   const filteredCustomers = useMemo(() => {
@@ -82,10 +105,7 @@ export function NewDealCustomerLinkModal({ queueItem, onClose }: Props) {
     });
   }, [search, siteCustomers]);
 
-  const createComplete =
-    createForm.name.trim().length > 0 &&
-    createForm.billingLegalEntity.trim().length > 0 &&
-    createForm.domain.trim().length > 0;
+  const createComplete = isCreateCustomerFormComplete(createForm);
 
   const linkedCustomer = useMemo(
     () => (linkedCustomerId ? siteCustomers.find((c) => c.id === linkedCustomerId) : undefined),
@@ -93,6 +113,24 @@ export function NewDealCustomerLinkModal({ queueItem, onClose }: Props) {
   );
 
   const canContinue = mode === "link" ? Boolean(linkedCustomerId) : createComplete;
+  const isLinkedInLinkMode = mode === "link" && !!linkedCustomer;
+
+  const panelScrollRef = useRef<HTMLDivElement>(null);
+  const compactSentinelRef = useRef<HTMLDivElement>(null);
+  const [isPanelCompact, setIsPanelCompact] = useState(false);
+
+  useEffect(() => {
+    const root = panelScrollRef.current;
+    const sentinel = compactSentinelRef.current;
+    if (!root || !sentinel) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsPanelCompact(!entry.isIntersecting),
+      { root, threshold: 0 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [mode]);
 
   function resolveDestinationContractId(customerId: string): string | undefined {
     const fromRow = queueItem.contractId ?? queueItem.activeContractId;
@@ -117,6 +155,23 @@ export function NewDealCustomerLinkModal({ queueItem, onClose }: Props) {
       )[0]?.id;
   }
 
+  const handleEscape = useCallback(
+    (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    },
+    [onClose],
+  );
+
+  useEffect(() => {
+    document.addEventListener("keydown", handleEscape);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [handleEscape]);
+
   function handleContinue() {
     if (!canContinue) return;
 
@@ -127,11 +182,7 @@ export function NewDealCustomerLinkModal({ queueItem, onClose }: Props) {
       onClose();
       openQueueIngestDrawer(queueItem, linked.id, navigate, resolveDestinationContractId(linked.id));
     } else {
-      const created: Customer = buildZenithSessionCustomer({
-        name: createForm.name.trim(),
-        billingLegalEntity: createForm.billingLegalEntity.trim(),
-        domain: createForm.domain.trim(),
-      });
+      const created: Customer = buildZenithSessionCustomer(toSessionCustomerInput(createForm));
       addSessionCustomer(created);
       applyQueueItemOverride(queueItem.id, { customerId: created.id });
       onClose();
@@ -140,62 +191,97 @@ export function NewDealCustomerLinkModal({ queueItem, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden />
+    <div
+      className="fixed inset-0 z-[70] flex flex-col bg-gray-100"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="new-deal-customer-link-title"
+    >
+      <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border-default bg-white px-6 py-4">
+        <h2
+          id="new-deal-customer-link-title"
+          className="min-w-0 font-sora text-[15px] font-bold text-text-primary"
+        >
+          Confirm customer to ingest contract
+        </h2>
+        <button
+          type="button"
+          onClick={onClose}
+          className="shrink-0 rounded-md p-1.5 text-text-muted transition-colors hover:bg-gray-100 hover:text-text-primary"
+          aria-label="Close"
+        >
+          <X size={18} strokeWidth={2} />
+        </button>
+      </header>
 
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="new-deal-customer-link-title"
-        className="relative z-10 flex max-h-[min(90vh,720px)] w-full max-w-[560px] flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
-      >
-        <div className="flex shrink-0 items-center justify-between gap-4 px-6 py-4">
-          <h2
-            id="new-deal-customer-link-title"
-            className="min-w-0 text-[15px] font-bold text-text-primary"
-          >
-            Customer details
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="shrink-0 rounded-md p-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
-            aria-label="Close"
-          >
-            <X size={16} />
-          </button>
-        </div>
+      <div className="grid min-h-0 flex-1 grid-cols-[2fr_3fr] overflow-hidden">
+        <aside className="flex min-h-0 flex-col overflow-hidden border-r border-border-default bg-[#F3F4F6]">
+          <div className="flex h-full min-h-0 flex-1 flex-col">
+            <DocumentPreviewTabContent
+              extracted={extracted}
+              documentTitle={queueItem.documentName}
+            />
+          </div>
+        </aside>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-5">
-            <ExtractedCustomerDetailsCard summary={extractedSummary} className="w-fit max-w-[280px]" />
-            {linkedCustomer ? (
-              <div
-                role="status"
-                className="mt-3 flex w-full items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2"
-              >
-                <Check size={14} strokeWidth={2.5} className="mt-0.5 shrink-0 text-emerald-700" aria-hidden />
-                <p className="text-[12px] leading-snug text-emerald-800">
-                  Linked to existing customer{" "}
-                  <span className="font-semibold">{linkedCustomer.name}</span>
-                </p>
+        <div className="flex min-h-0 flex-col overflow-hidden bg-gray-100">
+          <div
+            ref={panelScrollRef}
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6"
+          >
+            <section className="pt-6 pb-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-[13px] font-semibold text-text-primary">
+                  Extracted customer details
+                </h3>
+                {isLinkedInLinkMode ? (
+                  <span
+                    role="status"
+                    className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium leading-4 text-emerald-700"
+                    title={`Linked to ${linkedCustomer.name}`}
+                  >
+                    <CircleCheck size={12} strokeWidth={2} className="shrink-0 text-emerald-600" aria-hidden />
+                    Completed
+                    <span className="sr-only">Linked to {linkedCustomer.name}</span>
+                  </span>
+                ) : (
+                  <span
+                    role="status"
+                    className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-0.5 text-[11px] font-medium leading-4 text-red-700"
+                  >
+                    <Info size={12} strokeWidth={2} className="shrink-0 text-red-600" aria-hidden />
+                    No match found — link or create customer
+                  </span>
+                )}
               </div>
-            ) : (
-              <div
-                role="status"
-                className="mt-3 flex w-full items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2"
-              >
-                <Info size={14} strokeWidth={2} className="mt-0.5 shrink-0 text-red-600" aria-hidden />
-                <p className="text-[12px] leading-snug text-red-700">
-                  We couldn&apos;t find a match for this customer. Link to an existing customer or create
-                  a new one.
-                </p>
-              </div>
-            )}
+              {isLinkedInLinkMode ? (
+                <div className="mt-2 flex w-fit max-w-full flex-wrap items-center gap-3">
+                  <ExtractedCustomerDetailsCard
+                    summary={extractedSummary}
+                    linked
+                    className={cn(CUSTOMER_LINK_CARD_WIDTH_CLASS, "bg-white")}
+                  />
+                  <Link2
+                    size={18}
+                    strokeWidth={2}
+                    className="shrink-0 text-emerald-600"
+                    aria-hidden
+                  />
+                  <LinkedCustomerDetailsCard customer={linkedCustomer} />
+                </div>
+              ) : (
+                <ExtractedCustomerDetailsCard
+                  summary={extractedSummary}
+                  needsAction={mode === "create" || !linkedCustomerId}
+                  className="mt-2 w-fit max-w-full bg-white"
+                />
+              )}
+            </section>
 
             <div
               role="tablist"
               aria-label="How to resolve customer"
-              className="mt-4 flex rounded-lg border border-border-default bg-gray-100 p-0.5"
+              className="inline-flex w-fit max-w-full rounded-xl border border-border-default bg-white p-1 shadow-sm"
             >
               <button
                 type="button"
@@ -203,10 +289,10 @@ export function NewDealCustomerLinkModal({ queueItem, onClose }: Props) {
                 aria-selected={mode === "link"}
                 onClick={() => setMode("link")}
                 className={cn(
-                  "flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[13px] font-medium transition-colors",
+                  "inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-medium transition-all duration-200",
                   mode === "link"
-                    ? "bg-white text-text-primary shadow-sm"
-                    : "text-text-secondary hover:text-text-primary",
+                    ? "bg-blue-600 text-white shadow-[0_2px_8px_-2px_rgba(37,99,235,0.45)]"
+                    : "text-text-secondary hover:bg-gray-50 hover:text-text-primary",
                 )}
               >
                 <Link2 size={14} strokeWidth={2} aria-hidden />
@@ -221,10 +307,10 @@ export function NewDealCustomerLinkModal({ queueItem, onClose }: Props) {
                   setLinkedCustomerId("");
                 }}
                 className={cn(
-                  "flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[13px] font-medium transition-colors",
+                  "inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-medium transition-all duration-200",
                   mode === "create"
-                    ? "bg-white text-text-primary shadow-sm"
-                    : "text-text-secondary hover:text-text-primary",
+                    ? "bg-blue-600 text-white shadow-[0_2px_8px_-2px_rgba(37,99,235,0.45)]"
+                    : "text-text-secondary hover:bg-gray-50 hover:text-text-primary",
                 )}
               >
                 <UserPlus size={14} strokeWidth={2} aria-hidden />
@@ -232,77 +318,71 @@ export function NewDealCustomerLinkModal({ queueItem, onClose }: Props) {
               </button>
             </div>
 
-            {mode === "link" ? (
-              <div className="mt-4">
-                <CustomerLinkSearchResults
-                  customers={filteredCustomers}
+            <div ref={compactSentinelRef} className="pointer-events-none h-px w-full" aria-hidden />
+
+            <div
+              className={cn(
+                "sticky top-0 z-10 -mx-6 bg-gray-100 px-6",
+                isPanelCompact && "border-b border-border-default shadow-sm",
+              )}
+            >
+              {isPanelCompact ? (
+                <CustomerLinkCondensedStrip
+                  summary={extractedSummary}
+                  linkedCustomer={mode === "link" ? linkedCustomer : undefined}
+                  className="-mx-6 px-6"
+                />
+              ) : null}
+              {mode === "link" ? (
+                <CustomerLinkSearchBar
                   search={search}
                   onSearchChange={setSearch}
                   selectedCustomerId={linkedCustomerId}
+                  selectedCustomerName={linkedCustomer?.name}
+                  onClearSelection={() => setLinkedCustomerId("")}
+                  customersCount={filteredCustomers.length}
+                  className={isPanelCompact ? "py-2.5" : "pb-0 pt-4"}
+                />
+              ) : null}
+            </div>
+
+            <div className={cn("pb-6", mode === "link" ? "mt-4" : isPanelCompact ? "mt-3" : "mt-4")}>
+              {mode === "link" ? (
+                <CustomerLinkCustomerTable
+                  customers={filteredCustomers}
+                  selectedCustomerId={linkedCustomerId}
                   onSelectCustomer={setLinkedCustomerId}
                 />
-              </div>
-            ) : (
-              <div className="mt-4 flex flex-col gap-4">
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[12px] font-medium text-text-secondary">Company name</span>
-                  <input
-                    type="text"
-                    value={createForm.name}
-                    onChange={(e) => setCreateForm((prev) => ({ ...prev, name: e.target.value }))}
-                    className={formInputClass}
-                  />
-                </label>
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[12px] font-medium text-text-secondary">
-                    Billing legal entity
-                  </span>
-                  <input
-                    type="text"
-                    value={createForm.billingLegalEntity}
-                    onChange={(e) =>
-                      setCreateForm((prev) => ({ ...prev, billingLegalEntity: e.target.value }))
-                    }
-                    className={formInputClass}
-                  />
-                </label>
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[12px] font-medium text-text-secondary">Primary domain</span>
-                  <input
-                    type="text"
-                    placeholder="e.g. zenithanalytics.com"
-                    value={createForm.domain}
-                    onChange={(e) => setCreateForm((prev) => ({ ...prev, domain: e.target.value }))}
-                    className={formInputClass}
-                  />
-                </label>
-              </div>
-            )}
-        </div>
-
-        <div className="flex shrink-0 justify-end gap-2 border-t border-border-default px-6 py-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md border border-border-default px-4 py-1.5 text-[13px] font-medium text-text-secondary transition-colors hover:bg-surface-muted"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={!canContinue}
-            onClick={handleContinue}
-            className={cn(
-              "rounded-md px-4 py-1.5 text-[13px] font-semibold text-white transition-colors",
-              canContinue
-                ? "bg-blue-600 hover:bg-blue-700"
-                : "cursor-not-allowed bg-blue-300",
-            )}
-          >
-            Continue
-          </button>
+              ) : (
+                <CreateCustomerForm value={createForm} onChange={setCreateForm} />
+              )}
+            </div>
+          </div>
         </div>
       </div>
+
+      <footer className="flex shrink-0 justify-end gap-2 border-t border-border-default bg-white px-6 py-4">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-md border border-border-default px-4 py-1.5 text-[13px] font-medium text-text-secondary transition-colors hover:bg-surface-muted"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          disabled={!canContinue}
+          onClick={handleContinue}
+          className={cn(
+            "rounded-md px-4 py-1.5 text-[13px] font-semibold text-white transition-colors",
+            canContinue
+              ? "bg-blue-600 hover:bg-blue-700"
+              : "cursor-not-allowed bg-blue-300",
+          )}
+        >
+          Continue to ingest
+        </button>
+      </footer>
     </div>
   );
 }

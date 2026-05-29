@@ -568,6 +568,7 @@ export function CustomerContextBar({
   return (
     <div
       data-insight-rail-anchor=""
+      data-zenith-sticky-chrome={zenithChrome ? "" : undefined}
       className={cn(
         "sticky top-0 z-20 [overflow-anchor:none]",
         zenithChrome && zenithCondensed

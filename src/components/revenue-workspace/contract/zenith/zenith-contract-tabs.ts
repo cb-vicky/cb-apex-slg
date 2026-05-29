@@ -3,7 +3,6 @@ export const ZENITH_CONTRACT_CONTENT_TABS = [
   "Items",
   "Billing info",
   "Addresses",
-  "Additional info",
 ] as const;
 
 export type ZenithContractContentTab = (typeof ZENITH_CONTRACT_CONTENT_TABS)[number];

@@ -1,14 +1,11 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { useZenithContractChrome } from "./ZenithContractChromeContext";
-import { getMainScrollContainer } from "./zenith-contract-scroll";
-import { CircleCheck, Info, ChevronDown, MoreVertical, Plus } from "lucide-react";
+import { CircleCheck, Info, ChevronDown, Link2, MoreVertical, Plus, UserPlus } from "lucide-react";
 import { getZenithCatalogItemById, type ZenithCatalogSiteItem } from "@/data/zenith-catalog-items";
 import {
   zenithSummaryLineItems,
@@ -16,15 +13,32 @@ import {
   type ZenithSummaryLineItem,
 } from "@/data/zenith-contract-summary";
 import { cn } from "@/lib/utils";
+import { WTable, WTbody, WTd, WTr } from "@/components/ui/data-table";
+import { StatusBadge } from "@/components/ui/primitives";
 import {
+  catalogBillingCycle,
+  catalogPricingModel,
+  catalogProductType,
+  catalogTaxableLabel,
+  catalogTrialLabel,
+  formatCatalogUnitPrice,
+} from "./zenith-catalog-display";
+import {
+  CREATE_CATALOG_ITEM_FORM_ID,
   ZenithItemCreateNewPanel,
   type ZenithCreateItemPayload,
 } from "./ZenithItemCreateNewPanel";
 import {
-  CatalogItemActiveTag,
+  buildInitialCreateCatalogItemForm,
+  isCreateCatalogItemFormComplete,
+  type CreateCatalogItemFormState,
+} from "./create-catalog-item-form";
+import { ZenithLineItemBottomDrawer } from "./ZenithLineItemBottomDrawer";
+import {
   CatalogItemExternalLink,
   ZenithItemMapToExistingPanel,
 } from "./ZenithItemMapToExistingPanel";
+import { MatchedItemCondensedStrip } from "./MatchedItemCondensedStrip";
 
 type MappedPanelMode = "match" | "map" | "create";
 type ZenithLineItemFlow = "mapping" | "add-row";
@@ -181,32 +195,48 @@ function StatusIconWithTooltip({
   );
 }
 
-function MappedStatusIcon({ onClick }: { onClick: () => void }) {
+function MappedStatusIcon({ onClick }: { onClick?: () => void }) {
+  const icon = (
+    <Info size={14} strokeWidth={2.25} className="shrink-0 text-emerald-600" aria-hidden />
+  );
   return (
     <StatusIconWithTooltip tooltip="Match found in your site">
-      <button
-        type="button"
-        onClick={onClick}
-        aria-label="Toggle matched item details"
-        className="rounded p-0.5 text-emerald-600 transition-colors hover:bg-emerald-50"
-      >
-        <Info size={14} strokeWidth={2.25} className="shrink-0" aria-hidden />
-      </button>
+      {onClick ? (
+        <button
+          type="button"
+          onClick={onClick}
+          aria-label="Toggle matched item details"
+          className="rounded p-0.5 text-emerald-600 transition-colors hover:bg-emerald-50"
+        >
+          {icon}
+        </button>
+      ) : (
+        <span className="inline-flex rounded p-0.5" aria-hidden>
+          {icon}
+        </span>
+      )}
     </StatusIconWithTooltip>
   );
 }
 
-function UnmappedStatusIcon({ onClick }: { onClick: () => void }) {
+function UnmappedStatusIcon({ onClick }: { onClick?: () => void }) {
+  const icon = <Info size={14} strokeWidth={2.25} className="shrink-0 text-red-600" aria-hidden />;
   return (
     <StatusIconWithTooltip tooltip="No match found - needs mapping">
-      <button
-        type="button"
-        onClick={onClick}
-        aria-label="Open mapping options"
-        className="rounded p-0.5 text-red-600 transition-colors hover:bg-red-50"
-      >
-        <Info size={14} strokeWidth={2.25} className="shrink-0" aria-hidden />
-      </button>
+      {onClick ? (
+        <button
+          type="button"
+          onClick={onClick}
+          aria-label="Open mapping options"
+          className="rounded p-0.5 text-red-600 transition-colors hover:bg-red-50"
+        >
+          {icon}
+        </button>
+      ) : (
+        <span className="inline-flex rounded p-0.5" aria-hidden>
+          {icon}
+        </span>
+      )}
     </StatusIconWithTooltip>
   );
 }
@@ -331,14 +361,21 @@ function EditableInputCell({
 
 const PANEL_SEGMENTS_MAPPING: { id: MappedPanelMode; label: string }[] = [
   { id: "match", label: "View match" },
-  { id: "map", label: "Map to existing" },
-  { id: "create", label: "Create new" },
+  { id: "map", label: "Link to existing" },
+  { id: "create", label: "Create new item" },
 ];
 
 const PANEL_SEGMENTS_ADD_ROW: { id: MappedPanelMode; label: string }[] = [
-  { id: "map", label: "Choose existing" },
-  { id: "create", label: "Create new" },
+  { id: "map", label: "Add existing item" },
+  { id: "create", label: "Create new item" },
 ];
+
+function panelSegmentIcon(id: MappedPanelMode) {
+  if (id === "create") {
+    return <UserPlus size={14} strokeWidth={2} aria-hidden />;
+  }
+  return <Link2 size={14} strokeWidth={2} aria-hidden />;
+}
 
 function MappedItemPanelNav({
   mode,
@@ -362,7 +399,7 @@ function MappedItemPanelNav({
     <div
       role="tablist"
       aria-label={flow === "add-row" ? "Add line item options" : "Item mapping options"}
-      className="inline-flex w-fit rounded-lg border border-border-default bg-gray-100 p-0.5"
+      className="inline-flex w-fit max-w-full rounded-xl border border-border-default bg-white p-1 shadow-sm"
     >
       {segments.map((segment) => (
         <button
@@ -372,12 +409,13 @@ function MappedItemPanelNav({
           aria-selected={mode === segment.id}
           onClick={() => onChange(segment.id)}
           className={cn(
-            "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors",
+            "inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-medium transition-all duration-200",
             mode === segment.id
-              ? "bg-white text-text-primary shadow-sm"
-              : "text-text-secondary hover:text-text-primary",
+              ? "bg-blue-600 text-white shadow-[0_2px_8px_-2px_rgba(37,99,235,0.45)]"
+              : "text-text-secondary hover:bg-gray-50 hover:text-text-primary",
           )}
         >
+          {panelSegmentIcon(segment.id)}
           {segment.label}
         </button>
       ))}
@@ -426,68 +464,132 @@ function ItemMappingSuccessLayer({
   );
 }
 
-/** Match-found strip — default expanded view (no segmented nav). */
+/** Match-found info banner — default expanded view (no segmented nav). */
 function MatchedItemFoundLayer({
   item,
   matchedCatalogItemId = DEFAULT_MATCHED_CATALOG_ITEM_ID,
-  embedded = false,
   onApproveMatch,
   onMapExisting,
   onCreateNew,
 }: {
   item: ZenithSummaryLineItem;
   matchedCatalogItemId?: string;
-  embedded?: boolean;
   onApproveMatch: () => void;
   onMapExisting: () => void;
   onCreateNew: () => void;
 }) {
-  const matchMeta = `${item.frequency} · ${formatMatchUnitPrice(item.unitPrice)}`;
+  const catalogItem = getZenithCatalogItemById(matchedCatalogItemId);
+  const displayName = catalogItem?.name ?? item.name;
+  const displaySku = catalogItem?.sku ?? "—";
+  const displayStatus = catalogItem?.status ?? "Active";
+  const displayFrequency = catalogItem?.billingFrequency ?? item.frequency;
+  const displayPricingModel = catalogItem ? catalogPricingModel(catalogItem) : "Flat fee";
+  const displayUnitPrice = catalogItem
+    ? formatCatalogUnitPrice(catalogItem)
+    : formatMatchUnitPrice(item.unitPrice);
+  const displayProductType = catalogItem ? catalogProductType(catalogItem) : "Plan";
+  const displayBillingCycle = catalogItem ? catalogBillingCycle(catalogItem) : "Forever";
+  const displayTrial = catalogItem ? catalogTrialLabel(catalogItem) : "No trial";
+  const displayTaxable = catalogItem ? catalogTaxableLabel(catalogItem) : "Yes";
+
+  const catalogColumns = [
+    "Item",
+    "Item type",
+    "Status",
+    "Frequency",
+    "Pricing model",
+    "Unit price",
+    "Billing cycle",
+    "Trial",
+    "Taxable",
+  ] as const;
 
   return (
-    <div
-      className={cn(
-        "flex min-w-0 items-center justify-between gap-4",
-        embedded ? "py-0.5" : "bg-[#E6F9E9] px-3 py-3",
-      )}
-    >
-      <div className="min-w-0 space-y-0.5">
-        <p className="text-[13px] font-medium leading-snug text-emerald-700">Match found</p>
-        <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[13px] leading-snug">
-          <span className="inline-flex min-w-0 flex-wrap items-center gap-1.5 font-bold text-emerald-900">
-            <span className="truncate">{item.name}</span>
-            <CatalogItemActiveTag />
-            <CatalogItemExternalLink
-              itemId={matchedCatalogItemId}
-              itemName={item.name}
-              className="text-emerald-700/70 hover:text-emerald-800"
+    <div className="flex flex-col gap-4">
+      <div
+        role="status"
+        className="overflow-hidden rounded-lg border border-emerald-200 bg-emerald-50"
+      >
+        <div className="flex items-center justify-between gap-3 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <Info
+              size={16}
+              strokeWidth={2}
+              className="shrink-0 text-emerald-600"
+              aria-hidden
             />
-          </span>
-          <span className="font-bold text-emerald-900">· {matchMeta}</span>
-        </p>
+            <p className="text-[13px] font-semibold leading-snug text-emerald-800">Match found</p>
+          </div>
+          <button
+            type="button"
+            onClick={onApproveMatch}
+            className="inline-flex h-7 shrink-0 items-center rounded-full border border-emerald-500 bg-white px-2.5 text-[11px] font-medium text-emerald-700 transition-colors hover:border-emerald-600 hover:bg-emerald-50/80"
+          >
+            Approve match
+          </button>
+        </div>
+
+        <div className="overflow-x-auto border-t border-emerald-200/70 bg-white">
+          <WTable className="min-w-[1140px] text-[12px]">
+            <thead>
+              <tr className="border-b border-border-subtle bg-gray-50">
+                {catalogColumns.map((label) => (
+                  <th key={label} className="px-2 py-1.5 text-left font-normal">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+                      {label}
+                    </span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <WTbody>
+              <WTr className="bg-emerald-50/40 hover:bg-emerald-50/40">
+                <WTd className="px-2 py-1.5">
+                  <div className="flex min-w-[140px] items-center gap-1">
+                    <span className="truncate font-medium text-text-primary">{displayName}</span>
+                    <span className="shrink-0 text-text-muted">·</span>
+                    <span className="truncate text-[11px] text-text-muted">{displaySku}</span>
+                    <CatalogItemExternalLink
+                      itemId={matchedCatalogItemId}
+                      itemName={displayName}
+                    />
+                  </div>
+                </WTd>
+                <WTd className="px-2 py-1.5 text-text-secondary">{displayProductType}</WTd>
+                <WTd className="px-2 py-1.5">
+                  <StatusBadge status={displayStatus} className="py-px text-[11px]" />
+                </WTd>
+                <WTd className="px-2 py-1.5 text-text-secondary">{displayFrequency}</WTd>
+                <WTd className="px-2 py-1.5 text-text-secondary">{displayPricingModel}</WTd>
+                <WTd className="px-2 py-1.5 tabular-nums text-text-secondary">{displayUnitPrice}</WTd>
+                <WTd className="px-2 py-1.5 text-text-secondary">{displayBillingCycle}</WTd>
+                <WTd className="px-2 py-1.5 text-text-secondary">{displayTrial}</WTd>
+                <WTd className="px-2 py-1.5 text-text-secondary">{displayTaxable}</WTd>
+              </WTr>
+            </WTbody>
+          </WTable>
+        </div>
       </div>
-      <div className="flex shrink-0 items-center gap-1.5">
-        <button
-          type="button"
-          onClick={onApproveMatch}
-          className="inline-flex h-7 items-center rounded-full border border-emerald-500 bg-white/90 px-2.5 text-[11px] font-medium text-emerald-700 transition-colors hover:border-emerald-600 hover:bg-emerald-50"
-        >
-          Approve match
-        </button>
-        <div className="mx-0.5 h-3.5 w-px shrink-0 bg-border-default" aria-hidden />
+
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5">
         <button
           type="button"
           onClick={onMapExisting}
-          className="inline-flex h-7 items-center rounded-full border border-border-default bg-white/90 px-2.5 text-[11px] font-medium text-text-secondary transition-colors hover:border-gray-300 hover:bg-white hover:text-text-primary"
+          className="inline-flex items-center gap-1.5 text-[12px] font-medium text-text-muted transition-colors hover:text-text-primary"
         >
-          Map to existing
+          <Link2 size={13} strokeWidth={2} aria-hidden />
+          Link to existing
         </button>
+        <span className="text-[12px] text-text-muted/50" aria-hidden>
+          ·
+        </span>
         <button
           type="button"
           onClick={onCreateNew}
-          className="inline-flex h-7 items-center rounded-full px-2 text-[11px] font-medium text-[color:var(--color-info)] transition-colors hover:bg-white/60 hover:text-blue-700"
+          className="inline-flex items-center gap-1.5 text-[12px] font-medium text-text-muted transition-colors hover:text-text-primary"
         >
-          Create new
+          <UserPlus size={13} strokeWidth={2} aria-hidden />
+          Create new item
         </button>
       </div>
     </div>
@@ -502,14 +604,21 @@ function LineItemExpandedLayer({
   resolution,
   surfaceTone,
   mappedCatalogId,
+  selectedCatalogItemId,
+  onSelectCatalogItem,
+  onConfirmMapCatalog,
+  createCatalogForm,
+  onCreateCatalogFormChange,
   onPanelModeChange,
   onRevealPanelNav,
-  onMapCatalogItem,
   onItemCreated,
   onApproveMatch,
   onClearResolution,
-  showExtractedSummary = true,
   flow = "mapping",
+  flushHorizontal = false,
+  hideInlineMapConfirm = false,
+  hideInlineCreateConfirm = false,
+  hideMatchCondensedStrip = false,
 }: {
   item: ZenithSummaryLineItem;
   needsMapping: boolean;
@@ -518,14 +627,21 @@ function LineItemExpandedLayer({
   resolution?: LineItemResolutionDetail;
   surfaceTone: ExpandedSurfaceTone;
   mappedCatalogId: string | null;
+  selectedCatalogItemId: string | null;
+  onSelectCatalogItem: (catalogItemId: string | null) => void;
+  onConfirmMapCatalog?: () => void;
+  createCatalogForm: CreateCatalogItemFormState;
+  onCreateCatalogFormChange: (next: CreateCatalogItemFormState) => void;
+  hideInlineCreateConfirm?: boolean;
   onPanelModeChange: (mode: MappedPanelMode) => void;
   onRevealPanelNav: () => void;
-  onMapCatalogItem: (catalogItemId: string) => void;
   onItemCreated: (payload: ZenithCreateItemPayload) => void;
   onApproveMatch?: () => void;
   onClearResolution: () => void;
-  showExtractedSummary?: boolean;
   flow?: ZenithLineItemFlow;
+  flushHorizontal?: boolean;
+  hideInlineMapConfirm?: boolean;
+  hideMatchCondensedStrip?: boolean;
 }) {
   const surface = EXPANDED_SURFACE[surfaceTone];
   const isAddRow = flow === "add-row";
@@ -539,16 +655,22 @@ function LineItemExpandedLayer({
     onPanelModeChange("create");
   }
 
-  const navVariant = isAddRow || needsMapping ? "map-create-only" : "with-match";
+  const navVariant =
+    isAddRow || needsMapping || showPanelNav ? "map-create-only" : "with-match";
   const showSegmentedNav = isAddRow
     ? resolution == null
     : needsMapping
       ? resolution == null
       : showPanelNav && panelMode !== "match" && resolution == null;
 
+  const showMatchCondensedStrip =
+    !needsMapping && onApproveMatch != null && showPanelNav && panelMode !== "match";
+
+  const layerPaddingClass = flushHorizontal ? "px-0" : "px-3";
+
   if (resolution) {
     return (
-      <div className={cn("border-t px-3 py-3", surface.divider)}>
+      <div className={cn("border-t py-3", layerPaddingClass, surface.divider)}>
         <ItemMappingSuccessLayer
           embedded
           resolution={resolution}
@@ -560,7 +682,14 @@ function LineItemExpandedLayer({
   }
 
   return (
-    <div className={cn("border-t px-3 py-3", surface.divider)}>
+    <div className={cn("border-t py-3", layerPaddingClass, surface.divider)}>
+      {showMatchCondensedStrip && !hideMatchCondensedStrip ? (
+        <MatchedItemCondensedStrip
+          item={item}
+          onExpandMatch={() => onPanelModeChange("match")}
+          className="mb-3"
+        />
+      ) : null}
       {showSegmentedNav ? (
         <div className="mb-3">
           <MappedItemPanelNav
@@ -574,7 +703,6 @@ function LineItemExpandedLayer({
       <div>
         {panelMode === "match" && !needsMapping && onApproveMatch ? (
           <MatchedItemFoundLayer
-            embedded
             item={item}
             matchedCatalogItemId={
               mappedCatalogId ?? DEFAULT_MATCHED_CATALOG_ITEM_ID
@@ -585,20 +713,46 @@ function LineItemExpandedLayer({
           />
         ) : null}
         {panelMode === "map" ? (
-          <ZenithItemMapToExistingPanel
-            embedded
-            mappedItemId={mappedCatalogId}
-            onMapItem={onMapCatalogItem}
-            flow={isAddRow ? "add-row" : "mapping"}
-          />
+          <>
+            <ZenithItemMapToExistingPanel
+              embedded
+              selectedItemId={selectedCatalogItemId}
+              onSelectItem={onSelectCatalogItem}
+              flow={isAddRow ? "add-row" : "mapping"}
+            />
+            {!hideInlineMapConfirm && selectedCatalogItemId && onConfirmMapCatalog ? (
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={onConfirmMapCatalog}
+                  className="inline-flex h-8 items-center rounded-full bg-blue-600 px-4 text-[12px] font-semibold text-white transition-colors hover:bg-blue-700"
+                >
+                  {isAddRow ? "Add to contract" : "Submit"}
+                </button>
+              </div>
+            ) : null}
+          </>
         ) : null}
         {panelMode === "create" ? (
-          <ZenithItemCreateNewPanel
-            embedded
-            extractedItem={item}
-            showExtractedSummary={showExtractedSummary}
-            onCreate={onItemCreated}
-          />
+          <>
+            <ZenithItemCreateNewPanel
+              embedded
+              value={createCatalogForm}
+              onChange={onCreateCatalogFormChange}
+              onCreate={onItemCreated}
+            />
+            {!hideInlineCreateConfirm && isCreateCatalogItemFormComplete(createCatalogForm) ? (
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="submit"
+                  form={CREATE_CATALOG_ITEM_FORM_ID}
+                  className="inline-flex h-8 items-center rounded-full bg-blue-600 px-4 text-[12px] font-semibold text-white transition-colors hover:bg-blue-700"
+                >
+                  {isAddRow ? "Add to contract" : "Submit"}
+                </button>
+              </div>
+            ) : null}
+          </>
         ) : null}
       </div>
     </div>
@@ -607,215 +761,95 @@ function LineItemExpandedLayer({
 
 function ItemsTableRow({
   item,
-  expanded,
-  panelMode,
-  showPanelNav,
+  selected,
   resolution,
-  mappedCatalogId,
-  onToggleExpand,
-  onPanelModeChange,
-  onRevealPanelNav,
-  onMapCatalogItem,
-  onItemCreated,
-  onApproveMatch,
-  onClearResolution,
-  onDismissSuccess,
-  showExtractedSummary = true,
-  isAddRow = false,
+  onSelect,
 }: {
   item: ZenithSummaryLineItem;
-  expanded: boolean;
-  panelMode: MappedPanelMode;
-  showPanelNav: boolean;
+  selected: boolean;
   resolution?: LineItemResolutionDetail;
-  mappedCatalogId: string | null;
-  onToggleExpand: () => void;
-  onPanelModeChange: (mode: MappedPanelMode) => void;
-  onRevealPanelNav: () => void;
-  onMapCatalogItem: (catalogItemId: string) => void;
-  onItemCreated: (payload: ZenithCreateItemPayload) => void;
-  onApproveMatch: () => void;
-  onClearResolution: () => void;
-  onDismissSuccess: () => void;
-  showExtractedSummary?: boolean;
-  isAddRow?: boolean;
+  onSelect: () => void;
 }) {
-  const flow: ZenithLineItemFlow = isAddRow ? "add-row" : "mapping";
-  const needsMapping = !isAddRow && item.mappingStatus === "needs_mapping";
+  const needsMapping = item.mappingStatus === "needs_mapping";
   const mapped = item.mappingStatus === "mapped";
-  const expandable = isAddRow || mapped || item.mappingStatus === "needs_mapping";
+  const expandable = mapped || needsMapping;
   const resolved = resolution != null;
-  const showRowPlaceholders = isAddRow && !resolved;
-  const expandedActive = expanded && expandable;
-  const surfaceTone = isAddRow
-    ? resolved
-      ? "resolved"
-      : "work"
-    : getExpandedSurfaceTone(needsMapping, panelMode, resolved);
-  const surface = EXPANDED_SURFACE[surfaceTone];
-
-  useEffect(() => {
-    if (!resolution || !expanded) return;
-    const timer = window.setTimeout(() => {
-      onDismissSuccess();
-    }, SUCCESS_MESSAGE_AUTO_CLOSE_MS);
-    return () => clearTimeout(timer);
-  }, [resolution, expanded, onDismissSuccess]);
 
   function renderStatusIcon() {
-    if (isAddRow && !resolved) {
-      return null;
-    }
     if (resolved) {
-      return <ResolvedStatusIcon resolution={resolution} flow={flow} />;
+      return <ResolvedStatusIcon resolution={resolution} flow="mapping" />;
     }
     if (mapped) {
-      return <MappedStatusIcon onClick={onToggleExpand} />;
+      return <MappedStatusIcon />;
     }
-    return <UnmappedStatusIcon onClick={onToggleExpand} />;
+    return <UnmappedStatusIcon />;
   }
 
   return (
-    <>
-      <tr
-        className={cn(
-          "bg-white",
-          needsMapping && !resolved && "shadow-[inset_3px_0_0_#ef4444]",
-          expandedActive && surface.row,
-        )}
-      >
-        <td
-          rowSpan={expandedActive ? 2 : 1}
-          className={cn(
-            tdClass,
-            "w-10 align-top",
-            expandedActive && "border-b-0 bg-transparent",
-          )}
-        >
-          <div
-            className={cn(
-              "flex items-center justify-center",
-              expandedActive ? "min-h-full py-2" : "h-9",
-            )}
+    <tr
+      className={cn(
+        "bg-white",
+        needsMapping && !resolved && "shadow-[inset_3px_0_0_#ef4444]",
+        selected && "bg-blue-50/60",
+        expandable && "cursor-pointer",
+      )}
+      onClick={expandable ? onSelect : undefined}
+    >
+      <td className={cn(tdClass, "w-10 align-top")}>
+        <div className="flex h-9 items-center justify-center">{renderStatusIcon()}</div>
+      </td>
+      <td className={cn(tdClass, "min-w-[200px]")}>
+        <EditableSelectCell
+          value={formatLineItemCellText(item.name, false)}
+          label={expandable ? "Open item mapping options" : "Item"}
+          inFocusedRow={selected}
+        />
+      </td>
+      <td className={cn(tdClass, "min-w-[140px]")}>
+        <EditableSelectCell
+          value={formatLineItemCellText(item.frequency, false)}
+          label="Frequency"
+          inFocusedRow={selected}
+        />
+      </td>
+      <td className={cn(tdClass, "w-[88px]")}>
+        <EditableInputCell
+          value={formatLineItemQuantity(item.quantity, false)}
+          label="Quantity"
+          align="right"
+          inFocusedRow={selected}
+        />
+      </td>
+      <td className={cn(tdClass, "w-[120px]")}>
+        <EditableInputCell
+          value={formatLineItemMoney(item.unitPrice, false)}
+          label="Unit price"
+          align="right"
+          inFocusedRow={selected}
+        />
+      </td>
+      <td className={cn(tdClass, "w-[120px]")}>
+        <EditableInputCell
+          value={formatLineItemMoney(item.totalPrice, false)}
+          label="Total price"
+          align="right"
+          inFocusedRow={selected}
+        />
+      </td>
+      <td className={cn(tdClass, "w-11")}>
+        <div className="flex h-9 items-center justify-center">
+          <button
+            type="button"
+            className="rounded p-1 text-text-muted transition-colors hover:bg-gray-100 hover:text-text-primary"
+            aria-label={`Actions for ${item.name}`}
+            onClick={(e) => e.stopPropagation()}
           >
-            {renderStatusIcon()}
-          </div>
-        </td>
-        <td
-          className={cn(
-            tdClass,
-            "min-w-[200px]",
-            expandedActive && "border-b-0 bg-transparent",
-          )}
-        >
-          <EditableSelectCell
-            value={formatLineItemCellText(item.name, showRowPlaceholders)}
-            label={
-              isAddRow
-                ? "Choose item to add"
-                : expandable
-                  ? "Open item mapping options"
-                  : "Item"
-            }
-            onClick={expandable ? onToggleExpand : undefined}
-            inFocusedRow={expandedActive}
-            isPlaceholder={showRowPlaceholders}
-          />
-        </td>
-        <td
-          className={cn(
-            tdClass,
-            "min-w-[140px]",
-            expandedActive && "border-b-0 bg-transparent",
-          )}
-        >
-          <EditableSelectCell
-            value={formatLineItemCellText(item.frequency, showRowPlaceholders)}
-            label="Frequency"
-            inFocusedRow={expandedActive}
-            isPlaceholder={showRowPlaceholders}
-          />
-        </td>
-        <td
-          className={cn(tdClass, "w-[88px]", expandedActive && "border-b-0 bg-transparent")}
-        >
-          <EditableInputCell
-            value={formatLineItemQuantity(item.quantity, showRowPlaceholders)}
-            label="Quantity"
-            align="right"
-            inFocusedRow={expandedActive}
-            isPlaceholder={showRowPlaceholders}
-          />
-        </td>
-        <td
-          className={cn(tdClass, "w-[120px]", expandedActive && "border-b-0 bg-transparent")}
-        >
-          <EditableInputCell
-            value={formatLineItemMoney(item.unitPrice, showRowPlaceholders)}
-            label="Unit price"
-            align="right"
-            inFocusedRow={expandedActive}
-            isPlaceholder={showRowPlaceholders}
-          />
-        </td>
-        <td
-          className={cn(tdClass, "w-[120px]", expandedActive && "border-b-0 bg-transparent")}
-        >
-          <EditableInputCell
-            value={formatLineItemMoney(item.totalPrice, showRowPlaceholders)}
-            label="Total price"
-            align="right"
-            inFocusedRow={expandedActive}
-            isPlaceholder={showRowPlaceholders}
-          />
-        </td>
-        <td className={cn(tdClass, "w-11", expandedActive && "border-b-0 bg-transparent")}>
-          <div className="flex h-9 items-center justify-center">
-            <button
-              type="button"
-              className="rounded p-1 text-text-muted transition-colors hover:bg-gray-100 hover:text-text-primary"
-              aria-label={`Actions for ${item.name}`}
-            >
-              <MoreVertical size={16} strokeWidth={2} />
-            </button>
-          </div>
-        </td>
-      </tr>
-      {expandedActive ? (
-        <tr className={surface.row}>
-          <td colSpan={6} className="border-b border-border-subtle p-0 align-top">
-            <LineItemExpandedLayer
-              item={item}
-              needsMapping={needsMapping}
-              panelMode={panelMode}
-              showPanelNav={showPanelNav}
-              resolution={resolution}
-              surfaceTone={surfaceTone}
-              mappedCatalogId={mappedCatalogId}
-              onPanelModeChange={onPanelModeChange}
-              onRevealPanelNav={onRevealPanelNav}
-              onMapCatalogItem={onMapCatalogItem}
-              onItemCreated={onItemCreated}
-              onApproveMatch={mapped ? onApproveMatch : undefined}
-              onClearResolution={onClearResolution}
-              showExtractedSummary={showExtractedSummary}
-              flow={flow}
-            />
-          </td>
-        </tr>
-      ) : null}
-    </>
+            <MoreVertical size={16} strokeWidth={2} />
+          </button>
+        </div>
+      </td>
+    </tr>
   );
-}
-
-function captureMainScrollTop(): number | null {
-  const scrollEl = getMainScrollContainer();
-  return scrollEl ? scrollEl.scrollTop : null;
-}
-
-function restoreMainScrollTop(top: number) {
-  const scrollEl = getMainScrollContainer();
-  if (scrollEl) scrollEl.scrollTop = top;
 }
 
 export function ZenithContractItemsTab() {
@@ -834,34 +868,24 @@ export function ZenithContractItemsTab() {
   const unmappedCount = zenithSummaryLineItemsNeedMappingCount(
     lineItems.filter((line) => line.id !== addRowDraftId),
   );
-  const pendingScrollTopRef = useRef<number | null>(null);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [panelMode, setPanelMode] = useState<MappedPanelMode>("match");
   const [showPanelNav, setShowPanelNav] = useState(false);
   const [mappedCatalogByLine, setMappedCatalogByLine] = useState<Record<string, string>>({});
+  const [pendingCatalogByLine, setPendingCatalogByLine] = useState<Record<string, string>>({});
+  const [createCatalogFormByLine, setCreateCatalogFormByLine] = useState<
+    Record<string, CreateCatalogItemFormState>
+  >({});
   const [lineItemResolution, setLineItemResolution] = useState<
     Record<string, LineItemResolutionDetail>
   >({});
 
-  const lockScrollForLayoutChange = useCallback(() => {
-    pendingScrollTopRef.current = captureMainScrollTop();
-  }, []);
-
-  useLayoutEffect(() => {
-    const pending = pendingScrollTopRef.current;
-    if (pending == null) return;
-    restoreMainScrollTop(pending);
-    pendingScrollTopRef.current = null;
-  }, [expandedItemId, panelMode, showPanelNav]);
-
   function resolveLineItem(lineId: string, detail: LineItemResolutionDetail) {
-    lockScrollForLayoutChange();
     setLineItemResolution((prev) => ({ ...prev, [lineId]: detail }));
   }
 
   function clearLineItemResolution(lineId: string) {
     const previous = lineItemResolution[lineId];
-    lockScrollForLayoutChange();
 
     setLineItemResolution((prev) => {
       const next = { ...prev };
@@ -869,6 +893,16 @@ export function ZenithContractItemsTab() {
       return next;
     });
     setMappedCatalogByLine((prev) => {
+      const next = { ...prev };
+      delete next[lineId];
+      return next;
+    });
+    setPendingCatalogByLine((prev) => {
+      const next = { ...prev };
+      delete next[lineId];
+      return next;
+    });
+    setCreateCatalogFormByLine((prev) => {
       const next = { ...prev };
       delete next[lineId];
       return next;
@@ -900,12 +934,120 @@ export function ZenithContractItemsTab() {
     }
   }
 
-  const dismissExpandedSuccess = useCallback(() => {
-    lockScrollForLayoutChange();
+  const closeLineItemDrawer = useCallback(() => {
+    setExpandedItemId((current) => {
+      if (!current) return null;
+
+      setAddRowDraftId((draftId) => {
+        if (draftId === current) {
+          setLineItems((prev) => prev.filter((line) => line.id !== current));
+          setLineItemResolution((prev) => {
+            const next = { ...prev };
+            delete next[current];
+            return next;
+          });
+          setMappedCatalogByLine((prev) => {
+            const next = { ...prev };
+            delete next[current];
+            return next;
+          });
+          return null;
+        }
+        return draftId;
+      });
+
+      setPendingCatalogByLine((prev) => {
+        const next = { ...prev };
+        delete next[current];
+        return next;
+      });
+      setCreateCatalogFormByLine((prev) => {
+        const next = { ...prev };
+        delete next[current];
+        return next;
+      });
+      return null;
+    });
+    resetExpandedPanel();
+  }, []);
+
+  function getCreateCatalogForm(
+    lineId: string,
+    item: ZenithSummaryLineItem,
+  ): CreateCatalogItemFormState {
+    return createCatalogFormByLine[lineId] ?? buildInitialCreateCatalogItemForm(item);
+  }
+
+  function updateCreateCatalogForm(lineId: string, next: CreateCatalogItemFormState) {
+    setCreateCatalogFormByLine((prev) => ({ ...prev, [lineId]: next }));
+  }
+
+  function updatePendingCatalogSelection(lineId: string, catalogItemId: string | null) {
+    setPendingCatalogByLine((prev) => {
+      const next = { ...prev };
+      if (!catalogItemId) delete next[lineId];
+      else next[lineId] = catalogItemId;
+      return next;
+    });
+  }
+
+  function confirmMapCatalogToLine(lineId: string) {
+    const catalogItemId = pendingCatalogByLine[lineId];
+    if (!catalogItemId) return;
+    applyCatalogToLine(lineId, catalogItemId);
+  }
+
+  function closeDrawerAfterSubmit(lineId: string) {
     setExpandedItemId(null);
     resetExpandedPanel();
+    setPendingCatalogByLine((prev) => {
+      const next = { ...prev };
+      delete next[lineId];
+      return next;
+    });
+    setCreateCatalogFormByLine((prev) => {
+      const next = { ...prev };
+      delete next[lineId];
+      return next;
+    });
+  }
+
+  function submitMapCatalogFromDrawer(lineId: string) {
+    const catalogItemId = pendingCatalogByLine[lineId];
+    if (!catalogItemId) return;
+    const isAddRow = addRowDraftId === lineId;
+
+    if (isAddRow) {
+      applyCatalogToLine(lineId, catalogItemId);
+      closeDrawerAfterSubmit(lineId);
+      return;
+    }
+
+    closeLineItemDrawer();
+    window.setTimeout(() => {
+      applyCatalogToLine(lineId, catalogItemId);
+    }, 0);
+  }
+
+  function submitCreateFromDrawer(lineId: string, payload: ZenithCreateItemPayload) {
+    const isAddRow = addRowDraftId === lineId;
+
+    if (isAddRow) {
+      applyCreateToLine(lineId, payload);
+      closeDrawerAfterSubmit(lineId);
+      return;
+    }
+
+    closeLineItemDrawer();
+    window.setTimeout(() => {
+      applyCreateToLine(lineId, payload);
+    }, 0);
+  }
+
+  const dismissExpandedSuccess = useCallback(() => {
+    closeLineItemDrawer();
     setAddRowDraftId(null);
-  }, [lockScrollForLayoutChange]);
+  }, [closeLineItemDrawer]);
 
   function clearAddRowDraftIf(lineId: string) {
     setAddRowDraftId((draftId) => (draftId === lineId ? null : draftId));
@@ -941,12 +1083,11 @@ export function ZenithContractItemsTab() {
     if (addRowDraftId) return;
     const id = `li-new-${Date.now()}`;
     const draft = createDraftLineItem(id);
-    lockScrollForLayoutChange();
     setLineItems((prev) => [...prev, draft]);
     setAddRowDraftId(id);
-    setExpandedItemId(id);
     setPanelMode("map");
     setShowPanelNav(true);
+    setExpandedItemId(id);
   }
 
   function removeDraftRow(lineId: string) {
@@ -962,48 +1103,88 @@ export function ZenithContractItemsTab() {
       delete next[lineId];
       return next;
     });
+    setPendingCatalogByLine((prev) => {
+      const next = { ...prev };
+      delete next[lineId];
+      return next;
+    });
+    setCreateCatalogFormByLine((prev) => {
+      const next = { ...prev };
+      delete next[lineId];
+      return next;
+    });
   }
 
-  const draftItem = addRowDraftId
-    ? lineItems.find((line) => line.id === addRowDraftId)
-    : undefined;
   const tableLineItems = lineItems.filter((line) => line.id !== addRowDraftId);
+  const drawerItem = expandedItemId
+    ? lineItems.find((line) => line.id === expandedItemId)
+    : undefined;
+  const isAddRowDrawer = Boolean(
+    drawerItem && addRowDraftId && drawerItem.id === addRowDraftId,
+  );
 
   useEffect(() => {
-    if (!draftItem) return;
-    const resolution = lineItemResolution[draftItem.id];
+    if (!drawerItem || isAddRowDrawer) return;
+    const resolution = lineItemResolution[drawerItem.id];
     if (!resolution) return;
     const timer = window.setTimeout(() => {
       dismissExpandedSuccess();
     }, SUCCESS_MESSAGE_AUTO_CLOSE_MS);
     return () => clearTimeout(timer);
-  }, [draftItem, lineItemResolution, dismissExpandedSuccess]);
-
-  function cancelAddRow() {
-    if (!addRowDraftId) return;
-    lockScrollForLayoutChange();
-    removeDraftRow(addRowDraftId);
-    setExpandedItemId(null);
-    resetExpandedPanel();
-  }
+  }, [drawerItem, isAddRowDrawer, lineItemResolution, dismissExpandedSuccess]);
 
   function toggleLineItem(item: ZenithSummaryLineItem) {
     const canExpand =
       item.mappingStatus === "mapped" || item.mappingStatus === "needs_mapping";
     if (!canExpand) return;
-    lockScrollForLayoutChange();
+
+    if (addRowDraftId && addRowDraftId !== item.id) {
+      removeDraftRow(addRowDraftId);
+    }
+
     setExpandedItemId((prev) => {
       if (prev === item.id) {
         resetExpandedPanel();
-        if (addRowDraftId === item.id) {
-          removeDraftRow(item.id);
-        }
         return null;
       }
       openLineItemPanel(item);
       return item.id;
     });
   }
+
+  const drawerNeedsMapping = isAddRowDrawer || drawerItem?.mappingStatus === "needs_mapping";
+  const drawerMapped = !isAddRowDrawer && drawerItem?.mappingStatus === "mapped";
+  const drawerResolution = drawerItem ? lineItemResolution[drawerItem.id] : undefined;
+  const drawerSurfaceTone = drawerItem
+    ? getExpandedSurfaceTone(Boolean(drawerNeedsMapping), panelMode, drawerResolution != null)
+    : "work";
+
+  function approveDrawerCatalogMatch() {
+    if (!drawerItem) return;
+    const catalogItem = getZenithCatalogItemById(DEFAULT_MATCHED_CATALOG_ITEM_ID);
+    setLineItems((prev) =>
+      prev.map((line) =>
+        line.id === drawerItem.id && catalogItem
+          ? lineItemFromCatalog(line, catalogItem)
+          : line,
+      ),
+    );
+    setMappedCatalogByLine((prev) => ({
+      ...prev,
+      [drawerItem.id]: DEFAULT_MATCHED_CATALOG_ITEM_ID,
+    }));
+    resolveLineItem(drawerItem.id, {
+      kind: "approved",
+      itemName: catalogItem?.name ?? drawerItem.name,
+    });
+  }
+
+  const showDrawerMatchStrip =
+    drawerItem != null &&
+    drawerMapped &&
+    showPanelNav &&
+    panelMode !== "match" &&
+    drawerResolution == null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -1028,42 +1209,9 @@ export function ZenithContractItemsTab() {
                   <ItemsTableRow
                     key={item.id}
                     item={item}
-                    expanded={expandedItemId === item.id}
-                    panelMode={expandedItemId === item.id ? panelMode : "match"}
-                    showPanelNav={expandedItemId === item.id && showPanelNav}
+                    selected={expandedItemId === item.id}
                     resolution={lineItemResolution[item.id]}
-                    mappedCatalogId={mappedCatalogByLine[item.id] ?? null}
-                    onToggleExpand={() => toggleLineItem(item)}
-                    onPanelModeChange={(mode) => {
-                      lockScrollForLayoutChange();
-                      setPanelMode(mode);
-                    }}
-                    onRevealPanelNav={() => {
-                      lockScrollForLayoutChange();
-                      setShowPanelNav(true);
-                    }}
-                    onMapCatalogItem={(catalogItemId) => applyCatalogToLine(item.id, catalogItemId)}
-                    onItemCreated={(payload) => applyCreateToLine(item.id, payload)}
-                    onApproveMatch={() => {
-                      const catalogItem = getZenithCatalogItemById(DEFAULT_MATCHED_CATALOG_ITEM_ID);
-                      setLineItems((prev) =>
-                        prev.map((line) =>
-                          line.id === item.id && catalogItem
-                            ? lineItemFromCatalog(line, catalogItem)
-                            : line,
-                        ),
-                      );
-                      setMappedCatalogByLine((prev) => ({
-                        ...prev,
-                        [item.id]: DEFAULT_MATCHED_CATALOG_ITEM_ID,
-                      }));
-                      resolveLineItem(item.id, {
-                        kind: "approved",
-                        itemName: catalogItem?.name ?? item.name,
-                      });
-                    }}
-                    onClearResolution={() => clearLineItemResolution(item.id)}
-                    onDismissSuccess={dismissExpandedSuccess}
+                    onSelect={() => toggleLineItem(item)}
                   />
                 ))}
               </tbody>
@@ -1071,58 +1219,92 @@ export function ZenithContractItemsTab() {
           </div>
         </div>
 
-        <div
-          className={cn(
-            "overflow-hidden rounded-xl border border-dashed border-border-default bg-white",
-            draftItem ? "border-gray-300" : "bg-gray-50/40",
-          )}
-        >
-          {draftItem ? (
-            <div>
-              <div className="flex items-center justify-between gap-3 border-b border-border-subtle px-4 py-2.5">
-                <p className="text-[13px] font-semibold text-text-primary">Add line item</p>
+        <div className="overflow-hidden rounded-xl border border-dashed border-border-default bg-gray-50/40">
+          <button
+            type="button"
+            onClick={startAddRow}
+            disabled={addRowDraftId != null}
+            className="flex h-11 w-full items-center justify-center gap-1.5 text-[13px] font-medium text-text-secondary transition-colors hover:bg-gray-50/80 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Plus size={14} strokeWidth={2} />
+            Add row
+          </button>
+        </div>
+
+      <ZenithLineItemBottomDrawer
+        open={drawerItem != null}
+        item={drawerItem ?? null}
+        onClose={closeLineItemDrawer}
+        headerEyebrow={isAddRowDrawer ? "Add line item" : "Line item"}
+        headerTitle={isAddRowDrawer ? "New row" : undefined}
+        closeLabel={isAddRowDrawer ? "Close add line item panel" : "Close item panel"}
+        pinnedStrip={
+          showDrawerMatchStrip && drawerItem ? (
+            <MatchedItemCondensedStrip
+              item={drawerItem}
+              onExpandMatch={() => setPanelMode("match")}
+              className="px-8"
+            />
+          ) : undefined
+        }
+        footer={
+          drawerItem && !lineItemResolution[drawerItem.id] ? (
+            panelMode === "map" && pendingCatalogByLine[drawerItem.id] ? (
+              <div className="flex shrink-0 justify-end border-t border-border-subtle px-8 py-3">
                 <button
                   type="button"
-                  onClick={cancelAddRow}
-                  className="text-[12px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+                  onClick={() => submitMapCatalogFromDrawer(drawerItem.id)}
+                  className="inline-flex h-8 items-center rounded-full bg-blue-600 px-4 text-[12px] font-semibold text-white transition-colors hover:bg-blue-700"
                 >
-                  Cancel
+                  {isAddRowDrawer ? "Add to contract" : "Submit"}
                 </button>
               </div>
-              <LineItemExpandedLayer
-                item={draftItem}
-                needsMapping
-                panelMode={panelMode}
-                showPanelNav={showPanelNav}
-                resolution={lineItemResolution[draftItem.id]}
-                surfaceTone="work"
-                mappedCatalogId={mappedCatalogByLine[draftItem.id] ?? null}
-                onPanelModeChange={(mode) => {
-                  lockScrollForLayoutChange();
-                  setPanelMode(mode);
-                }}
-                onRevealPanelNav={() => {
-                  lockScrollForLayoutChange();
-                  setShowPanelNav(true);
-                }}
-                onMapCatalogItem={(catalogItemId) => applyCatalogToLine(draftItem.id, catalogItemId)}
-                onItemCreated={(payload) => applyCreateToLine(draftItem.id, payload)}
-                onClearResolution={() => clearLineItemResolution(draftItem.id)}
-                showExtractedSummary={false}
-                flow="add-row"
-              />
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={startAddRow}
-              className="flex h-11 w-full items-center justify-center gap-1.5 text-[13px] font-medium text-text-secondary transition-colors hover:bg-gray-50/80 hover:text-text-primary"
-            >
-              <Plus size={14} strokeWidth={2} />
-              Add row
-            </button>
-          )}
-        </div>
+            ) : panelMode === "create" ? (
+              <div className="flex shrink-0 justify-end border-t border-border-subtle px-8 py-3">
+                <button
+                  type="submit"
+                  form={CREATE_CATALOG_ITEM_FORM_ID}
+                  disabled={
+                    !isCreateCatalogItemFormComplete(
+                      getCreateCatalogForm(drawerItem.id, drawerItem),
+                    )
+                  }
+                  className="inline-flex h-8 items-center rounded-full bg-blue-600 px-4 text-[12px] font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+                >
+                  {isAddRowDrawer ? "Add to contract" : "Submit"}
+                </button>
+              </div>
+            ) : undefined
+          ) : undefined
+        }
+      >
+        {drawerItem ? (
+          <LineItemExpandedLayer
+            item={drawerItem}
+            needsMapping={Boolean(drawerNeedsMapping)}
+            panelMode={panelMode}
+            showPanelNav={showPanelNav}
+            resolution={drawerResolution}
+            surfaceTone={drawerSurfaceTone}
+            mappedCatalogId={mappedCatalogByLine[drawerItem.id] ?? null}
+            selectedCatalogItemId={pendingCatalogByLine[drawerItem.id] ?? null}
+            onSelectCatalogItem={(id) => updatePendingCatalogSelection(drawerItem.id, id)}
+            onConfirmMapCatalog={() => submitMapCatalogFromDrawer(drawerItem.id)}
+            hideInlineMapConfirm
+            createCatalogForm={getCreateCatalogForm(drawerItem.id, drawerItem)}
+            onCreateCatalogFormChange={(next) => updateCreateCatalogForm(drawerItem.id, next)}
+            hideInlineCreateConfirm
+            onPanelModeChange={setPanelMode}
+            onRevealPanelNav={() => setShowPanelNav(true)}
+            onItemCreated={(payload) => submitCreateFromDrawer(drawerItem.id, payload)}
+            onApproveMatch={drawerMapped ? approveDrawerCatalogMatch : undefined}
+            onClearResolution={() => clearLineItemResolution(drawerItem.id)}
+            hideMatchCondensedStrip
+            flushHorizontal
+            flow={isAddRowDrawer ? "add-row" : "mapping"}
+          />
+        ) : null}
+      </ZenithLineItemBottomDrawer>
     </div>
   );
 }

@@ -108,10 +108,10 @@ export const Select = forwardRef<HTMLSelectElement, React.ComponentProps<"select
   ref,
 ) {
   return (
-    <div className="relative">
+    <div className={cn("relative max-w-full", className)}>
       <select
         ref={ref}
-        className={cn(formInputClass, "cursor-pointer appearance-none pr-9", className)}
+        className={cn(formInputClass, "w-full cursor-pointer appearance-none pr-9")}
         {...props}
       >
         {children}

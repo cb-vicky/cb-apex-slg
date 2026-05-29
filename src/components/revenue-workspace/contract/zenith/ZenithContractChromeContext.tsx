@@ -27,6 +27,16 @@ import {
   type ZenithContractReviewStatus,
 } from "./zenith-contract-review-status";
 import { getMainScrollContainer } from "./zenith-contract-scroll";
+import {
+  newZenithCommentId,
+  ZENITH_COMMENT_CURRENT_USER,
+  type ZenithContractComment,
+} from "@/data/zenith-contract-comments";
+
+export interface ZenithCommentFocus {
+  tab: ZenithContractActiveTab;
+  anchorLabel: string;
+}
 
 export interface ZenithContractChromeValue {
   activeTab: ZenithContractActiveTab;
@@ -39,6 +49,14 @@ export interface ZenithContractChromeValue {
   setContractLineItems: (items: ZenithSummaryLineItem[]) => void;
   reviewStatus: ZenithContractReviewStatus;
   setReviewStatus: (status: ZenithContractReviewStatus) => void;
+  comments: ZenithContractComment[];
+  commentCount: number;
+  commentsPanelOpen: boolean;
+  commentFocus: ZenithCommentFocus | null;
+  openCommentsPanel: (focus?: ZenithCommentFocus) => void;
+  closeCommentsPanel: () => void;
+  addComment: (input: { tab: ZenithContractActiveTab; anchorLabel: string; text: string }) => void;
+  toggleCommentPin: (commentId: string) => void;
 }
 
 const ZenithContractChromeContext = createContext<ZenithContractChromeValue | null>(null);
@@ -68,6 +86,9 @@ export function ZenithContractChromeProvider({
   const [reviewStatus, setReviewStatus] = useState<ZenithContractReviewStatus>(
     DEFAULT_ZENITH_CONTRACT_REVIEW_STATUS,
   );
+  const [comments, setComments] = useState<ZenithContractComment[]>([]);
+  const [commentsPanelOpen, setCommentsPanelOpen] = useState(false);
+  const [commentFocus, setCommentFocus] = useState<ZenithCommentFocus | null>(null);
   const rafRef = useRef(0);
   /** True while the collapse/expand CSS transition is playing (200ms). During this
    *  window the sticky header height is in flux which causes scroll events driven
@@ -105,6 +126,43 @@ export function ZenithContractChromeProvider({
     });
   }, []);
 
+  const openCommentsPanel = useCallback((focus?: ZenithCommentFocus) => {
+    setCommentFocus(focus ?? null);
+    setCommentsPanelOpen(true);
+  }, []);
+
+  const closeCommentsPanel = useCallback(() => {
+    setCommentsPanelOpen(false);
+    setCommentFocus(null);
+  }, []);
+
+  const addComment = useCallback(
+    ({ tab, anchorLabel, text }: { tab: ZenithContractActiveTab; anchorLabel: string; text: string }) => {
+      setComments((prev) => [
+        ...prev,
+        {
+          id: newZenithCommentId(),
+          tab,
+          anchorLabel,
+          text,
+          author: ZENITH_COMMENT_CURRENT_USER.name,
+          role: ZENITH_COMMENT_CURRENT_USER.role,
+          timestamp: new Date().toISOString(),
+          pinned: false,
+        },
+      ]);
+    },
+    [],
+  );
+
+  const toggleCommentPin = useCallback((commentId: string) => {
+    setComments((prev) =>
+      prev.map((comment) =>
+        comment.id === commentId ? { ...comment, pinned: !comment.pinned } : comment,
+      ),
+    );
+  }, []);
+
   const setActiveTab = useCallback((tab: ZenithContractActiveTab) => {
     const scrollContainer = getMainScrollContainer();
     const scrollTop = scrollContainer?.scrollTop ?? 0;
@@ -134,6 +192,9 @@ export function ZenithContractChromeProvider({
     setContractLineItems([...zenithSummaryLineItems]);
     setManualTabComplete({});
     setReviewStatus(DEFAULT_ZENITH_CONTRACT_REVIEW_STATUS);
+    setComments([]);
+    setCommentsPanelOpen(false);
+    setCommentFocus(null);
   }, [enabled, resetKey]);
 
   /** Mark a chrome height transition as in-progress for `durationMs`. */
@@ -194,6 +255,14 @@ export function ZenithContractChromeProvider({
         setContractLineItems,
         reviewStatus,
         setReviewStatus,
+        comments,
+        commentCount: comments.length,
+        commentsPanelOpen,
+        commentFocus,
+        openCommentsPanel,
+        closeCommentsPanel,
+        addComment,
+        toggleCommentPin,
       }
     : null;
 

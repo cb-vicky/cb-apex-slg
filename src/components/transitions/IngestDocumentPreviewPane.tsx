@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from "react";
-import { ChevronLeft, ChevronRight, Minus, PanelRightClose, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText, Minus, PanelRightClose, Plus } from "lucide-react";
 import type { ExtractedContract } from "@/data/ingest-data";
 import { ContractExtractDocumentBody } from "./ContractExtractDocumentBody";
 
@@ -27,7 +27,12 @@ export function IngestDocumentPreviewPane({
           className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-border-default bg-surface-muted px-2.5 py-1"
           title={documentTitle}
         >
-          <span className="shrink-0 text-[11px] font-semibold text-text-secondary">Contract</span>
+          <FileText
+            size={14}
+            strokeWidth={2}
+            className="shrink-0 text-text-muted"
+            aria-label="Document"
+          />
           <span className="min-w-0 truncate text-[11px] font-medium text-text-primary">{documentTitle}</span>
         </div>
 
@@ -109,11 +114,9 @@ export function IngestDocumentPreviewPane({
 export function DocumentPreviewTabContent({
   extracted,
   documentTitle,
-  documentLabel = "Contract",
 }: {
   extracted: ExtractedContract | null;
   documentTitle: string;
-  documentLabel?: string;
 }) {
   const [zoom, setZoom] = useState(100);
   const [page, setPage] = useState(1);
@@ -128,7 +131,12 @@ export function DocumentPreviewTabContent({
             className="flex min-w-0 items-center gap-2 rounded-md border border-border-default bg-white px-2.5 py-1.5"
             title={documentTitle}
           >
-            <span className="shrink-0 text-[11px] font-semibold text-text-secondary">{documentLabel}</span>
+            <FileText
+              size={14}
+              strokeWidth={2}
+              className="shrink-0 text-text-muted"
+              aria-label="Document"
+            />
             <span className="min-w-0 truncate text-[11px] font-medium text-text-primary">{documentTitle}</span>
           </div>
 

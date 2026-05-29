@@ -1,4 +1,4 @@
-import { FileText } from "lucide-react";
+import { FileText, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useZenithContractChrome } from "./ZenithContractChromeContext";
 import { ZenithContractReviewStatusMenu } from "./ZenithContractReviewStatusMenu";
@@ -81,7 +81,7 @@ interface Props {
 }
 
 const tabStripChromeClass =
-  "min-w-0 overflow-hidden rounded-2xl border border-border-default bg-white p-1.5";
+  "overflow-hidden rounded-2xl border border-border-default bg-white p-1.5";
 
 const actionsStripChromeClass =
   "shrink-0 overflow-visible rounded-2xl border border-border-default bg-white p-1.5";
@@ -96,14 +96,14 @@ export function ZenithContractTabStrip({ activeTab, onTabSelect, className }: Pr
   return (
     <div
       className={cn(
-        "flex w-full min-w-0 items-center gap-3",
+        "flex w-full min-w-0 items-center justify-center gap-3",
         className,
       )}
     >
-      <div className={cn(tabStripChromeClass, "min-w-0 flex-1")}>
+      <div className={cn(tabStripChromeClass, "w-fit max-w-full")}>
         <div
           className={cn(
-            "flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto",
+            "flex min-w-0 flex-nowrap items-center justify-center gap-1.5 overflow-x-auto",
             "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
           )}
         >
@@ -145,6 +145,29 @@ export function ZenithContractTabStrip({ activeTab, onTabSelect, className }: Pr
           </button>
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={() => chrome?.openCommentsPanel()}
+        title="Comments"
+        aria-label={
+          (chrome?.commentCount ?? 0) > 0
+            ? `Comments (${chrome?.commentCount})`
+            : "Comments"
+        }
+        className={cn(
+          "relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+          "border border-border-default bg-white text-text-secondary",
+          "transition-colors hover:border-gray-300 hover:bg-gray-50 hover:text-text-primary",
+        )}
+      >
+        <MessageSquare size={15} strokeWidth={2} aria-hidden />
+        {(chrome?.commentCount ?? 0) > 0 ? (
+          <span className="absolute -right-1 -top-1 inline-flex min-h-[16px] min-w-[16px] items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-semibold leading-none text-white">
+            {chrome?.commentCount}
+          </span>
+        ) : null}
+      </button>
     </div>
   );
 }

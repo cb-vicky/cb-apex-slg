@@ -4,6 +4,8 @@ export interface ZenithCatalogSiteItem {
   id: string;
   sku: string;
   name: string;
+  /** Chargebee product family — Plan, Addon, or Charge. */
+  productType: "Plan" | "Addon" | "Charge";
   itemType: "Recurring" | "One-time" | "Usage";
   billingFrequency: string;
   unitPrice: number;
@@ -18,6 +20,7 @@ export const zenithCatalogSiteItems: ZenithCatalogSiteItem[] = [
     id: "item-apex-platform",
     sku: "APEX-PLATFORM",
     name: "Apex Platform",
+    productType: "Plan",
     itemType: "Recurring",
     billingFrequency: "Yearly",
     unitPrice: 1200,
@@ -30,6 +33,7 @@ export const zenithCatalogSiteItems: ZenithCatalogSiteItem[] = [
     id: "item-growth-crm",
     sku: "GROWTH-CRM-YR",
     name: "Growth CRM",
+    productType: "Plan",
     itemType: "Recurring",
     billingFrequency: "Yearly",
     unitPrice: 1200,
@@ -42,6 +46,7 @@ export const zenithCatalogSiteItems: ZenithCatalogSiteItem[] = [
     id: "item-growth-crm-mo",
     sku: "GROWTH-CRM-MO",
     name: "Growth CRM",
+    productType: "Plan",
     itemType: "Recurring",
     billingFrequency: "Monthly",
     unitPrice: 110,
@@ -54,6 +59,7 @@ export const zenithCatalogSiteItems: ZenithCatalogSiteItem[] = [
     id: "item-onboarding",
     sku: "ONBOARDING-PKG",
     name: "Onboarding Package",
+    productType: "Charge",
     itemType: "One-time",
     billingFrequency: "One-time",
     unitPrice: 2500,
@@ -66,6 +72,7 @@ export const zenithCatalogSiteItems: ZenithCatalogSiteItem[] = [
     id: "item-support-premium",
     sku: "SUPPORT-PREMIUM",
     name: "Premium Support",
+    productType: "Addon",
     itemType: "Recurring",
     billingFrequency: "Monthly",
     unitPrice: 4200,
@@ -78,6 +85,7 @@ export const zenithCatalogSiteItems: ZenithCatalogSiteItem[] = [
     id: "item-support-standard",
     sku: "SUPPORT-STD",
     name: "Standard Support",
+    productType: "Addon",
     itemType: "Recurring",
     billingFrequency: "Monthly",
     unitPrice: 800,
@@ -90,6 +98,7 @@ export const zenithCatalogSiteItems: ZenithCatalogSiteItem[] = [
     id: "item-ai-credits",
     sku: "APEX-AI-CREDITS",
     name: "AI Credits",
+    productType: "Addon",
     itemType: "Usage",
     billingFrequency: "Monthly",
     unitPrice: 0.02,
@@ -102,6 +111,7 @@ export const zenithCatalogSiteItems: ZenithCatalogSiteItem[] = [
     id: "item-analytics-pro",
     sku: "APEX-ANALYTICS-PRO",
     name: "Apex Analytics Pro",
+    productType: "Addon",
     itemType: "Recurring",
     billingFrequency: "Yearly",
     unitPrice: 960,
@@ -114,6 +124,7 @@ export const zenithCatalogSiteItems: ZenithCatalogSiteItem[] = [
     id: "item-data-export",
     sku: "DATA-EXPORT",
     name: "Data Export Pack",
+    productType: "Charge",
     itemType: "One-time",
     billingFrequency: "One-time",
     unitPrice: 500,
@@ -126,6 +137,7 @@ export const zenithCatalogSiteItems: ZenithCatalogSiteItem[] = [
     id: "item-legacy-crm",
     sku: "LEGACY-CRM",
     name: "Legacy CRM (v1)",
+    productType: "Plan",
     itemType: "Recurring",
     billingFrequency: "Yearly",
     unitPrice: 600,
@@ -144,7 +156,7 @@ export function filterZenithCatalogItems(query: string): ZenithCatalogSiteItem[]
   const q = query.trim().toLowerCase();
   if (!q) return zenithCatalogSiteItems;
   return zenithCatalogSiteItems.filter((item) =>
-    [item.name, item.sku, item.itemType, item.billingFrequency, item.description, item.status]
+    [item.name, item.sku, item.productType, item.itemType, item.billingFrequency, item.description, item.status]
       .join(" ")
       .toLowerCase()
       .includes(q),

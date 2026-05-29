@@ -239,7 +239,6 @@ export function ZenithContractSummaryTab() {
   const itemsComplete = areZenithContractItemsComplete(lineItems);
   const billingComplete = isSummarySectionReady(chrome, "Billing info");
   const addressesComplete = isSummarySectionReady(chrome, "Addresses");
-  const additionalComplete = isSummarySectionReady(chrome, "Additional info");
 
   function goToItemsTab() {
     chrome?.setActiveTab("Items");
@@ -272,17 +271,6 @@ export function ZenithContractSummaryTab() {
         snippetVariant="addresses"
       >
         <KvExtractCard title="Addresses" rows={zenithSummaryAddressRows} />
-      </ZenithSummarySectionCard>
-
-      <ZenithSummarySectionCard
-        heading="Additional info"
-        description="Coming soon — additional contract fields will appear here."
-        ready={additionalComplete}
-      >
-        <div className="w-fit max-w-full rounded-xl border border-dashed border-border-default bg-gray-50/80 px-5 py-5 text-center">
-          <p className="text-[13px] font-medium text-text-muted">TBD</p>
-          <p className="mt-0.5 text-[12px] text-text-muted">This section is not yet configured for this contract.</p>
-        </div>
       </ZenithSummarySectionCard>
     </div>
   );

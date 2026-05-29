@@ -26,6 +26,7 @@ import {
   ZenithContractChromeProvider,
 } from "./zenith/ZenithContractChromeContext";
 import { ZenithContractTabPanel } from "./zenith/ZenithContractTabPanel";
+import { ZenithContractCommentsPanel } from "./zenith/ZenithContractCommentsPanel";
 
 interface Props {
   contract: Contract;
@@ -304,6 +305,7 @@ function ZenithContractDetailView() {
   return (
     <div className="mx-auto flex w-full max-w-[1020px] flex-col gap-3">
       <ZenithContractTabPanel activeTab={activeTab} />
+      <ZenithContractCommentsPanel />
     </div>
   );
 }

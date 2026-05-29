@@ -65,6 +65,8 @@ export const zenithSummaryBillingRows: ZenithSummaryKvRow[] = [
   { label: "Term", value: "12 months" },
   { label: "Billing cycle", value: "Annual, billed upfront" },
   { label: "Start date", value: "15-Jul-2026" },
+  { label: "Auto collection", value: "Use customer's settings" },
+  { label: "PO number", value: "—" },
   { label: "Payment terms", value: "Net 30" },
 ];
 
@@ -72,20 +74,43 @@ export const zenithSummaryBillingDescription =
   "A 12 months contract billed annual, billed upfront, starting 15-Jul-2026 with net 30 payment terms.";
 
 /** Billing info tab — extracted terms for Zenith contract (CON-2024-0191). */
+export type ZenithAutoCollectionOption =
+  | "Use customer's settings"
+  | "On"
+  | "Off";
+
+export type ZenithInvoiceGenerationTiming = "immediately" | "unbilled_charges";
+
 export interface ZenithContractBillingInfo {
   term: string;
   billingCycle: string;
   startDate: string;
+  autoCollection: ZenithAutoCollectionOption;
+  poNumber: string;
   paymentTerms: string;
   paymentTermsIsSiteDefault: boolean;
+  doNotAutoCloseInvoices: boolean;
+  generateRenewalsInPendingState: boolean;
+  invoiceGenerationTiming: ZenithInvoiceGenerationTiming;
 }
+
+export const zenithAutoCollectionOptions: ZenithAutoCollectionOption[] = [
+  "Use customer's settings",
+  "On",
+  "Off",
+];
 
 export const zenithContractBillingInfo: ZenithContractBillingInfo = {
   term: "12 months",
   billingCycle: "Annual, billed upfront",
   startDate: "15-Jul-2026",
+  autoCollection: "Use customer's settings",
+  poNumber: "",
   paymentTerms: "Net 30",
   paymentTermsIsSiteDefault: true,
+  doNotAutoCloseInvoices: false,
+  generateRenewalsInPendingState: false,
+  invoiceGenerationTiming: "immediately",
 };
 
 export const zenithPaymentTermsOptions = [

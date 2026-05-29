@@ -129,15 +129,16 @@ export function ZenithContractAddressesTab() {
 
   return (
     <div className="flex flex-col gap-4">
-      <ZenithMarkTabDoneBar tab="Addresses" />
-
-      <ZenithContractSectionCard title="Billing address">
+      <div className="flex flex-col gap-2">
+        <ZenithMarkTabDoneBar tab="Addresses" />
+        <ZenithContractSectionCard title="Billing address">
         <AddressFields
           idPrefix="zenith-billing-address"
           value={billing}
           onChange={setBilling}
         />
       </ZenithContractSectionCard>
+      </div>
 
       <ZenithContractSectionCard title="Shipping address">
         <label className="flex items-center gap-2.5 text-[13px] font-medium text-text-primary">

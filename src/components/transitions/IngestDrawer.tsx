@@ -1229,7 +1229,6 @@ export function IngestDrawer({
                     <DocumentPreviewTabContent
                       extracted={extracted}
                       documentTitle={queueItem?.documentName ?? "Contract.pdf"}
-                      documentLabel="Contract"
                     />
                   ),
                 },

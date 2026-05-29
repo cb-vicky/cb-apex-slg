@@ -12,7 +12,6 @@ export function areZenithContractItemsComplete(items: ZenithSummaryLineItem[]): 
 export const ZENITH_MANUAL_COMPLETE_TABS: ZenithContractContentTab[] = [
   "Billing info",
   "Addresses",
-  "Additional info",
 ];
 
 export const ZENITH_SUMMARY_PREREQUISITE_TABS: ZenithContractContentTab[] = [
