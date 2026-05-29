@@ -3,10 +3,11 @@ import type { QueueItem } from "@/data/queue-data";
 import { StatusBadge } from "@/components/ui/primitives";
 import { currency, shortDate } from "@/lib/utils";
 import { FileText, ArrowRight, ArrowLeft, Upload } from "lucide-react";
-import { openDrawer } from "@/store/drawer-store";
 
 export interface PendingIngestionContract {
   queueItemId: string;
+  customerId: string;
+  contractId?: string;
   documentName: string;
   customerName: string;
   tcv: number;
@@ -53,22 +54,18 @@ export function ContractListView({ contracts, onSelect, pendingIngestions = [] }
   });
 
   const handlePendingClick = (item: PendingIngestionContract) => {
-    openDrawer({
-      entityType: "queue_item",
-      mode: "ingest",
-      entityId: item.queueItemId,
-      context: {
-        customerId: contractById.get(item.activeContractId ?? "")?.customerId,
-        contractId: item.activeContractId,
-      },
-      flow: {
-        scenario: "ingest_invoice",
-        step: "ingest",
-        queueItemId: item.queueItemId,
-        furthestUnlockedStep: "ingest",
-        showStepper: true,
-      },
-    });
+    const resolvedContractId = item.contractId ?? item.activeContractId;
+    if (resolvedContractId) {
+      const resolved = contractById.get(resolvedContractId);
+      if (resolved) {
+        onSelect(resolved);
+        return;
+      }
+    }
+    if (sorted[0]) {
+      onSelect(sorted[0]);
+      return;
+    }
   };
 
   return (
@@ -94,7 +91,14 @@ export function ContractListView({ contracts, onSelect, pendingIngestions = [] }
             <div className="flex flex-col gap-0.5">
               <span className="flex items-center gap-1.5 text-[13px] font-semibold text-amber-700 hover:text-cb-orange transition-colors">
                 <Upload size={12} className="shrink-0" />
-                {item.scenario === "Early Renewal" ? "Early Renewal" : item.scenario === "Late Renewal" ? "Late Renewal" : "Renewal"} Contract
+                {item.scenario === "New Business"
+                  ? "New Business"
+                  : item.scenario === "Early Renewal"
+                    ? "Early Renewal"
+                    : item.scenario === "Late Renewal"
+                      ? "Late Renewal"
+                      : "Renewal"}{" "}
+                Contract
               </span>
               <span className="text-[12px] text-text-muted truncate max-w-[200px]">
                 {item.documentName}

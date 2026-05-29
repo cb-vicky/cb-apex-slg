@@ -11,6 +11,8 @@ import {
 } from "@/data/workbench-tasks";
 import type { WorkbenchTask } from "@/data/workbench-tasks";
 import { openDrawer } from "@/store/drawer-store";
+import { useNewDealCustomerLinkGate } from "@/hooks/useNewDealCustomerLinkGate";
+import { queueItemIdFromWorkbenchTask } from "@/lib/new-deal-customer-link";
 
 // ---------------------------------------------------------------------------
 // Severity pill
@@ -186,7 +188,8 @@ export function WorkbenchTaskList() {
   const navigate = useNavigate();
   const ctx = useIngestContext();
   const { persona } = useDemoPersona();
-  const { workbenchTaskSnapshotRef } = ctx;
+  const { workbenchTaskSnapshotRef, queueItems } = ctx;
+  const { openQueueFlow, modal: newDealCustomerModal } = useNewDealCustomerLinkGate();
 
   const [highlightNewIds, setHighlightNewIds] = useState<Set<string>>(() => new Set());
 
@@ -241,6 +244,17 @@ export function WorkbenchTaskList() {
       next.delete(task.id);
       return next;
     });
+    const queueId = queueItemIdFromWorkbenchTask(task);
+    if (queueId) {
+      const q = queueItems.find((item) => item.id === queueId);
+      if (q) {
+        openQueueFlow(q, () => {
+          if (task.drawer) openDrawer(task.drawer);
+          else navigate(task.destination);
+        });
+        return;
+      }
+    }
     if (task.drawer) {
       openDrawer(task.drawer);
       return;
@@ -323,6 +337,7 @@ export function WorkbenchTaskList() {
           ))}
         </div>
       )}
+      {newDealCustomerModal}
     </div>
   );
 }

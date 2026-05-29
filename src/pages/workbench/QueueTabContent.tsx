@@ -11,6 +11,7 @@ import { useDemoPersona } from "@/context/DemoPersonaContext";
 import type { QueueItem, QueueSource } from "@/data/queue-data";
 import { queueItemKindLabel } from "@/data/workbench-tasks";
 import { openDrawer } from "@/store/drawer-store";
+import { useNewDealCustomerLinkGate } from "@/hooks/useNewDealCustomerLinkGate";
 
 function SourceBadge({ source, detail }: { source: QueueSource; detail?: string }) {
   const config: Record<QueueSource, { icon: typeof FileText; tone: string; label: string }> = {
@@ -102,6 +103,7 @@ export function QueueTabContent() {
   const navigate = useNavigate();
   const { queueItems, approvalRequests } = useIngestContext();
   const { persona } = useDemoPersona();
+  const { openQueueFlow, modal: newDealCustomerModal } = useNewDealCustomerLinkGate();
 
   function handleRowClick(q: QueueItem) {
     const pendingInvoiceApproval = approvalRequests.find(
@@ -125,7 +127,9 @@ export function QueueTabContent() {
       return;
     }
     if (q.status === "Returned" && q.ingestable) {
-      openDrawer({ entityType: "queue_item", mode: "ingest", entityId: q.id });
+      openQueueFlow(q, () => {
+        openDrawer({ entityType: "queue_item", mode: "ingest", entityId: q.id });
+      });
       return;
     }
     if (q.status === "Ingested" && persona === "approver" && q.invoiceId && pendingInvoiceApproval) {
@@ -158,10 +162,12 @@ export function QueueTabContent() {
       q.ingestable &&
       (q.status === "Pending Review" || q.status === "In Progress")
     ) {
-      openDrawer({
-        entityType: "queue_item",
-        mode: "ingest",
-        entityId: q.id,
+      openQueueFlow(q, () => {
+        openDrawer({
+          entityType: "queue_item",
+          mode: "ingest",
+          entityId: q.id,
+        });
       });
       return;
     }
@@ -170,6 +176,7 @@ export function QueueTabContent() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {newDealCustomerModal}
       {queueItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-3xl border border-border-default bg-white py-16 text-center">
               <p className="text-[14px] font-medium text-text-secondary">No queue items</p>

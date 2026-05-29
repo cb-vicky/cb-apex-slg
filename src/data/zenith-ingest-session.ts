@@ -1,6 +1,10 @@
 import type { Contract, Customer, Invoice } from "@/data/mock-data";
+import {
+  ZENITH_ANALYTICS_INC_ID,
+  ZENITH_ACTIVE_CONTRACT_ID,
+  zenithAnalyticsIncCustomer,
+} from "@/data/zenith-analytics-inc-seed";
 
-const ZENITH_ID = "cust_zenith_006";
 const CONTRACT_ID = "CON-INGEST-002";
 const INVOICE_ID = "INV-INGEST-002";
 
@@ -34,43 +38,17 @@ export function buildZenithSessionInvoice(input: {
   };
 }
 
-/** Session customer created at ingest (not in seed until operator completes ingest). */
+/** Session customer for ingest create flow — overlays seed Zenith Analytics INC. */
 export function buildZenithSessionCustomer(input: {
   name: string;
   billingLegalEntity: string;
   domain: string;
 }): Customer {
   return {
-    id: ZENITH_ID,
-    name: input.name,
-    commercialAccount: `${input.name} – North America`,
-    billingLegalEntity: input.billingLegalEntity,
-    chargebeeEntity: "Chargebee US – Acme Merchant",
-    segment: "Mid-Market",
-    tier: "Tier 2",
-    ae: "Jordan Kim",
-    csm: "Rachel Torres",
-    billingOwner: "Alex Nguyen",
-    arr: 155000,
-    tcv: 155000,
-    prepaidCreditBalance: 0,
-    prepaidCreditTotal: 0,
-    openAr: 155000,
-    nextRenewalDate: "2027-04-30",
-    riskBadges: [],
-    createdAt: new Date().toISOString().slice(0, 10),
-    domain: input.domain,
-    industry: "AI Analytics",
-    region: "North America",
-    crmAccountId: "",
-    crmSyncStatus: "Not synced",
-    crmLastSyncedAt: "",
-    paymentMethod: "Wire",
-    currency: "USD",
-    taxRegion: "US – New York",
-    poRequired: false,
-    activeContractCount: 0,
-    openQuoteCount: 0,
+    ...zenithAnalyticsIncCustomer,
+    name: input.name.trim() || zenithAnalyticsIncCustomer.name,
+    billingLegalEntity: input.billingLegalEntity.trim() || zenithAnalyticsIncCustomer.billingLegalEntity,
+    domain: input.domain.trim() || zenithAnalyticsIncCustomer.domain,
   };
 }
 
@@ -83,9 +61,10 @@ export function buildZenithScheduledContract(params: {
   billingFrequency: string;
 }): Contract {
   const invId = params.invoiceId ?? INVOICE_ID;
+  const customerId = params.customerId ?? ZENITH_ANALYTICS_INC_ID;
   return {
     id: params.contractId ?? CONTRACT_ID,
-    customerId: params.customerId ?? ZENITH_ID,
+    customerId,
     sourceQuoteId: "",
     status: "Scheduled",
     signedDate: params.startDate,
@@ -164,9 +143,7 @@ export function buildZenithScheduledContract(params: {
   };
 }
 
-export function buildZenithActiveContractAfterApproval(
-  scheduled: Contract,
-): Contract {
+export function buildZenithActiveContractAfterApproval(scheduled: Contract): Contract {
   return {
     ...scheduled,
     status: "Active",
@@ -205,10 +182,6 @@ export function buildZenithCustomerAfterApproval(c: Customer): Customer {
   };
 }
 
-/**
- * If a session contract is still Scheduled and its billing schedule references this invoice,
- * promote it to Active (first-invoice approval path after queue ingest).
- */
 export function activateScheduledContractAfterInvoiceApproval(opts: {
   invoiceId: string;
   invoiceAmount: number;
@@ -231,7 +204,7 @@ export function activateScheduledContractAfterInvoiceApproval(opts: {
   const cust =
     opts.sessionCustomers.find((c) => c.id === cid) ?? opts.seedCustomers.find((c) => c.id === cid);
   if (cust) {
-    if (cust.id === ZENITH_ID) {
+    if (cust.id === ZENITH_ANALYTICS_INC_ID) {
       opts.addSessionCustomer(buildZenithCustomerAfterApproval(cust));
     } else {
       opts.addSessionCustomer({
@@ -245,7 +218,8 @@ export function activateScheduledContractAfterInvoiceApproval(opts: {
 }
 
 export {
-  ZENITH_ID as ZENITH_CUSTOMER_ID,
-  CONTRACT_ID as ZENITH_CONTRACT_ID,
+  ZENITH_ANALYTICS_INC_ID as ZENITH_CUSTOMER_ID,
+  ZENITH_ACTIVE_CONTRACT_ID as ZENITH_CONTRACT_ID,
+  CONTRACT_ID as ZENITH_INGEST_CONTRACT_ID,
   INVOICE_ID as ZENITH_INVOICE_ID,
 };

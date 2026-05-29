@@ -49,6 +49,9 @@ export interface ExtractedContract {
   extractionConfidence: number;
   customerName: string;
   customerLegalEntity: string;
+  /** Signatory / billing contact parsed from the agreement (when available). */
+  primaryContactName?: string;
+  primaryContactEmail?: string;
   customerId?: string;           // set if matched
   customerFound: boolean;
   quoteMatchId?: string;         // set if matched
@@ -200,8 +203,10 @@ export const extractedSample2: ExtractedContract = {
   documentName: "ZenithAnalytics_NewBusiness_Contract_2026_Signed.pdf",
   extractedAt: "2026-04-17T09:22:00Z",
   extractionConfidence: 91,
-  customerName: "Zenith Analytics Inc.",
-  customerLegalEntity: "Zenith Analytics Inc.",
+  customerName: "Zenith Analytics INC",
+  customerLegalEntity: "Zenith Analytics INC",
+  primaryContactName: "David Chen",
+  primaryContactEmail: "d.chen@zenithanalytics.com",
   customerId: undefined,
   customerFound: false,
   quoteMatchId: undefined,
@@ -246,7 +251,7 @@ export const extractedSample2: ExtractedContract = {
       type: "customer_not_found",
       severity: "blocking",
       message: "Customer not found in system",
-      detail: "\"Zenith Analytics Inc.\" does not match any existing customer record. Create a new customer to proceed.",
+      detail: "\"Zenith Analytics INC\" does not match any existing customer record. Create a new customer to proceed.",
     },
     {
       id: "issue-product",

@@ -47,6 +47,8 @@ import {
   type VisibilityOverrides,
   type WorkspaceTab,
 } from "./workspace-tabs";
+import { useZenithContractChrome } from "./contract/zenith/ZenithContractChromeContext";
+import { ZenithContractTabStrip } from "./contract/zenith/ZenithContractTabStrip";
 
 const SCROLL_THRESHOLD = 40;
 
@@ -54,6 +56,9 @@ const SCROLL_THRESHOLD = 40;
 const HEADER_TITLE_PT = { expanded: 18, collapsed: 8 } as const;
 const HEADER_TITLE_PB = { expanded: 16, collapsed: 10 } as const;
 const HEADER_TABS_GAP = { expanded: 12, collapsed: 10 } as const;
+/** Zenith contract sub-tabs (Summary / Items / …) — more space above than below */
+const ZENITH_CONTRACT_TABS_PT = { expanded: 20, collapsed: 12 } as const;
+const ZENITH_CONTRACT_TABS_PB = { expanded: 8, collapsed: 6 } as const;
 const MORE_BUTTON_WIDTH = 96;
 const OVERFLOW_THRESHOLD = 1;
 /** Negative margin overlap between adjacent folder tabs (px) — must match TAB_OVERLAP_CLASS */
@@ -210,6 +215,11 @@ export function CustomerContextBar({
   const disabledParents = STAGE_ORDER.filter((s) => disabled.has(s));
   const needsMoreMenu = hiddenParents.length > 0 || disabledParents.length > 0;
 
+  const zenithChrome = useZenithContractChrome();
+  const zenithContractReviewStatus = zenithChrome?.reviewStatus ?? null;
+  const zenithCondensed = Boolean(zenithChrome?.isScrollCollapsed);
+  const headerCollapsed = zenithChrome ? zenithCondensed : isCollapsed;
+
   const commitMeasuredOverflow = useCallback((next: string[]) => {
     const valid = new Set(fullStripRef.current.map(tabKey));
     const filtered = next.filter((k) => valid.has(k));
@@ -279,9 +289,14 @@ export function CustomerContextBar({
     const strip = fullStripRef.current;
     const widthOf = (key: string) => measureRefs.current.get(key)?.offsetWidth ?? 0;
     const moreWidth = widthOf("measure:more") || MORE_BUTTON_WIDTH;
+    /** Horizontal inset on the visible tab strip (px-6 both sides in Zenith + default). */
+    const tabStripHorizontalGutter = 48;
     const maxTabsWidth = Math.max(
       0,
-      container.offsetWidth * OVERFLOW_THRESHOLD - moreWidth + TAB_OVERLAP,
+      container.offsetWidth * OVERFLOW_THRESHOLD -
+        tabStripHorizontalGutter -
+        moreWidth +
+        TAB_OVERLAP,
     );
 
     const tabWidths = strip.map((tab) => {
@@ -390,7 +405,7 @@ export function CustomerContextBar({
       ro.disconnect();
       window.removeEventListener(SIDEBAR_LAYOUT_EVENT, onSidebarLayout);
     };
-  }, [stripSignature, activeTabKey, needsMoreMenu, isCollapsed]);
+  }, [stripSignature, activeTabKey, needsMoreMenu, headerCollapsed, zenithCondensed, zenithChrome]);
 
   const { visible: visibleTabs, overflow: overflowTabs } = resolveTabVisibility(
     fullStrip,
@@ -400,12 +415,13 @@ export function CustomerContextBar({
   const visibleTabKeys = visibleTabs.map(tabKey).join("|");
   /** Stretch visible tabs only when nothing overflows and mins still fit the bar. */
   const tabsFillWidth =
+    !zenithChrome &&
     overflowTabs.length === 0 &&
     (() => {
       const container = tabsContainerRef.current;
       if (!container || visibleTabs.length === 0) return true;
       const moreW = measureRefs.current.get("measure:more")?.offsetWidth ?? MORE_BUTTON_WIDTH;
-      const maxW = Math.max(0, container.offsetWidth - moreW + TAB_OVERLAP);
+      const maxW = Math.max(0, container.offsetWidth - 48 - moreW + TAB_OVERLAP);
       const minSum = visibleTabs.reduce(
         (sum, tab, i) => sum + tabMinWidthPx(tab) - (i > 0 ? TAB_OVERLAP : 0),
         0,
@@ -550,38 +566,84 @@ export function CustomerContextBar({
   })();
 
   return (
-    <div data-insight-rail-anchor="" className="sticky top-0 z-20 bg-transparent">
+    <div
+      data-insight-rail-anchor=""
+      className={cn(
+        "sticky top-0 z-20 [overflow-anchor:none]",
+        zenithChrome && zenithCondensed
+          ? "bg-gray-100/90 backdrop-blur-md backdrop-saturate-150"
+          : "bg-transparent",
+      )}
+    >
       <div
         className={cn(
-          "bg-transparent transition-[background-color,backdrop-filter] duration-300 ease-out",
-          isScrolled && "bg-gray-100/75 backdrop-blur-md backdrop-saturate-150",
+          "transition-[background-color,backdrop-filter] duration-300 ease-out",
+          !zenithChrome && isScrolled && "bg-gray-100/90 backdrop-blur-md backdrop-saturate-150",
+          zenithChrome ? "bg-transparent" : "bg-transparent",
         )}
       >
-        <div
-          className="flex items-end justify-between gap-4 rounded-br-[0px] pl-4 pr-8 transition-all duration-300 ease-out"
-          style={{
-            paddingTop: isCollapsed ? HEADER_TITLE_PT.collapsed : HEADER_TITLE_PT.expanded,
-            paddingBottom: isCollapsed ? HEADER_TITLE_PB.collapsed : HEADER_TITLE_PB.expanded,
-          }}
-        >
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <Breadcrumbs crumbs={crumbs} onNavigate={navigate} collapsed={isCollapsed} />
-            <h1
-              className="truncate font-bold leading-tight tracking-tight text-text-primary transition-all duration-300 ease-out"
-              style={{ fontSize: isCollapsed ? 16 : 28 }}
+        {zenithChrome ? (
+          <div
+            className="grid transition-[grid-template-rows,padding] duration-200 ease-out"
+            style={{
+              gridTemplateRows: zenithCondensed ? "auto 0fr" : "auto 1fr",
+            }}
+          >
+            <div
+              className="min-h-0 px-4 transition-[padding] duration-200 ease-out"
+              style={{
+                paddingTop: zenithCondensed ? HEADER_TITLE_PT.collapsed : HEADER_TITLE_PT.expanded,
+                paddingBottom: zenithCondensed
+                  ? HEADER_TITLE_PB.collapsed
+                  : HEADER_TITLE_PB.expanded,
+              }}
             >
-              {customer.name}
-            </h1>
-            <CustomerTeamMeta customer={customer} collapsed={isCollapsed} />
+              <Breadcrumbs crumbs={crumbs} onNavigate={navigate} collapsed={zenithCondensed} />
+              <h1
+                className="truncate font-bold leading-tight tracking-tight text-text-primary transition-[font-size] duration-200 ease-out"
+                style={{ fontSize: zenithCondensed ? 16 : 28 }}
+              >
+                {customer.name}
+              </h1>
+            </div>
+            <div className="min-h-0 overflow-hidden">
+              <div className="flex items-end justify-between gap-4 px-4 pb-3">
+                <CustomerTeamMeta customer={customer} collapsed={false} />
+                <CustomerPriorityChips chips={priorityChips} collapsed={false} />
+              </div>
+            </div>
           </div>
-          <CustomerPriorityChips chips={priorityChips} collapsed={isCollapsed} />
-        </div>
+        ) : (
+          <div
+            className={cn(
+              "flex items-end justify-between gap-4 rounded-br-[0px] px-4 transition-[padding] duration-300 ease-out pr-8",
+            )}
+            style={{
+              paddingTop: headerCollapsed ? HEADER_TITLE_PT.collapsed : HEADER_TITLE_PT.expanded,
+              paddingBottom: headerCollapsed ? HEADER_TITLE_PB.collapsed : HEADER_TITLE_PB.expanded,
+            }}
+          >
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <Breadcrumbs crumbs={crumbs} onNavigate={navigate} collapsed={headerCollapsed} />
+              <h1
+                className="truncate font-bold leading-tight tracking-tight text-text-primary transition-[font-size] duration-300 ease-out"
+                style={{ fontSize: headerCollapsed ? 16 : 28 }}
+              >
+                {customer.name}
+              </h1>
+              <CustomerTeamMeta customer={customer} collapsed={headerCollapsed} />
+            </div>
+            <CustomerPriorityChips chips={priorityChips} collapsed={headerCollapsed} />
+          </div>
+        )}
       </div>
 
       <div
         ref={tabsContainerRef}
         data-tabs-anchor=""
-        className="relative -mt-px w-full min-w-0 overflow-x-clip overflow-y-visible"
+        className={cn(
+          "relative -mt-px w-full min-w-0 overflow-x-hidden overflow-y-visible",
+        )}
       >
         {/* Off-screen measure row — stable widths; avoids visible-strip oscillation */}
         <div
@@ -597,6 +659,7 @@ export function CustomerContextBar({
               tab,
               parentTabSummaries,
               recordTabSummaries,
+              zenithContractReviewStatus,
             );
             return (
               <Fragment key={`measure-${key}`}>
@@ -638,17 +701,26 @@ export function CustomerContextBar({
           <MoreTabButton
             ref={(el) => setMeasureRef("measure:more", el)}
             subtitle={moreTabSubtitle}
-            tabsCompact={isCollapsed}
+            tabsCompact={headerCollapsed}
             isOpen={false}
             forMeasure
             onClick={() => {}}
           />
         </div>
 
-        <div
-          ref={visibleStripRef}
-          className="flex w-full min-w-0 items-end overflow-x-clip overflow-y-visible pb-1 pr-6"
-        >
+        {zenithChrome ? (
+          <div
+            className="grid transition-[grid-template-rows] duration-200 ease-out"
+            style={{
+              gridTemplateRows: zenithCondensed ? "0fr auto" : "auto auto",
+            }}
+          >
+            <div className="min-h-0 overflow-hidden">
+              <div
+                ref={visibleStripRef}
+                className="flex w-full min-w-0 items-end overflow-x-auto overflow-y-visible pb-0 px-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                aria-hidden={zenithCondensed}
+              >
         {visibleTabs.map((tab, idx) => {
           const key = tabKey(tab);
           const isActive = tabsEqual(activeTab, tab);
@@ -658,6 +730,7 @@ export function CustomerContextBar({
             tab,
             parentTabSummaries,
             recordTabSummaries,
+            zenithContractReviewStatus,
           );
           return (
             <WorkspaceTabButton
@@ -670,7 +743,7 @@ export function CustomerContextBar({
               closable={closable}
               first={idx === 0}
               zIndex={isActive ? 50 : 10 - idx}
-              tabsCompact={isCollapsed}
+              tabsCompact={false}
               fillWidth={tabsFillWidth}
               onClick={() => selectTab(tab)}
               onClose={
@@ -688,7 +761,7 @@ export function CustomerContextBar({
             menuPanelRef={moreMenuPanelRef}
             zIndex={moreZIndex}
             subtitle={moreTabSubtitle}
-            tabsCompact={isCollapsed}
+            tabsCompact={false}
             isOpen={showMoreDropdown}
             onToggle={() => setShowMoreDropdown((v) => !v)}
             overflowTabs={overflowTabs}
@@ -706,21 +779,119 @@ export function CustomerContextBar({
             }}
           />
         )}
-        </div>
+              </div>
+            </div>
+            <div
+              className={cn(
+                "min-w-0 overflow-hidden px-6",
+                zenithCondensed
+                  ? "min-h-[48px]"
+                  : "min-h-[52px] border-t border-border-subtle/60",
+              )}
+              style={{
+                paddingTop: zenithCondensed
+                  ? ZENITH_CONTRACT_TABS_PT.collapsed
+                  : ZENITH_CONTRACT_TABS_PT.expanded,
+                paddingBottom: zenithCondensed
+                  ? ZENITH_CONTRACT_TABS_PB.collapsed
+                  : ZENITH_CONTRACT_TABS_PB.expanded,
+              }}
+            >
+              <ZenithContractTabStrip
+                activeTab={zenithChrome.activeTab}
+                onTabSelect={zenithChrome.setActiveTab}
+              />
+            </div>
+          </div>
+        ) : (
+          <div
+            ref={visibleStripRef}
+            className="flex w-full min-w-0 items-end overflow-x-auto overflow-y-visible pb-1 px-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+        {visibleTabs.map((tab, idx) => {
+          const key = tabKey(tab);
+          const isActive = tabsEqual(activeTab, tab);
+          const label = tabLabel(tab, stageDisplay);
+          const closable = isTabClosable(tab);
+          const summary = resolveWorkspaceTabSummary(
+            tab,
+            parentTabSummaries,
+            recordTabSummaries,
+            zenithContractReviewStatus,
+          );
+          return (
+            <WorkspaceTabButton
+              key={key}
+              dataTabKey={key}
+              label={label}
+              subtitle={summary?.subtitle}
+              subtitleSeverity={summary?.severity}
+              active={isActive}
+              closable={closable}
+              first={idx === 0}
+              zIndex={isActive ? 50 : 10 - idx}
+              tabsCompact={headerCollapsed}
+              fillWidth={tabsFillWidth}
+              onClick={() => selectTab(tab)}
+              onClose={
+                tab.kind === "parent"
+                  ? () => onParentClose(tab.stage)
+                  : () => onRecordClose(tab.stage, tab.recordId)
+              }
+            />
+          );
+        })}
+
+        {showMoreButton && (
+          <MoreMenu
+            ref={moreButtonRef}
+            menuPanelRef={moreMenuPanelRef}
+            zIndex={moreZIndex}
+            subtitle={moreTabSubtitle}
+            tabsCompact={headerCollapsed}
+            isOpen={showMoreDropdown}
+            onToggle={() => setShowMoreDropdown((v) => !v)}
+            overflowTabs={overflowTabs}
+            hiddenParents={hiddenParents}
+            disabledParents={disabledParents}
+            activeTab={activeTab}
+            stageDisplay={stageDisplay}
+            onTabSelect={(tab) => {
+              selectTab(tab);
+              setShowMoreDropdown(false);
+            }}
+            onRestoreParent={(stage) => {
+              onRestoreParent(stage);
+              setShowMoreDropdown(false);
+            }}
+          />
+        )}
+          </div>
+        )}
       </div>
 
       {recordSlot ? (
-        <div className="flex justify-end pl-4 pr-8 pt-3 pb-4">
+        <div
+          className={cn(
+            "flex justify-end",
+            zenithChrome
+              ? cn(
+                  "px-4 pb-2",
+                  zenithCondensed ? "hidden pt-0" : "pt-1",
+                )
+              : "px-4 pr-8 pt-3 pb-4",
+          )}
+        >
           {recordSlot}
         </div>
-      ) : (
+      ) : !zenithChrome ? (
         <div
-          className="transition-all duration-300 ease-out"
+          className="transition-[height] duration-300 ease-out"
           style={{
-            height: isCollapsed ? HEADER_TABS_GAP.collapsed : HEADER_TABS_GAP.expanded,
+            height: headerCollapsed ? HEADER_TABS_GAP.collapsed : HEADER_TABS_GAP.expanded,
           }}
         />
-      )}
+      ) : null}
     </div>
   );
 }

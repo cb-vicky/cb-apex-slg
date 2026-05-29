@@ -44,6 +44,8 @@ interface IngestWorkspaceTabsProps {
   onAllContractsBack?: () => void;
   /** Process summary title displayed above validations (e.g., "Early Renewal", "Contract about to expire") */
   processSummary?: string;
+  /** Pin the first document tab in a persistent left pane (removed from the tab bar). */
+  documentPreviewOnLeft?: boolean;
 }
 
 type TabId = string;
@@ -66,7 +68,12 @@ export function IngestWorkspaceTabs({
   allContractsShowBack = false,
   onAllContractsBack,
   processSummary,
+  documentPreviewOnLeft = false,
 }: IngestWorkspaceTabsProps) {
+  const pinnedLeftPreview =
+    documentPreviewOnLeft && documentTabs.length > 0 ? documentTabs[0] : null;
+  const tabsInBar = pinnedLeftPreview ? documentTabs.slice(1) : documentTabs;
+
   const [activeTab, setActiveTab] = useState<TabId>("extracted");
   
   // Use props directly instead of context for All contracts tab
@@ -83,7 +90,7 @@ export function IngestWorkspaceTabs({
   const hasSidebar = summaryItems.length > 0 || validationItems.length > 0;
 
   const tabs: { id: TabId; label: string; icon: typeof FileText; badge?: boolean }[] = [
-    ...documentTabs.map((dt) => ({
+    ...tabsInBar.map((dt) => ({
       id: dt.id,
       label: dt.label,
       icon: FileText,
@@ -92,7 +99,7 @@ export function IngestWorkspaceTabs({
     { id: "discussions", label: "Discussions", icon: MessageSquare, badge: hasComments },
   ];
 
-  const activeDocTab = documentTabs.find((dt) => dt.id === activeTab);
+  const activeDocTab = tabsInBar.find((dt) => dt.id === activeTab);
 
   // Handle tab click - if allContractsActive, clicking any other tab should deactivate it
   const handleTabClick = (tabId: TabId) => {
@@ -103,8 +110,22 @@ export function IngestWorkspaceTabs({
     setActiveTab(tabId);
   };
 
+  const showLeftPreview = Boolean(pinnedLeftPreview && !allContractsActive);
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#F3F4F6]">
+    <div className="flex min-h-0 flex-1 overflow-hidden bg-[#F3F4F6]">
+      {showLeftPreview && pinnedLeftPreview ? (
+        <div className="flex min-h-0 w-[min(42%,400px)] min-w-[300px] shrink-0 flex-col overflow-hidden border-r border-border-default bg-gray-100">
+          <div className="shrink-0 border-b border-border-default bg-gray-100 px-4 py-2.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+              {pinnedLeftPreview.label}
+            </p>
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden">{pinnedLeftPreview.content}</div>
+        </div>
+      ) : null}
+
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {/* Tab bar - flush with background, centered */}
       <div className="shrink-0 px-6 pt-9">
         <div className="relative flex items-end justify-center gap-6 border-b border-gray-200 pb-0">
@@ -210,6 +231,7 @@ export function IngestWorkspaceTabs({
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

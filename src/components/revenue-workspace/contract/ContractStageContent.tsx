@@ -20,6 +20,12 @@ import { ClosureSummaryCard } from "@/components/contracts/ClosureSummaryCard";
 import { ClosureBanner } from "@/components/contracts/ClosureBanner";
 import { ScheduledBanner } from "@/components/contracts/ScheduledBanner";
 import { WorkspaceSectionAnchor } from "../WorkspaceSectionAnchor";
+import { ZENITH_ANALYTICS_INC_ID } from "@/data/zenith-analytics-inc-seed";
+import {
+  useZenithContractChrome,
+  ZenithContractChromeProvider,
+} from "./zenith/ZenithContractChromeContext";
+import { ZenithContractTabPanel } from "./zenith/ZenithContractTabPanel";
 
 interface Props {
   contract: Contract;
@@ -34,6 +40,10 @@ export function ContractStageContent({
   graceExtension,
   onOpenClosePane,
 }: Props) {
+  if (contract.customerId === ZENITH_ANALYTICS_INC_ID) {
+    return <ZenithContractBlankState />;
+  }
+
   const { invoiceStatusOverrides } = useIngestContext();
   const billingScheduleView = useMemo(
     () => mergeBillingScheduleWithInvoiceOverrides(contract.billingSchedule, invoiceStatusOverrides),
@@ -267,6 +277,33 @@ export function ContractStageContent({
       <WorkspaceSectionAnchor id="ws-section-contract-timeline">
         <ContractTimelineSection timeline={contract.timeline} />
       </WorkspaceSectionAnchor>
+    </div>
+  );
+}
+
+function ZenithContractBlankState() {
+  const chrome = useZenithContractChrome();
+  if (chrome) {
+    return <ZenithContractDetailView />;
+  }
+
+  // Ingest drawer / other shells render ContractStageContent outside the workspace provider.
+  return (
+    <ZenithContractChromeProvider enabled>
+      <ZenithContractDetailView />
+    </ZenithContractChromeProvider>
+  );
+}
+
+function ZenithContractDetailView() {
+  const chrome = useZenithContractChrome();
+  if (!chrome) return null;
+
+  const { activeTab } = chrome;
+
+  return (
+    <div className="mx-auto flex w-full max-w-[1020px] flex-col gap-3">
+      <ZenithContractTabPanel activeTab={activeTab} />
     </div>
   );
 }

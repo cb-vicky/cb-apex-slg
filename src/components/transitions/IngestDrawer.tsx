@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useUnifiedDrawerChrome } from "@/context/UnifiedDrawerChromeContext";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Clock, MessageSquare, PanelRightOpen, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, MessageSquare, PanelLeftOpen, X } from "lucide-react";
 import type { DrawerEntityType, DrawerMode, EntityState, TransitionDrawerIntent } from "@/data/contract-transition";
 import { transitionTypeFromIntent } from "@/data/contract-transition";
 import { useIngestContext } from "@/context/IngestContext";
@@ -1396,9 +1396,39 @@ export function IngestDrawer({
                   allContractsShowBack={allContractsShowBack}
                   onAllContractsBack={onAllContractsBack}
                   processSummary={processSummary}
+                  documentPreviewOnLeft
                 />
           ) : (
             <>
+              <>
+                <div
+                  className={cn(
+                    "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-r border-border-default",
+                    ingestPreviewCollapsed && "hidden",
+                  )}
+                >
+                  <IngestDocumentPreviewPane
+                    extracted={extracted}
+                    documentTitle={queueItem?.documentName ?? "Contract.pdf"}
+                    onCollapse={() => setIngestPreviewCollapsed(true)}
+                  />
+                </div>
+
+                {ingestPreviewCollapsed && (
+                  <div className="flex shrink-0 border-r border-border-default">
+                    <button
+                      type="button"
+                      onClick={() => setIngestPreviewCollapsed(false)}
+                      className="flex h-full w-8 flex-col items-center justify-center gap-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
+                      title="Show document preview"
+                    >
+                      <PanelLeftOpen size={14} />
+                      <span className="rotate-90 whitespace-nowrap text-[9px] uppercase tracking-widest">Preview</span>
+                    </button>
+                  </div>
+                )}
+              </>
+
               <div className="flex min-h-0 min-w-0 w-full flex-col overflow-hidden sm:w-[420px] sm:min-w-[420px] sm:max-w-[420px] sm:shrink-0">
                 <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-[13px] leading-snug">
                   {queueItem && !queueItem.ingestable && (
@@ -1504,35 +1534,6 @@ export function IngestDrawer({
                   </div>
                 </div>
               </div>
-
-              <>
-                <div
-                  className={cn(
-                    "hidden min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-l border-border-default md:flex",
-                    ingestPreviewCollapsed && "md:!hidden",
-                  )}
-                >
-                  <IngestDocumentPreviewPane
-                    extracted={extracted}
-                    documentTitle={queueItem?.documentName ?? "Contract.pdf"}
-                    onCollapse={() => setIngestPreviewCollapsed(true)}
-                  />
-                </div>
-
-                {ingestPreviewCollapsed && (
-                  <div className="hidden shrink-0 border-l border-border-default md:block">
-                    <button
-                      type="button"
-                      onClick={() => setIngestPreviewCollapsed(false)}
-                      className="flex h-full w-8 flex-col items-center justify-center gap-1 text-text-muted transition-colors hover:bg-surface-muted hover:text-text-primary"
-                      title="Show document preview"
-                    >
-                      <PanelRightOpen size={14} />
-                      <span className="rotate-90 whitespace-nowrap text-[9px] uppercase tracking-widest">Preview</span>
-                    </button>
-                  </div>
-                )}
-              </>
             </>
           )
         ) : (

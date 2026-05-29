@@ -314,6 +314,8 @@ function UnifiedFlowShellInner({ onClose }: { onClose: () => void }) {
       .filter((q) => q.customerId === customerId && q.status !== "Ingested")
       .map((q) => ({
         queueItemId: q.id,
+        customerId: q.customerId!,
+        contractId: q.contractId,
         documentName: q.documentName,
         customerName: q.customerName,
         tcv: q.tcv,

@@ -33,7 +33,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div
                 data-main-scroll-container=""
                 className={cn(
-                  "min-h-0 min-w-0 flex-1 overflow-auto rounded-tl-[24px] rounded-tr-[24px]",
+                  "min-h-0 min-w-0 flex-1 overflow-auto overscroll-y-contain rounded-tl-[24px] rounded-tr-[24px]",
+                  "[overflow-anchor:none]",
                   isCustomer360Active ? "bg-gray-100" : "bg-grey-100",
                 )}
               >

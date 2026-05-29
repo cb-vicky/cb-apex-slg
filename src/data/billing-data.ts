@@ -333,6 +333,28 @@ export const payments: Payment[] = [
     reversals: 0,
   },
   {
+    id: "PMT-2026-ZEN-01",
+    customerId: "cust_zenith_analytics_inc",
+    amount: 4200,
+    method: "Wire Transfer",
+    bankReference: "WT-ZENITH-20260215-4200",
+    receiptDate: "2026-02-15",
+    matchStatus: "matched",
+    allocations: [{ invoiceId: "INV-2026-0052", amount: 4200 }],
+    reversals: 0,
+  },
+  {
+    id: "PMT-2026-ZEN-02",
+    customerId: "cust_zenith_analytics_inc",
+    amount: 4600,
+    method: "Wire Transfer",
+    bankReference: "WT-ZENITH-20260320-4600",
+    receiptDate: "2026-03-20",
+    matchStatus: "partial",
+    allocations: [{ invoiceId: "INV-2026-0050", amount: 4600 }],
+    reversals: 0,
+  },
+  {
     id: "PMT-2026-0003",
     customerId: "cust_northlane_003",
     amount: 28000,
@@ -432,6 +454,11 @@ export const invoiceSchedules: Record<string, InvoiceScheduleEntry[]> = {
   cust_verdant_005: [
     { date: "2026-04-01", estimatedAmount: 14200, type: "Usage overage (Mar 2026)", holdState: "PO required", dependency: "PO not yet received" },
     { date: "2026-10-01", estimatedAmount: 108000, type: "Annual platform renewal", holdState: "None", dependency: "None" },
+  ],
+  cust_zenith_analytics_inc: [
+    { date: "2026-04-01", estimatedAmount: 7100, type: "Usage overage (Mar 2026)", holdState: "None", dependency: "Usage finalization pending" },
+    { date: "2026-05-01", estimatedAmount: 6800, type: "Usage overage (Apr 2026)", holdState: "None", dependency: "None" },
+    { date: "2026-07-01", estimatedAmount: 168000, type: "Annual platform renewal", holdState: "Pending contract", dependency: "Renewal quote QT-2026-0050 not yet signed" },
   ],
 };
 

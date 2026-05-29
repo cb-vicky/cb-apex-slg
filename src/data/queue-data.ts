@@ -68,7 +68,7 @@ export const queueItems: QueueItem[] = [
     sourceDetail: "Uploaded by Jordan Kim",
     scenario: "New Business",
     status: "Pending Review",
-    customerName: "Zenith Analytics Inc.",
+    customerName: "Zenith Analytics INC",
     tcv: 155000,
     uploadedAt: "2026-04-17T09:18:00Z",
     uploadedBy: "Jordan Kim",

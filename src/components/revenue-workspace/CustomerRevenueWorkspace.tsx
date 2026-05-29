@@ -21,6 +21,7 @@ import {
 } from "./workspace-tabs";
 import { QuoteStageContent } from "./quote/QuoteStageContent";
 import { ContractStageContent } from "./contract/ContractStageContent";
+import { ZenithContractChromeProvider } from "./contract/zenith/ZenithContractChromeContext";
 import { CustomerStageContent } from "./customer/CustomerStageContent";
 import { InvoicingStageContent } from "./invoicing/InvoicingStageContent";
 import { PaymentStageContent } from "./payment/PaymentStageContent";
@@ -39,6 +40,7 @@ import { WorkspaceDetailNav } from "./WorkspaceDetailNav";
 import { getDetailNavItems } from "./workspace-detail-nav";
 import { cn } from "@/lib/utils";
 import { useIsXl } from "@/lib/useIsXl";
+import { ZENITH_ANALYTICS_INC_ID } from "@/data/zenith-analytics-inc-seed";
 
 // Stages that use a list-then-detail pattern
 const LIST_STAGES: Stage[] = ["quote", "contract", "invoicing"];
@@ -152,6 +154,8 @@ export function CustomerRevenueWorkspace({
       )
       .map((q) => ({
         queueItemId: q.id,
+        customerId: q.customerId!,
+        contractId: q.contractId,
         documentName: q.documentName,
         customerName: q.customerName,
         tcv: q.tcv,
@@ -323,9 +327,14 @@ export function CustomerRevenueWorkspace({
 
   const isListStage = LIST_STAGES.includes(activeStage);
   const inListMode = isListMode(activeTab);
+  const hideDetailNavForZenithContract =
+    customer.id === ZENITH_ANALYTICS_INC_ID && activeStage === "contract";
+  /** Zenith contract detail (record tab + resolved contract). */
+  const zenithContractRecordView =
+    hideDetailNavForZenithContract && !inListMode && !!effectiveContract;
 
   const detailNavItems = useMemo(() => {
-    if (inListMode) return [];
+    if (inListMode || hideDetailNavForZenithContract) return [];
     return getDetailNavItems({
       stage: activeStage,
       customer,
@@ -336,6 +345,7 @@ export function CustomerRevenueWorkspace({
     });
   }, [
     inListMode,
+    hideDetailNavForZenithContract,
     activeStage,
     customer,
     activeQuote,
@@ -554,6 +564,10 @@ export function CustomerRevenueWorkspace({
   }
 
   return (
+    <ZenithContractChromeProvider
+      enabled={zenithContractRecordView}
+      resetKey={effectiveContract?.id}
+    >
     <div className="flex flex-1 flex-col bg-gray-100">
       <CustomerContextBar
         customer={customer}
@@ -576,14 +590,17 @@ export function CustomerRevenueWorkspace({
       <RecordSlotContext.Provider value={recordSlotEl}>
         <div
           data-workspace-content
-          className="relative flex-1 transition-[padding] duration-200 ease-out"
+          className="relative flex-1 [overflow-anchor:none] transition-[padding] duration-200 ease-out"
         >
           <div
             className={cn(
-              "grid min-w-0 px-6 pt-2 pb-12",
-              inListMode
-                ? "grid-cols-[1fr_minmax(0,min(1020px,100%))_1fr]"
-                : "grid-cols-[1fr_minmax(0,min(860px,100%))_1fr]",
+              "grid min-w-0 px-6 pb-12",
+              zenithContractRecordView ? "pt-1" : "pt-2",
+              zenithContractRecordView
+                ? "grid-cols-1 min-h-[calc(100svh+200px)]"
+                : inListMode
+                  ? "grid-cols-[1fr_minmax(0,min(1020px,100%))_1fr]"
+                  : "grid-cols-[1fr_minmax(0,min(860px,100%))_1fr]",
             )}
           >
             {!inListMode && isXl && detailNavItems.length > 0 ? (
@@ -591,7 +608,16 @@ export function CustomerRevenueWorkspace({
                 <WorkspaceDetailNav items={detailNavItems} variant="notion" />
               </div>
             ) : null}
-            <div className="col-start-2 row-start-1 min-w-0">{renderContent()}</div>
+            <div
+              className={cn(
+                "row-start-1 min-w-0",
+                zenithContractRecordView
+                  ? "col-start-1 flex justify-center"
+                  : "col-start-2",
+              )}
+            >
+              {renderContent()}
+            </div>
           </div>
         </div>
       </RecordSlotContext.Provider>
@@ -634,6 +660,7 @@ export function CustomerRevenueWorkspace({
         </div>
       )}
     </div>
+    </ZenithContractChromeProvider>
   );
 }
 

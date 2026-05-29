@@ -14,6 +14,10 @@ import {
 } from "./derive-stage-data";
 import type { WorkspaceTab } from "./workspace-tabs";
 import { tabKey } from "./workspace-tabs";
+import {
+  formatZenithContractReviewStatusLabel,
+  type ZenithContractReviewStatus,
+} from "./contract/zenith/zenith-contract-review-status";
 import type { ContractGraceExtension } from "@/data/contract-transition";
 import type { ContractClosure } from "@/data/mock-data";
 
@@ -61,6 +65,31 @@ export function deriveContractRecordTabSummary(
 ): TabSummary {
   const { text, severity } = deriveContractStatus(contract, invoiceStatusOverrides);
   return { subtitle: truncateStatus(text), severity };
+}
+
+function severityForZenithContractReviewStatus(
+  status: ZenithContractReviewStatus,
+): StatusSeverity {
+  switch (status) {
+    case "awaiting_data":
+      return "blue";
+    case "on_hold":
+      return "gray";
+    case "need_clarification":
+    case "in_review":
+    default:
+      return "amber";
+  }
+}
+
+/** Workspace record-tab subtitle while Zenith contract chrome is active. */
+export function deriveZenithContractRecordTabSummary(
+  reviewStatus: ZenithContractReviewStatus,
+): TabSummary {
+  return {
+    subtitle: truncateStatus(formatZenithContractReviewStatusLabel(reviewStatus)),
+    severity: severityForZenithContractReviewStatus(reviewStatus),
+  };
 }
 
 export function deriveInvoiceRecordTabSummary(invoice: Invoice): TabSummary {
@@ -117,8 +146,12 @@ export function resolveWorkspaceTabSummary(
   tab: WorkspaceTab,
   parentSummaries: Partial<Record<Stage, TabSummary>>,
   recordSummaries: Record<string, TabSummary>,
+  zenithContractReviewStatus?: ZenithContractReviewStatus | null,
 ): TabSummary | undefined {
   if (tab.kind === "parent") return parentSummaries[tab.stage];
+  if (zenithContractReviewStatus && tab.stage === "contract") {
+    return deriveZenithContractRecordTabSummary(zenithContractReviewStatus);
+  }
   return recordSummaries[tabKey(tab)];
 }
 

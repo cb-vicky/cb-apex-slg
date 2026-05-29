@@ -145,6 +145,42 @@ export const emailThreads: EmailThread[] = [
     relatedTo: { entityType: "contract", entityId: "CON-2024-0189" },
   },
 
+  // Zenith Analytics INC threads (Echo Corp parity)
+  {
+    id: "THR-Z01",
+    customerId: "cust_zenith_analytics_inc",
+    subject: "Re: Renewal proposal and AI credit expansion",
+    participants: [
+      { name: "David Chen", email: "d.chen@zenithanalytics.com", isInternal: false },
+      { name: "Jordan Kim", email: "jordan.kim@chargebee.com", isInternal: true },
+    ],
+    lastMessageDate: "2026-05-02T14:30:00Z",
+    messageCount: 5,
+    unread: true,
+    starred: true,
+    labels: ["Renewal", "Negotiation"],
+    relatedTo: { entityType: "quote", entityId: "QT-2026-0050" },
+    suggestedAction: {
+      type: "follow-up",
+      summary: "Follow up on overage rate clarification requested by customer",
+    },
+  },
+  {
+    id: "THR-Z02",
+    customerId: "cust_zenith_analytics_inc",
+    subject: "Outstanding invoice INV-2026-0050 — payment status",
+    participants: [
+      { name: "AP Team", email: "ap@zenithanalytics.com", isInternal: false },
+      { name: "Alex Nguyen", email: "alex.nguyen@chargebee.com", isInternal: true },
+    ],
+    lastMessageDate: "2026-04-28T09:15:00Z",
+    messageCount: 4,
+    unread: false,
+    starred: false,
+    labels: ["Collections", "Overdue"],
+    relatedTo: { entityType: "invoice", entityId: "INV-2026-0050" },
+  },
+
   // Northlane threads
   {
     id: "THR-010",
