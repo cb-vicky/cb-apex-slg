@@ -47,18 +47,20 @@ interface Props {
 
 export function PaymentCollectionsSubTabs({ active, promiseToPayCount, onChange }: Props) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <SubTabPill
-        label="Overview"
-        active={active === "overview"}
-        onClick={() => onChange("overview")}
-      />
-      <SubTabPill
-        label="Promise to pay"
-        count={promiseToPayCount}
-        active={active === "promise-to-pay"}
-        onClick={() => onChange("promise-to-pay")}
-      />
+    <div className="flex justify-center">
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <SubTabPill
+          label="Overview"
+          active={active === "overview"}
+          onClick={() => onChange("overview")}
+        />
+        <SubTabPill
+          label="Promise to pay"
+          count={promiseToPayCount}
+          active={active === "promise-to-pay"}
+          onClick={() => onChange("promise-to-pay")}
+        />
+      </div>
     </div>
   );
 }

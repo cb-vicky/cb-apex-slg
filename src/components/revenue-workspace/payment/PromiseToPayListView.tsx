@@ -4,11 +4,12 @@ import { currency, shortDate, cn } from "@/lib/utils";
 import type {
   PromiseToPayInvoiceGroup,
   PromiseToPayLogEntry,
-  PromiseToPayLogStatus,
+  PromiseToPayInvoiceStatus,
+  PromiseToPayEntryStatus,
 } from "@/data/billing-data";
+import { sortPromiseToPayLogs } from "@/data/billing-data";
 
-const GRID_COLS =
-  "grid-cols-[auto_minmax(0,1fr)_88px_100px_110px_120px]";
+const GRID_COLS = "grid-cols-[auto_minmax(0,1fr)_88px_100px_minmax(150px,1fr)]";
 
 function formatPromisedFor(iso: string): string {
   return new Date(iso)
@@ -16,15 +17,18 @@ function formatPromisedFor(iso: string): string {
     .toUpperCase();
 }
 
-function StatusBadge({ status }: { status: PromiseToPayLogStatus }) {
+const BADGE_BASE =
+  "inline-flex w-fit items-center rounded px-1.5 py-px text-[11px] font-medium leading-tight capitalize";
+
+function InvoiceStatusBadge({ status }: { status: PromiseToPayInvoiceStatus }) {
   const paid = status === "paid";
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-md border px-2 py-0.5 text-[12px] font-medium leading-4 capitalize",
+        BADGE_BASE,
         paid
-          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-          : "border-amber-200 bg-amber-50 text-amber-700",
+          ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+          : "border border-amber-200 bg-amber-50 text-amber-700",
       )}
     >
       {paid ? "Paid" : "Pending"}
@@ -32,9 +36,30 @@ function StatusBadge({ status }: { status: PromiseToPayLogStatus }) {
   );
 }
 
-function LogEntryRow({ log }: { log: PromiseToPayLogEntry }) {
-  const paid = log.status === "paid";
+function EntryStatusBadge({ status }: { status: PromiseToPayEntryStatus }) {
+  const styles: Record<PromiseToPayEntryStatus, string> = {
+    scheduled: "border border-blue-200 bg-blue-50 text-blue-700",
+    failed: "border border-red-200 bg-red-50 text-red-700",
+    paid: "border border-emerald-200 bg-emerald-50 text-emerald-700",
+  };
 
+  return <span className={cn(BADGE_BASE, styles[status])}>{status}</span>;
+}
+
+function logEntryLabel(log: PromiseToPayLogEntry): string {
+  if (log.status === "paid" && log.paidOn) {
+    return `Paid on ${formatPromisedFor(log.paidOn)}`;
+  }
+  if (log.promisedFor) {
+    if (log.status === "failed") {
+      return `Missed promise for ${formatPromisedFor(log.promisedFor)}`;
+    }
+    return `Promised for ${formatPromisedFor(log.promisedFor)}`;
+  }
+  return "Promise logged";
+}
+
+function LogEntryRow({ log }: { log: PromiseToPayLogEntry }) {
   return (
     <div
       className={cn(
@@ -43,18 +68,15 @@ function LogEntryRow({ log }: { log: PromiseToPayLogEntry }) {
       )}
     >
       <span />
-      <div className="min-w-0">
-        <p className="text-[13px] font-semibold text-text-primary">{log.headline}</p>
-        {!paid && log.promisedFor && (
-          <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700">
-            Promised for {formatPromisedFor(log.promisedFor)}
-          </p>
-        )}
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <p className="text-[13px] font-semibold text-text-primary">{logEntryLabel(log)}</p>
+        <EntryStatusBadge status={log.status} />
       </div>
-      <StatusBadge status={log.status} />
+      <span />
       <span className="text-text-muted">—</span>
-      <span className="text-[12px] text-text-secondary">{shortDate(log.loggedOn)}</span>
-      <span className="truncate text-[12px] text-text-secondary">{log.loggedByName}</span>
+      <span className="truncate text-[12px] text-text-secondary">
+        {shortDate(log.loggedOn)} {log.loggedByName}
+      </span>
     </div>
   );
 }
@@ -95,14 +117,14 @@ export function PromiseToPayListView({ groups }: Props) {
         <span>Invoice</span>
         <span>Status</span>
         <span className="text-right">Amount</span>
-        <span>Logged on</span>
-        <span>Logged by</span>
+        <span />
       </div>
 
       <div className="divide-y divide-border-subtle">
         {groups.map((group) => {
           const isExpanded = expanded.has(group.invoiceId);
           const hasLogs = group.logs.length > 0;
+          const sortedLogs = sortPromiseToPayLogs(group.logs, group.status);
 
           return (
             <div key={group.invoiceId}>
@@ -128,17 +150,16 @@ export function PromiseToPayListView({ groups }: Props) {
                 </button>
 
                 <span className="text-[13px] font-semibold text-text-primary">{group.invoiceId}</span>
-                <span />
+                <InvoiceStatusBadge status={group.status} />
                 <span className="text-right text-[13px] font-medium tabular-nums text-text-primary">
                   {currency(group.amount)}
                 </span>
-                <span />
                 <span />
               </div>
 
               {isExpanded && hasLogs && (
                 <div className="border-t border-border-subtle bg-gray-50 pb-1">
-                  {[...group.logs].reverse().map((log) => (
+                  {sortedLogs.map((log) => (
                     <LogEntryRow key={log.id} log={log} />
                   ))}
                 </div>

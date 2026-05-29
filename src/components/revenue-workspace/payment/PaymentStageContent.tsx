@@ -34,6 +34,8 @@ export function PaymentStageContent({ customer }: Props) {
   const collectionsTab = chrome?.collectionsTab ?? "overview";
   const subTabsDocked = chrome?.subTabsDocked ?? false;
   const subTabsSentinelRef = useRef<HTMLDivElement>(null);
+  const subTabsVisibleRef = useRef(true);
+  const lastScrollTopRef = useRef(0);
 
   const customerInvoices = useMemo(
     () => mergeInvoiceStatuses(getInvoices(customer.id), invoiceStatusOverrides),
@@ -68,33 +70,65 @@ export function PaymentStageContent({ customer }: Props) {
     const target = subTabsSentinelRef.current;
     if (!root || !target || !chrome) return;
 
+    lastScrollTopRef.current = root.scrollTop;
+
     const observer = new IntersectionObserver(
       ([entry]) => {
-        chrome.setSubTabsDocked(!entry.isIntersecting);
+        subTabsVisibleRef.current = entry.isIntersecting;
+        if (entry.isIntersecting) {
+          chrome.setSubTabsDocked(false);
+        }
       },
-      { root, threshold: 0, rootMargin: "-1px 0px 0px 0px" },
+      { root, threshold: 0 },
     );
 
     observer.observe(target);
-    return () => observer.disconnect();
+
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const current = root.scrollTop;
+        const delta = current - lastScrollTopRef.current;
+
+        if (delta < -1) {
+          // Scrolling up — restore Overview, Tasks, Threads, etc. immediately.
+          chrome.setSubTabsDocked(false);
+        } else if (delta > 1 && !subTabsVisibleRef.current) {
+          // Scrolling down past inline sub-tabs — dock Collections full strip.
+          chrome.setSubTabsDocked(true);
+        }
+
+        lastScrollTopRef.current = current;
+      });
+    };
+
+    root.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      observer.disconnect();
+      root.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(raf);
+    };
   }, [chrome]);
 
   return (
     <div className="flex flex-col gap-3">
       <div
         ref={subTabsSentinelRef}
-        className={cn(
-          "transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]",
-          subTabsDocked
-            ? "pointer-events-none h-0 overflow-hidden opacity-0"
-            : "opacity-100",
-        )}
+        className="flex h-11 shrink-0 items-center justify-center"
       >
-        <PaymentCollectionsSubTabs
-          active={collectionsTab}
-          promiseToPayCount={promiseToPay.length}
-          onChange={(tab) => chrome?.setCollectionsTab(tab)}
-        />
+        <div
+          className={cn(
+            "transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]",
+            subTabsDocked ? "pointer-events-none invisible opacity-0" : "opacity-100",
+          )}
+        >
+          <PaymentCollectionsSubTabs
+            active={collectionsTab}
+            promiseToPayCount={promiseToPay.length}
+            onChange={(tab) => chrome?.setCollectionsTab(tab)}
+          />
+        </div>
       </div>
 
       {collectionsTab === "promise-to-pay" ? (

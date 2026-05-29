@@ -90,13 +90,14 @@ export interface DelayedPayment {
   paidOn: string;
 }
 
-export type PromiseToPayLogStatus = "paid" | "pending";
+export type PromiseToPayInvoiceStatus = "pending" | "paid";
+export type PromiseToPayEntryStatus = "scheduled" | "failed" | "paid";
 
 export interface PromiseToPayLogEntry {
   id: string;
-  status: PromiseToPayLogStatus;
-  headline: string;
+  status: PromiseToPayEntryStatus;
   promisedFor?: string;
+  paidOn?: string;
   loggedOn: string;
   loggedByName: string;
   loggedByInitials: string;
@@ -107,7 +108,60 @@ export interface PromiseToPayInvoiceGroup {
   customerId: string;
   invoiceId: string;
   amount: number;
+  status: PromiseToPayInvoiceStatus;
   logs: PromiseToPayLogEntry[];
+}
+
+/** Demo "today" for resolving scheduled → failed/paid transitions. */
+export const PROMISE_TO_PAY_AS_OF = "2026-05-26";
+
+/** Past-due scheduled promises become failed unless already paid on that date. */
+export function resolvePromiseToPayLogs(
+  logs: PromiseToPayLogEntry[],
+  invoiceStatus: PromiseToPayInvoiceStatus,
+  asOf: string = PROMISE_TO_PAY_AS_OF,
+): PromiseToPayLogEntry[] {
+  const paidEntry = logs.find((l) => l.status === "paid");
+
+  return logs.map((log) => {
+    if (log.status !== "scheduled" || !log.promisedFor) return log;
+    if (log.promisedFor >= asOf) return log;
+
+    if (paidEntry?.paidOn && paidEntry.paidOn <= log.promisedFor) {
+      return { ...log, status: "paid" as const, paidOn: paidEntry.paidOn };
+    }
+
+    if (invoiceStatus === "paid" || log.promisedFor < asOf) {
+      return { ...log, status: "failed" as const };
+    }
+
+    return log;
+  });
+}
+
+/** Display order: paid first, then failed, then scheduled (newest dates first within each tier). */
+export function sortPromiseToPayLogs(
+  logs: PromiseToPayLogEntry[],
+  invoiceStatus: PromiseToPayInvoiceStatus,
+  asOf: string = PROMISE_TO_PAY_AS_OF,
+): PromiseToPayLogEntry[] {
+  const resolved = resolvePromiseToPayLogs(logs, invoiceStatus, asOf);
+  const byDateDesc = (a: PromiseToPayLogEntry, b: PromiseToPayLogEntry) => {
+    const aDate = a.paidOn ?? a.promisedFor ?? a.loggedOn;
+    const bDate = b.paidOn ?? b.promisedFor ?? b.loggedOn;
+    return bDate.localeCompare(aDate);
+  };
+
+  if (invoiceStatus === "paid") {
+    const paid = resolved.filter((l) => l.status === "paid").sort(byDateDesc);
+    const failed = resolved.filter((l) => l.status === "failed").sort(byDateDesc);
+    const scheduled = resolved.filter((l) => l.status === "scheduled").sort(byDateDesc);
+    return [...paid, ...failed, ...scheduled];
+  }
+
+  const scheduled = resolved.filter((l) => l.status === "scheduled").sort(byDateDesc);
+  const failed = resolved.filter((l) => l.status === "failed").sort(byDateDesc);
+  return [...scheduled, ...failed];
 }
 
 // ---------------------------------------------------------------------------
@@ -431,11 +485,11 @@ export const promiseToPayInvoiceGroups: PromiseToPayInvoiceGroup[] = [
     customerId: "cust_echo_001",
     invoiceId: "INV-2026-0044",
     amount: 6300,
+    status: "pending",
     logs: [
       {
         id: "PTP-LOG-0044-1",
-        status: "pending",
-        headline: "Customer committed to wire transfer.",
+        status: "scheduled",
         promisedFor: "2026-06-15",
         loggedOn: "2026-05-11",
         loggedByName: "Lena Patel",
@@ -447,21 +501,21 @@ export const promiseToPayInvoiceGroups: PromiseToPayInvoiceGroup[] = [
     customerId: "cust_echo_001",
     invoiceId: "INV-2026-0034",
     amount: 1200,
+    status: "paid",
     logs: [
       {
-        id: "PTP-LOG-0034-1",
+        id: "PTP-LOG-0034-3",
         status: "paid",
-        headline: "Paid on 08 May 2026",
+        paidOn: "2026-05-08",
         loggedOn: "2026-05-08",
         loggedByName: "Sarah Mitchell",
         loggedByInitials: "SM",
       },
       {
-        id: "PTP-LOG-0034-2",
-        status: "pending",
-        headline: "Customer committed to wire transfer.",
+        id: "PTP-LOG-0034-1",
+        status: "scheduled",
         promisedFor: "2026-04-10",
-        loggedOn: "2026-05-11",
+        loggedOn: "2026-03-28",
         loggedByName: "Lena Patel",
         loggedByInitials: "LP",
       },
@@ -471,12 +525,12 @@ export const promiseToPayInvoiceGroups: PromiseToPayInvoiceGroup[] = [
     customerId: "cust_northlane_003",
     invoiceId: "INV-2026-0040",
     amount: 31200,
+    status: "pending",
     logs: [
       {
         id: "PTP-LOG-0040-1",
-        status: "pending",
-        headline: "Customer committed to wire transfer.",
-        promisedFor: "2026-05-30",
+        status: "scheduled",
+        promisedFor: "2026-05-20",
         loggedOn: "2026-05-18",
         loggedByName: "Priya Mehta",
         loggedByInitials: "PM",
@@ -629,11 +683,11 @@ export function getPromiseToPayForCustomer(customerId: string): PromiseToPayInvo
       customerId: c.customerId,
       invoiceId: c.invoiceId,
       amount: c.outstandingAmount,
+      status: "pending" as const,
       logs: [
         {
           id: `PTP-CASE-LOG-${c.id}`,
-          status: "pending" as const,
-          headline: "Customer committed to wire transfer.",
+          status: "scheduled" as const,
           promisedFor: c.ptpDate,
           loggedOn: c.followUpHistory.at(-1)?.date ?? c.ptpDate,
           loggedByName: c.owner,
@@ -642,11 +696,16 @@ export function getPromiseToPayForCustomer(customerId: string): PromiseToPayInvo
       ],
     }));
 
-  return [...seeded, ...fromCases].sort((a, b) => {
-    const aDate = a.logs.at(-1)?.loggedOn ?? "";
-    const bDate = b.logs.at(-1)?.loggedOn ?? "";
-    return bDate.localeCompare(aDate);
-  });
+  return [...seeded, ...fromCases]
+    .map((group) => ({
+      ...group,
+      logs: resolvePromiseToPayLogs(group.logs, group.status),
+    }))
+    .sort((a, b) => {
+      const aDate = a.logs.at(-1)?.loggedOn ?? "";
+      const bDate = b.logs.at(-1)?.loggedOn ?? "";
+      return bDate.localeCompare(aDate);
+    });
 }
 
 export function getDelayedPaymentsForCustomer(

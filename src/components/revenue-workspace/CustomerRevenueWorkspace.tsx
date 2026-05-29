@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2 } from "lucide-react";
 import type { Customer, Quote, Contract, Invoice, Task, ContractClosure } from "@/data/mock-data";
@@ -566,6 +566,14 @@ export function CustomerRevenueWorkspace({
     // For now, just switch tabs. Drawer integration can be added later.
   }
 
+  const expandPaymentAllTabs = useCallback(() => {
+    setPaymentSubTabsDocked(false);
+    document.querySelector<HTMLElement>("[data-main-scroll-container]")?.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  }, []);
+
   const paymentChromeValue = useMemo(
     () => ({
       collectionsTab: paymentCollectionsTab,
@@ -573,8 +581,9 @@ export function CustomerRevenueWorkspace({
       promiseToPayCount: getPromiseToPayForCustomer(customer.id).length,
       subTabsDocked: paymentSubTabsDocked,
       setSubTabsDocked: setPaymentSubTabsDocked,
+      expandAllTabs: expandPaymentAllTabs,
     }),
-    [paymentCollectionsTab, paymentSubTabsDocked, customer.id],
+    [paymentCollectionsTab, paymentSubTabsDocked, customer.id, expandPaymentAllTabs],
   );
 
   return (

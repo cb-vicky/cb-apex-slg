@@ -9,6 +9,7 @@ export interface PaymentCollectionsChromeValue {
   promiseToPayCount: number;
   subTabsDocked: boolean;
   setSubTabsDocked: (docked: boolean) => void;
+  expandAllTabs: () => void;
 }
 
 const PaymentCollectionsChromeContext = createContext<PaymentCollectionsChromeValue | null>(

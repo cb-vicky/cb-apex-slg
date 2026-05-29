@@ -3,37 +3,46 @@ import type { PaymentCollectionsTab } from "./PaymentCollectionsSubTabs";
 
 const TAB_CORNER_RADIUS =
   "rounded-tl-[4px] rounded-bl-[4px] rounded-tr-[36px] rounded-br-[36px]";
+const DOCK_TWEEN_MS = 520;
+const DOCK_TWEEN_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
 
 function DockedSubPill({
   label,
   count,
   active,
   onClick,
+  visible,
+  delayMs,
 }: {
   label: string;
   count?: number;
   active: boolean;
   onClick: () => void;
+  visible: boolean;
+  delayMs: number;
 }) {
   return (
     <button
       type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
+      onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-medium transition-colors",
+        "inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-medium leading-tight transition-[opacity,transform,background-color,color]",
+        visible ? "translate-x-0 opacity-100" : "translate-x-2 opacity-0",
         active
           ? "bg-white/20 text-white"
           : "text-blue-100 hover:bg-white/10 hover:text-white",
       )}
+      style={{
+        transitionDuration: `${DOCK_TWEEN_MS}ms`,
+        transitionTimingFunction: DOCK_TWEEN_EASE,
+        transitionDelay: visible ? `${delayMs}ms` : "0ms",
+      }}
     >
       {label}
       {count !== undefined && count > 0 && (
         <span
           className={cn(
-            "rounded-full px-1.5 py-0.5 text-[10px]",
+            "rounded-full px-1 py-px text-[10px] leading-none",
             active ? "bg-white/25" : "bg-white/10",
           )}
         >
@@ -48,6 +57,7 @@ interface Props {
   active: boolean;
   collectionsTab: PaymentCollectionsTab;
   promiseToPayCount: number;
+  subTabsVisible?: boolean;
   onSelectCollections: () => void;
   onSubTabChange: (tab: PaymentCollectionsTab) => void;
 }
@@ -56,37 +66,50 @@ export function PaymentDockedTabButton({
   active,
   collectionsTab,
   promiseToPayCount,
+  subTabsVisible = true,
   onSelectCollections,
   onSubTabChange,
 }: Props) {
   return (
     <div className="group/tab relative min-w-0 flex-1" style={{ zIndex: active ? 50 : 10 }}>
-      <button
-        type="button"
-        onClick={onSelectCollections}
+      <div
         className={cn(
-          "relative flex w-full min-w-[200px] items-center gap-3 border px-4 py-2.5 text-left transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]",
+          "relative flex w-full min-w-[200px] items-end justify-between gap-3 border px-4 py-2.5 transition-[border-color,background-color,box-shadow]",
           TAB_CORNER_RADIUS,
           active
             ? "border-blue-600 bg-blue-600 text-white shadow-[0_8px_18px_-4px_rgba(37,99,235,0.5)]"
             : "border-gray-200 bg-white text-text-primary shadow-[0_3px_10px_-2px_rgba(0,0,0,0.14)]",
         )}
+        style={{
+          transitionDuration: `${DOCK_TWEEN_MS}ms`,
+          transitionTimingFunction: DOCK_TWEEN_EASE,
+        }}
       >
-        <span className="shrink-0 text-[13px] font-semibold">Collections</span>
-        <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+        <button
+          type="button"
+          onClick={onSelectCollections}
+          className="shrink-0 pb-0.5 text-left text-[13px] font-semibold leading-tight transition-opacity hover:opacity-90"
+        >
+          Collections
+        </button>
+        <span className="flex flex-wrap items-end justify-end gap-1.5 pb-0.5">
           <DockedSubPill
             label="Overview"
             active={collectionsTab === "overview"}
+            visible={subTabsVisible}
+            delayMs={180}
             onClick={() => onSubTabChange("overview")}
           />
           <DockedSubPill
             label="Promise to pay"
             count={promiseToPayCount}
             active={collectionsTab === "promise-to-pay"}
+            visible={subTabsVisible}
+            delayMs={230}
             onClick={() => onSubTabChange("promise-to-pay")}
           />
         </span>
-      </button>
+      </div>
     </div>
   );
 }
