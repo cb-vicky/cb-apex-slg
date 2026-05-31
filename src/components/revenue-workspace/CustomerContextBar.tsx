@@ -20,6 +20,12 @@ import { getContractsForCustomer, getInvoices } from "@/data/mock-data";
 import { useIngestContext } from "@/context/IngestContext";
 import type { IngestionSession, IngestionSectionId, IngestionSectionState } from "@/context/ingest-context-core";
 import { getExtractedContract } from "@/data/ingest-data";
+import { useZenithContractChrome } from "./contract/zenith/ZenithContractChromeContext";
+import {
+  zenithContentTabForIngestionSub,
+  type IngestionSubTab as IngestionSubTabSync,
+} from "./ingestion/ingestion-zenith-sync";
+import type { ZenithTabCompletionStatus } from "./contract/zenith/zenith-contract-tab-status";
 import type { Stage } from "./stage";
 import {
   derivePriorityChips,
@@ -525,6 +531,12 @@ function getSectionStatusDot(state: IngestionSectionState): "red" | "amber" | "g
   }
 }
 
+function zenithStatusDot(status: ZenithTabCompletionStatus): "red" | "amber" | "green" | null {
+  if (status === "complete") return "green";
+  if (status === "pending") return "amber";
+  return null;
+}
+
 /**
  * Ingestion tab pill — renders section tabs + PDF tabs (Frame 1) or
  * Back / Contract Preview / Invoice Preview (Frame 2). Underline tracks the
@@ -543,17 +555,35 @@ function IngestionTabPill({
   const [pillWidth, setPillWidth] = useState(0);
   const [underlineStyle, setUnderlineStyle] = useState({ left: 0, width: 0 });
   const [isInitialized, setIsInitialized] = useState(false);
+  const zenithChrome = useZenithContractChrome();
 
   const extracted = useMemo(() => getExtractedContract(session.sampleId), [session.sampleId]);
 
-  const isFrame2 = activeSubTab === "contract-preview" || activeSubTab === "invoice-preview";
+  function pillTabStatusDot(tabId: IngestionSubTabSync): "red" | "amber" | "green" | null {
+    const zenithTab = zenithContentTabForIngestionSub(tabId);
+    if (zenithChrome && zenithTab) {
+      return zenithStatusDot(zenithChrome.getContentTabStatus(zenithTab));
+    }
+    if (
+      tabId === "summary" ||
+      tabId === "items" ||
+      tabId === "billing" ||
+      tabId === "addresses" ||
+      tabId === "additional"
+    ) {
+      return getSectionStatusDot(session.sections[tabId]);
+    }
+    return null;
+  }
 
-  const sectionTabs: { id: IngestionSectionId; label: string }[] = [
+  const isFrame2 = activeSubTab === "contract-preview";
+
+  const reviewTabs: { id: IngestionSubTab; label: string }[] = [
     { id: "summary", label: "Summary" },
     { id: "items", label: "Items" },
     { id: "billing", label: "Billing info" },
     { id: "addresses", label: "Addresses" },
-    { id: "additional", label: "Additional info" },
+    { id: "invoice-preview", label: "Invoice Preview" },
   ];
 
   const pdfTabs = extracted.documents.map((doc) => ({
@@ -563,8 +593,10 @@ function IngestionTabPill({
 
   const frame2Tabs: { id: IngestionSubTab; label: string }[] = [
     { id: "contract-preview", label: "Contract Preview" },
-    { id: "invoice-preview", label: "Invoice Preview" },
   ];
+
+  const invoicePreviewDisabled =
+    zenithChrome?.getContentTabStatus("Invoice Preview") === "disabled";
 
   const tabRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map());
   const textRefs = useRef<Map<string, HTMLSpanElement | null>>(new Map());
@@ -642,6 +674,7 @@ function IngestionTabPill({
             {/* Frame 2 preview tabs */}
             {frame2Tabs.map((tab) => {
               const isActive = activeSubTab === tab.id;
+              const dotColor = pillTabStatusDot(tab.id);
               return (
                 <button
                   key={tab.id}
@@ -650,6 +683,15 @@ function IngestionTabPill({
                   onClick={() => onSubTabChange(tab.id)}
                   className="group/subtab relative flex items-center gap-1 rounded px-2 py-0.5"
                 >
+                  {dotColor && (
+                    <span
+                      className={cn(
+                        "size-1.5 rounded-full",
+                        dotColor === "amber" && "bg-amber-500",
+                        dotColor === "green" && "bg-emerald-500",
+                      )}
+                    />
+                  )}
                   <span
                     ref={(el) => { textRefs.current.set(tab.id, el); }}
                     className={cn(
@@ -667,18 +709,23 @@ function IngestionTabPill({
           </>
         ) : (
           <>
-            {/* Section tabs */}
-            {sectionTabs.map((tab) => {
+            {reviewTabs.map((tab) => {
               const isActive = activeSubTab === tab.id;
-              const dotColor = getSectionStatusDot(session.sections[tab.id]);
+              const dotColor = pillTabStatusDot(tab.id);
+              const isDisabled =
+                tab.id === "invoice-preview" && invoicePreviewDisabled;
 
               return (
                 <button
                   key={tab.id}
                   ref={(el) => { tabRefs.current.set(tab.id, el); }}
                   type="button"
-                  onClick={() => onSubTabChange(tab.id)}
-                  className="group/subtab relative flex items-center gap-1.5 rounded px-2 py-0.5"
+                  disabled={isDisabled}
+                  onClick={() => !isDisabled && onSubTabChange(tab.id)}
+                  className={cn(
+                    "group/subtab relative flex items-center gap-1.5 rounded px-2 py-0.5",
+                    isDisabled && "cursor-not-allowed opacity-50",
+                  )}
                 >
                   {dotColor && (
                     <span

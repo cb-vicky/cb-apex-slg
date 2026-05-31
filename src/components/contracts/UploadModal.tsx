@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { sampleDocs, analysisMessages } from "@/data/ingest-data";
 import { getQueueItemBySample } from "@/data/queue-data";
 import { useIngestContext } from "@/context/IngestContext";
-import { openLinkCustomerModal } from "@/store/link-customer-modal-store";
+import { openNewDealCustomerLinkModal } from "@/store/new-deal-customer-link-store";
 
 interface Props {
   onClose: () => void;
@@ -42,14 +42,14 @@ export function UploadModal({ onClose }: Props) {
     return () => clearInterval(iv);
   }, [step]);
 
-  // Auto-navigate after done: open the LinkCustomerModal
+  // Auto-open new-deal customer link modal after analysis completes
   useEffect(() => {
     if (step !== "done" || !chosenSample) return;
     const t = setTimeout(() => {
       setSelectedSample(chosenSample);
       const queueItem = getQueueItemBySample(chosenSample);
       if (queueItem) {
-        openLinkCustomerModal(queueItem.id);
+        openNewDealCustomerLinkModal(queueItem.id);
       }
       onClose();
     }, 600);

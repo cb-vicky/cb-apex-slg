@@ -1,25 +1,43 @@
 import { useEffect } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { closeDrawer, openDrawer } from "@/store/drawer-store";
 import type { FlowStepId } from "@/data/contract-transition";
 import { useDemoPersona } from "@/context/DemoPersonaContext";
+import { useIngestContext } from "@/context/IngestContext";
+import { getCustomerIngestionInvoicePreviewUrl } from "@/lib/new-deal-customer-link";
 
 const STEPS: FlowStepId[] = ["ingest", "close_prior", "grace_extend", "invoice_review", "approval"];
 
 /**
  * Deep link: `/approvals/invoices/:invoiceId?ingestId=…&step=…`
- * opens the global drawer over Workbench.
+ * Ingest-linked first-invoice approvals route approvers to Customer 360 Ingestion;
+ * other cases open the global drawer over Workbench.
  */
 export function useApprovalUrlDrawerSync() {
+  const navigate = useNavigate();
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const [params] = useSearchParams();
   const ingestId = params.get("ingestId") ?? "";
   const stepRaw = params.get("step") ?? "";
   const closureQueueItemId = params.get("queueItemId") ?? "";
   const { persona } = useDemoPersona();
+  const { approvalRequests, queueItems } = useIngestContext();
 
   useEffect(() => {
     if (!invoiceId) return;
+
+    const approval = approvalRequests.find((r) => r.invoiceId === invoiceId);
+    const queueRow = ingestId ? queueItems.find((q) => q.id === ingestId) : undefined;
+    const reviewCustomerId = approval?.customerId || queueRow?.customerId;
+
+    if (ingestId && persona === "approver" && reviewCustomerId) {
+      navigate(
+        getCustomerIngestionInvoicePreviewUrl(reviewCustomerId, ingestId, { from: "workbench" }),
+        { replace: true },
+      );
+      return;
+    }
+
     const queueLink = ingestId || closureQueueItemId;
     const hasIngestLink = Boolean(ingestId);
 
@@ -69,7 +87,7 @@ export function useApprovalUrlDrawerSync() {
         queueItemId: queueLink || undefined,
       },
     });
-  }, [invoiceId, ingestId, stepRaw, closureQueueItemId, persona]);
+  }, [invoiceId, ingestId, stepRaw, closureQueueItemId, persona, approvalRequests, queueItems, navigate]);
 
   useEffect(
     () => () => {

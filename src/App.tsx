@@ -23,7 +23,7 @@ import { ApprovalDetailPage } from "@/pages/ApprovalDetailPage";
 import { ModuleStubPage } from "@/pages/ModuleStubPage";
 import { EntityDrawer } from "@/components/common/EntityDrawer";
 import { RootErrorBoundary } from "@/components/common/RootErrorBoundary";
-import { LinkCustomerModal } from "@/components/ingestion/LinkCustomerModal";
+import { NewDealCustomerLinkGateHost } from "@/components/workbench/NewDealCustomerLinkGateHost";
 
 export default function App() {
   return (
@@ -71,7 +71,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           <EntityDrawer />
-          <LinkCustomerModal />
+          <NewDealCustomerLinkGateHost />
           </>
         </AppShell>
         </WorkspaceShellProvider>

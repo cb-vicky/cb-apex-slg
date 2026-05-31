@@ -190,11 +190,17 @@ export interface IngestContextValue {
   /** Restart ingestion: resets sections to seed states, sets overallStatus to in_review */
   restartIngestion: (queueItemId: string) => void;
 
-  /** Complete ingestion: clears the session (used after Send for approval) */
+  /** Complete ingestion: clears the session (used after approver approves) */
   completeIngestion: (queueItemId: string) => void;
 
-  /** Get active ingestion session for a customer (only one per customer at a time) */
-  getActiveIngestionForCustomer: (customerId: string) => IngestionSession | undefined;
+  /**
+   * Active ingestion session for a customer, including a synthetic session when an
+   * ingest-linked invoice is pending approval (approver review after operator submit).
+   */
+  getActiveIngestionForCustomer: (
+    customerId: string,
+    preferredQueueItemId?: string,
+  ) => IngestionSession | undefined;
 }
 
 /** @internal — import from this module only in IngestProvider */

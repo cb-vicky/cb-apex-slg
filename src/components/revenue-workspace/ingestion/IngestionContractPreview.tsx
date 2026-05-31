@@ -1,4 +1,5 @@
-import { FileText, CheckCircle2 } from "lucide-react";
+import { useState } from "react";
+import { ZoomIn, ZoomOut, Download, FileText, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Customer } from "@/data/mock-data";
 import type { ExtractedContract } from "@/data/ingest-data";
 import type { IngestionSession } from "@/context/ingest-context-core";
@@ -10,204 +11,192 @@ interface Props {
   onSwitchToInvoice: () => void;
 }
 
-export function IngestionContractPreview({
-  session,
-  customer,
-  extracted,
-  onSwitchToInvoice,
-}: Props) {
-  const { terms, products } = extracted;
+export function IngestionContractPreview({ customer, extracted, onSwitchToInvoice }: Props) {
+  const [zoom, setZoom] = useState(100);
+  const [currentPage, setCurrentPage] = useState(1);
+  const totalPages = 3;
 
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
 
   const formatDate = (d: string) =>
-    new Date(d).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
+    new Date(d).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" });
 
   return (
-    <div className="space-y-6">
-      {/* Preview header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-text-primary">Contract Preview</h2>
-          <p className="mt-1 text-sm text-text-secondary">
-            This is how the contract will appear in Chargebee after ingestion.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+    <div className="space-y-4">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between rounded-lg border border-border-default bg-white px-4 py-2">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <div className="rounded bg-blue-100 p-1.5">
+              <FileText size={14} className="text-blue-700" />
+            </div>
+            <span className="text-sm font-medium text-text-primary">Contract Preview</span>
+          </div>
           <button
             onClick={onSwitchToInvoice}
-            className="rounded-lg border border-border-default px-4 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-gray-50"
+            className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
           >
-            View Invoice Preview
+            View Invoice Preview →
+          </button>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setZoom((z) => Math.max(50, z - 10))}
+              className="rounded p-1.5 hover:bg-gray-100"
+            >
+              <ZoomOut size={16} className="text-text-secondary" />
+            </button>
+            <span className="min-w-[3rem] text-center text-xs text-text-muted">{zoom}%</span>
+            <button
+              onClick={() => setZoom((z) => Math.min(200, z + 10))}
+              className="rounded p-1.5 hover:bg-gray-100"
+            >
+              <ZoomIn size={16} className="text-text-secondary" />
+            </button>
+          </div>
+          <button className="rounded p-1.5 hover:bg-gray-100">
+            <Download size={16} className="text-text-secondary" />
           </button>
         </div>
       </div>
 
-      {/* PDF-styled contract preview */}
-      <div className="mx-auto max-w-[680px] rounded-xl border-2 border-dashed border-gray-300 bg-white shadow-lg">
-        {/* Header */}
-        <div className="border-b border-gray-200 bg-gray-50 px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xs font-medium uppercase tracking-wide text-text-muted">
-                Contract
-              </div>
-              <div className="mt-1 text-xl font-bold text-text-primary">
-                CON-2026-{session.queueItemId.slice(-4)}
+      {/* Contract document mock */}
+      <div className="flex justify-center overflow-auto rounded-xl border border-border-default bg-gray-100 p-8">
+        <div
+          className="bg-white shadow-xl"
+          style={{
+            width: "8.5in",
+            minHeight: "11in",
+            transform: `scale(${zoom / 100})`,
+            transformOrigin: "top center",
+          }}
+        >
+          <div className="p-12">
+            {/* Contract header */}
+            <div className="border-b border-gray-200 pb-6">
+              <div className="text-center">
+                <h1 className="text-2xl font-bold text-gray-900">MASTER SERVICE AGREEMENT</h1>
+                <p className="mt-2 text-sm text-gray-600">Contract #{extracted.docId.toUpperCase()}</p>
               </div>
             </div>
-            <div className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800">
-              Draft
-            </div>
-          </div>
-        </div>
 
-        {/* Customer info */}
-        <div className="border-b border-gray-200 px-8 py-5">
-          <div className="text-xs font-medium uppercase tracking-wide text-text-muted">
-            Customer
-          </div>
-          <div className="mt-2">
-            <div className="text-[15px] font-semibold text-text-primary">{customer.name}</div>
-            <div className="mt-0.5 text-sm text-text-secondary">
-              {extracted.customerLegalEntity}
+            {/* Parties */}
+            <div className="mt-8 grid grid-cols-2 gap-8 border-b border-gray-200 pb-6">
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Provider</h3>
+                <p className="mt-2 font-medium text-gray-900">Chargebee Inc.</p>
+                <p className="text-sm text-gray-600">340 S Lemon Ave #1111</p>
+                <p className="text-sm text-gray-600">Walnut, CA 91789</p>
+              </div>
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Customer</h3>
+                <p className="mt-2 font-medium text-gray-900">{extracted.customerLegalEntity}</p>
+                <p className="text-sm text-gray-600">{customer.name}</p>
+              </div>
             </div>
-          </div>
-        </div>
 
-        {/* Contract terms */}
-        <div className="border-b border-gray-200 px-8 py-5">
-          <div className="text-xs font-medium uppercase tracking-wide text-text-muted">
-            Contract Terms
-          </div>
-          <div className="mt-3 grid grid-cols-3 gap-4">
-            <div>
-              <div className="text-xs text-text-muted">Term</div>
-              <div className="mt-0.5 text-sm font-medium text-text-primary">{terms.term}</div>
-            </div>
-            <div>
-              <div className="text-xs text-text-muted">Start Date</div>
-              <div className="mt-0.5 text-sm font-medium text-text-primary">
-                {formatDate(terms.startDate)}
+            {/* Terms summary */}
+            <div className="mt-8">
+              <h2 className="text-lg font-semibold text-gray-900">1. Contract Terms</h2>
+              <div className="mt-4 grid grid-cols-2 gap-6 text-sm">
+                <div>
+                  <span className="text-gray-500">Effective Date:</span>
+                  <span className="ml-2 font-medium text-gray-900">{formatDate(extracted.terms.startDate)}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">End Date:</span>
+                  <span className="ml-2 font-medium text-gray-900">{formatDate(extracted.terms.endDate)}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Term Length:</span>
+                  <span className="ml-2 font-medium text-gray-900">{extracted.terms.term}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Auto-Renewal:</span>
+                  <span className="ml-2 font-medium text-gray-900">{extracted.terms.autoRenew ? "Yes" : "No"}</span>
+                </div>
               </div>
             </div>
-            <div>
-              <div className="text-xs text-text-muted">End Date</div>
-              <div className="mt-0.5 text-sm font-medium text-text-primary">
-                {formatDate(terms.endDate)}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-text-muted">Billing Frequency</div>
-              <div className="mt-0.5 text-sm font-medium text-text-primary">
-                {terms.billingFrequency}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-text-muted">Payment Terms</div>
-              <div className="mt-0.5 text-sm font-medium text-text-primary">
-                {terms.paymentTerms}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-text-muted">Auto-Renew</div>
-              <div className="mt-0.5 text-sm font-medium text-text-primary">
-                {terms.autoRenew ? "Yes" : "No"}
-              </div>
-            </div>
-          </div>
-        </div>
 
-        {/* Line items */}
-        <div className="border-b border-gray-200 px-8 py-5">
-          <div className="text-xs font-medium uppercase tracking-wide text-text-muted">
-            Subscription Items
-          </div>
-          <div className="mt-3">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 text-left">
-                  <th className="pb-2 text-xs font-medium text-text-muted">Item</th>
-                  <th className="pb-2 text-right text-xs font-medium text-text-muted">Qty</th>
-                  <th className="pb-2 text-right text-xs font-medium text-text-muted">Price</th>
-                  <th className="pb-2 text-right text-xs font-medium text-text-muted">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.map((item, idx) => {
-                  const total = item.quantity * item.unitPrice * (1 - item.discount / 100);
-                  return (
-                    <tr key={idx} className="border-b border-gray-100 last:border-0">
-                      <td className="py-2">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 size={12} className="text-emerald-500" />
-                          <span>{item.extractedName}</span>
-                        </div>
-                        <div className="mt-0.5 text-xs text-text-muted">
-                          {item.catalogSku || item.extractedSku}
-                        </div>
+            {/* Pricing */}
+            <div className="mt-8">
+              <h2 className="text-lg font-semibold text-gray-900">2. Pricing Schedule</h2>
+              <table className="mt-4 w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="py-2 text-left font-medium text-gray-600">Product</th>
+                    <th className="py-2 text-right font-medium text-gray-600">Qty</th>
+                    <th className="py-2 text-right font-medium text-gray-600">Unit Price</th>
+                    <th className="py-2 text-right font-medium text-gray-600">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {extracted.products.map((product, idx) => (
+                    <tr key={idx} className="border-b border-gray-100">
+                      <td className="py-2 text-gray-900">{product.extractedName}</td>
+                      <td className="py-2 text-right text-gray-600">{product.quantity}</td>
+                      <td className="py-2 text-right text-gray-600">{formatCurrency(product.unitPrice)}</td>
+                      <td className="py-2 text-right font-medium text-gray-900">
+                        {formatCurrency(product.quantity * product.unitPrice * (1 - product.discount / 100))}
                       </td>
-                      <td className="py-2 text-right">{item.quantity}</td>
-                      <td className="py-2 text-right">{formatCurrency(item.unitPrice)}</td>
-                      <td className="py-2 text-right font-medium">{formatCurrency(total)}</td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-gray-200">
+                    <td colSpan={3} className="py-3 text-right font-semibold text-gray-900">
+                      Total Contract Value:
+                    </td>
+                    <td className="py-3 text-right text-lg font-bold text-gray-900">
+                      {formatCurrency(extracted.terms.tcv)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
 
-        {/* Financial summary */}
-        <div className="px-8 py-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xs text-text-muted">Total Contract Value</div>
-              <div className="mt-0.5 text-2xl font-bold text-text-primary">
-                {formatCurrency(terms.tcv)}
+            {/* Billing terms */}
+            <div className="mt-8">
+              <h2 className="text-lg font-semibold text-gray-900">3. Billing Terms</h2>
+              <div className="mt-4 text-sm text-gray-600">
+                <p>
+                  <span className="font-medium text-gray-900">Billing Frequency:</span>{" "}
+                  {extracted.terms.billingFrequency}
+                </p>
+                <p className="mt-2">
+                  <span className="font-medium text-gray-900">Payment Terms:</span>{" "}
+                  {extracted.terms.paymentTerms}
+                </p>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-xs text-text-muted">Annual Recurring Revenue</div>
-              <div className="mt-0.5 text-lg font-semibold text-text-primary">
-                {formatCurrency(terms.arr)}
-              </div>
-            </div>
-          </div>
-
-          {(terms.minCommit > 0 || terms.prepaidCredits > 0) && (
-            <div className="mt-4 flex gap-6 border-t border-gray-200 pt-4">
-              {terms.minCommit > 0 && (
-                <div>
-                  <div className="text-xs text-text-muted">Min. Commit</div>
-                  <div className="mt-0.5 text-sm font-medium text-text-primary">
-                    {formatCurrency(terms.minCommit)}
-                  </div>
-                </div>
-              )}
-              {terms.prepaidCredits > 0 && (
-                <div>
-                  <div className="text-xs text-text-muted">Prepaid Credits</div>
-                  <div className="mt-0.5 text-sm font-medium text-text-primary">
-                    {formatCurrency(terms.prepaidCredits)}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="border-t border-gray-200 bg-gray-50 px-8 py-4">
-          <div className="flex items-center justify-between text-xs text-text-muted">
-            <div className="flex items-center gap-2">
-              <FileText size={14} />
-              <span>Generated from: {extracted.documentName}</span>
-            </div>
-            <span>Extraction confidence: {extracted.extractionConfidence}%</span>
           </div>
         </div>
+      </div>
+
+      {/* Pagination */}
+      <div className="flex items-center justify-center gap-4">
+        <button
+          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          disabled={currentPage === 1}
+          className="flex items-center gap-1 rounded px-3 py-1.5 text-sm text-text-secondary hover:bg-gray-100 disabled:opacity-50"
+        >
+          <ChevronLeft size={16} />
+          Previous
+        </button>
+        <span className="text-sm text-text-muted">
+          Page {currentPage} of {totalPages}
+        </span>
+        <button
+          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+          disabled={currentPage === totalPages}
+          className="flex items-center gap-1 rounded px-3 py-1.5 text-sm text-text-secondary hover:bg-gray-100 disabled:opacity-50"
+        >
+          Next
+          <ChevronRight size={16} />
+        </button>
       </div>
     </div>
   );

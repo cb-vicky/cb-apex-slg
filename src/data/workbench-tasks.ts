@@ -17,6 +17,7 @@ import type {
 } from "@/data/contract-transition";
 import { customers, contracts, tasks as customerTasks } from "@/data/mock-data";
 import type { DemoPersona } from "@/types/demo-persona";
+import { getCustomerIngestionInvoicePreviewUrl } from "@/lib/new-deal-customer-link";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -383,11 +384,13 @@ export function deriveWorkbenchTasks(
         source: "approval",
       });
     } else {
+      const queueRow = req.ingestId
+        ? context.queueItems.find((q) => q.id === req.ingestId)
+        : undefined;
+      const reviewCustomerId = req.customerId || queueRow?.customerId;
+
       let destination = `/approvals/invoices/${req.invoiceId}`;
-      if (req.ingestId) {
-        destination += `?ingestId=${encodeURIComponent(req.ingestId)}`;
-      }
-      const drawer: WorkbenchTaskDrawerLaunch | undefined = {
+      let drawer: WorkbenchTaskDrawerLaunch | undefined = {
         entityType: "invoice",
         mode: "invoice_approval",
         entityId: req.invoiceId,
@@ -404,6 +407,16 @@ export function deriveWorkbenchTasks(
             }
           : {}),
       };
+
+      if (req.ingestId && reviewCustomerId) {
+        destination = getCustomerIngestionInvoicePreviewUrl(reviewCustomerId, req.ingestId, {
+          from: "workbench",
+        });
+        drawer = undefined;
+      } else if (req.ingestId) {
+        destination += `?ingestId=${encodeURIComponent(req.ingestId)}`;
+      }
+
       derived.push({
         id: `approval-${req.id}`,
         customerId: req.customerId || undefined,

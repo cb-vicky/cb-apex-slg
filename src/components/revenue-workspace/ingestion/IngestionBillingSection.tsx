@@ -1,5 +1,4 @@
-import { CheckCircle2, AlertCircle, FileText } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { CheckCircle2, AlertCircle, FileText, Calendar, CreditCard, Clock } from "lucide-react";
 import type { ExtractedContract } from "@/data/ingest-data";
 import type { IngestionSectionState } from "@/context/ingest-context-core";
 
@@ -8,9 +7,6 @@ interface Props {
   sectionState: IngestionSectionState;
   onMarkDone: () => void;
 }
-
-const BILLING_FREQUENCIES = ["Monthly", "Quarterly", "Annual, billed upfront", "Annual, billed monthly"];
-const PAYMENT_TERMS = ["Net 15", "Net 30", "Net 45", "Net 60", "Due on receipt"];
 
 export function IngestionBillingSection({ extracted, sectionState, onMarkDone }: Props) {
   const { terms } = extracted;
@@ -28,7 +24,7 @@ export function IngestionBillingSection({ extracted, sectionState, onMarkDone }:
         <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
           <div className="flex items-center gap-2 text-sm text-amber-800">
             <AlertCircle size={16} className="text-amber-600" />
-            <span>{extracted.sectionIssues.billing || "Review billing information"}</span>
+            <span>{extracted.sectionIssues.billing || "Review billing terms"}</span>
           </div>
           <button
             onClick={onMarkDone}
@@ -43,7 +39,7 @@ export function IngestionBillingSection({ extracted, sectionState, onMarkDone }:
         <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
           <div className="flex items-center gap-2 text-sm text-blue-800">
             <FileText size={16} className="text-blue-600" />
-            <span>Review billing configuration and confirm</span>
+            <span>Review billing terms and schedule, then mark as done</span>
           </div>
           <button
             onClick={onMarkDone}
@@ -57,95 +53,67 @@ export function IngestionBillingSection({ extracted, sectionState, onMarkDone }:
       {sectionState === "done" && (
         <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           <CheckCircle2 size={16} className="text-emerald-600" />
-          <span>Billing configuration confirmed</span>
+          <span>Billing terms reviewed</span>
         </div>
       )}
 
-      {/* Contract term */}
+      {/* Billing terms */}
       <div className="rounded-xl border border-border-default bg-white p-5">
-        <h3 className="text-[15px] font-semibold text-text-primary">Contract term</h3>
+        <h3 className="text-[15px] font-semibold text-text-primary">Contract terms</h3>
 
         <div className="mt-4 grid grid-cols-2 gap-6">
-          <div>
-            <label className="block text-xs font-medium text-text-muted mb-1.5">
-              Term length
-            </label>
-            <div className="rounded-lg border border-border-default bg-gray-50 px-4 py-2.5 text-sm text-text-primary">
-              {terms.term}
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg bg-gray-100 p-2">
+              <Calendar size={18} className="text-gray-600" />
+            </div>
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-text-muted">
+                Contract term
+              </div>
+              <div className="mt-1 text-sm font-medium text-text-primary">{terms.term}</div>
+              <div className="text-xs text-text-secondary">
+                {formatDate(terms.startDate)} — {formatDate(terms.endDate)}
+              </div>
             </div>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-text-muted mb-1.5">
-              Auto-renew
-            </label>
-            <div className="rounded-lg border border-border-default bg-gray-50 px-4 py-2.5 text-sm text-text-primary">
-              {terms.autoRenew ? "Yes" : "No"}
+
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg bg-gray-100 p-2">
+              <CreditCard size={18} className="text-gray-600" />
+            </div>
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-text-muted">
+                Billing frequency
+              </div>
+              <div className="mt-1 text-sm font-medium text-text-primary">{terms.billingFrequency}</div>
             </div>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-text-muted mb-1.5">
-              Start date
-            </label>
-            <div className="rounded-lg border border-border-default bg-gray-50 px-4 py-2.5 text-sm text-text-primary">
-              {formatDate(terms.startDate)}
+
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg bg-gray-100 p-2">
+              <Clock size={18} className="text-gray-600" />
+            </div>
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-text-muted">
+                Payment terms
+              </div>
+              <div className="mt-1 text-sm font-medium text-text-primary">{terms.paymentTerms}</div>
             </div>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-text-muted mb-1.5">
-              End date
-            </label>
-            <div className="rounded-lg border border-border-default bg-gray-50 px-4 py-2.5 text-sm text-text-primary">
-              {formatDate(terms.endDate)}
+
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg bg-gray-100 p-2">
+              <CheckCircle2 size={18} className="text-gray-600" />
+            </div>
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-text-muted">
+                Auto-renew
+              </div>
+              <div className="mt-1 text-sm font-medium text-text-primary">
+                {terms.autoRenew ? "Yes" : "No"}
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Billing frequency */}
-      <div className="rounded-xl border border-border-default bg-white p-5">
-        <h3 className="text-[15px] font-semibold text-text-primary">Billing frequency</h3>
-        <p className="mt-1 text-sm text-text-secondary">
-          How often will the customer be invoiced?
-        </p>
-
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          {BILLING_FREQUENCIES.map((freq) => (
-            <div
-              key={freq}
-              className={cn(
-                "rounded-lg border px-4 py-3 text-sm transition-colors",
-                terms.billingFrequency.toLowerCase().includes(freq.toLowerCase().split(",")[0])
-                  ? "border-blue-500 bg-blue-50 text-blue-800"
-                  : "border-border-default text-text-secondary"
-              )}
-            >
-              {freq}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Payment terms */}
-      <div className="rounded-xl border border-border-default bg-white p-5">
-        <h3 className="text-[15px] font-semibold text-text-primary">Payment terms</h3>
-        <p className="mt-1 text-sm text-text-secondary">
-          When is payment due after invoice date?
-        </p>
-
-        <div className="mt-4 grid grid-cols-3 gap-3">
-          {PAYMENT_TERMS.map((term) => (
-            <div
-              key={term}
-              className={cn(
-                "rounded-lg border px-4 py-3 text-center text-sm transition-colors",
-                terms.paymentTerms === term
-                  ? "border-blue-500 bg-blue-50 text-blue-800"
-                  : "border-border-default text-text-secondary"
-              )}
-            >
-              {term}
-            </div>
-          ))}
         </div>
       </div>
 
@@ -153,43 +121,23 @@ export function IngestionBillingSection({ extracted, sectionState, onMarkDone }:
       <div className="rounded-xl border border-border-default bg-white p-5">
         <h3 className="text-[15px] font-semibold text-text-primary">Financial summary</h3>
 
-        <div className="mt-4 grid grid-cols-2 gap-6">
-          <div className="rounded-lg bg-gray-50 p-4">
+        <div className="mt-4 grid grid-cols-2 gap-4">
+          <div className="rounded-lg border border-border-default bg-gray-50 p-4">
             <div className="text-xs font-medium uppercase tracking-wide text-text-muted">
-              Total Contract Value (TCV)
+              Total contract value
             </div>
-            <div className="mt-1 text-2xl font-semibold text-text-primary">
+            <div className="mt-1 text-xl font-semibold text-text-primary">
               {formatCurrency(terms.tcv)}
             </div>
           </div>
-          <div className="rounded-lg bg-gray-50 p-4">
+          <div className="rounded-lg border border-border-default bg-gray-50 p-4">
             <div className="text-xs font-medium uppercase tracking-wide text-text-muted">
-              Annual Recurring Revenue (ARR)
+              Annual recurring revenue
             </div>
-            <div className="mt-1 text-2xl font-semibold text-text-primary">
+            <div className="mt-1 text-xl font-semibold text-text-primary">
               {formatCurrency(terms.arr)}
             </div>
           </div>
-          {terms.minCommit > 0 && (
-            <div className="rounded-lg bg-gray-50 p-4">
-              <div className="text-xs font-medium uppercase tracking-wide text-text-muted">
-                Minimum Commit
-              </div>
-              <div className="mt-1 text-2xl font-semibold text-text-primary">
-                {formatCurrency(terms.minCommit)}
-              </div>
-            </div>
-          )}
-          {terms.prepaidCredits > 0 && (
-            <div className="rounded-lg bg-gray-50 p-4">
-              <div className="text-xs font-medium uppercase tracking-wide text-text-muted">
-                Prepaid Credits
-              </div>
-              <div className="mt-1 text-2xl font-semibold text-text-primary">
-                {formatCurrency(terms.prepaidCredits)}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

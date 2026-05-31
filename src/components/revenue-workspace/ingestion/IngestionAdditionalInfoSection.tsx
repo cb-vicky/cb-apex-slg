@@ -1,5 +1,4 @@
-import { CheckCircle2, AlertCircle, FileText, ChevronDown, ChevronUp } from "lucide-react";
-import { useState } from "react";
+import { CheckCircle2, AlertCircle, FileText, FileCheck2, Shield, Info } from "lucide-react";
 import type { ExtractedContract } from "@/data/ingest-data";
 import type { IngestionSectionState } from "@/context/ingest-context-core";
 
@@ -10,17 +9,8 @@ interface Props {
 }
 
 export function IngestionAdditionalInfoSection({ extracted, sectionState, onMarkDone }: Props) {
-  const { additionalInfo } = extracted;
-  const [expandedClauses, setExpandedClauses] = useState<Set<number>>(new Set());
-
-  function toggleClause(idx: number) {
-    setExpandedClauses((prev) => {
-      const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
-      return next;
-    });
-  }
+  const formatDate = (d: string) =>
+    new Date(d).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
 
   return (
     <div className="space-y-6">
@@ -44,7 +34,7 @@ export function IngestionAdditionalInfoSection({ extracted, sectionState, onMark
         <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
           <div className="flex items-center gap-2 text-sm text-blue-800">
             <FileText size={16} className="text-blue-600" />
-            <span>Review additional info and clauses</span>
+            <span>Review additional contract details, then mark as done</span>
           </div>
           <button
             onClick={onMarkDone}
@@ -62,73 +52,115 @@ export function IngestionAdditionalInfoSection({ extracted, sectionState, onMark
         </div>
       )}
 
-      {/* Notes */}
-      {additionalInfo.notes.length > 0 && (
-        <div className="rounded-xl border border-border-default bg-white p-5">
-          <h3 className="text-[15px] font-semibold text-text-primary">Notes</h3>
-          <p className="mt-1 text-sm text-text-secondary">
-            Key observations extracted from the contract document.
-          </p>
+      {/* Extraction metadata */}
+      <div className="rounded-xl border border-border-default bg-white p-5">
+        <h3 className="text-[15px] font-semibold text-text-primary">Extraction details</h3>
 
-          <div className="mt-4 space-y-2">
-            {additionalInfo.notes.map((note, idx) => (
-              <div
-                key={idx}
-                className="rounded-lg border border-border-default bg-gray-50 px-4 py-3 text-sm text-text-secondary"
-              >
-                {note}
+        <div className="mt-4 grid grid-cols-2 gap-6">
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg bg-gray-100 p-2">
+              <FileCheck2 size={18} className="text-gray-600" />
+            </div>
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-text-muted">
+                Document name
               </div>
-            ))}
+              <div className="mt-1 text-sm font-medium text-text-primary">
+                {extracted.documentName}
+              </div>
+            </div>
           </div>
-        </div>
-      )}
 
-      {/* Clauses */}
-      {additionalInfo.clauses.length > 0 && (
-        <div className="rounded-xl border border-border-default bg-white p-5">
-          <h3 className="text-[15px] font-semibold text-text-primary">Contract clauses</h3>
-          <p className="mt-1 text-sm text-text-secondary">
-            Special terms and conditions extracted from the agreement.
-          </p>
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg bg-gray-100 p-2">
+              <Info size={18} className="text-gray-600" />
+            </div>
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-text-muted">
+                Extracted at
+              </div>
+              <div className="mt-1 text-sm font-medium text-text-primary">
+                {formatDate(extracted.extractedAt)}
+              </div>
+            </div>
+          </div>
 
-          <div className="mt-4 space-y-3">
-            {additionalInfo.clauses.map((clause, idx) => (
-              <div
-                key={idx}
-                className="rounded-lg border border-border-default overflow-hidden"
-              >
-                <button
-                  onClick={() => toggleClause(idx)}
-                  className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gray-50"
-                >
-                  <span className="text-sm font-medium text-text-primary">{clause.title}</span>
-                  {expandedClauses.has(idx) ? (
-                    <ChevronUp size={16} className="text-text-muted" />
-                  ) : (
-                    <ChevronDown size={16} className="text-text-muted" />
-                  )}
-                </button>
-                {expandedClauses.has(idx) && (
-                  <div className="border-t border-border-default bg-gray-50 px-4 py-3">
-                    <p className="text-sm text-text-secondary">{clause.body}</p>
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg bg-gray-100 p-2">
+              <Shield size={18} className="text-gray-600" />
+            </div>
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-text-muted">
+                Extraction confidence
+              </div>
+              <div className="mt-1 text-sm font-medium text-text-primary">
+                {extracted.extractionConfidence}%
+              </div>
+            </div>
+          </div>
+
+          {extracted.quoteMatchId && (
+            <div className="flex items-start gap-3">
+              <div className="rounded-lg bg-gray-100 p-2">
+                <FileText size={18} className="text-gray-600" />
+              </div>
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-text-muted">
+                  Matched quote
+                </div>
+                <div className="mt-1 text-sm font-medium text-text-primary">
+                  {extracted.quoteMatchId}
+                </div>
+                {extracted.quoteMatchConfidence && (
+                  <div className="text-xs text-text-secondary">
+                    {extracted.quoteMatchConfidence}% confidence
                   </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Issues summary */}
+      {extracted.issues.length > 0 && (
+        <div className="rounded-xl border border-border-default bg-white p-5">
+          <h3 className="text-[15px] font-semibold text-text-primary">Detected issues</h3>
+          <div className="mt-4 space-y-3">
+            {extracted.issues.map((issue) => (
+              <div
+                key={issue.id}
+                className={`rounded-lg border p-3 ${
+                  issue.severity === "blocking"
+                    ? "border-red-200 bg-red-50"
+                    : "border-amber-200 bg-amber-50"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <AlertCircle
+                    size={14}
+                    className={issue.severity === "blocking" ? "text-red-600" : "text-amber-600"}
+                  />
+                  <span
+                    className={`text-sm font-medium ${
+                      issue.severity === "blocking" ? "text-red-800" : "text-amber-800"
+                    }`}
+                  >
+                    {issue.message}
+                  </span>
+                </div>
+                {issue.detail && (
+                  <p
+                    className={`mt-1 text-xs ${
+                      issue.severity === "blocking" ? "text-red-700" : "text-amber-700"
+                    }`}
+                  >
+                    {issue.detail}
+                  </p>
                 )}
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Empty state */}
-      {additionalInfo.notes.length === 0 && additionalInfo.clauses.length === 0 && (
-        <div className="rounded-xl border border-border-default bg-white p-8 text-center">
-          <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-gray-100">
-            <FileText size={24} className="text-text-muted" />
-          </div>
-          <h3 className="mt-3 text-sm font-medium text-text-primary">No additional info</h3>
-          <p className="mt-1 text-sm text-text-muted">
-            No special clauses or notes were extracted from this contract.
-          </p>
         </div>
       )}
     </div>

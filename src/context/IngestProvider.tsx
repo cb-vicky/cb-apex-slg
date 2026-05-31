@@ -21,6 +21,7 @@ import {
 } from "@/data/approval-policy";
 import type { ContractGraceExtension } from "@/data/contract-transition";
 import { ZENITH_CUSTOMER_ID } from "@/data/zenith-ingest-session";
+import { resolveIngestionSessionForCustomer } from "@/lib/resolve-ingestion-session";
 import {
   IngestContext,
   type IngestionSession,
@@ -411,13 +412,6 @@ export function IngestProvider({ children }: { children: ReactNode }) {
     discardIngestion(queueItemId);
   }
 
-  const getActiveIngestionForCustomer = useCallback(
-    (customerId: string): IngestionSession | undefined => {
-      return Object.values(ingestionSessions).find((s) => s.customerId === customerId);
-    },
-    [ingestionSessions],
-  );
-
   // Merge seed queue items with runtime overrides
   const mergedQueueItems = useMemo<QueueItem[]>(() => {
     return seedQueueItems.map((q) => {
@@ -425,6 +419,19 @@ export function IngestProvider({ children }: { children: ReactNode }) {
       return ov ? { ...q, ...ov } : q;
     });
   }, [queueOverrides]);
+
+  const getActiveIngestionForCustomer = useCallback(
+    (customerId: string, preferredQueueItemId?: string): IngestionSession | undefined => {
+      return resolveIngestionSessionForCustomer(
+        customerId,
+        ingestionSessions,
+        mergedQueueItems,
+        approvalRequests,
+        preferredQueueItemId,
+      );
+    },
+    [ingestionSessions, mergedQueueItems, approvalRequests],
+  );
 
   return (
     <IngestContext.Provider

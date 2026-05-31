@@ -28,6 +28,7 @@ import { RevRecStageContent } from "./revrec/RevRecStageContent";
 import { TasksStageContent } from "./tasks/TasksStageContent";
 import { ThreadsStageContent } from "./threads/ThreadsStageContent";
 import { IngestionStageContent } from "./ingestion/IngestionStageContent";
+import { ZenithContractChromeProvider } from "./contract/zenith/ZenithContractChromeContext";
 import { customerTasks, type CustomerTask } from "@/data/customer-tasks";
 import { emailThreads } from "@/data/email-threads";
 import { QuoteListView } from "./quote/QuoteListView";
@@ -101,7 +102,7 @@ export function CustomerRevenueWorkspace({
     getActiveIngestionForCustomer,
   } = useIngestContext();
 
-  const activeIngestionSession = getActiveIngestionForCustomer(customer.id);
+  const activeIngestionSession = getActiveIngestionForCustomer(customer.id, queueItemId);
 
   useEffect(() => {
     setCustomer360Active(true);
@@ -312,7 +313,11 @@ export function CustomerRevenueWorkspace({
     const sub = searchParams.get("sub");
     if (sub) return sub as IngestionSubTab;
     const frame = searchParams.get("frame");
-    return frame === "2" ? "contract-preview" : "summary";
+    if (frame === "2") {
+      const sub = searchParams.get("sub");
+      return sub === "invoice-preview" ? "invoice-preview" : "contract-preview";
+    }
+    return "summary";
   }, [searchParams]);
 
   const handleIngestionSubTabChange = useCallback((tab: IngestionSubTab) => {
@@ -321,7 +326,10 @@ export function CustomerRevenueWorkspace({
     // Handle frame transitions
     if (tab === "contract-preview" || tab === "invoice-preview") {
       params.set("frame", "2");
-    } else if (tab.startsWith("pdf-") || ["summary", "items", "billing", "addresses", "additional"].includes(tab)) {
+    } else if (
+      tab.startsWith("pdf-") ||
+      ["summary", "items", "billing", "addresses", "invoice-preview"].includes(tab)
+    ) {
       params.set("frame", "1");
     }
     setSearchParams(params);
@@ -712,7 +720,17 @@ export function CustomerRevenueWorkspace({
     creditNotesForCustomer.length,
   ]);
 
+  const zenithIngestionChrome =
+    activeStage === "ingestion" && !!activeIngestionSession;
+
   return (
+    <ZenithContractChromeProvider
+      enabled={zenithIngestionChrome}
+      ingestionUrlSync={zenithIngestionChrome}
+      resetKey={activeIngestionSession?.queueItemId}
+      ingestionQueueItemId={activeIngestionSession?.queueItemId}
+      ingestionCustomerId={customer.id}
+    >
     <div className="flex flex-1 flex-col bg-gray-100">
       <CustomerContextBar
         customer={customer}
@@ -801,6 +819,7 @@ export function CustomerRevenueWorkspace({
         </div>
       )}
     </div>
+    </ZenithContractChromeProvider>
   );
 }
 

@@ -372,7 +372,7 @@ export function InvoiceApprovalDrawer({
 
               <div className="border-t border-border-default pt-5">
                 <p className="text-[12px] font-semibold uppercase tracking-wide text-text-secondary">Context</p>
-                <div className="mt-3 border-l-2 border-gray-200 pl-4 mt-3">
+                <div className="mt-3 rounded-lg border border-border-subtle bg-surface-muted/50 px-4 py-3">
                   <div className="flex flex-col divide-y divide-border-subtle">
                     {contract ? (
                       <KV

@@ -1,4 +1,5 @@
 import { useMemo, useCallback, useState, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { ChevronRight, AlertCircle, X } from "lucide-react";
 import type { Invoice, Contract } from "@/data/mock-data";
 import { customers } from "@/data/mock-data";
@@ -11,7 +12,6 @@ import { InvoiceCompositionSection } from "./InvoiceCompositionSection";
 import { BillingBasisSection } from "./BillingBasisSection";
 import { InvoiceDeliverySection } from "./InvoiceDeliverySection";
 import { InvoicingScheduleSection } from "./InvoicingScheduleSection";
-import { openDrawer } from "@/store/drawer-store";
 import { currency } from "@/lib/utils";
 import { WorkspaceSectionAnchor } from "../WorkspaceSectionAnchor";
 
@@ -24,6 +24,7 @@ const pendingReviewPrimaryBtnClass =
   "inline-flex items-center justify-center gap-1 rounded-lg px-4 py-2 text-center text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-info)] bg-[color:var(--color-info)]";
 
 export function InvoicingStageContent({ invoice, contract }: Props) {
+  const navigate = useNavigate();
   const {
     submittedInvoiceIds,
     submitInvoiceForApproval,
@@ -81,16 +82,13 @@ export function InvoicingStageContent({ invoice, contract }: Props) {
 
   const approvalForInvoice = approvalRequests.find((r) => r.invoiceId === invoice.id);
 
-  const openApprovalDrawer = useCallback(() => {
-    openDrawer({
-      entityType: "invoice",
-      mode: "invoice_approval",
-      entityId: invoice.id,
-      context: approvalForInvoice?.ingestId
-        ? { queueItemId: approvalForInvoice.ingestId }
-        : undefined,
-    });
-  }, [approvalForInvoice, invoice.id]);
+  const goToApprovals = useCallback(() => {
+    navigate(
+      approvalForInvoice?.ingestId
+        ? `/approvals/invoices/${invoice.id}?ingestId=${encodeURIComponent(approvalForInvoice.ingestId)}`
+        : `/approvals/invoices/${invoice.id}`
+    );
+  }, [approvalForInvoice, invoice.id, navigate]);
 
   const { primaryActions, overflowItems } = useMemo(() => {
     const overflow: OverflowItem[] = [];
@@ -116,22 +114,12 @@ export function InvoicingStageContent({ invoice, contract }: Props) {
       );
       overflow.push({ label: "Issue credit note" });
       overflow.push({ label: "Regenerate" });
-    } else if (effectiveStatus === "Pending Approval") {
-      // Post Send-for-approval state: surface the approval drawer entry point
-      // so the approver persona can decide directly from the invoice page.
-      primary = (
-        <>
-          <ActionButton label="Preview" />
-          <ActionButton label="View in Approvals" onClick={openApprovalDrawer} />
-        </>
-      );
-      overflow.push({ label: "Regenerate" });
     } else if (effectiveStatus === "Pending Review") {
       if (isSubmitted) {
         primary = (
           <>
             <ActionButton label="Preview" />
-            <ActionButton label="View in Approvals" onClick={openApprovalDrawer} />
+            <ActionButton label="View in Approvals" onClick={goToApprovals} />
           </>
         );
         overflow.push({ label: "Regenerate" });
@@ -177,7 +165,7 @@ export function InvoicingStageContent({ invoice, contract }: Props) {
     effectiveStatus,
     handleSendForApproval,
     isSubmitted,
-    openApprovalDrawer,
+    goToApprovals,
   ]);
 
   return (
@@ -221,7 +209,7 @@ export function InvoicingStageContent({ invoice, contract }: Props) {
 
             <div className="flex shrink-0 flex-col gap-2 self-start sm:flex-row sm:items-center md:flex-col md:items-stretch lg:flex-row lg:items-center">
               {isSubmitted ? (
-                <button type="button" onClick={openApprovalDrawer} className={pendingReviewPrimaryBtnClass}>
+                <button type="button" onClick={goToApprovals} className={pendingReviewPrimaryBtnClass}>
                   View in Approvals
                   <ChevronRight className="h-4 w-4 opacity-90" aria-hidden />
                 </button>

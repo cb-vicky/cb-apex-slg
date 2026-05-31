@@ -11,7 +11,8 @@ import {
 } from "@/data/workbench-tasks";
 import type { WorkbenchTask } from "@/data/workbench-tasks";
 import { openDrawer } from "@/store/drawer-store";
-import { openLinkCustomerModal } from "@/store/link-customer-modal-store";
+import { useNewDealCustomerLinkGate } from "@/hooks/useNewDealCustomerLinkGate";
+import { queueItemIdFromWorkbenchTask } from "@/lib/new-deal-customer-link";
 
 // ---------------------------------------------------------------------------
 // Severity pill
@@ -187,7 +188,8 @@ export function WorkbenchTaskList() {
   const navigate = useNavigate();
   const ctx = useIngestContext();
   const { persona } = useDemoPersona();
-  const { workbenchTaskSnapshotRef } = ctx;
+  const { workbenchTaskSnapshotRef, queueItems } = ctx;
+  const { openQueueFlow } = useNewDealCustomerLinkGate();
 
   const [highlightNewIds, setHighlightNewIds] = useState<Set<string>>(() => new Set());
 
@@ -243,10 +245,19 @@ export function WorkbenchTaskList() {
       return next;
     });
 
-    // For queue-source ingest tasks, open the LinkCustomerModal instead of the drawer
-    if (task.source === "queue" && task.type === "contract-ingest" && task.drawer?.entityId) {
-      openLinkCustomerModal(task.drawer.entityId);
-      return;
+    const queueId = queueItemIdFromWorkbenchTask(task);
+    if (queueId) {
+      const q = queueItems.find((item) => item.id === queueId);
+      if (q) {
+        openQueueFlow(q, () => {
+          if (task.drawer) {
+            openDrawer(task.drawer);
+            return;
+          }
+          navigate(task.destination);
+        });
+        return;
+      }
     }
 
     if (task.drawer) {

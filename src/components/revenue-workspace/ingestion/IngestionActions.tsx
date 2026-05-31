@@ -1,6 +1,7 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { RotateCcw, Trash2 } from "lucide-react";
 import { useIngestContext } from "@/context/IngestContext";
+import { useDemoPersona } from "@/context/DemoPersonaContext";
 import { getExtractedContract } from "@/data/ingest-data";
 import {
   buildSessionContractFromIngestion,
@@ -9,6 +10,7 @@ import {
 import type { IngestionSession } from "@/context/ingest-context-core";
 import { RecordHeader, type OverflowItem } from "../RecordHeader";
 import { ActionButton } from "../primitives/ActionButton";
+import { useZenithContractChrome } from "../contract/zenith/ZenithContractChromeContext";
 
 interface Props {
   session: IngestionSession;
@@ -25,10 +27,10 @@ interface Props {
 export function IngestionActions({ session, customerId }: Props) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { persona } = useDemoPersona();
   const {
     discardIngestion,
     restartIngestion,
-    completeIngestion,
     applyQueueItemOverride,
     addSessionContract,
     addSessionInvoice,
@@ -38,17 +40,26 @@ export function IngestionActions({ session, customerId }: Props) {
   } = useIngestContext();
 
   const frame = searchParams.get("frame") || "1";
+  const sub = searchParams.get("sub") || "";
   const isFrame2 = frame === "2";
+  const isInvoicePreview = isFrame2 && sub === "invoice-preview";
 
   const extracted = getExtractedContract(session.sampleId);
+  const chrome = useZenithContractChrome();
 
   const allDone = Object.values(session.sections).every((s) => s === "done");
-  const previewEnabled = session.overallStatus === "ready" || allDone;
+  const previewEnabled = chrome
+    ? chrome.getContentTabStatus("Invoice Preview") !== "disabled"
+    : session.overallStatus === "ready" || allDone;
 
-  function handlePreview() {
+  function handleInvoicePreview() {
+    if (chrome) {
+      chrome.setActiveTab("Invoice Preview");
+      return;
+    }
     const params = new URLSearchParams(searchParams);
     params.set("frame", "2");
-    params.set("sub", "contract-preview");
+    params.set("sub", "invoice-preview");
     setSearchParams(params);
   }
 
@@ -93,21 +104,36 @@ export function IngestionActions({ session, customerId }: Props) {
     });
 
     setIngestionOverallStatus(session.queueItemId, "awaiting_approval");
-    completeIngestion(session.queueItemId);
 
     navigate(`/customers/${customerId}?tab=invoicing&invoiceId=${invoice.id}`);
   }
 
-  if (isFrame2) {
-    const overflowItems: OverflowItem[] = [
-      { label: "Restart ingestion", onClick: handleRestart, icon: RotateCcw },
-      { label: "Discard contract", onClick: handleDiscard, icon: Trash2, destructive: true },
-    ];
+  const isApproverReview =
+    persona === "approver" && session.overallStatus === "awaiting_approval";
+
+  const overflowItems: OverflowItem[] = isApproverReview
+    ? []
+    : [
+        { label: "Restart ingestion", onClick: handleRestart, icon: RotateCcw },
+        { label: "Discard contract", onClick: handleDiscard, icon: Trash2, destructive: true },
+      ];
+
+  if (isFrame2 && !chrome) {
+    if (isInvoicePreview) {
+      return (
+        <RecordHeader
+          actions={
+            <ActionButton label="Send for approval" onClick={handleSendForApproval} />
+          }
+          overflowItems={overflowItems}
+        />
+      );
+    }
 
     return (
       <RecordHeader
         actions={
-          <ActionButton label="Send for approval" onClick={handleSendForApproval} showArrow={false} />
+          <ActionButton label="View Invoice Preview" onClick={handleInvoicePreview} />
         }
         overflowItems={overflowItems}
       />
@@ -117,13 +143,21 @@ export function IngestionActions({ session, customerId }: Props) {
   return (
     <RecordHeader
       actions={
-        <ActionButton
-          label="Preview"
-          onClick={handlePreview}
-          showArrow={false}
-          disabled={!previewEnabled}
-        />
+        chrome ? undefined : (
+          <button
+            onClick={handleInvoicePreview}
+            disabled={!previewEnabled}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              previewEnabled
+                ? "bg-blue-600 text-white hover:bg-blue-700"
+                : "cursor-not-allowed bg-gray-100 text-gray-400"
+            }`}
+          >
+            Invoice Preview
+          </button>
+        )
       }
+      overflowItems={overflowItems}
     />
   );
 }

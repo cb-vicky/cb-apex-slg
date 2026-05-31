@@ -82,6 +82,9 @@ export interface ExtractedContract {
   extractionConfidence: number;
   customerName: string;
   customerLegalEntity: string;
+  /** Signatory / billing contact parsed from the agreement (when available). */
+  primaryContactName?: string;
+  primaryContactEmail?: string;
   customerId?: string;           // set if matched
   customerFound: boolean;
   quoteMatchId?: string;         // set if matched
@@ -269,6 +272,8 @@ export const extractedSample2: ExtractedContract = {
   extractionConfidence: 91,
   customerName: "Zenith Analytics Inc.",
   customerLegalEntity: "Zenith Analytics Inc.",
+  primaryContactName: "David Chen",
+  primaryContactEmail: "d.chen@zenithanalytics.com",
   customerId: undefined,
   customerFound: false,
   quoteMatchId: undefined,

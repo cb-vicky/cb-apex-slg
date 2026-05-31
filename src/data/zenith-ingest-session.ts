@@ -1,6 +1,7 @@
 import type { Contract, Customer, Invoice } from "@/data/mock-data";
+import { ZENITH_ANALYTICS_INC_ID } from "@/data/zenith-analytics-inc-seed";
 
-const ZENITH_ID = "cust_zenith_006";
+const ZENITH_ID = ZENITH_ANALYTICS_INC_ID;
 const CONTRACT_ID = "CON-INGEST-002";
 const INVOICE_ID = "INV-INGEST-002";
 
