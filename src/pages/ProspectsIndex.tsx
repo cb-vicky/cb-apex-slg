@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useScrolled } from "@/hooks/useScrolled";
 import { useIngestContext } from "@/context/IngestContext";
 import { currency, shortDate } from "@/lib/utils";
@@ -8,7 +9,6 @@ import { ListTable, ListCreateRow, ListRow, ListCell, type Column } from "@/comp
 import { FilterBar, type FilterTag, type FilterOption } from "@/components/index-page/FilterBar";
 import { PageHeader } from "@/components/index-page/PageHeader";
 import { IndexPageFrame } from "@/components/index-page/IndexPageFrame";
-import { openDrawer } from "@/store/drawer-store";
 import type { QueueItem } from "@/data/queue-data";
 
 const listColumns: Column[] = [
@@ -35,6 +35,7 @@ function isPendingStatus(status: string): boolean {
 }
 
 export function ProspectsIndex() {
+  const navigate = useNavigate();
   const { queueItems } = useIngestContext();
   const { ref: scrollRef, isScrolled } = useScrolled();
   const [filters, setFilters] = useState<FilterTag[]>([]);
@@ -68,18 +69,9 @@ export function ProspectsIndex() {
   }, [prospects]);
 
   const handleRowClick = (item: QueueItem) => {
-    openDrawer({
-      entityType: "queue_item",
-      mode: "ingest",
-      entityId: item.id,
-      flow: {
-        scenario: "ingest_invoice",
-        step: "ingest",
-        queueItemId: item.id,
-        furthestUnlockedStep: "ingest",
-        showStepper: true,
-      },
-    });
+    if (item.customerId) {
+      navigate(`/customers/${item.customerId}?tab=contract&queueItemId=${item.id}`);
+    }
   };
 
   return (

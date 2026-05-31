@@ -1,5 +1,4 @@
 import { useNavigate } from "react-router-dom";
-import { openDrawer } from "@/store/drawer-store";
 import { currency, shortDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/primitives";
 import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStrip";
@@ -74,26 +73,6 @@ export function ApprovalsTabContent() {
             <ListRow
               key={req.id}
               onClick={() => {
-                if (persona === "approver" && req.effectiveStatus === "Pending Approval") {
-                  openDrawer({
-                    entityType: "invoice",
-                    mode: "invoice_approval",
-                    entityId: req.invoiceId,
-                    context: req.ingestId ? { queueItemId: req.ingestId } : undefined,
-                    ...(req.ingestId
-                      ? {
-                          flow: {
-                            scenario: "ingest_invoice",
-                            step: "invoice_review",
-                            furthestUnlockedStep: "invoice_review",
-                            invoiceId: req.invoiceId,
-                            queueItemId: req.ingestId,
-                          },
-                        }
-                      : {}),
-                  });
-                  return;
-                }
                 navigate(
                   req.ingestId
                     ? `/approvals/invoices/${req.invoiceId}?ingestId=${encodeURIComponent(req.ingestId)}`

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { Customer } from "@/data/mock-data";
 import { getExtractedContract } from "@/data/ingest-data";
@@ -10,7 +10,6 @@ import { IngestionItemsSection } from "./IngestionItemsSection";
 import { IngestionBillingSection } from "./IngestionBillingSection";
 import { IngestionAddressesSection } from "./IngestionAddressesSection";
 import { IngestionAdditionalInfoSection } from "./IngestionAdditionalInfoSection";
-import { IngestionPdfPreview } from "./IngestionPdfPreview";
 import { IngestionContractPreview } from "./IngestionContractPreview";
 import { IngestionInvoicePreview } from "./IngestionInvoicePreview";
 
@@ -19,8 +18,10 @@ interface Props {
   customer: Customer;
 }
 
-type Frame1Sub = "summary" | "items" | "billing" | "addresses" | "additional" | `pdf-${string}`;
+type Frame1Sub = "summary" | "items" | "billing" | "addresses" | "additional";
 type Frame2Sub = "contract-preview" | "invoice-preview";
+
+const SECTION_ORDER: IngestionSectionId[] = ["summary", "items", "billing", "addresses", "additional"];
 
 export function IngestionStageContent({ session, customer }: Props) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -39,7 +40,7 @@ export function IngestionStageContent({ session, customer }: Props) {
     "additional",
   ];
   const isValidFrame1 = (s: string | null) =>
-    !!s && (s.startsWith("pdf-") || (VALID_FRAME1_SECTIONS as string[]).includes(s));
+    !!s && (VALID_FRAME1_SECTIONS as string[]).includes(s);
   const isValidFrame2 = (s: string | null) =>
     s === "contract-preview" || s === "invoice-preview";
 
@@ -54,16 +55,34 @@ export function IngestionStageContent({ session, customer }: Props) {
 
   const extracted = useMemo(() => getExtractedContract(session.sampleId), [session.sampleId]);
 
-  function handleMarkSectionDone(section: IngestionSectionId) {
-    setIngestionSectionState(session.queueItemId, section, "done");
-  }
-
   function navigateToSub(newSub: string, newFrame?: "1" | "2") {
     const params = new URLSearchParams(searchParams);
     params.set("sub", newSub);
     if (newFrame) params.set("frame", newFrame);
     setSearchParams(params);
   }
+
+  const handleMarkSectionDoneAndNavigate = useCallback(
+    (section: IngestionSectionId) => {
+      setIngestionSectionState(session.queueItemId, section, "done");
+      
+      const currentIndex = SECTION_ORDER.indexOf(section);
+      if (currentIndex === -1) return;
+
+      if (currentIndex < SECTION_ORDER.length - 1) {
+        const nextSection = SECTION_ORDER[currentIndex + 1];
+        const params = new URLSearchParams(searchParams);
+        params.set("sub", nextSection);
+        setSearchParams(params);
+      } else {
+        const params = new URLSearchParams(searchParams);
+        params.set("frame", "2");
+        params.set("sub", "invoice-preview");
+        setSearchParams(params);
+      }
+    },
+    [session.queueItemId, searchParams, setSearchParams, setIngestionSectionState]
+  );
 
   if (frame === "2") {
     const frame2Sub = sub as Frame2Sub;
@@ -99,22 +118,6 @@ export function IngestionStageContent({ session, customer }: Props) {
 
   const frame1Sub = sub as Frame1Sub;
 
-  if (frame1Sub.startsWith("pdf-")) {
-    const docId = frame1Sub.replace("pdf-", "");
-    const doc = extracted.documents.find((d) => d.id === docId);
-    if (doc) {
-      return (
-        <>
-          <IngestionActions session={session} customerId={customer.id} />
-          <IngestionPdfPreview
-            document={doc}
-            onBack={() => navigateToSub("summary")}
-          />
-        </>
-      );
-    }
-  }
-
   return (
     <div className="space-y-6">
       <IngestionActions session={session} customerId={customer.id} />
@@ -123,7 +126,7 @@ export function IngestionStageContent({ session, customer }: Props) {
         <IngestionSummarySection
           extracted={extracted}
           sectionState={session.sections.summary}
-          onMarkDone={() => handleMarkSectionDone("summary")}
+          onMarkDone={() => handleMarkSectionDoneAndNavigate("summary")}
         />
       )}
 
@@ -131,7 +134,7 @@ export function IngestionStageContent({ session, customer }: Props) {
         <IngestionItemsSection
           extracted={extracted}
           sectionState={session.sections.items}
-          onMarkDone={() => handleMarkSectionDone("items")}
+          onMarkDone={() => handleMarkSectionDoneAndNavigate("items")}
         />
       )}
 
@@ -139,7 +142,7 @@ export function IngestionStageContent({ session, customer }: Props) {
         <IngestionBillingSection
           extracted={extracted}
           sectionState={session.sections.billing}
-          onMarkDone={() => handleMarkSectionDone("billing")}
+          onMarkDone={() => handleMarkSectionDoneAndNavigate("billing")}
         />
       )}
 
@@ -147,7 +150,7 @@ export function IngestionStageContent({ session, customer }: Props) {
         <IngestionAddressesSection
           extracted={extracted}
           sectionState={session.sections.addresses}
-          onMarkDone={() => handleMarkSectionDone("addresses")}
+          onMarkDone={() => handleMarkSectionDoneAndNavigate("addresses")}
         />
       )}
 
@@ -155,7 +158,7 @@ export function IngestionStageContent({ session, customer }: Props) {
         <IngestionAdditionalInfoSection
           extracted={extracted}
           sectionState={session.sections.additional}
-          onMarkDone={() => handleMarkSectionDone("additional")}
+          onMarkDone={() => handleMarkSectionDoneAndNavigate("additional")}
         />
       )}
     </div>

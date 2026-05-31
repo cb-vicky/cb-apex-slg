@@ -19,10 +19,8 @@ import { CustomerDetailPage } from "@/pages/CustomerDetailPage";
 import { QuoteDetailPage } from "@/pages/QuoteDetailPage";
 import { ContractDetailPage } from "@/pages/ContractDetailPage";
 import { InvoiceDetailPage } from "@/pages/InvoiceDetailPage";
-import { QueueIngestPage } from "@/pages/QueueIngestPage";
 import { ApprovalDetailPage } from "@/pages/ApprovalDetailPage";
 import { ModuleStubPage } from "@/pages/ModuleStubPage";
-import { EntityDrawer } from "@/components/common/EntityDrawer";
 import { RootErrorBoundary } from "@/components/common/RootErrorBoundary";
 
 export default function App() {
@@ -38,7 +36,6 @@ export default function App() {
       <DemoPersonaProvider>
         <WorkspaceShellProvider>
         <AppShell>
-          <>
           <Routes>
             {/* Workbench home (includes My Tasks, Queue, Approvals tabs) */}
             <Route path="/" element={<WorkbenchHome />} />
@@ -58,8 +55,7 @@ export default function App() {
             <Route path="/queue" element={<Navigate to="/?tab=queue" replace />} />
             <Route path="/approvals" element={<Navigate to="/?tab=approvals" replace />} />
 
-            {/* Queue and Approvals detail routes still work */}
-            <Route path="/queue/:queueItemId" element={<QueueIngestPage />} />
+            {/* Approval detail route */}
             <Route path="/approvals/invoices/:invoiceId" element={<ApprovalDetailPage />} />
 
             {/* Canonical customer-centric detail shell */}
@@ -72,8 +68,6 @@ export default function App() {
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-          <EntityDrawer />
-          </>
         </AppShell>
         </WorkspaceShellProvider>
         </DemoPersonaProvider>

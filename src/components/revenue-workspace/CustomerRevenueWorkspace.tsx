@@ -7,7 +7,6 @@ import { getCollectionCasesForCustomer } from "@/data/billing-data";
 import { getRevenueArrangement } from "@/data/revrec-data";
 import { useIngestContext } from "@/context/IngestContext";
 import { useWorkspaceShell } from "@/context/WorkspaceShellContext";
-import { openDrawer } from "@/store/drawer-store";
 import { CustomerContextBar } from "./CustomerContextBar";
 import { buildRecordTabSummaries, deriveParentTabSummaries } from "./derive-tab-summaries";
 import type { Stage } from "./stage";
@@ -262,17 +261,11 @@ export function CustomerRevenueWorkspace({
     const approvalText = closure.approvalRequired ? " pending approval." : ".";
 
     if (queueItemId && approvalDocumentId) {
-      openDrawer({
-        entityType: "invoice",
-        mode: "invoice_approval",
-        entityId: approvalDocumentId,
-        context: { queueItemId },
-      });
-    } else if (queueItemId && closure.settlementType === "no_financial_impact") {
-      // No financial impact — there's nothing to approve, but we still need to
-      // process the renewal. Navigate to the queue item so the user can proceed.
       showClosureToast(`Contract closure initiated. ${settlementText}${approvalText}`, activeContract.id);
-      navigate(`/queue/${queueItemId}`);
+      navigate(`/customers/${customer.id}?tab=invoicing&invoiceId=${approvalDocumentId}`);
+    } else if (queueItemId && closure.settlementType === "no_financial_impact") {
+      showClosureToast(`Contract closure initiated. ${settlementText}${approvalText}`, activeContract.id);
+      navigate(`/customers/${customer.id}?tab=contract&queueItemId=${queueItemId}`);
     } else {
       showClosureToast(`Contract closure initiated. ${settlementText}${approvalText}`, activeContract.id);
     }

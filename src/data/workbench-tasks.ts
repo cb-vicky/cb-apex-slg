@@ -9,32 +9,14 @@ import type { QueueItem } from "@/data/queue-data";
 import type { ApprovalRequest } from "@/data/ingest-data";
 import type { ContractClosure } from "@/data/mock-data";
 import type { PendingRenewalIngestion } from "@/data/approval-policy";
-import type {
-  ContractGraceExtension,
-  DrawerEntityType,
-  DrawerMode,
-  TransitionFlowSession,
-} from "@/data/contract-transition";
+import type { ContractGraceExtension } from "@/data/contract-transition";
 import { customers, contracts, tasks as customerTasks } from "@/data/mock-data";
 import type { DemoPersona } from "@/types/demo-persona";
+import { ZENITH_ANALYTICS_INC_ID } from "@/data/zenith-analytics-inc-seed";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-export interface WorkbenchTaskDrawerLaunch {
-  entityType: DrawerEntityType;
-  mode?: DrawerMode;
-  entityId?: string;
-  /** When opening the drawer for a specific unified-flow step (e.g. invoice review). */
-  flow?: TransitionFlowSession | null;
-  context?: {
-    customerId?: string;
-    contractId?: string;
-    latePhase?: "extend" | "resolve";
-    queueItemId?: string;
-  };
-}
 
 export interface WorkbenchTask {
   id: string;
@@ -52,9 +34,7 @@ export interface WorkbenchTask {
   title: string;
   subtitle?: string;
   severity: "critical" | "high" | "medium" | "low";
-  destination: string; // full path including query params
-  /** When set, My Tasks opens the unified EntityDrawer instead of routing away. */
-  drawer?: WorkbenchTaskDrawerLaunch;
+  destination: string;
   assignee?: string;
   dueDate?: string;
   source: "queue" | "approval" | "customer-task" | "contract-lifecycle";
@@ -232,74 +212,17 @@ export function deriveWorkbenchTasks(
       continue;
     }
     const isLateRenewal = q.scenario === "Late Renewal";
-    // Ingestable late renewal opens the 3-step drawer (ingest_invoice scenario).
-    // Non-ingestable late renewal routes to the customer workspace for grace handling.
-    const destination =
-      isLateRenewal && !q.ingestable && q.customerId && q.activeContractId
-        ? `/customers/${q.customerId}?tab=contract&contractId=${q.activeContractId}`
-        : `/queue/${q.id}`;
-    const drawer: WorkbenchTaskDrawerLaunch | undefined = q.ingestable
-      ? isLateRenewal && q.customerId && q.activeContractId
-        ? {
-            entityType: "queue_item",
-            mode: "ingest",
-            entityId: q.id,
-            // Reuse the same `ingest_invoice` scenario as Early Renewal so the
-            // drawer/components/steps are identical. The only differences are the
-            // small "contract in extension" banners shown in IngestDrawer + close-prior step.
-            flow: {
-              scenario: "ingest_invoice",
-              step: q.status === "Invoice review" && q.invoiceId ? "invoice_review" : "ingest",
-              furthestUnlockedStep:
-                q.status === "Invoice review" && q.invoiceId ? "invoice_review" : "ingest",
-              queueItemId: q.id,
-              customerId: q.customerId,
-              contractId: q.activeContractId,
-              ...(q.status === "Invoice review" && q.invoiceId ? { invoiceId: q.invoiceId } : {}),
-            } satisfies TransitionFlowSession,
-            context: {
-              customerId: q.customerId,
-              contractId: q.activeContractId,
-              queueItemId: q.id,
-            },
-          }
-        : {
-            entityType: "queue_item",
-            mode: "ingest",
-            entityId: q.id,
-            ...(q.status === "Invoice review" && q.invoiceId
-              ? {
-                  flow: {
-                    scenario: "ingest_invoice",
-                    step: "invoice_review",
-                    furthestUnlockedStep: "invoice_review",
-                    queueItemId: q.id,
-                    invoiceId: q.invoiceId,
-                    contractId: q.contractId,
-                    customerId: q.customerId,
-                  } satisfies TransitionFlowSession,
-                }
-              : {}),
-          }
-      : isLateRenewal && q.customerId && q.activeContractId
-        ? {
-            entityType: "transition",
-            mode: "late_renewal",
-            context: {
-              customerId: q.customerId,
-              contractId: q.activeContractId,
-              latePhase: "extend",
-            },
-            flow: {
-              scenario: "late_grace",
-              step: "grace_extend",
-              furthestUnlockedStep: "grace_extend",
-              customerId: q.customerId,
-              contractId: q.activeContractId,
-              showStepper: true,
-            },
-          }
-        : undefined;
+    
+    // Build destination: route to Customer 360 frame
+    let destination = `/customers/${q.customerId}?tab=contract`;
+    if (q.status === "Invoice review" && q.invoiceId && q.customerId) {
+      destination = `/customers/${q.customerId}?tab=invoicing&invoiceId=${q.invoiceId}`;
+    } else if (isLateRenewal && !q.ingestable && q.customerId && q.activeContractId) {
+      destination = `/customers/${q.customerId}?tab=contract&contractId=${q.activeContractId}`;
+    } else if (q.customerId) {
+      destination = `/customers/${q.customerId}?tab=contract&queueItemId=${q.id}`;
+    }
+
     const type: WorkbenchTask["type"] =
       isLateRenewal && !q.ingestable ? "late-renewal" : "contract-ingest";
     
@@ -320,16 +243,10 @@ export function deriveWorkbenchTasks(
       subtitle,
       severity: scenarioToSeverity(q.scenario),
       destination,
-      drawer,
       assignee: q.uploadedBy,
       source: "queue",
     });
   }
-
-  // Note: Grace extension tasks are now handled through the queue item status.
-  // When grace is extended, the queue item moves to "Grace Extended" status (hidden).
-  // When the renewal contract becomes ingestable, the queue item moves back to
-  // "Pending Review" with ingestable=true and shows as "Renewal contract received".
 
   // ── Approval source ───────────────────────────────────────────────────────
   for (const req of context.approvalRequests) {
@@ -371,39 +288,22 @@ export function deriveWorkbenchTasks(
           : "Contract closure document",
         severity: "critical",
         destination,
-        drawer: {
-          entityType: "invoice",
-          mode: "invoice_approval",
-          entityId: req.invoiceId,
-          context: {
-            queueItemId: pendingRenewal?.queueItemId,
-          },
-        },
         assignee: req.approver,
         source: "approval",
       });
     } else {
-      let destination = `/approvals/invoices/${req.invoiceId}`;
-      if (req.ingestId) {
-        destination += `?ingestId=${encodeURIComponent(req.ingestId)}`;
+      // For Zenith first invoice approvals, route to the Scheduled Contract record with Invoice Preview tab
+      let destination: string;
+      if (req.customerId === ZENITH_ANALYTICS_INC_ID && req.ingestId) {
+        // Open the Scheduled Contract record with Invoice Preview tab active
+        const zenithContractId = "CTR-ZA-2026-001";
+        destination = `/customers/${ZENITH_ANALYTICS_INC_ID}?tab=contract&contractId=${zenithContractId}&zenithTab=Invoice%20Preview`;
+      } else {
+        destination = `/approvals/invoices/${req.invoiceId}`;
+        if (req.ingestId) {
+          destination += `?ingestId=${encodeURIComponent(req.ingestId)}`;
+        }
       }
-      const drawer: WorkbenchTaskDrawerLaunch | undefined = {
-        entityType: "invoice",
-        mode: "invoice_approval",
-        entityId: req.invoiceId,
-        context: req.ingestId ? { queueItemId: req.ingestId } : undefined,
-        ...(req.ingestId
-          ? {
-              flow: {
-                scenario: "ingest_invoice",
-                step: "invoice_review",
-                furthestUnlockedStep: "invoice_review",
-                invoiceId: req.invoiceId,
-                queueItemId: req.ingestId,
-              } satisfies TransitionFlowSession,
-            }
-          : {}),
-      };
       derived.push({
         id: `approval-${req.id}`,
         customerId: req.customerId || undefined,
@@ -414,7 +314,6 @@ export function deriveWorkbenchTasks(
         subtitle: `Submitted by ${req.submittedBy}`,
         severity: "high",
         destination,
-        drawer,
         assignee: req.approver,
         source: "approval",
       });

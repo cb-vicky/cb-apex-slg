@@ -1,6 +1,6 @@
 import { CircleCheck } from "lucide-react";
 import { useZenithContractChrome } from "./ZenithContractChromeContext";
-import type { ZenithContractContentTab } from "./zenith-contract-tabs";
+import type { ZenithContractContentTab, ZenithContractActiveTab } from "./zenith-contract-tabs";
 import { cn } from "@/lib/utils";
 import { useZenithStickyChromeHeight } from "./useZenithStickyChromeHeight";
 
@@ -9,8 +9,14 @@ const MANUAL_COMPLETE_TABS: ZenithContractContentTab[] = [
   "Addresses",
 ];
 
+/** Maps each tab to the next tab in the workflow sequence */
+const NEXT_TAB_MAP: Partial<Record<ZenithContractContentTab, ZenithContractActiveTab>> = {
+  "Billing info": "Addresses",
+  "Addresses": "Invoice Preview", // Go to Invoice Preview when all review tabs are done
+};
+
 const markDoneButtonClass =
-  "inline-flex h-8 items-center justify-center rounded-full border border-border-default bg-white px-4 text-[12px] font-medium text-text-secondary shadow-sm transition-all duration-200 hover:border-gray-300 hover:bg-gray-50 hover:text-text-primary";
+  "inline-flex h-8 items-center justify-center rounded-full border border-emerald-500 bg-emerald-600 px-4 text-[12px] font-semibold text-white shadow-sm transition-all duration-200 hover:bg-emerald-700";
 
 const stickyControlClass = "sticky z-10";
 
@@ -28,13 +34,21 @@ export function ZenithMarkTabDoneBar({
   const isComplete = chrome.getContentTabStatus(tab) === "complete";
   const stickyStyle = stickyChromeHeight > 0 ? { top: stickyChromeHeight } : undefined;
 
+  function handleMarkDone() {
+    chrome.markTabComplete(tab);
+    const nextTab = NEXT_TAB_MAP[tab];
+    if (nextTab) {
+      chrome.setActiveTab(nextTab);
+    }
+  }
+
   if (isComplete) {
     return (
       <div className={cn("flex justify-end", className)}>
         <div
           className={cn(
             stickyControlClass,
-            "inline-flex items-center gap-2 rounded-full border border-border-default bg-white px-3 py-1 shadow-sm",
+            "inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 shadow-sm",
           )}
           style={stickyStyle}
         >
@@ -58,7 +72,7 @@ export function ZenithMarkTabDoneBar({
     <div className={cn("flex justify-end", className)}>
       <button
         type="button"
-        onClick={() => chrome.markTabComplete(tab)}
+        onClick={handleMarkDone}
         className={cn(markDoneButtonClass, stickyControlClass)}
         style={stickyStyle}
       >

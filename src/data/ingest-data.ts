@@ -42,6 +42,14 @@ export interface IngestIssue {
   detail?: string;
 }
 
+export interface ExtractedSectionIssues {
+  summary?: string;
+  items?: string;
+  billing?: string;
+  addresses?: string;
+  additional?: string;
+}
+
 export interface ExtractedContract {
   docId: "sample1" | "sample2" | "sample3" | "sample4";
   documentName: string;
@@ -59,6 +67,8 @@ export interface ExtractedContract {
   products: ExtractedProduct[];
   terms: ExtractedTerms;
   issues: IngestIssue[];
+  /** Per-section issues for workspace ingestion review */
+  sectionIssues: ExtractedSectionIssues;
 }
 
 export interface CreatedObject {
@@ -192,6 +202,7 @@ export const extractedSample1: ExtractedContract = {
     autoRenew: true,
   },
   issues: [],
+  sectionIssues: {},
 };
 
 // ---------------------------------------------------------------------------
@@ -261,6 +272,10 @@ export const extractedSample2: ExtractedContract = {
       detail: "\"APEX-ANALYTICS-PRO\" is not in the product catalog. Map to an existing plan or create a new one.",
     },
   ],
+  sectionIssues: {
+    summary: "Customer not found — create or match",
+    items: "1 product needs SKU mapping",
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -313,6 +328,7 @@ export const extractedSample3: ExtractedContract = {
     autoRenew: true,
   },
   issues: [],
+  sectionIssues: {},
 };
 
 // ---------------------------------------------------------------------------
@@ -375,6 +391,7 @@ export const extractedSample4: ExtractedContract = {
     autoRenew: true,
   },
   issues: [],
+  sectionIssues: {},
 };
 
 // ---------------------------------------------------------------------------

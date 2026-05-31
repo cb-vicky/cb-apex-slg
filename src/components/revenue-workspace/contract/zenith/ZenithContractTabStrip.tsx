@@ -33,13 +33,17 @@ function ContentTabButton({
   status: ZenithTabCompletionStatus;
   onClick: () => void;
 }) {
+  const isDisabled = status === "disabled";
+
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={isDisabled ? undefined : onClick}
+      disabled={isDisabled}
       className={cn(
         tabButtonClass(isActive),
         "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap",
+        isDisabled && "cursor-not-allowed opacity-50",
       )}
     >
       <ZenithContractTabStatusIcon status={status} />

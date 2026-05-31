@@ -287,6 +287,29 @@ function ItemsMappingAlert({ unmappedCount }: { unmappedCount: number }) {
   );
 }
 
+function ItemsResolvedBar({ onMarkDone }: { onMarkDone: () => void }) {
+  return (
+    <div
+      role="status"
+      className="flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-3"
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <CircleCheck size={16} strokeWidth={2} className="shrink-0 text-emerald-600" aria-hidden />
+        <p className="text-[13px] font-medium leading-snug text-emerald-800">
+          All items resolved
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onMarkDone}
+        className="inline-flex h-8 shrink-0 items-center rounded-full bg-emerald-600 px-4 text-[12px] font-semibold text-white transition-colors hover:bg-emerald-700"
+      >
+        Mark as done
+      </button>
+    </div>
+  );
+}
+
 function EditableSelectCell({
   value,
   label,
@@ -870,17 +893,25 @@ function ItemsTableRow({
 
 export function ZenithContractItemsTab() {
   const chrome = useZenithContractChrome();
-  const [lineItems, setLineItems] = useState<ZenithSummaryLineItem[]>(() => [
-    ...zenithSummaryLineItems,
-  ]);
+  
+  // Initialize from chrome context (persisted state) if available, otherwise use seed data
+  const [lineItems, setLineItems] = useState<ZenithSummaryLineItem[]>(() => {
+    const persistedItems = chrome?.contractLineItems;
+    if (persistedItems && persistedItems.length > 0) {
+      return [...persistedItems];
+    }
+    return [...zenithSummaryLineItems];
+  });
   const [addRowDraftId, setAddRowDraftId] = useState<string | null>(null);
 
+  // Sync local state with chrome context whenever lineItems change
   useEffect(() => {
     const itemsForChrome = addRowDraftId
       ? lineItems.filter((line) => line.id !== addRowDraftId)
       : lineItems;
     chrome?.setContractLineItems(itemsForChrome);
   }, [chrome, lineItems, addRowDraftId]);
+  
   const unmappedCount = zenithSummaryLineItemsNeedMappingCount(
     lineItems.filter((line) => line.id !== addRowDraftId),
   );
@@ -1021,11 +1052,12 @@ export function ZenithContractItemsTab() {
     });
   }
 
-  function confirmMapCatalogToLine(lineId: string) {
+  function _confirmMapCatalogToLine(lineId: string) {
     const catalogItemId = pendingCatalogByLine[lineId];
     if (!catalogItemId) return;
     applyCatalogToLine(lineId, catalogItemId);
   }
+  void _confirmMapCatalogToLine;
 
   function closeDrawerAfterSubmit(lineId: string) {
     setExpandedItemId(null);
@@ -1216,9 +1248,17 @@ export function ZenithContractItemsTab() {
     !matchBannerExpanded &&
     drawerResolution == null;
 
+  const handleMarkDone = useCallback(() => {
+    chrome?.setActiveTab("Billing info");
+  }, [chrome]);
+
   return (
     <div className="flex flex-col gap-4">
-        <ItemsMappingAlert unmappedCount={unmappedCount} />
+        {unmappedCount > 0 ? (
+          <ItemsMappingAlert unmappedCount={unmappedCount} />
+        ) : (
+          <ItemsResolvedBar onMarkDone={handleMarkDone} />
+        )}
 
         <div className="overflow-hidden rounded-xl border border-border-default">
           <div className="overflow-x-auto">

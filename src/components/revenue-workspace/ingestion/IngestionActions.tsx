@@ -38,17 +38,19 @@ export function IngestionActions({ session, customerId }: Props) {
   } = useIngestContext();
 
   const frame = searchParams.get("frame") || "1";
+  const sub = searchParams.get("sub") || "";
   const isFrame2 = frame === "2";
+  const isInvoicePreview = isFrame2 && sub === "invoice-preview";
 
   const extracted = getExtractedContract(session.sampleId);
 
   const allDone = Object.values(session.sections).every((s) => s === "done");
   const previewEnabled = session.overallStatus === "ready" || allDone;
 
-  function handlePreview() {
+  function handleInvoicePreview() {
     const params = new URLSearchParams(searchParams);
     params.set("frame", "2");
-    params.set("sub", "contract-preview");
+    params.set("sub", "invoice-preview");
     setSearchParams(params);
   }
 
@@ -98,16 +100,27 @@ export function IngestionActions({ session, customerId }: Props) {
     navigate(`/customers/${customerId}?tab=invoicing&invoiceId=${invoice.id}`);
   }
 
+  const overflowItems: OverflowItem[] = [
+    { label: "Restart ingestion", onClick: handleRestart, icon: RotateCcw },
+    { label: "Discard contract", onClick: handleDiscard, icon: Trash2, destructive: true },
+  ];
+
   if (isFrame2) {
-    const overflowItems: OverflowItem[] = [
-      { label: "Restart ingestion", onClick: handleRestart, icon: RotateCcw },
-      { label: "Discard contract", onClick: handleDiscard, icon: Trash2, destructive: true },
-    ];
+    if (isInvoicePreview) {
+      return (
+        <RecordHeader
+          actions={
+            <ActionButton label="Send for approval" onClick={handleSendForApproval} />
+          }
+          overflowItems={overflowItems}
+        />
+      );
+    }
 
     return (
       <RecordHeader
         actions={
-          <ActionButton label="Send for approval" onClick={handleSendForApproval} showArrow={false} />
+          <ActionButton label="View Invoice Preview" onClick={handleInvoicePreview} />
         }
         overflowItems={overflowItems}
       />
@@ -117,12 +130,17 @@ export function IngestionActions({ session, customerId }: Props) {
   return (
     <RecordHeader
       actions={
-        <ActionButton
-          label="Preview"
-          onClick={handlePreview}
-          showArrow={false}
+        <button
+          onClick={handleInvoicePreview}
           disabled={!previewEnabled}
-        />
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            previewEnabled
+              ? "bg-blue-600 text-white hover:bg-blue-700"
+              : "cursor-not-allowed bg-gray-100 text-gray-400"
+          }`}
+        >
+          Invoice Preview
+        </button>
       }
     />
   );

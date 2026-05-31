@@ -11,6 +11,24 @@ import type {
 import type { ContractGraceExtension } from "@/data/contract-transition";
 
 // ---------------------------------------------------------------------------
+// Ingestion Session Types
+// ---------------------------------------------------------------------------
+
+export type IngestionSectionId = "summary" | "items" | "billing" | "addresses" | "additional";
+export type IngestionSectionState = "issues" | "review" | "done";
+export type IngestionOverallStatus = "in_review" | "ready" | "awaiting_approval" | "completed";
+
+export interface IngestionSession {
+  queueItemId: string;
+  customerId: string;
+  sampleId: "sample2" | "sample3" | "sample4";
+  customerLink: "matched" | "created";
+  overallStatus: IngestionOverallStatus;
+  sections: Record<IngestionSectionId, IngestionSectionState>;
+  startedAt: string;
+}
+
+// ---------------------------------------------------------------------------
 // Context value (stable module — survives Vite Fast Refresh)
 // ---------------------------------------------------------------------------
 
@@ -140,6 +158,27 @@ export interface IngestContextValue {
    * surface mid-session. Mutable ref avoids extra renders when the snapshot updates.
    */
   workbenchTaskSnapshotRef: MutableRefObject<string[]>;
+
+  // ---------------------------------------------------------------------------
+  // Ingestion Session Management
+  // ---------------------------------------------------------------------------
+  ingestionSessions: Record<string, IngestionSession>;
+  startIngestionSession: (
+    queueItemId: string,
+    customerId: string,
+    sampleId: "sample2" | "sample3" | "sample4",
+    customerLink: "matched" | "created",
+  ) => void;
+  setIngestionSectionState: (
+    queueItemId: string,
+    section: IngestionSectionId,
+    state: IngestionSectionState,
+  ) => void;
+  setIngestionOverallStatus: (queueItemId: string, status: IngestionOverallStatus) => void;
+  discardIngestion: (queueItemId: string) => void;
+  restartIngestion: (queueItemId: string) => void;
+  completeIngestion: (queueItemId: string) => void;
+  getActiveIngestionForCustomer: (customerId: string) => IngestionSession | undefined;
 }
 
 /** @internal — import from this module only in IngestProvider */

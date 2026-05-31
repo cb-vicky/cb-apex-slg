@@ -1,4 +1,4 @@
-import { CircleCheck, Info } from "lucide-react";
+import { CircleCheck, Info, Lock } from "lucide-react";
 import type { ZenithTabCompletionStatus } from "./zenith-contract-tab-status";
 
 export function ZenithContractTabStatusIcon({
@@ -14,6 +14,17 @@ export function ZenithContractTabStatusIcon({
         size={14}
         strokeWidth={2.25}
         className={className ?? "shrink-0 text-emerald-600"}
+        aria-hidden
+      />
+    );
+  }
+
+  if (status === "disabled") {
+    return (
+      <Lock
+        size={14}
+        strokeWidth={2.25}
+        className={className ?? "shrink-0 text-text-muted"}
         aria-hidden
       />
     );

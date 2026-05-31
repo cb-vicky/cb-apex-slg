@@ -9,7 +9,6 @@ import {
   toSessionCustomerInput,
   type CreateCustomerFormState,
 } from "@/components/workbench/create-customer-form";
-import { DocumentPreviewTabContent } from "@/components/transitions/IngestDocumentPreviewPane";
 import {
   CustomerLinkCustomerTable,
   CustomerLinkSearchBar,
@@ -33,6 +32,21 @@ import {
   openQueueIngestDrawer,
   suggestDomainFromCompanyName,
 } from "@/lib/new-deal-customer-link";
+import { FileText } from "lucide-react";
+
+function DocumentPreviewPane({ documentTitle }: { documentTitle: string }) {
+  return (
+    <div className="flex h-full flex-col bg-[#F3F4F6]">
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
+        <div className="rounded-xl border border-border-default bg-white p-8 shadow-sm">
+          <FileText size={48} className="mx-auto mb-4 text-text-muted" />
+          <p className="font-medium text-text-primary">{documentTitle}</p>
+          <p className="mt-1 text-[12px] text-text-muted">Contract document preview</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 type Mode = "link" | "create";
 
@@ -217,10 +231,7 @@ export function NewDealCustomerLinkModal({ queueItem, onClose }: Props) {
       <div className="grid min-h-0 flex-1 grid-cols-[2fr_3fr] overflow-hidden">
         <aside className="flex min-h-0 flex-col overflow-hidden border-r border-border-default bg-[#F3F4F6]">
           <div className="flex h-full min-h-0 flex-1 flex-col">
-            <DocumentPreviewTabContent
-              extracted={extracted}
-              documentTitle={queueItem.documentName}
-            />
+            <DocumentPreviewPane documentTitle={queueItem.documentName} />
           </div>
         </aside>
 

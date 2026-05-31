@@ -10,7 +10,6 @@ import {
   sortWorkbenchTasksBySeverity,
 } from "@/data/workbench-tasks";
 import type { WorkbenchTask } from "@/data/workbench-tasks";
-import { openDrawer } from "@/store/drawer-store";
 import { useNewDealCustomerLinkGate } from "@/hooks/useNewDealCustomerLinkGate";
 import { queueItemIdFromWorkbenchTask } from "@/lib/new-deal-customer-link";
 
@@ -249,15 +248,10 @@ export function WorkbenchTaskList() {
       const q = queueItems.find((item) => item.id === queueId);
       if (q) {
         openQueueFlow(q, () => {
-          if (task.drawer) openDrawer(task.drawer);
-          else navigate(task.destination);
+          navigate(task.destination);
         });
         return;
       }
-    }
-    if (task.drawer) {
-      openDrawer(task.drawer);
-      return;
     }
     navigate(task.destination);
   }

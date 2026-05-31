@@ -4,7 +4,6 @@ import type { Contract } from "@/data/mock-data";
 import type { ContractGraceExtension } from "@/data/contract-transition";
 import { useIngestContext } from "@/context/IngestContext";
 import { mergeBillingScheduleWithInvoiceOverrides } from "@/components/revenue-workspace/derive-stage-data";
-import { openDrawer } from "@/store/drawer-store";
 import { RecordHeader, type OverflowItem } from "../RecordHeader";
 import { ActionButton } from "../primitives/ActionButton";
 import { ContractOverviewSection } from "./ContractOverviewSection";
@@ -74,54 +73,6 @@ export function ContractStageContent({
     });
   }, []);
 
-  const openTransition = useCallback(() => {
-    openDrawer({
-      entityType: "transition",
-      mode: "transition",
-      context: { customerId: contract.customerId, contractId: contract.id },
-    });
-  }, [contract.customerId, contract.id]);
-
-  const openExtendGrace = useCallback(() => {
-    openDrawer({
-      entityType: "transition",
-      mode: "late_renewal",
-      context: {
-        customerId: contract.customerId,
-        contractId: contract.id,
-        latePhase: "extend",
-      },
-      flow: {
-        scenario: "late_grace",
-        step: "grace_extend",
-        furthestUnlockedStep: "grace_extend",
-        customerId: contract.customerId,
-        contractId: contract.id,
-        showStepper: true,
-      },
-    });
-  }, [contract.customerId, contract.id]);
-
-  const openResolveRenewal = useCallback(() => {
-    openDrawer({
-      entityType: "transition",
-      mode: "late_renewal",
-      context: {
-        customerId: contract.customerId,
-        contractId: contract.id,
-        latePhase: "resolve",
-      },
-      flow: {
-        scenario: "late_grace",
-        step: "grace_extend",
-        furthestUnlockedStep: "grace_extend",
-        customerId: contract.customerId,
-        contractId: contract.id,
-        showStepper: true,
-      },
-    });
-  }, [contract.customerId, contract.id]);
-
   /**
    * Decide the (up to) two primary actions and the overflow set for the
    * current contract state.
@@ -139,34 +90,29 @@ export function ContractStageContent({
     } else if (isScheduled) {
       primary = (
         <>
-          <ActionButton label="Transition" onClick={openTransition} />
           <ActionButton label="Contract PDF" />
+          <ActionButton label="Create amendment" />
         </>
       );
     } else if (isExtended) {
       primary = (
         <>
-          <ActionButton label="Resolve renewal" onClick={openResolveRenewal} />
-          <ActionButton label="Transition" onClick={openTransition} />
+          <ActionButton label="Contract PDF" />
+          <ActionButton label="Create amendment" />
         </>
       );
-      overflow.push({ label: "Contract PDF" });
       if (enforcementNeedsAttention) {
         overflow.push({ label: "Review enforcement", onClick: scrollToEnforcement });
       }
     } else if (isActive) {
       primary = (
         <>
-          <ActionButton label="Transition" onClick={openTransition} />
+          <ActionButton label="Contract PDF" />
           <ActionButton label="Create amendment" />
         </>
       );
-      overflow.push({ label: "Contract PDF" });
       if (enforcementNeedsAttention) {
         overflow.push({ label: "Review enforcement", onClick: scrollToEnforcement });
-      }
-      if (!inGrace) {
-        overflow.push({ label: "Extend grace period", onClick: openExtendGrace });
       }
       if (canClose && onOpenClosePane) {
         overflow.push({
@@ -179,27 +125,22 @@ export function ContractStageContent({
     } else {
       primary = (
         <>
-          <ActionButton label="Transition" onClick={openTransition} />
+          <ActionButton label="Contract PDF" />
           <ActionButton label="Create amendment" />
         </>
       );
-      overflow.push({ label: "Contract PDF" });
     }
 
     return { primaryActions: primary, overflowItems: overflow };
   }, [
     canClose,
     enforcementNeedsAttention,
-    inGrace,
     isActive,
     isClosing,
     isExtended,
     isScheduled,
     isTerminal,
     onOpenClosePane,
-    openExtendGrace,
-    openResolveRenewal,
-    openTransition,
     scrollToEnforcement,
   ]);
 
@@ -226,13 +167,6 @@ export function ContractStageContent({
             <span className="font-semibold">Grace extension</span> active through {graceExtension.until}. Billing
             during grace: <span className="font-medium capitalize">{graceExtension.billingMode}</span>.
           </p>
-          <button
-            type="button"
-            onClick={openResolveRenewal}
-            className="shrink-0 rounded-md border border-red-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-red-800 hover:bg-red-100"
-          >
-            Resolve in drawer
-          </button>
         </div>
       )}
 

@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   zenithSummaryLineItems,
   type ZenithSummaryLineItem,
@@ -14,14 +15,20 @@ import {
 import {
   ZENITH_CONTRACT_SCROLL_COLLAPSE_AT,
   ZENITH_CONTRACT_SCROLL_EXPAND_AT,
+  ZENITH_CONTRACT_CONTENT_TABS,
   type ZenithContractActiveTab,
   type ZenithContractContentTab,
 } from "./zenith-contract-tabs";
 import {
   areZenithContractItemsComplete,
   areZenithSummaryPrerequisiteTabsComplete,
+  isZenithInvoicePreviewEnabled,
   type ZenithTabCompletionStatus,
 } from "./zenith-contract-tab-status";
+import { useIngestContext } from "@/context/IngestContext";
+
+/** Static invoice ID for the Zenith first invoice */
+const ZENITH_FIRST_INVOICE_ID = "INV-ZA-2026-001";
 import {
   DEFAULT_ZENITH_CONTRACT_REVIEW_STATUS,
   type ZenithContractReviewStatus,
@@ -75,6 +82,13 @@ export function ZenithContractChromeProvider({
   resetKey?: string;
   children: ReactNode;
 }) {
+  const [searchParams] = useSearchParams();
+  const { invoiceStatusOverrides } = useIngestContext();
+  
+  // Check if the Zenith invoice has been submitted for approval or posted
+  const zenithInvoiceStatus = invoiceStatusOverrides[ZENITH_FIRST_INVOICE_ID];
+  const isIngestionComplete = zenithInvoiceStatus === "Pending Approval" || zenithInvoiceStatus === "Posted";
+  
   const [activeTab, setActiveTabState] = useState<ZenithContractActiveTab>("Summary");
   const [isScrollCollapsed, setIsScrollCollapsed] = useState(false);
   const [contractLineItems, setContractLineItems] = useState<ZenithSummaryLineItem[]>(() => [
@@ -103,13 +117,24 @@ export function ZenithContractChromeProvider({
     manualComplete: manualTabComplete,
   });
 
+  const invoicePreviewEnabled = isZenithInvoicePreviewEnabled({
+    itemsComplete: itemsTabComplete,
+    manualComplete: manualTabComplete,
+  });
+
+  const isInvoicePosted = zenithInvoiceStatus === "Posted";
+  
   const getContentTabStatus = useCallback(
     (tab: ZenithContractContentTab): ZenithTabCompletionStatus => {
       if (tab === "Items") return itemsTabComplete ? "complete" : "pending";
       if (tab === "Summary") return summaryTabComplete ? "complete" : "pending";
+      if (tab === "Invoice Preview") {
+        if (isInvoicePosted) return "complete";
+        return invoicePreviewEnabled ? "pending" : "disabled";
+      }
       return manualTabComplete[tab] ? "complete" : "pending";
     },
-    [itemsTabComplete, summaryTabComplete, manualTabComplete],
+    [itemsTabComplete, summaryTabComplete, invoicePreviewEnabled, manualTabComplete, isInvoicePosted],
   );
 
   const markTabComplete = useCallback((tab: ZenithContractContentTab) => {
@@ -187,15 +212,42 @@ export function ZenithContractChromeProvider({
       setIsScrollCollapsed(false);
       return;
     }
-    setActiveTabState("Summary");
+    
+    // Check for zenithTab URL parameter to set initial tab
+    const zenithTabParam = searchParams.get("zenithTab");
+    const initialTab: ZenithContractActiveTab = 
+      zenithTabParam && (ZENITH_CONTRACT_CONTENT_TABS as readonly string[]).includes(zenithTabParam)
+        ? zenithTabParam as ZenithContractActiveTab
+        : "Summary";
+    
+    setActiveTabState(initialTab);
     setIsScrollCollapsed(false);
-    setContractLineItems([...zenithSummaryLineItems]);
-    setManualTabComplete({});
+    
+    // If ingestion is complete (invoice submitted), pre-populate all items as mapped
+    // and all manual tabs as complete
+    if (isIngestionComplete) {
+      // Mark all line items as mapped
+      const completedLineItems = zenithSummaryLineItems.map((item) => ({
+        ...item,
+        mappingStatus: "mapped" as const,
+      }));
+      setContractLineItems(completedLineItems);
+      
+      // Mark all manual tabs as complete
+      setManualTabComplete({
+        "Billing info": true,
+        "Addresses": true,
+      });
+    } else {
+      setContractLineItems([...zenithSummaryLineItems]);
+      setManualTabComplete({});
+    }
+    
     setReviewStatus(DEFAULT_ZENITH_CONTRACT_REVIEW_STATUS);
     setComments([]);
     setCommentsPanelOpen(false);
     setCommentFocus(null);
-  }, [enabled, resetKey]);
+  }, [enabled, resetKey, searchParams, isIngestionComplete]);
 
   /** Mark a chrome height transition as in-progress for `durationMs`. */
   const startTransition = useCallback((durationMs = 220) => {
