@@ -20,23 +20,30 @@ src/
     workbench/              # WorkbenchHome (Your tasks | Queue | Approvals), tab content
   components/
     layout/                 # AppShell, TopNav, Sidebar
-    revenue-workspace/      # CustomerRevenueWorkspace, CustomerContextBar, stages,
-                            # ingestion/ (Customer 360 Ingestion tab)
+    revenue-workspace/      # CustomerRevenueWorkspace, CustomerContextBar, stages
+      ingestion/            # Legacy ingestion tab components (IngestionStageContent, sections)
+      contract/zenith/      # NEW DEAL ingestion flow — Zenith contract review UI
+                            # (ZenithContractChromeContext, tab strip, tab panels,
+                            #  ZenithContractInvoicePreviewTab, line item drawer, etc.)
     index-page/             # list table + metric strip primitives
     approvals/              # invoice approval UI + ApprovalSettingsModal
     contracts/              # upload modal, closure modal + ClosureSummaryCard + ClosureBanner
     queue/                  # QueueIntegrationsModal
-    ingestion/              # LinkCustomerModal (queue → customer linking)
+    workbench/              # NEW DEAL customer linking: NewDealCustomerLinkModal,
+                            # CreateCustomerForm, CustomerLinkSearchResults,
+                            # ExtractedCustomerDetailsCard, LinkedCustomerDetailsCard
     common/                 # EntityDrawer, RootErrorBoundary
     ui/                     # shared primitives (StatusBadge, KV, SectionCard, etc.)
   data/                     # mock-data, revrec, support, billing, ingest, queue-data,
                             # approval-policy, workbench-tasks, customer-tasks, email-threads,
-                            # contract-transition, ingestion-session, zenith-ingest-session
+                            # contract-transition, zenith-* (catalog, comments, preview, summary)
   context/                  # IngestProvider + ingest-context-core, DemoPersonaContext,
                             # WorkspaceShellContext
   store/                    # drawer-store (EntityDrawer — invoice approval only),
-                            # link-customer-modal-store (LinkCustomerModal)
-  hooks/                    # usePendingWorkbenchCounts, useApprovalUrlDrawerSync, useScrolled
+                            # new-deal-customer-link-store (NewDealCustomerLinkModal)
+  hooks/                    # usePendingWorkbenchCounts, useApprovalUrlDrawerSync, useScrolled,
+                            # useNewDealCustomerLinkGate
+  lib/                      # new-deal-customer-link (helpers), resolve-ingestion-session
 ```
 
 ## Non-negotiable constraints
@@ -75,8 +82,8 @@ Detailed specs are split across `docs/` so you load only what's relevant. Cursor
 | A module index page (Customers/Quotes/Contracts/Invoices/Prospects)  | `docs/05-index-pages.md`                                           |
 | Routing, URL params, navigation flows                                | `docs/06-routing.md`                                               |
 | Mock data types, seed entries, use-case matrix                       | `docs/08-mock-data.md`                                             |
-| The Queue, contract ingestion, or first-invoice approval flow        | `docs/09-contract-ingestion.md` + `docs/13-drawer-and-flows.md`    |
-| `EntityDrawer`, `LinkCustomerModal`, Customer 360 Ingestion tab, or `drawer-store` | `docs/13-drawer-and-flows.md`                                      |
+| Queue, NEW DEAL ingestion, Zenith contract review, first-invoice approval | `docs/09-contract-ingestion.md` + `docs/13-drawer-and-flows.md`    |
+| `EntityDrawer`, `NewDealCustomerLinkModal`, Zenith flow, or `drawer-store` | `docs/13-drawer-and-flows.md`                                      |
 | Workbench (Your tasks + Queue + Approvals tabs)                      | `docs/10-workbench-home.md`                                        |
 | Tab gating, list-then-detail behavior                                | `docs/11-workspace-cleanup-and-gating.md`                          |
 | Product intent, personas, "what good looks like"                     | `docs/00-overview.md`                                              |
@@ -94,7 +101,7 @@ npm run lint      # eslint
 
 ## Status
 
-Prototype is functionally rich for demo flows. Recent work consolidated navigation around **Workbench**, **Customer 360 Ingestion tab** (LinkCustomerModal → in-workspace review), and **refined workspace chrome**.
+Prototype is functionally rich for demo flows. Recent work implemented the **NEW DEAL INGESTION** flow with a full-screen customer linking modal and a tabbed contract review workspace (Zenith flow).
 
 ### Current implementation (live UI)
 
@@ -107,7 +114,21 @@ Prototype is functionally rich for demo flows. Recent work consolidated navigati
 **Workbench (`/`):**
 - Tabs: **Your tasks** | **Queue** | **Approvals** (blue underline accent)
 - `deriveWorkbenchTasks` + `DemoPersonaContext` filter operator vs approver views
-- Queue Import opens `UploadModal` → **`LinkCustomerModal`** → Customer 360 Ingestion tab (primary ingest path)
+- Queue Import opens `UploadModal` → **`NewDealCustomerLinkModal`** → Zenith Contract Review (primary NEW DEAL ingest path)
+
+**NEW DEAL Ingestion (Zenith flow):**
+- **`NewDealCustomerLinkModal`** — full-screen modal (left: contract PDF preview, right: customer search/create)
+  - Two modes: "Link to existing" (customer table) or "Create new customer" (inline form)
+  - Shows extracted customer details with match status badge
+  - On continue: creates ingestion session → navigates to `/customers/:id?tab=ingestion`
+- **Zenith Contract Review** (`src/components/revenue-workspace/contract/zenith/`)
+  - **`ZenithContractChromeContext`** — shared state for active tab, scroll collapse, line items, comments
+  - **Tab strip**: Summary | Items | Billing info | Addresses | Invoice Preview
+  - Each tab has completion status (incomplete → complete) with "Mark as done" CTAs
+  - **Items tab**: line item table with catalog mapping (Map to existing / Create new panels)
+  - **Invoice Preview tab**: PDF-style invoice document with zoom controls + **Send for approval** CTA
+  - **Comments panel**: slide-out panel for contract review comments with pinning
+- **Send for approval** creates session contract + invoice, navigates to Invoicing tab detail
 
 **Customer workspace:**
 - **`CustomerContextBar`** with restructured header:
@@ -118,11 +139,10 @@ Prototype is functionally rich for demo flows. Recent work consolidated navigati
 - **`RecordHeader`** — actions render inside right context pill (no separate glass container)
 - Stages: Overview, Tasks, Threads, Quotes, Contracts, **Ingestion (conditional — only when an active session exists)**, Invoicing, Collections, RevRec
 - Content column: `max-w-[1020px]` list / `max-w-[860px]` detail on `bg-gray-100`
-- URL → `activeTab` sync: `CustomerRevenueWorkspace` listens for changes in `initialStage` / `activeRecordId` props and updates internal tab + active record state, so deep links and post-action navigation (e.g. Send-for-approval → invoicing detail) land correctly
+- URL → `activeTab` sync: `CustomerRevenueWorkspace` listens for changes in `initialStage` / `activeRecordId` props and updates internal tab + active record state
 
 **Drawer / flows:**
 - **`EntityDrawer`** — simplified global overlay; only renders `InvoiceApprovalDrawer` (mode `invoice_approval`)
-- **`LinkCustomerModal`** — 720px centered modal that links a queue item to a new or existing customer, then routes to `/customers/:id?tab=ingestion`
-- **Customer 360 Ingestion tab** — replaces the old `IngestDrawer` / `UnifiedFlowShell`. Two frames (`Review` → `Preview`); Send-for-approval flips invoice status to `Pending Approval` and lands the user on the new invoice's details page
+- **Approver flow**: Invoice approval via `InvoiceApprovalDrawer` — shows invoice PDF preview, Approve/Reject CTAs
 
 **Stage type:** `src/components/revenue-workspace/stage.ts` — shared `Stage` union for workspace tabs (includes `ingestion`).

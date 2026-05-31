@@ -1,8 +1,12 @@
-# Drawer & Customer 360 Ingestion
+# Drawer & NEW DEAL Ingestion
 
-Reference for the **global overlay** pattern and the **Customer 360 Ingestion tab** architecture.
+Reference for the **global overlay** pattern and the **NEW DEAL Ingestion** architecture (Zenith flow).
 
-**Architecture change (May 2026):** Contract ingestion has moved from the drawer-based `IngestDrawer` + `UnifiedFlowShell` to a **Customer 360 Ingestion tab** inside `CustomerRevenueWorkspace`. The `EntityDrawer` is now simplified to only handle invoice approvals.
+**Architecture change (June 2026):** The NEW DEAL ingestion flow now uses:
+1. **`NewDealCustomerLinkModal`** — full-screen modal for customer linking (replaces `LinkCustomerModal`)
+2. **Zenith Contract Review** — tabbed review UI inside Customer 360 (`contract/zenith/` components)
+
+The `EntityDrawer` remains simplified to only handle invoice approvals.
 
 **Related:** `docs/09-contract-ingestion.md` (business flows), `docs/06-routing.md` (URLs), `docs/03-customer-workspace.md` (workspace tabs).
 
@@ -12,61 +16,86 @@ Reference for the **global overlay** pattern and the **Customer 360 Ingestion ta
 
 ```
 App.tsx
-  <EntityDrawer />          ← invoice approval only, z-[60]
-  <LinkCustomerModal />     ← customer linking for ingestion
+  <EntityDrawer />              ← invoice approval only, z-[60]
+  <NewDealCustomerLinkGateHost />  ← renders NewDealCustomerLinkModal when pending
   <Routes> … </Routes>
 
-drawer-store.ts             ← simplified: open/close, no flow state
-useDrawerStore.ts           ← React hook (useSyncExternalStore)
+drawer-store.ts                 ← simplified: open/close, no flow state
+useDrawerStore.ts               ← React hook (useSyncExternalStore)
 
-EntityDrawer.tsx            ← only renders InvoiceApprovalDrawer
+EntityDrawer.tsx                ← only renders InvoiceApprovalDrawer
 
-link-customer-modal-store.ts ← modal state for ingestion entry
-useLinkCustomerModalStore.ts ← React hook
+new-deal-customer-link-store.ts ← modal state for NEW DEAL ingestion entry
 
 CustomerRevenueWorkspace
-  └─ IngestionStageContent  ← when tab=ingestion
+  └─ IngestionStageContent      ← when tab=ingestion
+       └─ ZenithContractChromeProvider  ← Zenith flow state
+            └─ ZenithContractTabStrip + ZenithContractTabPanel
 ```
 
 Session business state (queue overrides, approvals, closures, ingestion sessions) stays in **`IngestProvider`**. The drawer store only holds **UI orchestration** for invoice approval: what is open and which invoice.
 
 ---
 
-## LinkCustomerModal
+## NewDealCustomerLinkModal
 
-**File:** `src/components/ingestion/LinkCustomerModal.tsx`
+**File:** `src/components/workbench/NewDealCustomerLinkModal.tsx`
 
-The entry point for contract ingestion. Opened via `openLinkCustomerModal(queueItemId)`.
+The entry point for NEW DEAL contract ingestion. Opened via `openNewDealCustomerLinkModal(queueItemId)`.
 
 | Property | Value |
 |---|---|
-| Layout | Centered modal, **720px** width |
-| Backdrop | `bg-black/30`, click to close |
-| z-index | `60` |
+| Layout | **Full-screen** modal (`fixed inset-0`) |
+| Grid | 2-column: left 40% (PDF preview), right 60% (linking UI) |
+| z-index | `70` |
 
-**Content:**
-1. Header with document name, extraction confidence, queue ID
-2. Customer search typeahead (existing customers)
-3. "Create new customer" expandable form
-4. "Open in workspace" CTA
+**Left panel (DocumentPreviewPane):**
+- Contract PDF preview with zoom controls
+- Page navigation
+- Mock contract document rendering
+
+**Right panel:**
+1. **Extracted customer details card** — company, legal entity, domain, contact
+2. **Mode toggle:** "Link to existing" | "Create new customer"
+3. **Link mode:** Search bar + scrollable customer table (`CustomerLinkCustomerTable`)
+4. **Create mode:** Inline form (`CreateCustomerForm`)
+5. **Footer:** Cancel + "Continue to ingest" CTA
+
+**Related components:**
+- `ExtractedCustomerDetailsCard` — displays extracted PDF data
+- `LinkedCustomerDetailsCard` — displays linked customer data
+- `CustomerLinkCondensedStrip` — sticky header when scrolled
+- `CustomerLinkSearchResults` — search bar + customer table
+- `CreateCustomerForm` — inline customer creation form
 
 **On submit:**
 ```typescript
-startIngestionSession(queueItemId, customerId, sampleId, customerLink)
-closeModal()
-navigate(`/customers/${customerId}?tab=ingestion`)
+startIngestionSession(queueItemId, customerId, sampleId, "matched" | "created")
+applyQueueItemOverride(queueItemId, { status: "In Progress", customerId })
+closeNewDealCustomerLinkModal()
+openQueueIngestionTab(customerId, queueItemId, navigate)
+// → /customers/:customerId?tab=ingestion&queueItemId=...
 ```
 
 ### Store API
 
-**Files:** `src/store/link-customer-modal-store.ts`, `src/store/useLinkCustomerModalStore.ts`
+**File:** `src/store/new-deal-customer-link-store.ts`
 
 | Function | Purpose |
 |---|---|
-| `openLinkCustomerModal(queueItemId)` | Open modal with queue item context |
-| `closeLinkCustomerModal()` | Close modal |
-| `getLinkCustomerModalState()` | Get current state |
-| `subscribeLinkCustomerModal()` | Subscribe to changes |
+| `openNewDealCustomerLinkModal(queueItemId)` | Open modal with queue item context |
+| `closeNewDealCustomerLinkModal()` | Close modal |
+| `getNewDealCustomerLinkState()` | Get current state (`{ pendingQueueItemId }`) |
+| `subscribeNewDealCustomerLink()` | Subscribe to changes |
+
+### Gate Host
+
+**File:** `src/components/workbench/NewDealCustomerLinkGateHost.tsx`
+
+Uses `useNewDealCustomerLinkGate()` hook to:
+1. Read pending queue item ID from store
+2. Resolve to full `QueueItem` object
+3. Render `NewDealCustomerLinkModal` when pending, null otherwise
 
 ---
 
@@ -130,17 +159,17 @@ interface DrawerState {
 
 ---
 
-## Customer 360 Ingestion Tab
+## Customer 360 Ingestion Tab (Zenith Flow)
 
-Contract ingestion now happens **inside the customer workspace** via the Ingestion tab.
+Contract ingestion now happens **inside the customer workspace** via the Ingestion tab with the Zenith contract review UI.
 
 ### Entry points
 
 | Source | Action |
 |---|---|
-| `UploadModal` | `openLinkCustomerModal(queueItem.id)` |
-| `QueueTabContent` | Row click → `openLinkCustomerModal(q.id)` |
-| `WorkbenchTaskList` | Queue-sourced tasks → `openLinkCustomerModal(task.drawer.entityId)` |
+| `UploadModal` | `openNewDealCustomerLinkModal(queueItem.id)` |
+| `QueueTabContent` | Row click → `openNewDealCustomerLinkModal(q.id)` |
+| `WorkbenchTaskList` | Queue-sourced tasks → `openNewDealCustomerLinkModal(task.drawer.entityId)` |
 
 ### IngestionSession
 
@@ -165,35 +194,63 @@ The Ingestion tab **only appears** when `getActiveIngestionForCustomer(customerI
 ### URL structure
 
 ```
-/customers/:id?tab=ingestion&frame=1&sub=summary
-/customers/:id?tab=ingestion&frame=1&sub=items
-/customers/:id?tab=ingestion&frame=2&sub=contract-preview
+/customers/:id?tab=ingestion&queueItemId=QI-...&zenithTab=Summary
+/customers/:id?tab=ingestion&queueItemId=QI-...&zenithTab=Items
+/customers/:id?tab=ingestion&queueItemId=QI-...&zenithTab=Billing+info
+/customers/:id?tab=ingestion&queueItemId=QI-...&zenithTab=Addresses
+/customers/:id?tab=ingestion&queueItemId=QI-...&zenithTab=Invoice+Preview
 ```
 
-### Frame 1 (Review)
+### Zenith Contract Chrome
 
-Sub-tabs via `ContextInfoPill`:
-- Summary, Items, Billing, Addresses, Additional Info, PDFs
+**Provider:** `ZenithContractChromeContext` wraps the ingestion content and provides:
 
-Each section has a status indicator (issues/review/done) and "Mark as done" CTA.
+```typescript
+interface ZenithContractChromeValue {
+  activeTab: ZenithContractActiveTab;
+  setActiveTab: (tab: ZenithContractActiveTab) => void;
+  ingestionQueueItemId?: string;
+  ingestionCustomerId?: string;
+  isScrollCollapsed: boolean;
+  getContentTabStatus: (tab: ZenithContractContentTab) => ZenithTabCompletionStatus;
+  markTabComplete: (tab: ZenithContractContentTab) => void;
+  unmarkTabComplete: (tab: ZenithContractContentTab) => void;
+  contractLineItems: ZenithSummaryLineItem[];
+  setContractLineItems: (items: ZenithSummaryLineItem[]) => void;
+  reviewStatus: ZenithContractReviewStatus;
+  comments: ZenithContractComment[];
+  commentsPanelOpen: boolean;
+  openCommentsPanel: (focus?: ZenithCommentFocus) => void;
+  closeCommentsPanel: () => void;
+  addComment: (input: { tab, anchorLabel, text }) => void;
+}
+```
 
-### Frame 2 (Preview)
+### Tab strip (`ZenithContractTabStrip`)
 
-Sub-tabs:
-- `← Back to ingestion` (returns to `?frame=1&sub=summary`)
-- Contract Preview — mock of Chargebee contract
-- Invoice Preview — mock of first invoice
+Horizontal tab bar with:
+- Tab buttons: Summary | Items | Billing info | Addresses | Invoice Preview
+- Status icons per tab (`ZenithContractTabStatusIcon`):
+  - Gray circle — incomplete
+  - Green checkmark — complete
+- Invoice Preview tab disabled until all other tabs complete
 
-The pill swaps between the Frame-1 and Frame-2 layouts based on `?frame=`. `IngestionStageContent` also normalizes `?sub=` to a valid value for the active frame so cross-frame transitions never land on a blank canvas.
+### Tab content (`ZenithContractTabPanel`)
 
-### Actions (right context pill)
+Renders the appropriate tab component based on `activeTab`:
+- `ZenithContractSummaryTab`
+- `ZenithContractItemsTab` + `ZenithLineItemBottomDrawer`
+- `ZenithContractBillingInfoTab` + `ZenithMarkTabDoneBar`
+- `ZenithContractAddressesTab` + `ZenithMarkTabDoneBar`
+- `ZenithContractInvoicePreviewTab`
 
-`IngestionActions` is **portaled** into the right context pill via `RecordSlotContext` / `RecordHeader` — the same pattern Quote / Contract / Invoicing detail pages use. Only flat-text CTAs live in the pill; there is no status dropdown.
+### Comments panel (`ZenithContractCommentsPanel`)
 
-| Frame | Primary CTAs | Overflow (`…`) |
-|---|---|---|
-| Frame 1 | **Preview** (disabled until every section is `done` or `overallStatus === "ready"`) | — |
-| Frame 2 | **Send for approval** | Restart ingestion · Discard contract |
+Slide-out panel (right side) for contract review comments:
+- Comment list with author, timestamp, pinned status
+- "Add comment" form
+- Filter by tab anchor
+- Pin/unpin comments
 
 ---
 
@@ -214,8 +271,11 @@ After "Send for approval" in the Ingestion tab:
 
 ## Deleted components
 
-The following were removed as part of the Customer 360 migration:
+The following were removed as part of the NEW DEAL ingestion refactor:
 
+- `src/components/ingestion/LinkCustomerModal.tsx` — replaced by `NewDealCustomerLinkModal`
+- `src/store/link-customer-modal-store.ts` — replaced by `new-deal-customer-link-store.ts`
+- `src/store/useLinkCustomerModalStore.ts` — no longer needed
 - `src/components/transitions/UnifiedFlowShell.tsx`
 - `src/components/transitions/IngestDrawer.tsx`
 - `src/components/transitions/ValidationPanel.tsx`
@@ -225,7 +285,7 @@ The following were removed as part of the Customer 360 migration:
 - `src/components/transitions/panels/*`
 - `src/pages/QueueIngestPage.tsx`
 
-The `src/components/transitions/` directory no longer exists.
+The `src/components/transitions/` and `src/components/ingestion/` directories no longer exist.
 
 Flow-related store functions (`patchFlowSession`, `setFlowStep`) and types (`TransitionFlowSession`, `FlowStepId`, `FlowScenario`) are no longer used.
 
@@ -237,11 +297,17 @@ Flow-related store functions (`patchFlowSession`, `setFlowStep`) and types (`Tra
 |---|---|
 | `src/components/common/EntityDrawer.tsx` | Invoice approval overlay only |
 | `src/store/drawer-store.ts` | Simplified drawer state |
-| `src/store/link-customer-modal-store.ts` | LinkCustomerModal state |
-| `src/components/ingestion/LinkCustomerModal.tsx` | Customer linking modal |
-| `src/components/revenue-workspace/ingestion/*` | Ingestion tab components |
+| `src/store/new-deal-customer-link-store.ts` | NewDealCustomerLinkModal state |
+| `src/components/workbench/NewDealCustomerLinkModal.tsx` | Full-screen customer linking modal |
+| `src/components/workbench/CreateCustomerForm.tsx` | Inline customer creation form |
+| `src/components/workbench/CustomerLinkSearchResults.tsx` | Customer search table |
+| `src/components/workbench/NewDealCustomerLinkGateHost.tsx` | Modal gate wrapper |
+| `src/hooks/useNewDealCustomerLinkGate.tsx` | Hook to resolve pending queue item |
+| `src/lib/new-deal-customer-link.ts` | Helper functions for linking flow |
+| `src/components/revenue-workspace/contract/zenith/*` | Zenith contract review UI |
+| `src/components/revenue-workspace/ingestion/*` | Legacy ingestion tab components |
 | `src/context/IngestProvider.tsx` | Session state including IngestionSession |
-| `src/data/ingestion-session.ts` | Contract/Invoice builders |
+| `src/data/zenith-*.ts` | Zenith seed data (catalog, summary, comments) |
 | `src/components/approvals/InvoiceApprovalDrawer.tsx` | Approval drawer body |
 
 ---
@@ -250,17 +316,19 @@ Flow-related store functions (`patchFlowSession`, `setFlowStep`) and types (`Tra
 
 **Do**
 
-- Use `openLinkCustomerModal(queueItemId)` for new ingestion entry points.
+- Use `openNewDealCustomerLinkModal(queueItemId)` for NEW DEAL ingestion entry points.
 - Persist ingestion session state in `IngestContext` via `IngestionSession`.
-- Navigate to `/customers/:id?tab=ingestion` after customer linking.
+- Navigate to `/customers/:id?tab=ingestion&queueItemId=...` after customer linking.
+- Use `ZenithContractChromeContext` for Zenith flow state (active tab, line items, comments).
 - Use `openDrawer` only for invoice approval.
-- Render Ingestion-tab CTAs through `RecordHeader` (with `ActionButton` + `OverflowItem`) so they appear in the right context pill — same primitives as other detail pages.
+- Render Invoice Preview tab with PDF-style invoice document + Send for approval CTA.
 - After Send-for-approval, drive the new invoice details page entirely from URL params (`?tab=invoicing&invoiceId=...`); rely on `CustomerRevenueWorkspace`'s URL → `activeTab` sync effect rather than imperatively setting tab state.
 
 **Don't**
 
+- Reference deleted `LinkCustomerModal` or `link-customer-modal-store` (use NEW DEAL equivalents).
 - Add flow/step state to drawer-store (removed).
 - Reference deleted transition components.
-- Create new drawer modes for ingestion (use Customer 360 tab).
-- Reintroduce a status chip / status dropdown into the Ingestion actions pill — sections drive the gate, not a global selector.
-- Use `useState` initializers to mirror props (e.g. `preselectedCustomer` in `LinkCustomerModal`); use `useEffect` so the state updates when the prop changes.
+- Create new drawer modes for ingestion (use Customer 360 Zenith tabs).
+- Mix Zenith tab state with legacy ingestion frame/sub URL params — Zenith uses `&zenithTab=...`.
+- Skip the `ZenithContractChromeProvider` wrapper when rendering Zenith content.

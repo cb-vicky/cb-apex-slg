@@ -1,6 +1,6 @@
 ---
 description: Contract ingestion and invoice approval flows
-globs: src/pages/ApprovalDetailPage.tsx,src/context/IngestContext.tsx,src/context/IngestProvider.tsx,src/context/ingest-context-core.ts,src/data/ingest-data.ts,src/data/queue-data.ts,src/data/approval-policy.ts,src/data/ingestion-session.ts,src/components/contracts/**,src/components/approvals/**,src/components/queue/**,src/components/ingestion/**,src/components/revenue-workspace/ingestion/**,src/components/common/EntityDrawer.tsx,src/store/**
+globs: src/pages/ApprovalDetailPage.tsx,src/context/IngestContext.tsx,src/context/IngestProvider.tsx,src/context/ingest-context-core.ts,src/data/ingest-data.ts,src/data/queue-data.ts,src/data/approval-policy.ts,src/data/zenith-*.ts,src/components/contracts/**,src/components/approvals/**,src/components/queue/**,src/components/workbench/**,src/components/revenue-workspace/ingestion/**,src/components/revenue-workspace/contract/zenith/**,src/components/common/EntityDrawer.tsx,src/store/**,src/lib/new-deal-customer-link.ts,src/hooks/useNewDealCustomerLinkGate.tsx
 alwaysApply: false
 ---
 
@@ -8,17 +8,19 @@ alwaysApply: false
 
 When editing ingest, queue, approval, or ingestion tab flows:
 
-- **`docs/13-drawer-and-flows.md`** — EntityDrawer (invoice approval only), LinkCustomerModal, Customer 360 Ingestion tab
-- **`docs/09-contract-ingestion.md`** — business flows, ingestion tab sections, send-for-approval
+- **`docs/13-drawer-and-flows.md`** — EntityDrawer (invoice approval only), NewDealCustomerLinkModal, Zenith Contract Review
+- **`docs/09-contract-ingestion.md`** — NEW DEAL ingestion flow, Zenith tabs, send-for-approval
 - **`docs/06-routing.md`** — `/customers/:id?tab=ingestion`, `/approvals/invoices/:id`, redirects
-- **`docs/08-mock-data.md`** — IngestProvider state, IngestionSession type
+- **`docs/08-mock-data.md`** — IngestProvider state, IngestionSession type, Zenith seed data
 
 ## Key rules
 
-1. **Primary ingest path:** `LinkCustomerModal` → Customer 360 **Ingestion tab** — not EntityDrawer.
+1. **Primary NEW DEAL ingest path:** `NewDealCustomerLinkModal` → Zenith Contract Review tabs → Invoice Preview → Send for approval.
 2. Queue landing is **Workbench `/?tab=queue`** — `/queue` and `/queue/:id` redirect there.
 3. Use **`IngestProvider`** / `useIngestContext()` — context is split across `ingest-context-core.ts`.
 4. **`IngestionSession`** tracks per-customer ingestion state including section completion.
-5. **EntityDrawer** is simplified — only handles invoice approval mode.
-6. Ingestion tab visibility is **conditional** — only shows when customer has active session.
-7. Frame 1 (review sections) → Frame 2 (previews) → Send for approval.
+5. **Zenith flow** uses `ZenithContractChromeContext` for tab state, line items, comments.
+6. **EntityDrawer** is simplified — only handles invoice approval mode.
+7. Ingestion tab visibility is **conditional** — only shows when customer has active session.
+8. Zenith tabs: Summary → Items (map to catalog) → Billing info → Addresses → Invoice Preview → Send for approval.
+9. **Deleted:** `LinkCustomerModal`, `link-customer-modal-store` — use NEW DEAL equivalents in `src/components/workbench/`.
