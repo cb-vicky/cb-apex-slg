@@ -27,15 +27,15 @@ export function ZenithMarkTabDoneBar({
   tab: ZenithContractContentTab;
   className?: string;
 }) {
-  const chrome = useZenithContractChrome();
+  const chromeOrNull = useZenithContractChrome();
   const stickyChromeHeight = useZenithStickyChromeHeight();
-  if (!chrome || !MANUAL_COMPLETE_TABS.includes(tab)) return null;
+  if (!chromeOrNull || !MANUAL_COMPLETE_TABS.includes(tab)) return null;
 
+  const chrome = chromeOrNull;
   const isComplete = chrome.getContentTabStatus(tab) === "complete";
   const stickyStyle = stickyChromeHeight > 0 ? { top: stickyChromeHeight } : undefined;
 
   function handleMarkDone() {
-    if (!chrome) return;
     chrome.markTabComplete(tab);
     const nextTab = NEXT_TAB_MAP[tab];
     if (nextTab) {
