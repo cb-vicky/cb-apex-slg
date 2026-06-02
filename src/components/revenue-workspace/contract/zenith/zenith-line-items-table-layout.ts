@@ -20,7 +20,6 @@ export function zenithLineItemsBillingGapTdClass(
     "border-border-subtle border-dashed bg-white p-0 align-middle",
     "border-r border-b",
     row.isFirst && "border-t",
-    column === "first" && "border-l",
     column === "last" && "border-r",
     row.isLast && column === "first" && "rounded-bl-xl",
     row.isLast && column === "last" && "rounded-br-xl",

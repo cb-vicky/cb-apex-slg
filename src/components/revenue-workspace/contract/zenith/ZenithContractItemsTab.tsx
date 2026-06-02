@@ -361,9 +361,7 @@ function ItemsMappingAlert({ summary }: { summary: ItemsTabActionSummary }) {
     >
       <Info size={16} strokeWidth={2} className="mt-0.5 shrink-0 text-amber-600" aria-hidden />
       <div className="min-w-0 text-[13px] leading-snug text-amber-900">
-        <p className="font-semibold text-amber-900">
-          Action needed on {summary.totalCount} item{summary.totalCount === 1 ? "" : "s"}.
-        </p>
+        <p className="font-semibold text-amber-900">Action needed.</p>
         <ul className="mt-1.5 list-disc space-y-1 pl-4 text-amber-800">
           {summary.unmappedMatchCount > 0 ? (
             <li>
@@ -374,8 +372,9 @@ function ItemsMappingAlert({ summary }: { summary: ItemsTabActionSummary }) {
           ) : null}
           {summary.addToContractCount > 0 ? (
             <li>
-              {summary.addToContractCount} item{summary.addToContractCount === 1 ? "" : "s"} not
-              present in the contract should be added to comply with billing rules.
+              {summary.addToContractCount} mandatory add-on
+              {summary.addToContractCount === 1 ? "" : "s"} not present in the contract need your
+              approval.
             </li>
           ) : null}
         </ul>
@@ -397,6 +396,24 @@ function ItemsAllResolvedAlert() {
 }
 
 const billingGapCopyClass = "text-text-muted";
+
+function LineItemStatusAccentStrip({
+  colorClass,
+  curveBottomLeft = false,
+}: {
+  colorClass: string;
+  curveBottomLeft?: boolean;
+}) {
+  if (!curveBottomLeft) {
+    return <span aria-hidden className={cn("pointer-events-none absolute inset-y-0 left-0 w-[3px]", colorClass)} />;
+  }
+
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-bl-xl">
+      <span aria-hidden className={cn("absolute inset-y-0 left-0 w-[3px] rounded-bl-xl", colorClass)} />
+    </div>
+  );
+}
 
 function BillingGapTableRow({
   item,
@@ -422,7 +439,8 @@ function BillingGapTableRow({
 
   return (
     <tr className={cn("group bg-white", isLastRow && "relative z-10", ignored && "opacity-70")}>
-      <td className={cn(gapTd("first"), "relative w-10 overflow-visible align-top")}>
+      <td className={cn(gapTd("first"), "relative w-10 align-top")}>
+        <LineItemStatusAccentStrip colorClass="bg-amber-500" curveBottomLeft={isLastRow} />
         <div className="relative flex h-9 items-center justify-center">
           {ignored ? (
             <span
@@ -438,9 +456,16 @@ function BillingGapTableRow({
         </div>
       </td>
       <td className={cn(gapTd("middle"), "min-w-[200px]")}>
-        <div className="flex min-h-9 flex-col justify-center gap-0.5 px-3 py-1.5">
+        <div className="flex min-h-9 items-center gap-2 px-3 py-1.5">
           <span className={cn("text-[13px] font-medium", struckCopyClass)}>{item.name}</span>
-          <p className={cn("text-[11px] leading-snug", struckCopyClass)}>{item.inclusionReason}</p>
+          <span
+            className={cn(
+              "inline-flex shrink-0 items-center rounded-full border border-border-subtle bg-white px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-muted",
+              ignored && "line-through decoration-text-muted/70",
+            )}
+          >
+            Mandatory add-on
+          </span>
         </div>
       </td>
       <td className={cn(gapTd("middle"), "min-w-[140px]")}>
@@ -1101,18 +1126,9 @@ function ItemsTableRow({
       )}
       onClick={expandable ? onSelect : undefined}
     >
-      <td
-        className={cn(
-          tdClass,
-          "relative w-10 align-top",
-          showMappingStrip && isLastRow && "overflow-hidden rounded-bl-xl",
-        )}
-      >
+      <td className={cn(tdClass, "relative w-10 align-top")}>
         {showMappingStrip ? (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-amber-500"
-          />
+          <LineItemStatusAccentStrip colorClass="bg-amber-500" curveBottomLeft={isLastRow} />
         ) : null}
         <div className="relative flex h-9 items-center justify-center">{renderStatusIcon()}</div>
       </td>
@@ -1707,6 +1723,7 @@ export function ZenithContractItemsTab({
             <LineItemPinnedStrip
               item={drawerItem}
               showPlaceholder={isAddRowDrawer}
+              hideAccentStrip={Boolean(rejectedMatchCatalogByLine[drawerItem.id])}
             />
           ) : undefined
         }

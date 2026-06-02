@@ -94,6 +94,7 @@ interface Props {
   item: ZenithSummaryLineItem;
   resolution?: LineItemPinnedStripResolution;
   showPlaceholder?: boolean;
+  hideAccentStrip?: boolean;
   className?: string;
 }
 
@@ -101,6 +102,7 @@ export function LineItemPinnedStrip({
   item,
   resolution,
   showPlaceholder = false,
+  hideAccentStrip = false,
   className,
 }: Props) {
   const yellowUnresolved = isYellowUnresolvedStripItem(item, resolution);
@@ -142,13 +144,15 @@ export function LineItemPinnedStrip({
           <tbody>
             <tr>
               <td className={cn(stripTdClass, "relative w-9")}>
-                <span
-                  aria-hidden
-                  className={cn(
-                    "pointer-events-none absolute inset-y-0 left-0 w-[3px]",
-                    accentBarClass,
-                  )}
-                />
+                {!hideAccentStrip ? (
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "pointer-events-none absolute inset-y-0 left-0 w-[3px]",
+                      accentBarClass,
+                    )}
+                  />
+                ) : null}
                 <div className="relative flex items-center justify-center py-1.5 pl-1 pr-0.5">
                   <span className="sr-only">Status</span>
                   <StripStatusIcon item={item} resolution={resolution} />

@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react";
+import { ExternalLink, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Customer } from "@/data/mock-data";
 import { WTable, WTbody, WTr, WTd } from "@/components/ui/data-table";
@@ -107,7 +107,7 @@ export function CustomerClosestMatchPanel({
                   <WTr
                     key={customer.id}
                     className={cn(
-                      "cursor-pointer",
+                      "group cursor-pointer",
                       selected
                         ? "bg-blue-50/70 hover:bg-blue-50/80"
                         : "hover:bg-gray-50/80",
@@ -136,6 +136,12 @@ export function CustomerClosestMatchPanel({
                         <span className="truncate font-semibold text-text-primary">
                           {customer.name}
                         </span>
+                        <ExternalLink
+                          size={13}
+                          strokeWidth={2}
+                          className="shrink-0 text-text-muted opacity-0 transition-opacity group-hover:opacity-100"
+                          aria-hidden
+                        />
                       </div>
                     </WTd>
                     <WTd className="max-w-0 px-2 py-1.5 whitespace-normal">
