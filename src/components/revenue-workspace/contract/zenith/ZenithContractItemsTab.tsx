@@ -415,6 +415,21 @@ function LineItemStatusAccentStrip({
   );
 }
 
+const ZENITH_LINE_ITEMS_TABLE_COLUMN_COUNT = 7;
+
+function BillingGapSectionHeaderRow() {
+  return (
+    <tr className="bg-gray-50">
+      <td
+        colSpan={ZENITH_LINE_ITEMS_TABLE_COLUMN_COUNT}
+        className="border-t border-border-subtle bg-gray-50 px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-text-muted"
+      >
+        Items not in contract
+      </td>
+    </tr>
+  );
+}
+
 function BillingGapTableRow({
   item,
   isFirstRow,
@@ -440,7 +455,9 @@ function BillingGapTableRow({
   return (
     <tr className={cn("group bg-white", isLastRow && "relative z-10", ignored && "opacity-70")}>
       <td className={cn(gapTd("first"), "relative w-10 align-top")}>
-        <LineItemStatusAccentStrip colorClass="bg-amber-500" curveBottomLeft={isLastRow} />
+        {!ignored ? (
+          <LineItemStatusAccentStrip colorClass="bg-amber-500" curveBottomLeft={isLastRow} />
+        ) : null}
         <div className="relative flex h-9 items-center justify-center">
           {ignored ? (
             <span
@@ -970,11 +987,13 @@ function LineItemExpandedLayer({
             onChange={onClearResolution}
           />
         </div>
-        <LineItemPinnedStrip
-          item={item}
-          resolution={{ kind: resolution.kind, itemName: resolution.itemName }}
-          className="shrink-0 border-b-0 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-300 motion-safe:delay-75"
-        />
+        {!isAddRow ? (
+          <LineItemPinnedStrip
+            item={item}
+            resolution={{ kind: resolution.kind, itemName: resolution.itemName }}
+            className="shrink-0 border-b-0 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-300 motion-safe:delay-75"
+          />
+        ) : null}
       </div>
     );
   }
@@ -1030,7 +1049,7 @@ function LineItemExpandedLayer({
                   onClick={onConfirmMapCatalog}
                   className="inline-flex h-8 items-center rounded-full bg-blue-600 px-4 text-[12px] font-semibold text-white transition-colors hover:bg-blue-700"
                 >
-                  {isAddRow ? "Add to contract" : "Submit"}
+                  {isAddRow ? "Add item" : "Submit"}
                 </button>
               </div>
             ) : null}
@@ -1051,7 +1070,7 @@ function LineItemExpandedLayer({
                   form={CREATE_CATALOG_ITEM_FORM_ID}
                   className="inline-flex h-8 items-center rounded-full bg-blue-600 px-4 text-[12px] font-semibold text-white transition-colors hover:bg-blue-700"
                 >
-                  {isAddRow ? "Add to contract" : "Submit"}
+                  {isAddRow ? "Add item" : "Submit"}
                 </button>
               </div>
             ) : null}
@@ -1471,6 +1490,12 @@ export function ZenithContractItemsTab({
     });
   }
 
+  function closeDrawerAfterAddRow(lineId: string) {
+    setExpandedItemId((current) => (current === lineId ? null : current));
+    resetExpandedPanel();
+    clearDrawerFormState(lineId);
+  }
+
   function submitMapCatalogFromDrawer(lineId: string) {
     const catalogItemId = pendingCatalogByLine[lineId];
     if (!catalogItemId) return;
@@ -1495,12 +1520,14 @@ export function ZenithContractItemsTab({
     if (addRowDraftId === lineId) {
       setPersistedItems((prev) => [...prev, updatedLine]);
       setDraftLineItem(null);
-    } else {
-      setPersistedItems((prev) =>
-        prev.map((line) => (line.id === lineId ? updatedLine : line)),
-      );
+      setMappedCatalogByLine((prev) => ({ ...prev, [lineId]: catalogItemId }));
+      closeDrawerAfterAddRow(lineId);
+      return;
     }
 
+    setPersistedItems((prev) =>
+      prev.map((line) => (line.id === lineId ? updatedLine : line)),
+    );
     setMappedCatalogByLine((prev) => ({ ...prev, [lineId]: catalogItemId }));
     resolveLineItem(lineId, {
       kind: "mapped",
@@ -1518,12 +1545,13 @@ export function ZenithContractItemsTab({
     if (addRowDraftId === lineId) {
       setPersistedItems((prev) => [...prev, updatedLine]);
       setDraftLineItem(null);
-    } else {
-      setPersistedItems((prev) =>
-        prev.map((line) => (line.id === lineId ? updatedLine : line)),
-      );
+      closeDrawerAfterAddRow(lineId);
+      return;
     }
 
+    setPersistedItems((prev) =>
+      prev.map((line) => (line.id === lineId ? updatedLine : line)),
+    );
     resolveLineItem(lineId, { kind: "created", itemName: payload.name });
   }
 
@@ -1678,8 +1706,10 @@ export function ZenithContractItemsTab({
                     onSelect={() => toggleLineItem(item)}
                   />
                 ))}
-                {visibleBillingGapItems.length > 0
-                  ? visibleBillingGapItems.map((item, index) => (
+                {visibleBillingGapItems.length > 0 ? (
+                  <>
+                    <BillingGapSectionHeaderRow />
+                    {visibleBillingGapItems.map((item, index) => (
                       <BillingGapTableRow
                         key={item.id}
                         item={item}
@@ -1690,8 +1720,9 @@ export function ZenithContractItemsTab({
                         onIgnore={() => ignoreBillingGapItem(item.id)}
                         onRestore={() => restoreBillingGapItem(item.id)}
                       />
-                    ))
-                  : null}
+                    ))}
+                  </>
+                ) : null}
               </tbody>
             </table>
           </div>
@@ -1719,10 +1750,9 @@ export function ZenithContractItemsTab({
         headerTitle={isAddRowDrawer ? "New row" : undefined}
         closeLabel={isAddRowDrawer ? "Close add line item panel" : "Close item panel"}
         pinnedStrip={
-          drawerItem && !drawerResolution ? (
+          drawerItem && !drawerResolution && !isAddRowDrawer ? (
             <LineItemPinnedStrip
               item={drawerItem}
-              showPlaceholder={isAddRowDrawer}
               hideAccentStrip={Boolean(rejectedMatchCatalogByLine[drawerItem.id])}
             />
           ) : undefined
@@ -1736,7 +1766,7 @@ export function ZenithContractItemsTab({
                   onClick={() => submitMapCatalogFromDrawer(drawerItem.id)}
                   className="inline-flex h-8 items-center rounded-full bg-blue-600 px-4 text-[12px] font-semibold text-white transition-colors hover:bg-blue-700"
                 >
-                  {isAddRowDrawer ? "Add to contract" : "Submit"}
+                  {isAddRowDrawer ? "Add item" : "Submit"}
                 </button>
               </div>
             ) : panelMode === "create" ? (
@@ -1751,7 +1781,7 @@ export function ZenithContractItemsTab({
                   }
                   className="inline-flex h-8 items-center rounded-full bg-blue-600 px-4 text-[12px] font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
                 >
-                  {isAddRowDrawer ? "Add to contract" : "Submit"}
+                  {isAddRowDrawer ? "Add item" : "Submit"}
                 </button>
               </div>
             ) : undefined

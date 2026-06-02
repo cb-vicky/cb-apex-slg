@@ -6,7 +6,7 @@ export const zenithLineItemsTableClassName =
   "w-full min-w-[720px] border-collapse text-[13px]";
 
 export const zenithLineItemsThClass =
-  "border-b border-r border-border-subtle bg-gray-50 px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-text-muted last:border-r-0";
+  "border-b border-r border-border-subtle bg-gray-100 px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-text-secondary last:border-r-0";
 
 export const zenithLineItemsTdClass =
   "border-b border-r border-border-subtle p-0 align-middle last:border-r-0";
