@@ -10,14 +10,18 @@ src/data/
   revrec-data.ts            — revenue arrangements, obligations, schedules
   support-data.ts           — support tickets, email summaries
   billing-data.ts           — payments, collection cases, credit notes
-  ingest-data.ts            — extracted contract samples (sample2–4), approval types
-  queue-data.ts             — queue seeds, getQueueItemBySample
+  ingest-data.ts            — extracted contract samples (sample2–5), approval types
+  queue-data.ts             — queue seeds, getQueueItemBySample, `linkWorkflow` / `suggestedCustomerId`
+  customer-link-search-seed.ts — extra catalog rows for customer-link modal search (incl. Pioneer-adjacent names)
   approval-policy.ts        — merchant policy, PendingRenewalIngestion, grace types
   workbench-tasks.ts        — deriveWorkbenchTasks, WorkbenchTask, stats
   customer-tasks.ts         — per-customer tasks for Tasks tab
   email-threads.ts          — threads for Threads tab
   contract-transition.ts    — drawer flow types, ContractGraceExtension
+  contract-line-items.ts    — **Workbench Items tab** line rows (by ingest `sampleId` / contract id)
   zenith-ingest-session.ts  — Zenith new-business session helpers
+  zenith-contract-summary.ts — Zenith Summary/Billing/Addresses seeds (line items re-export shared data)
+  zenith-catalog-items.ts   — site catalog for line-item mapping
 ```
 
 ## Core record types (from `mock-data.ts`)
@@ -171,7 +175,9 @@ Added fields (from Customer tab work):
 ## Ingestion types (from `ingest-data.ts`)
 
 - `SampleDoc` — sample document definitions
-- `ExtractedContract` — all fields extracted from a document
+- `ExtractedContract` — all fields extracted from a document; includes **`billingRuleGapItems`** (mandatory add-ons not on PDF — Items tab dashed rows)
+- `BillingRuleGapSuggestion` — one billing-rule gap row (`catalogItemId`, `inclusionReason`, pricing)
+- `getBillingRuleGapItemsForSample(sampleId)` — returns gap rows for active ingest sample
 - `ExtractedProduct` — per-line product extracted
 - `ExtractedTerms` — commercial terms extracted
 - `IngestIssue` — blocking or warning issue on extracted contract
@@ -199,8 +205,115 @@ Added fields (from Customer tab work):
 | `QI-2026-0002` | New Business | `sample2` | `true` | Zenith-style exception path; standard **Ingest contract** completion |
 | `QI-2026-0006` | Early Renewal | `sample3` | `true` | Verdant; **Proceed to close prior contract** (no standard ingest finish) |
 | `QI-2026-0003` | Late Renewal | *(none)* | `false` | Northlane Labs; **placeholder** page only — **next** to evolve into a real flow |
+| `QI-2026-0007` | New Business | `sample5` | `true` | **Pioneer Systems** — **`match_first`** customer link (`suggestedCustomerId: cust_pioneer_004`) |
 
 `getQueueItemBySample("sample2" | "sample3")` maps Upload modal choices to **`QI-2026-0002`** / **`QI-2026-0006`**. Components that list queue data should use **`useIngestContext().queueItems`** (merged overrides), not the static `queueItems` export alone, when overrides matter.
+
+### Contract line items — Workbench Items tab (`contract-line-items.ts`)
+
+Shared model for **any** ingested contract’s Items tab (not only Zenith UI):
+
+| Type / export | Purpose |
+|---------------|---------|
+| `ContractLineItem` | `id`, `name`, `frequency`, `quantity`, `unitPrice`, `totalPrice`, `mappingStatus` (`mapped` \| `needs_mapping`), optional `catalogLink`, optional `billingRuleInclusionReason` |
+| `contractLineItemsByIngestSample` | Rows per **`sample2`** (Zenith), **`sample5`** (Pioneer); `sample3` / `sample4` empty until renewal flows get Items |
+| `contractLineItemsByContractId` | `CON-INGEST-002`, `CON-INGEST-005`, … |
+| `getContractLineItemsForIngest({ sampleId, contractId })` | Resolver used when ingestion session starts / chrome resets |
+
+**Related (different shape):**
+
+- `mock-data.ts` → `Contract.products[]` — post-signature commercial products on stored contracts (enforcement / RevRec), not the ingest mapping grid.
+- `ingest-data.ts` → `ExtractedContract.products[]` — raw PDF extraction before mapping.
+
+`zenith-contract-summary.ts` re-exports `zenithSummaryLineItems` as an alias of `contractLineItemsByIngestSample.sample2` for backward compatibility.
+
+#### Billing-rule gap suggestions (`contract-line-items.ts` — additive)
+
+Catalog items required by site billing rules but **not** present on the uploaded contract PDF. Shown in the Items tab **below** solid contract rows (dashed borders), keyed by ingest `sampleId`.
+
+| Type / export | Purpose |
+|---------------|---------|
+| `BillingRuleGapSuggestion` (`ingest-data.ts`) | `id`, `catalogItemId`, `name`, pricing fields, `inclusionReason` (info-icon tooltip + subtitle) |
+| `ContractBillingGapItem` | Type alias of `BillingRuleGapSuggestion` (`contract-line-items.ts`) |
+| `ContractBillingGapResolution` | `"included"` \| `"ignored"` — persisted in chrome while ingest session is active |
+| `ExtractedContract.billingRuleGapItems` | **Mock seed** per ingest sample on `extractedSample2`, `extractedSample5`, etc. |
+| `getBillingRuleGapItemsForSample(sampleId)` | Reads `billingRuleGapItems` from `getExtractedContract(sampleId)` |
+| `getBillingGapItemsForIngest(sampleId, contractItems)` | Resolves sample from arg or `inferIngestSampleIdFromLineItems`, then `getBillingRuleGapItemsForSample` |
+| `countPendingBillingGapItems(gapItems, resolutions)` | Unresolved = no entry in `billingGapResolutions` |
+| `deriveItemsTabActionSummary(...)` | Amber banner counts: unmapped lines, pending system matches, pending `billing_rule_match` lines, pending gap rows |
+
+**`ContractLineItem.catalogLink` values (additive):**
+
+| Value | Items-tab icon | Drawer on row click |
+|-------|----------------|---------------------|
+| `system_match` | Green info — “Match found” | Match-found approve/reject banner |
+| `user_mapped` / `user_created` | Green check | Map / create flow (resolved) |
+| `billing_rule_match` | Amber info — `billingRuleInclusionReason` tooltip | **Map to existing** (no Match found); catalog pre-selected on Add |
+| `needs_mapping` (no link) | Amber info | Map / create |
+
+**Gap seed by ingest sample:**
+
+| Sample | Plan in contract | Gap rows (`catalogItemId`) | `inclusionReason` (tooltip) |
+|--------|------------------|----------------------------|-----------------------------|
+| `sample2` | Growth CRM | `item-analytics-pro`, `item-support-standard` | Mandatory add-on for Growth CRM plan |
+| `sample5` | Apex Platform – Growth | `item-support-standard`, `item-ai-credits` | Mandatory add-on / Mandatory overage add-on for Apex Platform Growth plan |
+| `sample3`, `sample4` | — | `[]` | Renewal flows — no Items grid yet |
+
+**Gap row UX (resolved in chrome `billingGapResolutions`):**
+
+- **Add** — appends `ContractLineItem` with `catalogLink: "billing_rule_match"`, removes row from dashed section (`included`), pre-seeds map drawer catalog selection.
+- **Ignore** — keeps dashed row with strikethrough; amber info icon replaced by neutral dot; **Restore** on hover clears resolution.
+- Tab completion: every gap row `included` or `ignored`; every contract line mapped and system / billing-rule matches approved in drawer.
+
+**Items tab banners:**
+
+- Amber **Action needed on N items** while `deriveItemsTabActionSummary().totalCount > 0`.
+- Green **All items resolved.** when `totalCount === 0` and there is at least one contract line or gap seed for the sample.
+
+#### `ZenithContractChromeContext` — Items-related state (additive)
+
+| Field | Purpose |
+|-------|---------|
+| `contractLineItems` / `setContractLineItems` | Mutable Items-tab rows for active ingest session |
+| `billingGapResolutions` / `setBillingGapResolutions` | `Record<gapItemId, ContractBillingGapResolution>`; reset when ingest session / `resetKey` changes |
+| `ingestionSampleId` | Drives `getContractLineItemsForIngest` + gap seeds (`sample2`, `sample5`, …) |
+
+`areZenithContractItemsComplete({ items, sampleId, billingGapResolutions })` — tab complete when all lines `mapped` and no pending gap rows.
+
+
+Optional fields on `QueueItem` for the NEW DEAL link step:
+
+| Field | Purpose |
+|-------|---------|
+| `linkWorkflow?: "standard" \| "match_first"` | **`standard`** — search/create only. **`match_first`** — closest-match banner + similar browse (Pioneer / `sample5`). Defaults via `getCustomerLinkWorkflowVariant()` when omitted (`sample5` → `match_first`). |
+| `suggestedCustomerId?: string` | Site customer id for AI closest match (`cust_pioneer_004` on `QI-2026-0007`). |
+
+### Extracted contract — Sample 5 (`ingest-data.ts`)
+
+- **`sample5`** / **`extractedSample5`** — Pioneer Systems new business (`PioneerSystems_NewBusiness_Platform_2026_Signed.pdf`, TCV ~$186k).
+- Maps to existing customer **`cust_pioneer_004`** (Pioneer Systems) in CRM; extraction copy guides link-or-create.
+- Used by **`QI-2026-0007`** and Workbench queue-sourced ingest tasks for the match-first demo.
+
+### Customer link search seed (`customer-link-search-seed.ts`)
+
+- **`customerLinkSearchSeedCustomers`** — appended to site catalog inside `NewDealCustomerLinkModal` (merged with `seedCustomers` from `mock-data.ts`).
+- **`pioneerSimilarLinkSearchCustomerIds`** — four near-duplicate **Pioneer Systems** rows in `mock-data.ts` (casing / typo variants) for similar-matches browse:
+  - `cust_pioneer_systems_v2` — Pioneer systems
+  - `cust_pioneer_systems_typo` — Pinoeer Systems
+  - `cust_pioneer_systems_singular` — Pioneer System
+  - `cust_pioneer_systems_plural` — Pioneers Systems
+- **`pioneerMatchFoundCustomerIds`** — `cust_pioneer_004` (Pioneer Systems) plus the four ids above for the match-first banner table.
+- **Primary contact column** — not a separate field; derived in `customer-link-display.ts` as `csm` → `billingOwner` → `ae`. Vary `csm` on the Pioneer variant rows in `mock-data.ts` to differentiate the match-found table.
+- Consumed by **`buildSimilarCustomerBrowseList()`** in `src/lib/new-deal-customer-link-workflow.ts` when `queueItem.sampleId === "sample5"`.
+
+### Customer link workflow helpers (`src/lib/new-deal-customer-link-workflow.ts`)
+
+| Export | Role |
+|--------|------|
+| `getCustomerLinkWorkflowVariant(queueItem)` | `"standard"` \| `"match_first"` |
+| `suggestClosestCustomerMatch(queueItem, extracted, customers)` | Closest site row (uses `suggestedCustomerId` or name/domain scoring) |
+| `buildSimilarCustomerBrowseList(...)` | Ordered list: closest + up to 4 similar rows |
+| `rankCustomersForMatchBrowse(...)` | Full catalog ranked by similarity (non-similar rows after matches in “View all”) |
 
 ## Approval policy types (from `approval-policy.ts`)
 
@@ -298,7 +411,7 @@ Each customer showcases a distinct stage of the revenue lifecycle for prototype 
 1. **Echo Corp** (cust_echo_001) — AI infrastructure, healthy prior term + renewal pending
 2. **Lumina AI** (cust_lumina_002) — **contract closing** (wind-down to May 1), replaced by new contract, closure credit note pending
 3. **Northlane Labs** (cust_northlane_003) — 1 overdue invoice, support escalation
-4. **Pioneer Systems** (cust_pioneer_004) — new, quote pending approval, no contract
+4. **Pioneer Systems** (cust_pioneer_004) — new, quote pending approval, no contract; **queue ingest** `QI-2026-0007` / `sample5` drives **match-first** customer link (`suggestedCustomerId` → this record)
 5. **Verdant Health** (cust_verdant_005) — prepaid credit nearly exhausted (< 20%)
 6. **Zenith Analytics** (cust_zenith_006) — new customer created via ingest exception path
 

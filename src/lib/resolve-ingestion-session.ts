@@ -22,7 +22,12 @@ export function buildApproverIngestionSession(
   customerId: string,
 ): IngestionSession | undefined {
   const sampleId = queueItem.sampleId;
-  if (sampleId !== "sample2" && sampleId !== "sample3" && sampleId !== "sample4") {
+  if (
+    sampleId !== "sample2" &&
+    sampleId !== "sample3" &&
+    sampleId !== "sample4" &&
+    sampleId !== "sample5"
+  ) {
     return undefined;
   }
   return {

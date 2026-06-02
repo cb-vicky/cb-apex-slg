@@ -1,9 +1,20 @@
 // ---------------------------------------------------------------------------
+// Contract Ingestion + Approvals — extracted PDF samples for queue / modal demos
+// ---------------------------------------------------------------------------
+// sample2 — Zenith Analytics (standard link → Zenith contract review)
+// sample3 — Verdant Health early renewal
+// sample4 — late renewal (queue-only / workspace path)
+// sample5 — Pioneer Systems new business (match-first customer link; QI-2026-0007)
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
 // TYPES — Contract Ingestion + Approvals
 // ---------------------------------------------------------------------------
 
+export type IngestQueueSampleId = "sample2" | "sample3" | "sample4" | "sample5";
+
 export interface SampleDoc {
-  id: "sample2" | "sample3" | "sample4";
+  id: IngestQueueSampleId;
   label: string;
   subtitle: string;
   path: "happy" | "exception";
@@ -75,8 +86,21 @@ export interface ExtractedDocument {
 
 export type IngestionSectionId = "summary" | "items" | "billing" | "addresses" | "additional";
 
+/** Billing-rule catalog item suggested on Items tab but not present on the uploaded contract PDF. */
+export interface BillingRuleGapSuggestion {
+  id: string;
+  catalogItemId: string;
+  name: string;
+  frequency: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  /** Info-icon tooltip and row subtitle on Items tab. */
+  inclusionReason: string;
+}
+
 export interface ExtractedContract {
-  docId: "sample1" | "sample2" | "sample3" | "sample4";
+  docId: "sample1" | IngestQueueSampleId;
   documentName: string;
   extractedAt: string;
   extractionConfidence: number;
@@ -97,6 +121,8 @@ export interface ExtractedContract {
   documents: ExtractedDocument[];
   /** Per-section issue messages (sections with issues start as "issues" state) */
   sectionIssues: Partial<Record<IngestionSectionId, string>>;
+  /** Mandatory / rule-driven add-ons not found on the contract document (Items tab dashed rows). */
+  billingRuleGapItems: BillingRuleGapSuggestion[];
 }
 
 export interface CreatedObject {
@@ -107,7 +133,7 @@ export interface CreatedObject {
 }
 
 export interface IngestResult {
-  docId: "sample1" | "sample2" | "sample3" | "sample4";
+  docId: "sample1" | IngestQueueSampleId;
   contractId: string;
   customerId: string;
   invoiceId: string;
@@ -157,6 +183,13 @@ export const sampleDocs: SampleDoc[] = [
     subtitle: "Early renewal path: active contract requires closure before ingestion",
     path: "happy",
     documentName: "VerdantHealth_EarlyRenewal_2026.pdf",
+  },
+  {
+    id: "sample5",
+    label: "Pioneer Systems — New Business",
+    subtitle: "New deal: extracted customer matches site record — confirm and link",
+    path: "exception",
+    documentName: "PioneerSystems_NewBusiness_Platform_2026_Signed.pdf",
   },
 ];
 
@@ -259,6 +292,7 @@ export const extractedSample1: ExtractedContract = {
     { id: "doc-echo-1", name: "EchoCorp_MSA_Renewal_2026_Signed.pdf", kind: "contract" },
   ],
   sectionIssues: {},
+  billingRuleGapItems: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -375,6 +409,160 @@ export const extractedSample2: ExtractedContract = {
     items: "2 items need mapping to your catalog",
     addresses: "Review required — confirm addresses",
   },
+  billingRuleGapItems: [
+    {
+      id: "bg-analytics-pro",
+      catalogItemId: "item-analytics-pro",
+      name: "Apex Analytics Pro",
+      frequency: "Yearly",
+      quantity: 1,
+      unitPrice: 960,
+      totalPrice: 960,
+      inclusionReason: "Mandatory add-on for Growth CRM plan",
+    },
+    {
+      id: "bg-standard-support",
+      catalogItemId: "item-support-standard",
+      name: "Standard Support",
+      frequency: "Monthly",
+      quantity: 1,
+      unitPrice: 800,
+      totalPrice: 800,
+      inclusionReason: "Mandatory add-on for Growth CRM plan",
+    },
+  ],
+};
+
+// ---------------------------------------------------------------------------
+// EXTRACTED CONTRACT DATA — Sample 5 (Pioneer Systems new business — match-first link)
+// Closest site match: cust_pioneer_004 (Pioneer Systems). customerFound: false so
+// operator confirms via NewDealCustomerLinkMatchFirstPanel (QI-2026-0007).
+// ---------------------------------------------------------------------------
+
+export const extractedSample5: ExtractedContract = {
+  docId: "sample5",
+  documentName: "PioneerSystems_NewBusiness_Platform_2026_Signed.pdf",
+  extractedAt: "2026-04-21T14:32:00Z",
+  extractionConfidence: 93,
+  customerName: "Pioneer Systems",
+  customerLegalEntity: "Pioneer Systems Corp.",
+  primaryContactName: "Alex Nguyen",
+  primaryContactEmail: "alex.nguyen@pioneersystems.com",
+  customerId: undefined,
+  customerFound: false,
+  quoteMatchId: undefined,
+  quoteMatchConfidence: undefined,
+  products: [
+    {
+      extractedName: "Apex Platform – Growth",
+      extractedSku: "APEX-GROWTH",
+      catalogSku: "APEX-GROWTH-YR",
+      matched: true,
+      quantity: 50,
+      unitPrice: 2400,
+      discount: 10,
+      billingModel: "Yearly",
+    },
+    {
+      extractedName: "Implementation Services",
+      extractedSku: "IMPL-SVC",
+      catalogSku: undefined,
+      matched: false,
+      quantity: 1,
+      unitPrice: 18000,
+      discount: 0,
+      billingModel: "One-time",
+    },
+  ],
+  terms: {
+    term: "12 months",
+    startDate: "2026-05-01",
+    endDate: "2027-04-30",
+    billingFrequency: "Annual, billed upfront",
+    paymentTerms: "Net 30",
+    tcv: 186000,
+    arr: 186000,
+    minCommit: 150000,
+    prepaidCredits: 0,
+    autoRenew: false,
+  },
+  issues: [
+    {
+      id: "issue-customer",
+      type: "customer_not_found",
+      severity: "blocking",
+      message: "Confirm customer link",
+      detail:
+        "\"Pioneer Systems\" was extracted from the contract. Link to the existing site record or create a new customer before ingest.",
+    },
+    {
+      id: "issue-product",
+      type: "product_mismatch",
+      severity: "blocking",
+      message: "1 item needs mapping",
+      detail: "\"Implementation Services\" is not in the product catalog. Map to an existing charge or create a new item.",
+    },
+  ],
+  addresses: {
+    billing: {
+      line1: "1200 Congress Ave",
+      line2: "Suite 400",
+      city: "Austin",
+      state: "Texas",
+      postalCode: "78701",
+      country: "United States",
+    },
+    shipping: {
+      line1: "1200 Congress Ave",
+      line2: "Suite 400",
+      city: "Austin",
+      state: "Texas",
+      postalCode: "78701",
+      country: "United States",
+    },
+    sameAsBilling: true,
+  },
+  additionalInfo: {
+    notes: [
+      "New business CPQ handoff — AE Sophia Brandt.",
+      "Customer record exists in CRM (001Dn000011xD7W); billing entity must match Pioneer Systems Corp.",
+    ],
+    clauses: [
+      {
+        title: "Payment method",
+        body: "Customer prefers card on file; confirm payment method before first invoice.",
+      },
+    ],
+  },
+  documents: [
+    { id: "doc-pioneer-1", name: "PioneerSystems_NewB...", kind: "contract" },
+    { id: "doc-pioneer-2", name: "Order_Form.pdf", kind: "sow" },
+  ],
+  sectionIssues: {
+    items: "1 item needs mapping to your catalog",
+  },
+  billingRuleGapItems: [
+    {
+      id: "bg-pioneer-standard-support",
+      catalogItemId: "item-support-standard",
+      name: "Standard Support",
+      frequency: "Monthly",
+      quantity: 1,
+      unitPrice: 800,
+      totalPrice: 800,
+      inclusionReason: "Mandatory add-on for Apex Platform Growth plan",
+    },
+    {
+      id: "bg-pioneer-ai-credits",
+      catalogItemId: "item-ai-credits",
+      name: "AI Credits",
+      frequency: "Monthly",
+      quantity: 1,
+      unitPrice: 0.02,
+      totalPrice: 0.02,
+      inclusionReason: "Mandatory overage add-on for Apex Platform Growth plan",
+    },
+  ],
 };
 
 // ---------------------------------------------------------------------------
@@ -456,6 +644,7 @@ export const extractedSample3: ExtractedContract = {
     { id: "doc-verdant-1", name: "VerdantHealth_EarlyRenewal_2026.pdf", kind: "contract" },
   ],
   sectionIssues: {},
+  billingRuleGapItems: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -552,6 +741,7 @@ export const extractedSample4: ExtractedContract = {
   sectionIssues: {
     billing: "Confirm billing frequency change from annual to monthly",
   },
+  billingRuleGapItems: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -571,15 +761,26 @@ export const analysisMessages = [
 // HELPERS
 // ---------------------------------------------------------------------------
 
-export function getExtractedContract(sampleId: "sample1" | "sample2" | "sample3" | "sample4"): ExtractedContract {
+export function getExtractedContract(
+  sampleId: "sample1" | IngestQueueSampleId,
+): ExtractedContract {
   if (sampleId === "sample1") return extractedSample1;
   if (sampleId === "sample3") return extractedSample3;
   if (sampleId === "sample4") return extractedSample4;
+  if (sampleId === "sample5") return extractedSample5;
   return extractedSample2;
 }
 
+/** Billing-rule gap rows for Items tab — sourced from extracted contract mock per sample. */
+export function getBillingRuleGapItemsForSample(
+  sampleId: IngestQueueSampleId | undefined,
+): BillingRuleGapSuggestion[] {
+  if (!sampleId) return [];
+  return getExtractedContract(sampleId).billingRuleGapItems.map((item) => ({ ...item }));
+}
+
 export function buildIngestResult(
-  docId: "sample1" | "sample2" | "sample3" | "sample4",
+  docId: "sample1" | IngestQueueSampleId,
   resolvedCustomerId: string,
   meta?: {
     customerLabel?: string;
@@ -626,6 +827,23 @@ export function buildIngestResult(
         { type: "customer", id: "cust_northlane_003", label: "Customer: Northlane Labs", action: "reused" },
         { type: "product", id: "APEX-PLATFORM", label: "APEX-PLATFORM, APEX-AI-CREDITS, APEX-SUPPORT", action: "reused" },
         { type: "contract", id: "CON-2026-0NL1", label: "Contract CON-2026-0NL1 (Scheduled)", action: "created" },
+      ],
+    };
+  }
+  if (docId === "sample5") {
+    const label = meta?.customerLabel?.trim() || "Pioneer Systems";
+    const contractId = meta?.contractId ?? "CON-INGEST-005";
+    const invoiceId = meta?.invoiceId ?? "INV-INGEST-005";
+    const customerAction = meta?.customerAction ?? "reused";
+    return {
+      docId,
+      contractId,
+      customerId: resolvedCustomerId,
+      invoiceId,
+      createdObjects: [
+        { type: "customer", id: resolvedCustomerId, label: `Customer: ${label}`, action: customerAction },
+        { type: "product", id: "APEX-GROWTH", label: "APEX-GROWTH, IMPL-SVC", action: "created" },
+        { type: "contract", id: contractId, label: `Contract ${contractId}`, action: "created" },
       ],
     };
   }

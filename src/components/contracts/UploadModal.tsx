@@ -16,7 +16,9 @@ export function UploadModal({ onClose }: Props) {
   const { setSelectedSample } = useIngestContext();
 
   const [step, setStep] = useState<Step>("choose");
-  const [chosenSample, setChosenSample] = useState<"sample2" | "sample3" | "sample4" | null>(null);
+  const [chosenSample, setChosenSample] = useState<
+    "sample2" | "sample3" | "sample4" | "sample5" | null
+  >(null);
   const [progress, setProgress] = useState(0);
   const [msgIdx, setMsgIdx] = useState(0);
 
@@ -56,7 +58,7 @@ export function UploadModal({ onClose }: Props) {
     return () => clearTimeout(t);
   }, [step, chosenSample, setSelectedSample, onClose]);
 
-  function handleSampleClick(id: "sample2" | "sample3" | "sample4") {
+  function handleSampleClick(id: "sample2" | "sample3" | "sample4" | "sample5") {
     setChosenSample(id);
     setStep("loading");
     setProgress(0);

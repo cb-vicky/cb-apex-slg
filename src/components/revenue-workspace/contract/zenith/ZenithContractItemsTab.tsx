@@ -1,17 +1,19 @@
-import {
-  useCallback,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useZenithContractChrome } from "./ZenithContractChromeContext";
-import { CircleCheck, Info, ChevronDown, Link2, MoreVertical, Plus, UserPlus } from "lucide-react";
+import { CircleCheck, ChevronDown, Info, Link2, MoreVertical, Plus, Sparkles, UserPlus } from "lucide-react";
 import { getZenithCatalogItemById, type ZenithCatalogSiteItem } from "@/data/zenith-catalog-items";
 import {
-  zenithSummaryLineItems,
-  zenithSummaryLineItemsNeedMappingCount,
-  type ZenithSummaryLineItem,
-} from "@/data/zenith-contract-summary";
+  deriveItemsTabActionSummary,
+  getBillingGapItemsForIngest,
+  isContractLineBillingRuleMatch,
+  isContractLineCatalogMatch,
+  isContractLineSystemMatch,
+  type ContractBillingGapItem,
+  type ContractLineItemCatalogLink,
+  type ItemsTabActionSummary,
+} from "@/data/contract-line-items";
+import type { ZenithSummaryLineItem } from "@/data/zenith-contract-summary";
 import { cn } from "@/lib/utils";
 import { WTable, WTbody, WTd, WTr } from "@/components/ui/data-table";
 import { StatusBadge } from "@/components/ui/primitives";
@@ -38,12 +40,18 @@ import {
   CatalogItemExternalLink,
   ZenithItemMapToExistingPanel,
 } from "./ZenithItemMapToExistingPanel";
+import { LineItemPinnedStrip } from "./LineItemPinnedStrip";
 import { MatchedItemCondensedStrip } from "./MatchedItemCondensedStrip";
+import {
+  zenithLineItemsTableClassName,
+  zenithLineItemsBillingGapTdClass,
+  zenithLineItemsTdClass,
+  zenithLineItemsThClass,
+} from "./zenith-line-items-table-layout";
 
 type MappedPanelMode = "match" | "map" | "create";
 type ZenithLineItemFlow = "mapping" | "add-row";
 
-const SUCCESS_MESSAGE_AUTO_CLOSE_MS = 3500;
 
 export type LineItemResolutionDetail = {
   kind: "mapped" | "created" | "approved";
@@ -65,6 +73,7 @@ function formatMoney(amount: number): string {
 function lineItemFromCatalog(
   line: ZenithSummaryLineItem,
   catalog: ZenithCatalogSiteItem,
+  catalogLink: ContractLineItemCatalogLink = "user_mapped",
 ): ZenithSummaryLineItem {
   const quantity = line.quantity || 1;
   const unitPrice = catalog.unitPrice;
@@ -75,6 +84,7 @@ function lineItemFromCatalog(
     unitPrice,
     totalPrice: quantity * unitPrice,
     mappingStatus: "mapped",
+    catalogLink,
   };
 }
 
@@ -90,6 +100,7 @@ function lineItemFromCreatePayload(
     unitPrice: payload.unitPrice,
     totalPrice: quantity * payload.unitPrice,
     mappingStatus: "mapped",
+    catalogLink: "user_created",
   };
 }
 
@@ -132,9 +143,8 @@ function formatMatchUnitPrice(amount: number): string {
   }).format(amount);
 }
 
-const thClass =
-  "border-b border-r border-border-subtle bg-gray-50 px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-text-muted last:border-r-0";
-const tdClass = "border-b border-r border-border-subtle p-0 align-middle last:border-r-0";
+const thClass = zenithLineItemsThClass;
+const tdClass = zenithLineItemsTdClass;
 
 type ExpandedSurfaceTone = "work" | "match" | "resolved";
 
@@ -195,6 +205,106 @@ function StatusIconWithTooltip({
   );
 }
 
+function splitBillingGapTooltip(text: string): [string, string] {
+  const marker = " for ";
+  const idx = text.indexOf(marker);
+  if (idx === -1) return [text, ""];
+  return [text.slice(0, idx + marker.length).trim(), text.slice(idx + marker.length).trim()];
+}
+
+function BillingGapTooltipContent({ text }: { text: string }) {
+  const [line1, line2] = splitBillingGapTooltip(text);
+  return (
+    <>
+      <span className="block">{line1}</span>
+      {line2 ? <span className="block">{line2}</span> : null}
+    </>
+  );
+}
+
+const billingGapTooltipClassName =
+  "pointer-events-none w-[148px] rounded-md bg-gray-900 px-2 py-1.5 text-left text-[11px] font-medium leading-[1.35] text-white shadow-md";
+
+function BillingGapStatusIcon({
+  tooltip,
+  elevateTooltip = false,
+}: {
+  tooltip: string;
+  elevateTooltip?: boolean;
+}) {
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ top: number; left: number } | null>(null);
+
+  const icon = (
+    <Info size={14} strokeWidth={2.25} className="shrink-0 text-amber-600" aria-hidden />
+  );
+
+  function showElevatedTooltip() {
+    const rect = anchorRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setTooltipPos({
+      top: rect.top + rect.height / 2,
+      left: rect.right + 8,
+    });
+  }
+
+  if (!elevateTooltip) {
+    return (
+      <span className="group/map-icon relative inline-flex">
+        <span className="inline-flex rounded p-0.5" aria-hidden>
+          {icon}
+        </span>
+        <span
+          role="tooltip"
+          className={cn(
+            billingGapTooltipClassName,
+            "absolute top-1/2 left-full z-50 ml-2 -translate-y-1/2 opacity-0 transition-opacity",
+            "group-hover/map-icon:opacity-100",
+          )}
+        >
+          <BillingGapTooltipContent text={tooltip} />
+        </span>
+      </span>
+    );
+  }
+
+  return (
+    <>
+      <span
+        ref={anchorRef}
+        className="inline-flex rounded p-0.5"
+        aria-hidden
+        onMouseEnter={showElevatedTooltip}
+        onMouseLeave={() => setTooltipPos(null)}
+        onFocus={showElevatedTooltip}
+        onBlur={() => setTooltipPos(null)}
+      >
+        {icon}
+      </span>
+      {tooltipPos
+        ? createPortal(
+            <span
+              role="tooltip"
+              className={cn(billingGapTooltipClassName, "fixed z-[9999] -translate-y-1/2")}
+              style={{ top: tooltipPos.top, left: tooltipPos.left }}
+            >
+              <BillingGapTooltipContent text={tooltip} />
+            </span>,
+            document.body,
+          )
+        : null}
+    </>
+  );
+}
+
+function CatalogMappedStatusIcon() {
+  return (
+    <StatusIconWithTooltip tooltip="Mapped to catalog item">
+      <CircleCheck size={16} strokeWidth={2} className="shrink-0 text-emerald-600" aria-hidden />
+    </StatusIconWithTooltip>
+  );
+}
+
 function MappedStatusIcon({ onClick }: { onClick?: () => void }) {
   const icon = (
     <Info size={14} strokeWidth={2.25} className="shrink-0 text-emerald-600" aria-hidden />
@@ -220,7 +330,7 @@ function MappedStatusIcon({ onClick }: { onClick?: () => void }) {
 }
 
 function UnmappedStatusIcon({ onClick }: { onClick?: () => void }) {
-  const icon = <Info size={14} strokeWidth={2.25} className="shrink-0 text-red-600" aria-hidden />;
+  const icon = <Info size={14} strokeWidth={2.25} className="shrink-0 text-amber-600" aria-hidden />;
   return (
     <StatusIconWithTooltip tooltip="No match found - needs mapping">
       {onClick ? (
@@ -228,7 +338,7 @@ function UnmappedStatusIcon({ onClick }: { onClick?: () => void }) {
           type="button"
           onClick={onClick}
           aria-label="Open mapping options"
-          className="rounded p-0.5 text-red-600 transition-colors hover:bg-red-50"
+          className="rounded p-0.5 text-amber-600 transition-colors hover:bg-amber-50"
         >
           {icon}
         </button>
@@ -241,72 +351,172 @@ function UnmappedStatusIcon({ onClick }: { onClick?: () => void }) {
   );
 }
 
-function ResolvedStatusIcon({
-  resolution,
-  flow = "mapping",
-}: {
-  resolution: LineItemResolutionDetail;
-  flow?: ZenithLineItemFlow;
-}) {
-  const isAddRow = flow === "add-row";
-  const tooltip = isAddRow
-    ? resolution.kind === "mapped"
-      ? `Added ${resolution.itemName} to contract`
-      : `Created and added ${resolution.itemName}`
-    : resolution.kind === "mapped"
-      ? `Linked to ${resolution.itemName}`
-      : resolution.kind === "created"
-        ? `Created ${resolution.itemName}`
-        : `Approved match for ${resolution.itemName}`;
-
-  return (
-    <StatusIconWithTooltip tooltip={tooltip}>
-      <CircleCheck size={16} strokeWidth={2} className="shrink-0 text-emerald-600" aria-hidden />
-    </StatusIconWithTooltip>
-  );
-}
-
-function ItemsMappingAlert({ unmappedCount }: { unmappedCount: number }) {
-  if (unmappedCount === 0) return null;
+function ItemsMappingAlert({ summary }: { summary: ItemsTabActionSummary }) {
+  if (summary.totalCount === 0) return null;
 
   return (
     <div
       role="alert"
-      className="flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-3.5 py-3"
+      className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-3"
     >
-      <Info size={16} strokeWidth={2} className="mt-0.5 shrink-0 text-red-600" aria-hidden />
-      <p className="min-w-0 text-[13px] leading-snug text-red-900">
-        <span className="font-semibold">
-          We couldn&apos;t find a match for {unmappedCount} item{unmappedCount === 1 ? "" : "s"}.
-        </span>{" "}
-        <span className="text-red-800">
-          Map them with existing items or create new with extracted data
-        </span>
-      </p>
+      <Info size={16} strokeWidth={2} className="mt-0.5 shrink-0 text-amber-600" aria-hidden />
+      <div className="min-w-0 text-[13px] leading-snug text-amber-900">
+        <p className="font-semibold text-amber-900">
+          Action needed on {summary.totalCount} item{summary.totalCount === 1 ? "" : "s"}.
+        </p>
+        <ul className="mt-1.5 list-disc space-y-1 pl-4 text-amber-800">
+          {summary.unmappedMatchCount > 0 ? (
+            <li>
+              We couldn&apos;t find a match for {summary.unmappedMatchCount} item
+              {summary.unmappedMatchCount === 1 ? "" : "s"}. Link it with existing item or create
+              new with extracted data.
+            </li>
+          ) : null}
+          {summary.addToContractCount > 0 ? (
+            <li>
+              {summary.addToContractCount} item{summary.addToContractCount === 1 ? "" : "s"} not
+              present in the contract should be added to comply with billing rules.
+            </li>
+          ) : null}
+        </ul>
+      </div>
     </div>
   );
 }
 
-function ItemsResolvedBar({ onMarkDone }: { onMarkDone: () => void }) {
+function ItemsAllResolvedAlert() {
   return (
     <div
       role="status"
-      className="flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-3"
+      className="flex items-start gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-3"
     >
-      <div className="flex min-w-0 items-center gap-2">
-        <CircleCheck size={16} strokeWidth={2} className="shrink-0 text-emerald-600" aria-hidden />
-        <p className="text-[13px] font-medium leading-snug text-emerald-800">
-          All items resolved
-        </p>
-      </div>
-      <button
-        type="button"
-        onClick={onMarkDone}
-        className="inline-flex h-8 shrink-0 items-center rounded-full bg-emerald-600 px-4 text-[12px] font-semibold text-white transition-colors hover:bg-emerald-700"
-      >
-        Mark as done
-      </button>
+      <CircleCheck size={16} strokeWidth={2} className="mt-0.5 shrink-0 text-emerald-600" aria-hidden />
+      <p className="text-[13px] font-semibold leading-snug text-emerald-900">All items resolved.</p>
     </div>
+  );
+}
+
+const billingGapCopyClass = "text-text-muted";
+
+function BillingGapTableRow({
+  item,
+  isFirstRow,
+  isLastRow,
+  ignored = false,
+  onInclude,
+  onIgnore,
+  onRestore,
+}: {
+  item: ContractBillingGapItem;
+  isFirstRow: boolean;
+  isLastRow: boolean;
+  ignored?: boolean;
+  onInclude: () => void;
+  onIgnore: () => void;
+  onRestore: () => void;
+}) {
+  const rowPosition = { isFirst: isFirstRow, isLast: isLastRow };
+  const gapTd = (column: "first" | "middle" | "last") =>
+    zenithLineItemsBillingGapTdClass(column, rowPosition);
+  const struckCopyClass = cn(billingGapCopyClass, ignored && "line-through decoration-text-muted/70");
+
+  return (
+    <tr className={cn("group bg-white", isLastRow && "relative z-10", ignored && "opacity-70")}>
+      <td className={cn(gapTd("first"), "relative w-10 overflow-visible align-top")}>
+        <div className="relative flex h-9 items-center justify-center">
+          {ignored ? (
+            <span
+              aria-hidden
+              className="inline-block h-3.5 w-3.5 rounded-full border border-border-subtle bg-gray-100"
+            />
+          ) : (
+            <BillingGapStatusIcon
+              tooltip={item.inclusionReason}
+              elevateTooltip={isLastRow}
+            />
+          )}
+        </div>
+      </td>
+      <td className={cn(gapTd("middle"), "min-w-[200px]")}>
+        <div className="flex min-h-9 flex-col justify-center gap-0.5 px-3 py-1.5">
+          <span className={cn("text-[13px] font-medium", struckCopyClass)}>{item.name}</span>
+          <p className={cn("text-[11px] leading-snug", struckCopyClass)}>{item.inclusionReason}</p>
+        </div>
+      </td>
+      <td className={cn(gapTd("middle"), "min-w-[140px]")}>
+        <span className={cn("flex h-9 items-center px-3 text-[13px]", struckCopyClass)}>
+          {item.frequency}
+        </span>
+      </td>
+      <td className={cn(gapTd("middle"), "w-[88px]")}>
+        <span className={cn("flex h-9 items-center justify-end px-3 text-[13px] tabular-nums", struckCopyClass)}>
+          {item.quantity}
+        </span>
+      </td>
+      <td className={cn(gapTd("middle"), "w-[120px]")}>
+        <span className={cn("flex h-9 items-center justify-end px-3 text-[13px] tabular-nums", struckCopyClass)}>
+          {formatMoney(item.unitPrice)}
+        </span>
+      </td>
+      <td className={cn(gapTd("middle"), "w-[120px]")}>
+        <span className={cn("flex h-9 items-center justify-end px-3 text-[13px] tabular-nums", struckCopyClass)}>
+          {formatMoney(item.totalPrice)}
+        </span>
+      </td>
+      <td className={cn(gapTd("last"), "relative w-11 align-top")}>
+        {!ignored ? (
+          <div
+            className={cn(
+              "absolute top-1/2 right-2 z-10 flex -translate-y-1/2 items-center gap-1.5",
+              "opacity-0 transition-opacity duration-150",
+              "group-hover:opacity-100 group-focus-within:opacity-100",
+              "[@media(hover:none)]:opacity-100",
+            )}
+          >
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onIgnore();
+              }}
+              className="inline-flex h-7 items-center rounded-full border border-border-default bg-white px-2.5 text-[11px] font-semibold text-text-secondary shadow-sm transition-colors hover:bg-gray-50 hover:text-text-primary"
+            >
+              Ignore
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onInclude();
+              }}
+              className="inline-flex h-7 items-center rounded-full bg-blue-600 px-2.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
+            >
+              Add
+            </button>
+          </div>
+        ) : (
+          <div
+            className={cn(
+              "absolute top-1/2 right-2 z-10 flex -translate-y-1/2 items-center",
+              "opacity-0 transition-opacity duration-150",
+              "group-hover:opacity-100 group-focus-within:opacity-100",
+              "[@media(hover:none)]:opacity-100",
+            )}
+          >
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onRestore();
+              }}
+              className="inline-flex h-7 items-center rounded-full border border-border-default bg-white px-2.5 text-[11px] font-semibold text-text-secondary shadow-sm transition-colors hover:bg-gray-50 hover:text-text-primary"
+            >
+              Restore
+            </button>
+          </div>
+        )}
+      </td>
+    </tr>
   );
 }
 
@@ -472,7 +682,7 @@ function ItemMappingSuccessLayer({
     <div
       className={cn(
         "flex min-w-0 items-center justify-between gap-4",
-        embedded ? "py-0.5" : "bg-[#E6F9E9] px-3 py-3",
+        embedded ? "py-0" : "bg-[#E6F9E9] px-3 py-3",
       )}
     >
       <p className="text-[13px] font-medium leading-snug text-emerald-800">{message}</p>
@@ -492,6 +702,7 @@ function MatchedItemFoundLayer({
   item,
   matchedCatalogItemId = DEFAULT_MATCHED_CATALOG_ITEM_ID,
   onApproveMatch,
+  onRejectMatch,
   onMapExisting,
   onCreateNew,
   hideSecondaryActions = false,
@@ -499,6 +710,7 @@ function MatchedItemFoundLayer({
   item: ZenithSummaryLineItem;
   matchedCatalogItemId?: string;
   onApproveMatch: () => void;
+  onRejectMatch: () => void;
   onMapExisting: () => void;
   onCreateNew: () => void;
   hideSecondaryActions?: boolean;
@@ -537,7 +749,7 @@ function MatchedItemFoundLayer({
       >
         <div className="flex items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
-            <Info
+            <Sparkles
               size={16}
               strokeWidth={2}
               className="shrink-0 text-emerald-600"
@@ -545,13 +757,22 @@ function MatchedItemFoundLayer({
             />
             <p className="text-[13px] font-semibold leading-snug text-emerald-800">Match found</p>
           </div>
-          <button
-            type="button"
-            onClick={onApproveMatch}
-            className="inline-flex h-7 shrink-0 items-center rounded-full border border-emerald-500 bg-white px-2.5 text-[11px] font-medium text-emerald-700 transition-colors hover:border-emerald-600 hover:bg-emerald-50/80"
-          >
-            Approve match
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={onApproveMatch}
+              className="inline-flex h-7 items-center rounded-full border border-emerald-500 bg-white px-2.5 text-[11px] font-medium text-emerald-700 transition-colors hover:border-emerald-600 hover:bg-emerald-50/80"
+            >
+              Approve
+            </button>
+            <button
+              type="button"
+              onClick={onRejectMatch}
+              className="inline-flex h-7 items-center rounded-full border border-border-default bg-white px-2.5 text-[11px] font-medium text-text-secondary transition-colors hover:border-gray-300 hover:bg-gray-50 hover:text-text-primary"
+            >
+              Reject
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto border-t border-emerald-200/70 bg-white">
@@ -642,12 +863,14 @@ function LineItemExpandedLayer({
   onExpandMatchBanner,
   onItemCreated,
   onApproveMatch,
+  onRejectSystemMatch,
   onClearResolution,
   flow = "mapping",
   flushHorizontal = false,
   hideInlineMapConfirm = false,
   hideInlineCreateConfirm = false,
   hideMatchCondensedStrip = false,
+  highlightMatchCatalogItemId = null,
 }: {
   item: ZenithSummaryLineItem;
   needsMapping: boolean;
@@ -668,17 +891,24 @@ function LineItemExpandedLayer({
   onExpandMatchBanner: () => void;
   onItemCreated: (payload: ZenithCreateItemPayload) => void;
   onApproveMatch?: () => void;
+  onRejectSystemMatch?: (catalogItemId: string) => void;
   onClearResolution: () => void;
   flow?: ZenithLineItemFlow;
   flushHorizontal?: boolean;
   hideInlineMapConfirm?: boolean;
   hideMatchCondensedStrip?: boolean;
+  highlightMatchCatalogItemId?: string | null;
 }) {
   const surface = EXPANDED_SURFACE[surfaceTone];
   const isAddRow = flow === "add-row";
   function openMapPanel() {
     onRevealPanelNav();
     onPanelModeChange("map");
+  }
+
+  function handleRejectMatch() {
+    onRejectSystemMatch?.(mappedCatalogId ?? DEFAULT_MATCHED_CATALOG_ITEM_ID);
+    openMapPanel();
   }
 
   function openCreatePanel() {
@@ -706,19 +936,26 @@ function LineItemExpandedLayer({
 
   if (resolution) {
     return (
-      <div className={cn("border-t py-3", layerPaddingClass, surface.divider)}>
-        <ItemMappingSuccessLayer
-          embedded
-          resolution={resolution}
-          flow={flow}
-          onChange={onClearResolution}
+      <div className="flex min-h-0 flex-1 flex-col motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300">
+        <div className="shrink-0 px-8 py-3.5">
+          <ItemMappingSuccessLayer
+            embedded
+            resolution={resolution}
+            flow={flow}
+            onChange={onClearResolution}
+          />
+        </div>
+        <LineItemPinnedStrip
+          item={item}
+          resolution={{ kind: resolution.kind, itemName: resolution.itemName }}
+          className="shrink-0 border-b-0 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-300 motion-safe:delay-75"
         />
       </div>
     );
   }
 
   return (
-    <div className={cn("border-t py-3", layerPaddingClass, surface.divider)}>
+    <div className={cn("py-3", layerPaddingClass, surface.divider)}>
       {showMatchCondensedStrip && !hideMatchCondensedStrip ? (
         <MatchedItemCondensedStrip
           item={item}
@@ -745,6 +982,7 @@ function LineItemExpandedLayer({
                 mappedCatalogId ?? DEFAULT_MATCHED_CATALOG_ITEM_ID
               }
               onApproveMatch={onApproveMatch!}
+              onRejectMatch={handleRejectMatch}
               onMapExisting={openMapPanel}
               onCreateNew={openCreatePanel}
               hideSecondaryActions={showPanelNav}
@@ -758,6 +996,7 @@ function LineItemExpandedLayer({
               selectedItemId={selectedCatalogItemId}
               onSelectItem={onSelectCatalogItem}
               flow={isAddRow ? "add-row" : "mapping"}
+              highlightMatchCatalogItemId={highlightMatchCatalogItemId}
             />
             {!hideInlineMapConfirm && selectedCatalogItemId && onConfirmMapCatalog ? (
               <div className="mt-3 flex justify-end">
@@ -802,40 +1041,80 @@ function ItemsTableRow({
   item,
   selected,
   resolution,
+  isLastRow,
+  isLastBeforeBillingGaps = false,
   onSelect,
 }: {
   item: ZenithSummaryLineItem;
   selected: boolean;
   resolution?: LineItemResolutionDetail;
+  isLastRow: boolean;
+  isLastBeforeBillingGaps?: boolean;
   onSelect: () => void;
 }) {
-  const needsMapping = item.mappingStatus === "needs_mapping";
-  const mapped = item.mappingStatus === "mapped";
-  const expandable = mapped || needsMapping;
   const resolved = resolution != null;
+  const needsMapping = item.mappingStatus === "needs_mapping" && !resolved;
+  const mapped = item.mappingStatus === "mapped" || resolved;
+  const expandable = mapped || needsMapping;
 
   function renderStatusIcon() {
     if (resolved) {
-      return <ResolvedStatusIcon resolution={resolution} flow="mapping" />;
+      const tooltip =
+        resolution.kind === "approved"
+          ? "Match approved"
+          : resolution.kind === "created"
+            ? "New catalog item created"
+            : "Linked to catalog item";
+      return (
+        <StatusIconWithTooltip tooltip={tooltip}>
+          <CircleCheck size={16} strokeWidth={2} className="shrink-0 text-emerald-600" aria-hidden />
+        </StatusIconWithTooltip>
+      );
     }
-    if (mapped) {
+    if (isContractLineBillingRuleMatch(item)) {
+      return (
+        <BillingGapStatusIcon
+          tooltip={item.billingRuleInclusionReason ?? "Suggested by billing rules"}
+        />
+      );
+    }
+    if (isContractLineSystemMatch(item)) {
       return <MappedStatusIcon />;
+    }
+    if (item.mappingStatus === "mapped") {
+      return <CatalogMappedStatusIcon />;
     }
     return <UnmappedStatusIcon />;
   }
+
+  const showMappingStrip = needsMapping;
 
   return (
     <tr
       className={cn(
         "bg-white",
-        needsMapping && !resolved && "shadow-[inset_3px_0_0_#ef4444]",
         selected && "bg-blue-50/60",
         expandable && "cursor-pointer",
+        (isLastRow && showMappingStrip) || isLastBeforeBillingGaps
+          ? "[&>td]:border-b-0"
+          : null,
       )}
       onClick={expandable ? onSelect : undefined}
     >
-      <td className={cn(tdClass, "w-10 align-top")}>
-        <div className="flex h-9 items-center justify-center">{renderStatusIcon()}</div>
+      <td
+        className={cn(
+          tdClass,
+          "relative w-10 align-top",
+          showMappingStrip && isLastRow && "overflow-hidden rounded-bl-xl",
+        )}
+      >
+        {showMappingStrip ? (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-amber-500"
+          />
+        ) : null}
+        <div className="relative flex h-9 items-center justify-center">{renderStatusIcon()}</div>
       </td>
       <td className={cn(tdClass, "min-w-[200px]")}>
         <EditableSelectCell
@@ -891,30 +1170,29 @@ function ItemsTableRow({
   );
 }
 
-export function ZenithContractItemsTab() {
+export function ZenithContractItemsTab({
+  ingestionSampleId: ingestionSampleIdProp,
+}: {
+  ingestionSampleId?: import("@/data/ingest-data").IngestQueueSampleId;
+} = {}) {
   const chrome = useZenithContractChrome();
-  
-  // Initialize from chrome context (persisted state) if available, otherwise use seed data
-  const [lineItems, setLineItems] = useState<ZenithSummaryLineItem[]>(() => {
-    const persistedItems = chrome?.contractLineItems;
-    if (persistedItems && persistedItems.length > 0) {
-      return [...persistedItems];
-    }
-    return [...zenithSummaryLineItems];
-  });
-  const [addRowDraftId, setAddRowDraftId] = useState<string | null>(null);
+  const persistedItems = chrome?.contractLineItems ?? [];
+  const [draftLineItem, setDraftLineItem] = useState<ZenithSummaryLineItem | null>(null);
+  const addRowDraftId = draftLineItem?.id ?? null;
 
-  // Sync local state with chrome context whenever lineItems change
-  useEffect(() => {
-    const itemsForChrome = addRowDraftId
-      ? lineItems.filter((line) => line.id !== addRowDraftId)
-      : lineItems;
-    chrome?.setContractLineItems(itemsForChrome);
-  }, [chrome, lineItems, addRowDraftId]);
-  
-  const unmappedCount = zenithSummaryLineItemsNeedMappingCount(
-    lineItems.filter((line) => line.id !== addRowDraftId),
+  const lineItems = useMemo(
+    () => (draftLineItem ? [...persistedItems, draftLineItem] : persistedItems),
+    [persistedItems, draftLineItem],
   );
+
+  const setPersistedItems = useCallback(
+    (updater: (items: ZenithSummaryLineItem[]) => ZenithSummaryLineItem[]) => {
+      if (!chrome) return;
+      chrome.setContractLineItems(updater(chrome.contractLineItems));
+    },
+    [chrome],
+  );
+
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [panelMode, setPanelMode] = useState<MappedPanelMode>("match");
   const [showPanelNav, setShowPanelNav] = useState(false);
@@ -927,12 +1205,86 @@ export function ZenithContractItemsTab() {
   const [lineItemResolution, setLineItemResolution] = useState<
     Record<string, LineItemResolutionDetail>
   >({});
+  const [rejectedMatchCatalogByLine, setRejectedMatchCatalogByLine] = useState<
+    Record<string, string>
+  >({});
+
+  const billingGapResolutions = chrome?.billingGapResolutions ?? {};
+  const setBillingGapResolutions = chrome?.setBillingGapResolutions;
+
+  const resolvedLineIds = useMemo(
+    () => new Set(Object.keys(lineItemResolution)),
+    [lineItemResolution],
+  );
+
+  const effectiveSampleId = ingestionSampleIdProp ?? chrome?.ingestionSampleId;
+
+  const billingGapItems = useMemo(
+    () => getBillingGapItemsForIngest(effectiveSampleId, persistedItems),
+    [effectiveSampleId, persistedItems],
+  );
+
+  const visibleBillingGapItems = useMemo(
+    () => billingGapItems.filter((item) => billingGapResolutions[item.id] !== "included"),
+    [billingGapItems, billingGapResolutions],
+  );
+
+  const itemsActionSummary = useMemo(
+    () =>
+      deriveItemsTabActionSummary(
+        persistedItems,
+        effectiveSampleId,
+        resolvedLineIds,
+        billingGapResolutions,
+      ),
+    [persistedItems, effectiveSampleId, resolvedLineIds, billingGapResolutions],
+  );
+
+  const itemsAllResolved =
+    itemsActionSummary.totalCount === 0 &&
+    (persistedItems.length > 0 || billingGapItems.length > 0);
+
+  function includeBillingGapItem(gapItem: ContractBillingGapItem) {
+    const catalogItem = getZenithCatalogItemById(gapItem.catalogItemId);
+    if (!catalogItem || !setBillingGapResolutions) return;
+
+    const lineId = `li-included-${gapItem.id}`;
+    const includedLine: ZenithSummaryLineItem = {
+      id: lineId,
+      name: catalogItem.name,
+      frequency: catalogItem.billingFrequency,
+      quantity: gapItem.quantity,
+      unitPrice: catalogItem.unitPrice,
+      totalPrice: gapItem.quantity * catalogItem.unitPrice,
+      mappingStatus: "mapped",
+      catalogLink: "billing_rule_match",
+      billingRuleInclusionReason: gapItem.inclusionReason,
+    };
+
+    setPersistedItems((prev) => [...prev, includedLine]);
+    setMappedCatalogByLine((prev) => ({ ...prev, [lineId]: gapItem.catalogItemId }));
+    setBillingGapResolutions((prev) => ({ ...prev, [gapItem.id]: "included" }));
+  }
+
+  function ignoreBillingGapItem(gapItemId: string) {
+    if (!setBillingGapResolutions) return;
+    setBillingGapResolutions((prev) => ({ ...prev, [gapItemId]: "ignored" }));
+  }
+
+  function restoreBillingGapItem(gapItemId: string) {
+    if (!setBillingGapResolutions) return;
+    setBillingGapResolutions((prev) => {
+      const next = { ...prev };
+      delete next[gapItemId];
+      return next;
+    });
+  }
 
   function resolveLineItem(lineId: string, detail: LineItemResolutionDetail) {
     setLineItemResolution((prev) => ({ ...prev, [lineId]: detail }));
   }
 
-  function clearLineItemResolution(lineId: string) {
+  function clearLineItemResolution(lineId: string, options?: { reopenDrawer?: boolean }) {
     const previous = lineItemResolution[lineId];
 
     setLineItemResolution((prev) => {
@@ -955,6 +1307,11 @@ export function ZenithContractItemsTab() {
       delete next[lineId];
       return next;
     });
+    setRejectedMatchCatalogByLine((prev) => {
+      const next = { ...prev };
+      delete next[lineId];
+      return next;
+    });
     if (previous?.kind === "mapped") {
       setPanelMode("map");
       setShowPanelNav(true);
@@ -965,6 +1322,14 @@ export function ZenithContractItemsTab() {
       setPanelMode("match");
       setShowPanelNav(false);
       setMatchBannerExpanded(true);
+    }
+
+    if (options?.reopenDrawer) {
+      const item = lineItems.find((line) => line.id === lineId);
+      if (item) {
+        openLineItemPanel(item);
+        setExpandedItemId(lineId);
+      }
     }
   }
 
@@ -984,7 +1349,12 @@ export function ZenithContractItemsTab() {
   }
 
   function openLineItemPanel(item: ZenithSummaryLineItem) {
-    if (item.mappingStatus === "needs_mapping") {
+    const useMapPanel =
+      item.mappingStatus === "needs_mapping" ||
+      isContractLineBillingRuleMatch(item) ||
+      !isContractLineCatalogMatch(item);
+
+    if (useMapPanel) {
       setPanelMode("map");
       setShowPanelNav(true);
       setMatchBannerExpanded(false);
@@ -995,27 +1365,30 @@ export function ZenithContractItemsTab() {
     }
   }
 
+  function seedBillingRulePendingCatalog(item: ZenithSummaryLineItem) {
+    if (!isContractLineBillingRuleMatch(item)) return;
+    const catalogItemId = mappedCatalogByLine[item.id];
+    if (!catalogItemId || pendingCatalogByLine[item.id]) return;
+    updatePendingCatalogSelection(item.id, catalogItemId);
+  }
+
   const closeLineItemDrawer = useCallback(() => {
     setExpandedItemId((current) => {
       if (!current) return null;
 
-      setAddRowDraftId((draftId) => {
-        if (draftId === current) {
-          setLineItems((prev) => prev.filter((line) => line.id !== current));
-          setLineItemResolution((prev) => {
-            const next = { ...prev };
-            delete next[current];
-            return next;
-          });
-          setMappedCatalogByLine((prev) => {
-            const next = { ...prev };
-            delete next[current];
-            return next;
-          });
-          return null;
-        }
-        return draftId;
-      });
+      if (addRowDraftId === current) {
+        setDraftLineItem(null);
+        setLineItemResolution((prev) => {
+          const next = { ...prev };
+          delete next[current];
+          return next;
+        });
+        setMappedCatalogByLine((prev) => {
+          const next = { ...prev };
+          delete next[current];
+          return next;
+        });
+      }
 
       setPendingCatalogByLine((prev) => {
         const next = { ...prev };
@@ -1027,10 +1400,15 @@ export function ZenithContractItemsTab() {
         delete next[current];
         return next;
       });
+      setRejectedMatchCatalogByLine((prev) => {
+        const next = { ...prev };
+        delete next[current];
+        return next;
+      });
       return null;
     });
     resetExpandedPanel();
-  }, []);
+  }, [addRowDraftId]);
 
   function getCreateCatalogForm(
     lineId: string,
@@ -1059,9 +1437,7 @@ export function ZenithContractItemsTab() {
   }
   void _confirmMapCatalogToLine;
 
-  function closeDrawerAfterSubmit(lineId: string) {
-    setExpandedItemId(null);
-    resetExpandedPanel();
+  function clearDrawerFormState(lineId: string) {
     setPendingCatalogByLine((prev) => {
       const next = { ...prev };
       delete next[lineId];
@@ -1072,59 +1448,44 @@ export function ZenithContractItemsTab() {
       delete next[lineId];
       return next;
     });
+    setRejectedMatchCatalogByLine((prev) => {
+      const next = { ...prev };
+      delete next[lineId];
+      return next;
+    });
   }
 
   function submitMapCatalogFromDrawer(lineId: string) {
     const catalogItemId = pendingCatalogByLine[lineId];
     if (!catalogItemId) return;
-    const isAddRow = addRowDraftId === lineId;
-
-    if (isAddRow) {
-      applyCatalogToLine(lineId, catalogItemId);
-      closeDrawerAfterSubmit(lineId);
-      return;
-    }
-
-    closeLineItemDrawer();
-    window.setTimeout(() => {
-      applyCatalogToLine(lineId, catalogItemId);
-    }, 0);
+    applyCatalogToLine(lineId, catalogItemId);
+    clearDrawerFormState(lineId);
   }
 
   function submitCreateFromDrawer(lineId: string, payload: ZenithCreateItemPayload) {
-    const isAddRow = addRowDraftId === lineId;
-
-    if (isAddRow) {
-      applyCreateToLine(lineId, payload);
-      closeDrawerAfterSubmit(lineId);
-      return;
-    }
-
-    closeLineItemDrawer();
-    window.setTimeout(() => {
-      applyCreateToLine(lineId, payload);
-    }, 0);
-  }
-
-  const dismissExpandedSuccess = useCallback(() => {
-    closeLineItemDrawer();
-    setAddRowDraftId(null);
-  }, [closeLineItemDrawer]);
-
-  function clearAddRowDraftIf(lineId: string) {
-    setAddRowDraftId((draftId) => (draftId === lineId ? null : draftId));
+    applyCreateToLine(lineId, payload);
+    clearDrawerFormState(lineId);
   }
 
   function applyCatalogToLine(lineId: string, catalogItemId: string) {
     const catalogItem = getZenithCatalogItemById(catalogItemId);
     if (!catalogItem) return;
-    setLineItems((prev) =>
-      prev.map((line) =>
-        line.id === lineId ? lineItemFromCatalog(line, catalogItem) : line,
-      ),
-    );
+    const sourceLine =
+      lineItems.find((line) => line.id === lineId) ??
+      persistedItems.find((line) => line.id === lineId);
+    if (!sourceLine) return;
+    const updatedLine = lineItemFromCatalog(sourceLine, catalogItem);
+
+    if (addRowDraftId === lineId) {
+      setPersistedItems((prev) => [...prev, updatedLine]);
+      setDraftLineItem(null);
+    } else {
+      setPersistedItems((prev) =>
+        prev.map((line) => (line.id === lineId ? updatedLine : line)),
+      );
+    }
+
     setMappedCatalogByLine((prev) => ({ ...prev, [lineId]: catalogItemId }));
-    clearAddRowDraftIf(lineId);
     resolveLineItem(lineId, {
       kind: "mapped",
       itemName: catalogItem.name,
@@ -1132,12 +1493,21 @@ export function ZenithContractItemsTab() {
   }
 
   function applyCreateToLine(lineId: string, payload: ZenithCreateItemPayload) {
-    setLineItems((prev) =>
-      prev.map((line) =>
-        line.id === lineId ? lineItemFromCreatePayload(line, payload) : line,
-      ),
-    );
-    clearAddRowDraftIf(lineId);
+    const sourceLine =
+      lineItems.find((line) => line.id === lineId) ??
+      persistedItems.find((line) => line.id === lineId);
+    if (!sourceLine) return;
+    const updatedLine = lineItemFromCreatePayload(sourceLine, payload);
+
+    if (addRowDraftId === lineId) {
+      setPersistedItems((prev) => [...prev, updatedLine]);
+      setDraftLineItem(null);
+    } else {
+      setPersistedItems((prev) =>
+        prev.map((line) => (line.id === lineId ? updatedLine : line)),
+      );
+    }
+
     resolveLineItem(lineId, { kind: "created", itemName: payload.name });
   }
 
@@ -1145,16 +1515,16 @@ export function ZenithContractItemsTab() {
     if (addRowDraftId) return;
     const id = `li-new-${Date.now()}`;
     const draft = createDraftLineItem(id);
-    setLineItems((prev) => [...prev, draft]);
-    setAddRowDraftId(id);
+    setDraftLineItem(draft);
     setPanelMode("map");
     setShowPanelNav(true);
     setExpandedItemId(id);
   }
 
   function removeDraftRow(lineId: string) {
-    setLineItems((prev) => prev.filter((line) => line.id !== lineId));
-    setAddRowDraftId(null);
+    if (draftLineItem?.id === lineId) {
+      setDraftLineItem(null);
+    }
     setLineItemResolution((prev) => {
       const next = { ...prev };
       delete next[lineId];
@@ -1175,9 +1545,14 @@ export function ZenithContractItemsTab() {
       delete next[lineId];
       return next;
     });
+    setRejectedMatchCatalogByLine((prev) => {
+      const next = { ...prev };
+      delete next[lineId];
+      return next;
+    });
   }
 
-  const tableLineItems = lineItems.filter((line) => line.id !== addRowDraftId);
+  const tableLineItems = persistedItems;
   const drawerItem = expandedItemId
     ? lineItems.find((line) => line.id === expandedItemId)
     : undefined;
@@ -1185,20 +1560,16 @@ export function ZenithContractItemsTab() {
     drawerItem && addRowDraftId && drawerItem.id === addRowDraftId,
   );
 
-  useEffect(() => {
-    if (!drawerItem || isAddRowDrawer) return;
-    const resolution = lineItemResolution[drawerItem.id];
-    if (!resolution) return;
-    const timer = window.setTimeout(() => {
-      dismissExpandedSuccess();
-    }, SUCCESS_MESSAGE_AUTO_CLOSE_MS);
-    return () => clearTimeout(timer);
-  }, [drawerItem, isAddRowDrawer, lineItemResolution, dismissExpandedSuccess]);
-
   function toggleLineItem(item: ZenithSummaryLineItem) {
     const canExpand =
       item.mappingStatus === "mapped" || item.mappingStatus === "needs_mapping";
     if (!canExpand) return;
+
+    if (lineItemResolution[item.id]) {
+      openLineItemPanel(item);
+      setExpandedItemId(item.id);
+      return;
+    }
 
     if (addRowDraftId && addRowDraftId !== item.id) {
       removeDraftRow(addRowDraftId);
@@ -1210,59 +1581,60 @@ export function ZenithContractItemsTab() {
         return null;
       }
       openLineItemPanel(item);
+      seedBillingRulePendingCatalog(item);
       return item.id;
     });
   }
 
-  const drawerNeedsMapping = isAddRowDrawer || drawerItem?.mappingStatus === "needs_mapping";
-  const drawerMapped = !isAddRowDrawer && drawerItem?.mappingStatus === "mapped";
   const drawerResolution = drawerItem ? lineItemResolution[drawerItem.id] : undefined;
+  const drawerNeedsMapping =
+    isAddRowDrawer ||
+    drawerItem?.mappingStatus === "needs_mapping" ||
+    (drawerItem != null && isContractLineBillingRuleMatch(drawerItem) && drawerResolution == null);
+  const drawerSystemMatch =
+    !isAddRowDrawer &&
+    drawerItem != null &&
+    isContractLineSystemMatch(drawerItem) &&
+    drawerResolution == null;
   const drawerSurfaceTone = drawerItem
     ? getExpandedSurfaceTone(Boolean(drawerNeedsMapping), panelMode, drawerResolution != null)
     : "work";
 
   function approveDrawerCatalogMatch() {
     if (!drawerItem) return;
-    const catalogItem = getZenithCatalogItemById(DEFAULT_MATCHED_CATALOG_ITEM_ID);
-    setLineItems((prev) =>
+    const catalogItemId = mappedCatalogByLine[drawerItem.id] ?? DEFAULT_MATCHED_CATALOG_ITEM_ID;
+    const catalogItem = getZenithCatalogItemById(catalogItemId);
+    if (!catalogItem) return;
+    const catalogLink = isContractLineBillingRuleMatch(drawerItem)
+      ? "billing_rule_match"
+      : "system_match";
+    setPersistedItems((prev) =>
       prev.map((line) =>
-        line.id === drawerItem.id && catalogItem
-          ? lineItemFromCatalog(line, catalogItem)
-          : line,
+        line.id === drawerItem.id ? lineItemFromCatalog(line, catalogItem, catalogLink) : line,
       ),
     );
     setMappedCatalogByLine((prev) => ({
       ...prev,
-      [drawerItem.id]: DEFAULT_MATCHED_CATALOG_ITEM_ID,
+      [drawerItem.id]: catalogItemId,
     }));
     resolveLineItem(drawerItem.id, {
       kind: "approved",
       itemName: catalogItem?.name ?? drawerItem.name,
     });
+    clearDrawerFormState(drawerItem.id);
   }
-
-  const showDrawerMatchStrip =
-    drawerItem != null &&
-    drawerMapped &&
-    showPanelNav &&
-    !matchBannerExpanded &&
-    drawerResolution == null;
-
-  const handleMarkDone = useCallback(() => {
-    chrome?.setActiveTab("Billing info");
-  }, [chrome]);
 
   return (
     <div className="flex flex-col gap-4">
-        {unmappedCount > 0 ? (
-          <ItemsMappingAlert unmappedCount={unmappedCount} />
-        ) : (
-          <ItemsResolvedBar onMarkDone={handleMarkDone} />
-        )}
+        {itemsActionSummary.totalCount > 0 ? (
+          <ItemsMappingAlert summary={itemsActionSummary} />
+        ) : itemsAllResolved ? (
+          <ItemsAllResolvedAlert />
+        ) : null}
 
         <div className="overflow-hidden rounded-xl border border-border-default">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] border-collapse text-[13px]">
+            <table className={zenithLineItemsTableClassName}>
               <thead>
                 <tr>
                   <th className={cn(thClass, "w-10 text-center")} aria-hidden />
@@ -1275,15 +1647,35 @@ export function ZenithContractItemsTab() {
                 </tr>
               </thead>
               <tbody>
-                {tableLineItems.map((item) => (
+                {tableLineItems.map((item, index) => (
                   <ItemsTableRow
                     key={item.id}
                     item={item}
-                    selected={expandedItemId === item.id}
                     resolution={lineItemResolution[item.id]}
+                    selected={expandedItemId === item.id}
+                    isLastRow={
+                      index === tableLineItems.length - 1 && visibleBillingGapItems.length === 0
+                    }
+                    isLastBeforeBillingGaps={
+                      index === tableLineItems.length - 1 && visibleBillingGapItems.length > 0
+                    }
                     onSelect={() => toggleLineItem(item)}
                   />
                 ))}
+                {visibleBillingGapItems.length > 0
+                  ? visibleBillingGapItems.map((item, index) => (
+                      <BillingGapTableRow
+                        key={item.id}
+                        item={item}
+                        isFirstRow={index === 0}
+                        isLastRow={index === visibleBillingGapItems.length - 1}
+                        ignored={billingGapResolutions[item.id] === "ignored"}
+                        onInclude={() => includeBillingGapItem(item)}
+                        onIgnore={() => ignoreBillingGapItem(item.id)}
+                        onRestore={() => restoreBillingGapItem(item.id)}
+                      />
+                    ))
+                  : null}
               </tbody>
             </table>
           </div>
@@ -1305,15 +1697,16 @@ export function ZenithContractItemsTab() {
         open={drawerItem != null}
         item={drawerItem ?? null}
         onClose={closeLineItemDrawer}
+        compact={Boolean(drawerResolution)}
+        contentClassName={drawerResolution ? "px-0" : undefined}
         headerEyebrow={isAddRowDrawer ? "Add line item" : "Line item"}
         headerTitle={isAddRowDrawer ? "New row" : undefined}
         closeLabel={isAddRowDrawer ? "Close add line item panel" : "Close item panel"}
         pinnedStrip={
-          showDrawerMatchStrip && drawerItem ? (
-            <MatchedItemCondensedStrip
+          drawerItem && !drawerResolution ? (
+            <LineItemPinnedStrip
               item={drawerItem}
-              onExpandMatch={() => setMatchBannerExpanded(true)}
-              className="px-8"
+              showPlaceholder={isAddRowDrawer}
             />
           ) : undefined
         }
@@ -1369,7 +1762,14 @@ export function ZenithContractItemsTab() {
             onRevealPanelNav={() => setShowPanelNav(true)}
             onExpandMatchBanner={() => setMatchBannerExpanded(true)}
             onItemCreated={(payload) => submitCreateFromDrawer(drawerItem.id, payload)}
-            onApproveMatch={drawerMapped ? approveDrawerCatalogMatch : undefined}
+            onApproveMatch={drawerSystemMatch ? approveDrawerCatalogMatch : undefined}
+            onRejectSystemMatch={(catalogItemId) =>
+              setRejectedMatchCatalogByLine((prev) => ({
+                ...prev,
+                [drawerItem.id]: catalogItemId,
+              }))
+            }
+            highlightMatchCatalogItemId={rejectedMatchCatalogByLine[drawerItem.id] ?? null}
             onClearResolution={() => clearLineItemResolution(drawerItem.id)}
             hideMatchCondensedStrip
             flushHorizontal

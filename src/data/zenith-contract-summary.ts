@@ -1,64 +1,27 @@
 /** Summary-tab extract sections for Zenith Analytics INC contract workspace (CON-2024-0191). */
 
-export type ZenithLineItemMappingStatus = "mapped" | "needs_mapping";
+import {
+  contractLineItemsByIngestSample,
+  contractLineItemsDescription,
+  contractLineItemsNeedMappingCount,
+  type ContractLineItem,
+  type ContractLineItemMappingStatus,
+} from "@/data/contract-line-items";
 
-export interface ZenithSummaryLineItem {
-  id: string;
-  name: string;
-  frequency: string;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-  mappingStatus: ZenithLineItemMappingStatus;
-}
+export type { ContractLineItem, ContractLineItemMappingStatus };
+
+/** @deprecated Prefer `ContractLineItem` from `@/data/contract-line-items`. */
+export type ZenithSummaryLineItem = ContractLineItem;
+
+/** Zenith / `sample2` Items-tab seed — alias of shared contract line items. */
+export const zenithSummaryLineItems = contractLineItemsByIngestSample.sample2;
+
+export const zenithSummaryLineItemsDescription = contractLineItemsDescription;
+export const zenithSummaryLineItemsNeedMappingCount = contractLineItemsNeedMappingCount;
 
 export interface ZenithSummaryKvRow {
   label: string;
   value: string;
-}
-
-export const zenithSummaryLineItems: ZenithSummaryLineItem[] = [
-  {
-    id: "li-growth-crm",
-    name: "Growth CRM",
-    frequency: "Yearly",
-    quantity: 25,
-    unitPrice: 1200,
-    totalPrice: 30000,
-    mappingStatus: "mapped",
-  },
-  {
-    id: "li-onboarding",
-    name: "Onboarding & Training",
-    frequency: "One-time",
-    quantity: 1,
-    unitPrice: 2500,
-    totalPrice: 2500,
-    mappingStatus: "needs_mapping",
-  },
-  {
-    id: "li-support",
-    name: "Premium Support Add-on",
-    frequency: "Monthly",
-    quantity: 1,
-    unitPrice: 4200,
-    totalPrice: 4200,
-    mappingStatus: "needs_mapping",
-  },
-];
-
-export function zenithSummaryLineItemsDescription(items: ZenithSummaryLineItem[]): string {
-  const names = items.map((i) => i.name);
-  if (names.length <= 2) {
-    return `Found ${items.length} line item${items.length === 1 ? "" : "s"} in the contract, covering ${names.join(" and ")}. Review quantities, pricing, and mapping to items in your site.`;
-  }
-  const head = names.slice(0, 2).join(", ");
-  const rest = items.length - 2;
-  return `Found ${items.length} line items in the contract, covering ${head} and ${rest} more. Review quantities, pricing, and mapping to items in your site.`;
-}
-
-export function zenithSummaryLineItemsNeedMappingCount(items: ZenithSummaryLineItem[]): number {
-  return items.filter((i) => i.mappingStatus === "needs_mapping").length;
 }
 
 export const zenithSummaryBillingRows: ZenithSummaryKvRow[] = [

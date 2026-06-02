@@ -12,6 +12,10 @@ interface Props {
   footer?: ReactNode;
   /** Pinned below the drawer header — does not scroll with body content. */
   pinnedStrip?: ReactNode;
+  /** Compact height after line item is resolved (success summary). */
+  compact?: boolean;
+  /** Override scroll body padding (e.g. flush success layout). */
+  contentClassName?: string;
   headerEyebrow?: string;
   headerTitle?: string;
   closeLabel?: string;
@@ -24,15 +28,31 @@ export function ZenithLineItemBottomDrawer({
   children,
   footer,
   pinnedStrip,
+  compact = false,
+  contentClassName,
   headerEyebrow,
   headerTitle,
   closeLabel = "Close item panel",
 }: Props) {
   const [expanded, setExpanded] = useState(false);
+  const [persistedTitle, setPersistedTitle] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setPersistedTitle(null);
+      return;
+    }
+    if (!item) return;
+    setPersistedTitle(headerTitle ?? (item.name.trim() || "Untitled item"));
+  }, [open, item?.id, headerTitle]);
 
   useEffect(() => {
     if (!open) setExpanded(false);
   }, [open]);
+
+  useEffect(() => {
+    if (compact) setExpanded(false);
+  }, [compact]);
 
   useEffect(() => {
     if (!open) return;
@@ -48,7 +68,7 @@ export function ZenithLineItemBottomDrawer({
   if (!open || !item) return null;
 
   const eyebrow = headerEyebrow ?? "Line item";
-  const title = headerTitle ?? (item.name.trim() || "Untitled item");
+  const title = persistedTitle ?? headerTitle ?? (item.name.trim() || "Untitled item");
 
   return createPortal(
     <>
@@ -63,9 +83,13 @@ export function ZenithLineItemBottomDrawer({
         aria-modal="true"
         aria-labelledby="zenith-line-item-drawer-title"
         className={cn(
-          "fixed inset-x-0 bottom-0 z-[61] flex flex-col border-t border-border-default bg-white shadow-[0_-10px_40px_rgba(15,23,42,0.14)]",
-          "motion-safe:transition-[height] motion-safe:duration-300 motion-safe:ease-out",
-          expanded ? "h-[90vh]" : "h-[40vh]",
+          "fixed z-[61] flex flex-col bg-white",
+          "motion-safe:transition-[height,box-shadow,inset] motion-safe:duration-300 motion-safe:ease-[cubic-bezier(0.32,0.72,0,1)]",
+          expanded
+            ? "inset-0 shadow-none"
+            : compact
+              ? "inset-x-0 bottom-0 h-[20vh] min-h-[168px] max-h-[220px] border-t border-emerald-200/60 shadow-[0_-4px_24px_rgba(15,23,42,0.08)]"
+              : "inset-x-0 bottom-0 h-[80vh] border-t border-border-default shadow-[0_-10px_40px_rgba(15,23,42,0.14)]",
         )}
       >
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border-subtle px-8 py-3">
@@ -83,7 +107,7 @@ export function ZenithLineItemBottomDrawer({
               type="button"
               onClick={() => setExpanded((prev) => !prev)}
               className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-gray-100 hover:text-text-primary"
-              aria-label={expanded ? "Minimize drawer" : "Expand drawer"}
+              aria-label={expanded ? "Exit full page view" : "Expand to full page"}
             >
               {expanded ? (
                 <Minimize2 size={18} strokeWidth={2} aria-hidden />
@@ -101,8 +125,20 @@ export function ZenithLineItemBottomDrawer({
             </button>
           </div>
         </header>
-        {pinnedStrip ? <div className="shrink-0">{pinnedStrip}</div> : null}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-8">{children}</div>
+        {pinnedStrip ? (
+          <div className="shrink-0 w-full motion-safe:transition-opacity motion-safe:duration-200">
+            {pinnedStrip}
+          </div>
+        ) : null}
+        <div
+          className={cn(
+            "min-h-0 flex-1 overscroll-contain",
+            compact ? "overflow-hidden" : "overflow-y-auto",
+            contentClassName ?? "px-8",
+          )}
+        >
+          {children}
+        </div>
         {footer}
       </div>
     </>,

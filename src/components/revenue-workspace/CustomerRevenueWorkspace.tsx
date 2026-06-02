@@ -730,6 +730,7 @@ export function CustomerRevenueWorkspace({
       resetKey={activeIngestionSession?.queueItemId}
       ingestionQueueItemId={activeIngestionSession?.queueItemId}
       ingestionCustomerId={customer.id}
+      ingestionSampleId={activeIngestionSession?.sampleId}
     >
     <div className="flex flex-1 flex-col bg-gray-100">
       <CustomerContextBar

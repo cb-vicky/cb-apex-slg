@@ -1,4 +1,5 @@
-import { ExternalLink, Search } from "lucide-react";
+import { useEffect, useMemo } from "react";
+import { ExternalLink, Search, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formInputClass } from "@/components/ui/form-field";
 import { StatusBadge } from "@/components/ui/primitives";
@@ -9,11 +10,16 @@ import {
   customerInitials,
   customerLinkStatus,
   customerNetPaymentTerms,
-  customerSubscriptionLabel,
   formatCustomerCreatedAt,
   primaryContactEmail,
   primaryContactName,
 } from "./customer-link-display";
+
+interface MatchFirstBrowseSearchMeta {
+  similarCustomersCount: number;
+  showAllCustomers: boolean;
+  onViewAllCustomers: () => void;
+}
 
 interface SearchBarProps {
   search: string;
@@ -22,6 +28,7 @@ interface SearchBarProps {
   selectedCustomerName?: string;
   onClearSelection?: () => void;
   customersCount: number;
+  matchFirstBrowseMeta?: MatchFirstBrowseSearchMeta;
   className?: string;
 }
 
@@ -32,6 +39,7 @@ export function CustomerLinkSearchBar({
   selectedCustomerName,
   onClearSelection,
   customersCount,
+  matchFirstBrowseMeta,
   className,
 }: SearchBarProps) {
   const searchQuery = search.trim();
@@ -40,9 +48,37 @@ export function CustomerLinkSearchBar({
     ? `${customersCount} ${customersCount === 1 ? "result" : "results"} for "${searchQuery}"`
     : `${customersCount} ${customersCount === 1 ? "customer" : "customers"}`;
 
-  const selectedName =
-    selectedCustomerName ??
-    "";
+  const selectedName = selectedCustomerName ?? "";
+
+  function renderBrowseMeta() {
+    if (!matchFirstBrowseMeta) return resultsLabel;
+
+    const { similarCustomersCount, showAllCustomers, onViewAllCustomers } = matchFirstBrowseMeta;
+    const similarLabel = searchQuery
+      ? `${customersCount} ${customersCount === 1 ? "result" : "results"} for "${searchQuery}"`
+      : `${similarCustomersCount} similar ${similarCustomersCount === 1 ? "customer" : "customers"}`;
+    const allLabel = searchQuery
+      ? `${customersCount} ${customersCount === 1 ? "result" : "results"} for "${searchQuery}"`
+      : `${customersCount} ${customersCount === 1 ? "customer" : "customers"}`;
+
+    if (showAllCustomers) {
+      return <span className="font-medium text-text-primary">{allLabel}</span>;
+    }
+
+    return (
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="shrink-0 font-medium text-text-primary">{similarLabel}</span>
+        <span className="h-3.5 w-px shrink-0 bg-border-default" aria-hidden />
+        <button
+          type="button"
+          onClick={onViewAllCustomers}
+          className="shrink-0 font-medium text-blue-600 transition-colors hover:text-blue-700"
+        >
+          View all customers
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("flex items-center gap-4 bg-gray-100 py-3", className)}>
@@ -76,9 +112,23 @@ export function CustomerLinkSearchBar({
               Clear
             </button>
           ) : null}
+          {matchFirstBrowseMeta && !matchFirstBrowseMeta.showAllCustomers ? (
+            <>
+              {onClearSelection ? (
+                <span className="h-3.5 w-px shrink-0 bg-border-default" aria-hidden />
+              ) : null}
+              <button
+                type="button"
+                onClick={matchFirstBrowseMeta.onViewAllCustomers}
+                className="font-medium text-blue-600 transition-colors hover:text-blue-700"
+              >
+                View all customers
+              </button>
+            </>
+          ) : null}
         </div>
       ) : (
-        <div className="min-w-0 flex-1 text-[12px] font-medium text-text-primary">{resultsLabel}</div>
+        <div className="min-w-0 flex-1 text-[12px]">{renderBrowseMeta()}</div>
       )}
     </div>
   );
@@ -87,30 +137,55 @@ export function CustomerLinkSearchBar({
 interface TableProps {
   customers: Customer[];
   selectedCustomerId: string;
+  /** Row that receives the Closest match pill in similar-matches browse. */
+  closestMatchCustomerId?: string | null;
+  /** Emerald row background for the closest match (off after reject). */
+  highlightClosestMatchRow?: boolean;
+  /** Other similar rows (shown with Match pill). */
+  similarMatchCustomerIds?: string[];
   onSelectCustomer: (customerId: string) => void;
 }
 
 export function CustomerLinkCustomerTable({
   customers,
   selectedCustomerId,
+  closestMatchCustomerId = null,
+  highlightClosestMatchRow = true,
+  similarMatchCustomerIds = [],
   onSelectCustomer,
 }: TableProps) {
+  const similarMatchIdSet = useMemo(
+    () => new Set(similarMatchCustomerIds),
+    [similarMatchCustomerIds],
+  );
+
+  useEffect(() => {
+    if (!closestMatchCustomerId) return;
+    const row = document.querySelector(
+      `[data-customer-link-row="${closestMatchCustomerId}"]`,
+    );
+    row?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [closestMatchCustomerId, customers]);
+
+  function toggleCustomer(customerId: string) {
+    onSelectCustomer(selectedCustomerId === customerId ? "" : customerId);
+  }
+
   return (
     <div className="overflow-hidden rounded-lg border border-border-default bg-white">
       {customers.length === 0 ? (
-        <p className="px-4 py-6 text-center text-[13px] text-text-muted">
+        <p className="px-4 py-4 text-center text-[13px] text-text-muted">
           No customers match your search.
         </p>
       ) : (
         <div className="overflow-x-auto">
-          <WTable className="min-w-[960px]">
+          <WTable className="min-w-[960px] w-full border-collapse [&_td]:!px-3 [&_td]:!py-2 [&_th]:!px-3 [&_th]:!py-2 [&_td:first-child]:!w-10 [&_td:first-child]:!pl-3 [&_td:first-child]:!pr-2 [&_th:first-child]:!w-10 [&_th:first-child]:!pl-3 [&_th:first-child]:!pr-2">
             <WThead>
-              <WTh className="w-10 px-2">
+              <WTh>
                 <span className="sr-only">Select</span>
               </WTh>
               <WTh>Customer</WTh>
               <WTh>Status</WTh>
-              <WTh>Subscription</WTh>
               <WTh>Primary contact</WTh>
               <WTh>Net payment</WTh>
               <WTh>Created at</WTh>
@@ -119,6 +194,9 @@ export function CustomerLinkCustomerTable({
             <WTbody>
               {customers.map((customer) => {
                 const selected = selectedCustomerId === customer.id;
+                const isClosestMatchLabel = closestMatchCustomerId === customer.id;
+                const isSimilarMatch =
+                  !isClosestMatchLabel && similarMatchIdSet.has(customer.id);
                 const contact = primaryContactName(customer);
                 const email = primaryContactEmail(customer);
                 const status = customerLinkStatus(customer);
@@ -126,20 +204,29 @@ export function CustomerLinkCustomerTable({
                 return (
                   <WTr
                     key={customer.id}
+                    data-customer-link-row={customer.id}
                     className={cn(
                       "group cursor-pointer",
+                      highlightClosestMatchRow &&
+                        isClosestMatchLabel &&
+                        !selected &&
+                        "bg-emerald-50/50 hover:bg-emerald-50/70",
+                      isSimilarMatch && !selected && "bg-gray-50/60 hover:bg-gray-50/80",
                       selected && "bg-blue-50/60 hover:bg-blue-50/70",
                     )}
-                    onClick={() => onSelectCustomer(customer.id)}
+                    onClick={() => toggleCustomer(customer.id)}
                   >
-                    <WTd align="center" className="w-10 px-2">
+                    <WTd align="center">
                       <input
                         type="radio"
                         name="customer-link-select"
                         checked={selected}
-                        onChange={() => onSelectCustomer(customer.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="h-3.5 w-3.5 accent-blue-600"
+                        readOnly
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleCustomer(customer.id);
+                        }}
+                        className="h-3.5 w-3.5 cursor-pointer accent-blue-600"
                         aria-label={`Select ${customer.name}`}
                       />
                     </WTd>
@@ -149,6 +236,27 @@ export function CustomerLinkCustomerTable({
                           {customerInitials(customer.name)}
                         </span>
                         <span className="font-semibold text-text-primary">{customer.name}</span>
+                        {isClosestMatchLabel ? (
+                          <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-emerald-500 bg-white px-1.5 py-px text-[10px] font-medium text-emerald-700">
+                            <Sparkles
+                              size={10}
+                              strokeWidth={2}
+                              className="text-emerald-600"
+                              aria-hidden
+                            />
+                            Closest match
+                          </span>
+                        ) : isSimilarMatch ? (
+                          <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-border-default bg-white px-1.5 py-px text-[10px] font-medium text-text-muted">
+                            <Sparkles
+                              size={10}
+                              strokeWidth={2}
+                              className="text-blue-600"
+                              aria-hidden
+                            />
+                            Match
+                          </span>
+                        ) : null}
                         <ExternalLink
                           size={13}
                           strokeWidth={2}
@@ -160,7 +268,6 @@ export function CustomerLinkCustomerTable({
                     <WTd>
                       <StatusBadge status={status} />
                     </WTd>
-                    <WTd className="text-text-secondary">{customerSubscriptionLabel(customer)}</WTd>
                     <WTd>
                       <div className="min-w-[140px] whitespace-normal">
                         <div className="font-medium text-text-primary">{contact}</div>

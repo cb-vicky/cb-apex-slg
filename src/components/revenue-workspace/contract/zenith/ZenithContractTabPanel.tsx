@@ -1,3 +1,4 @@
+import type { IngestQueueSampleId } from "@/data/ingest-data";
 import type { ZenithContractActiveTab } from "./zenith-contract-tabs";
 import { ZenithContractAddressesTab } from "./ZenithContractAddressesTab";
 import { ZenithContractBillingInfoTab } from "./ZenithContractBillingInfoTab";
@@ -8,15 +9,16 @@ import { ZenithContractInvoicePreviewTab } from "./ZenithContractInvoicePreviewT
 
 interface Props {
   activeTab: ZenithContractActiveTab;
+  ingestionSampleId?: IngestQueueSampleId;
 }
 
-export function ZenithContractTabPanel({ activeTab }: Props) {
+export function ZenithContractTabPanel({ activeTab, ingestionSampleId }: Props) {
   if (activeTab === "Summary") {
     return <ZenithContractSummaryTab />;
   }
 
   if (activeTab === "Items") {
-    return <ZenithContractItemsTab />;
+    return <ZenithContractItemsTab ingestionSampleId={ingestionSampleId} />;
   }
 
   if (activeTab === "Billing info") {

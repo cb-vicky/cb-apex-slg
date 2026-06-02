@@ -111,7 +111,7 @@ function MappingStatusIcon({ status }: { status: ZenithSummaryLineItem["mappingS
     <Info
       size={14}
       strokeWidth={2.25}
-      className="shrink-0 text-red-600"
+      className="shrink-0 text-amber-600"
       aria-hidden
     />
   );
@@ -127,7 +127,7 @@ function LineItemsExtractCard({
   const needMapping = zenithSummaryLineItemsNeedMappingCount(items);
   const cardClassName = cn(
     "w-fit max-w-full overflow-hidden rounded-xl border border-border-default bg-white text-left transition-colors",
-    needMapping > 0 && "border-l-[3px] border-l-red-500",
+    needMapping > 0 && "border-l-[3px] border-l-amber-500",
     onCardClick && "cursor-pointer hover:border-gray-300 hover:bg-gray-50/60",
   );
   const cardBody = (
@@ -136,7 +136,7 @@ function LineItemsExtractCard({
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <p className="text-[13px] font-semibold text-text-primary">Items ({items.length})</p>
           {needMapping > 0 ? (
-            <span className="inline-flex rounded-full bg-red-50 px-2 py-px text-[11px] font-medium leading-4 text-red-700">
+            <span className="inline-flex rounded-full bg-amber-50 px-2 py-px text-[11px] font-medium leading-4 text-amber-800">
               {needMapping} item{needMapping === 1 ? "" : "s"} need mapping
             </span>
           ) : null}
@@ -236,7 +236,11 @@ function isSummarySectionReady(
 export function ZenithContractSummaryTab() {
   const chrome = useZenithContractChrome();
   const lineItems = chrome?.contractLineItems ?? zenithSummaryLineItems;
-  const itemsComplete = areZenithContractItemsComplete(lineItems);
+  const itemsComplete = areZenithContractItemsComplete({
+    items: lineItems,
+    sampleId: chrome?.ingestionSampleId,
+    billingGapResolutions: chrome?.billingGapResolutions,
+  });
   const billingComplete = isSummarySectionReady(chrome, "Billing info");
   const addressesComplete = isSummarySectionReady(chrome, "Addresses");
 

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { ExternalLink, Filter, Search } from "lucide-react";
+import { ExternalLink, Filter, Search, Sparkles } from "lucide-react";
 import { WTable, WTbody, WTd, WTr } from "@/components/ui/data-table";
 import { formInputClass } from "@/components/ui/form-field";
 import { StatusBadge } from "@/components/ui/primitives";
@@ -24,6 +24,20 @@ import {
 
 export function CatalogItemActiveTag({ className }: { className?: string }) {
   return <StatusBadge status="Active" className={cn("shrink-0", className)} />;
+}
+
+export function CatalogMatchPill({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-0.5 rounded-full border border-border-default bg-white px-1.5 py-px text-[10px] font-medium text-text-muted",
+        className,
+      )}
+    >
+      <Sparkles size={10} strokeWidth={2} className="text-blue-600" aria-hidden />
+      Match
+    </span>
+  );
 }
 
 export function CatalogItemExternalLink({
@@ -204,6 +218,8 @@ interface TableProps {
   flow: ZenithCatalogPickFlow;
   columnFilters: CatalogColumnFilters;
   onColumnFiltersChange: (filters: CatalogColumnFilters) => void;
+  /** Rejected system match — show Match pill on this catalog row. */
+  highlightMatchCatalogItemId?: string | null;
 }
 
 function CatalogItemTable({
@@ -213,6 +229,7 @@ function CatalogItemTable({
   flow,
   columnFilters,
   onColumnFiltersChange,
+  highlightMatchCatalogItemId = null,
 }: TableProps) {
   const radioName = flow === "add-row" ? "catalog-add-row-select" : "catalog-map-select";
   const [openFilterKey, setOpenFilterKey] = useState<FilterColumnKey | null>(null);
@@ -434,6 +451,7 @@ function CatalogItemTable({
               ) : (
                 items.map((item) => {
                   const selected = selectedItemId === item.id;
+                  const showMatchPill = highlightMatchCatalogItemId === item.id;
 
                   return (
                     <WTr
@@ -456,8 +474,9 @@ function CatalogItemTable({
                         />
                       </WTd>
                       <WTd className="px-2 py-1.5">
-                        <div className="flex min-w-[140px] items-center gap-1">
+                        <div className="flex min-w-[140px] flex-wrap items-center gap-x-1 gap-y-0.5">
                           <span className="truncate font-medium text-text-primary">{item.name}</span>
+                          {showMatchPill ? <CatalogMatchPill /> : null}
                           <span className="shrink-0 text-text-muted">·</span>
                           <span className="truncate text-[11px] text-text-muted">{item.sku}</span>
                           <ExternalLink
@@ -499,6 +518,8 @@ interface Props {
   /** Called when the user confirms mapping (not on row select). */
   onMapItem?: (catalogItemId: string) => void;
   flow?: ZenithCatalogPickFlow;
+  /** Rejected system match — show Match pill on this catalog row. */
+  highlightMatchCatalogItemId?: string | null;
 }
 
 export function ZenithItemMapToExistingPanel({
@@ -507,6 +528,7 @@ export function ZenithItemMapToExistingPanel({
   selectedItemName,
   onSelectItem: onSelectItemProp,
   flow = "mapping",
+  highlightMatchCatalogItemId = null,
 }: Props) {
   const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null);
   const selectedItemId = selectedItemIdProp ?? internalSelectedId;
@@ -599,6 +621,7 @@ export function ZenithItemMapToExistingPanel({
         flow={flow}
         columnFilters={columnFilters}
         onColumnFiltersChange={setColumnFilters}
+        highlightMatchCatalogItemId={highlightMatchCatalogItemId}
       />
     </div>
   );

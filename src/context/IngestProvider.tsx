@@ -31,7 +31,9 @@ import {
 } from "@/context/ingest-context-core";
 
 export function IngestProvider({ children }: { children: ReactNode }) {
-  const [selectedSample, setSelectedSample] = useState<"sample2" | "sample3" | "sample4" | null>(null);
+  const [selectedSample, setSelectedSample] = useState<
+    "sample2" | "sample3" | "sample4" | "sample5" | null
+  >(null);
   const [sessionCustomers, setSessionCustomers] = useState<Customer[]>([]);
   const [sessionProductSkus, setSessionProductSkus] = useState<string[]>([]);
   const [ingestResult, setIngestResult] = useState<IngestResult | null>(null);
@@ -317,7 +319,7 @@ export function IngestProvider({ children }: { children: ReactNode }) {
   function startIngestionSession(
     queueItemId: string,
     customerId: string,
-    sampleId: "sample2" | "sample3" | "sample4",
+    sampleId: "sample2" | "sample3" | "sample4" | "sample5",
     customerLink: "matched" | "created",
   ) {
     const extracted = getExtractedContract(sampleId);

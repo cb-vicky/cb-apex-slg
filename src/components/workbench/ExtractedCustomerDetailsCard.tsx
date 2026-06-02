@@ -9,15 +9,28 @@ interface Props {
   needsAction?: boolean;
   /** Green left accent when linked to a site customer. */
   linked?: boolean;
+  /** Green surface + strip after closest-match approve (pre-ingest ready state). */
+  ready?: boolean;
 }
 
-export function ExtractedCustomerDetailsCard({ summary, className, needsAction, linked }: Props) {
+export function ExtractedCustomerDetailsCard({
+  summary,
+  className,
+  needsAction,
+  linked,
+  ready,
+}: Props) {
   return (
     <div
       className={cn(
-        "rounded-lg border border-border-default bg-gray-100 px-3 py-2",
-        needsAction && "border-l-[3px] border-l-red-500",
-        linked && "border-l-[3px] border-l-emerald-500",
+        "rounded-lg border px-3 py-2 transition-[background-color,border-color,box-shadow] duration-300 ease-out",
+        ready
+          ? "border-emerald-200 border-l-[3px] border-l-emerald-500 bg-emerald-50"
+          : "border-border-default bg-gray-100",
+        !ready && needsAction && "border-l-[3px] border-l-red-500",
+        !ready && linked && "border-l-[3px] border-l-emerald-500",
+        ready &&
+          "motion-safe:animate-customer-link-ready-in motion-reduce:animate-none motion-reduce:opacity-100",
         className,
       )}
     >

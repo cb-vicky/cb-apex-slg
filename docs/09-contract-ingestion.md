@@ -18,7 +18,7 @@ The operator links a queue item to a customer via the modal, then reviews extrac
 - `src/components/revenue-workspace/ingestion/*` — Legacy ingestion tab components (used for non-Zenith flows)
 - `src/context/IngestProvider.tsx`, `ingest-context-core.ts` — session state including `IngestionSession`
 - `src/components/common/EntityDrawer.tsx` + `src/store/drawer-store.ts` — **simplified** to only handle invoice approval
-- `src/data/ingest-data.ts` — extracted contract samples (`sample2` new business, `sample3` early renewal, `sample4` late renewal) + types
+- `src/data/ingest-data.ts` — extracted contract samples (`sample2` Zenith new business, `sample3` early renewal, `sample4` late renewal, **`sample5` Pioneer match-first**) + types
 - `src/data/zenith-*.ts` — Zenith-specific seed data (catalog items, contract summary, comments, preview)
 - `src/data/customer-link-search-seed.ts` — customer search seed data
 - `src/data/approval-policy.ts` — merchant policy
@@ -69,6 +69,34 @@ applyQueueItemOverride(queueItemId, { status: "In Progress", customerId })
 openQueueIngestionTab(customerId, queueItemId, navigate)
 // navigates to /customers/:customerId?tab=ingestion&queueItemId=...
 ```
+
+### Match-first customer link (`linkWorkflow: "match_first"`)
+
+**Demo queue row:** `QI-2026-0007` (`sample5`, Pioneer Systems) with `suggestedCustomerId: "cust_pioneer_004"`.
+
+**Variant resolution:** `getCustomerLinkWorkflowVariant()` in `src/lib/new-deal-customer-link-workflow.ts` — `queueItem.linkWorkflow` or `sample5` → match-first; otherwise standard.
+
+**UI:** `NewDealCustomerLinkMatchFirstPanel` (right column when variant is match-first) instead of the flat link/create layout only.
+
+| Step | Behavior |
+|------|----------|
+| **Initial** | Extracted customer card + **Closest match found** banner (grey table header, outline **Approve** / **Reject**, **View similar matches** outline button) |
+| **Approve** | Extracted card → green **Ready** pill + green strip; banner animates closed (`customer-link-*` keyframes in `index.css`); selection retained; **View similar matches** remains below card |
+| **Reject** | Browse **View all customers** — matches pinned on top; closest row keeps outline **Closest match** pill, **no** emerald row highlight (`closestMatchRejected`) |
+| **View similar matches** (from banner or post-approve) | Similar-only list; search strip: `N similar customers` \| **View all customers** |
+| **View all customers** | Full catalog with similar rows first, then remainder; count only in search strip (no back-link) |
+| **Selection** | Table rows **toggle** — click selected row again to clear; with selection: `{name} selected` · **Clear** \| **View all customers** (similar scope only) |
+| **Section chrome** | Only **Ready** pill beside “Extracted customer details” (no Completed / amber catalog pills in match-first panel) |
+| **Modes** | **Link to existing** \| **Create new customer** tabs persist in browse; create clears approved-ready state |
+
+**Key components (workbench):**
+
+- `CustomerClosestMatchPanel.tsx` — match banner + inline catalog table (Items-tab match-found table pattern)
+- `NewDealCustomerLinkMatchFirstPanel.tsx` — orchestrates phases, scope, approve/reject state
+- `CustomerLinkSearchResults.tsx` — `CustomerLinkSearchBar` browse meta, `CustomerLinkCustomerTable` pills/highlights
+- `ExtractedCustomerDetailsCard.tsx` — `ready` prop (green surface + strip)
+
+**Standard variant** (`sample2` / Zenith, etc.): unchanged — `NewDealCustomerLinkModal` right panel uses link/create + `CustomerLinkCustomerTable` without closest-match banner.
 
 ### Zenith Contract Review (Ingestion tab)
 
@@ -195,7 +223,7 @@ Triggered from: Queue > **Import** button.
 2. **Loading** — animated progress bar (~3.2s) cycling through extraction messages
 3. **Done** — opens **`LinkCustomerModal`** for customer linking
 
-Samples: `sample2` → `QI-2026-0002`, `sample3` → `QI-2026-0006`, `sample4` → late renewal flow.
+Samples: `sample2` → `QI-2026-0002`, `sample3` → `QI-2026-0006`, `sample4` → late renewal flow, **`sample5` → `QI-2026-0007`** (match-first customer link — not in Upload modal buttons by default; use Workbench queue row).
 
 ---
 
@@ -214,12 +242,26 @@ Samples: `sample2` → `QI-2026-0002`, `sample3` → `QI-2026-0006`, `sample4` �
 - Each row shows mapping status:
   - **Mapped** — green checkmark, linked catalog item shown
   - **Needs mapping** — amber warning, "Map item" action
+- **Billing-rule suggestions** — rows below contract lines (dashed borders) for catalog items required by billing rules but absent from the uploaded contract. **Mock seed:** `ExtractedContract.billingRuleGapItems` on `extractedSample2` / `extractedSample5` in `ingest-data.ts` (not hardcoded in UI). Each shows **Add** or **Ignore**. Items tab cannot complete until every suggestion is resolved.
 - Bottom drawer (`ZenithLineItemBottomDrawer`) for item mapping:
   - **Map to existing** panel — catalog item search with condensed results
   - **Create new** panel — inline form to create catalog item
-- Tab completes when all items are mapped
+- Tab completes when all contract items are mapped and all billing-rule suggestions are included or ignored
 
-### Billing info tab (`ZenithContractBillingInfoTab`)
+**Billing-rule suggestion rows (additive detail):**
+
+- Rendered in the **same table** as contract lines, below solid rows, with **dashed** cell borders (not a separate card).
+- Muted copy; **Add** / **Ignore** on row hover; ignored rows keep strikethrough + **Restore**.
+- Info tooltips use `inclusionReason` (two-line layout); last row tooltip portals to avoid table `overflow` clip.
+- **Add** moves item into contract list with amber icon until linked; drawer opens **Map to existing**, not Match found.
+- **Ignore** counts as resolved for tab completion and triggers green **All items resolved.** when nothing else is pending.
+
+**Line item bottom drawer (`ZenithLineItemBottomDrawer`) — additive:**
+
+- Default height ~80vh; **~20vh compact** after row is linked (`lineItemResolution` set).
+- Header title **snapshots on open** — does not change when catalog name updates during mapping.
+- Pinned strip (`LineItemPinnedStrip`): amber left accent for `needs_mapping` and `billing_rule_match` until resolved; green accent after link.
+
 - Editable form fields:
   - Term length (read-only)
   - Billing cycle (read-only)
@@ -305,6 +347,7 @@ When the **Approver** persona approves:
 | Flow | Status | Entry point | Notes |
 |---|---|---|---|
 | **Standard ingest (new business)** | ✅ Implemented | Queue row / Upload sample2 → LinkCustomerModal → Ingestion tab | Customer 360 workspace flow |
+| **Match-first customer link (Pioneer)** | ✅ Implemented | `QI-2026-0007` / `sample5` → `NewDealCustomerLinkMatchFirstPanel` | Approve/reject closest match; similar + full catalog browse; then continue to ingest |
 | **Early Renewal** | ⚠️ Partial | `sample3` | Needs closure handoff integration |
 | **Late Renewal** | ⚠️ Partial | `sample4` | Needs grace extension + backdating in new architecture |
 | **Contract Closing** | ✅ Implemented | Contract tab overflow | Unchanged from previous implementation |
@@ -346,6 +389,22 @@ When the **Approver** persona approves:
 13. (First-cycle only) ApprovalSettingsModal captures merchant policy
 ```
 
+### Match-first new business (Pioneer Systems, `sample5` / `QI-2026-0007`)
+
+```
+1. Workbench → Queue tab (or Your tasks)                    — /?tab=queue
+2. Open row QI-2026-0007 (Pioneer Systems, Pending Review)
+3. NewDealCustomerLinkModal → NewDealCustomerLinkMatchFirstPanel
+   - Extracted customer details + Closest match found banner
+   - Approve → Ready pill + green card; banner dismisses (index.css keyframes)
+   - Reject → View all customers (matches on top; closest outline pill, no green row)
+   - View similar matches → similar list; search strip links to View all customers
+4. Optional: pick different row (toggle selection) or Create new customer
+5. Continue to ingest → same session/queue override as standard path
+   → /customers/:customerId?tab=ingestion&queueItemId=...
+6. (Post-link ingest UI for sample5 — TBD vs Zenith chrome; queue marks In Progress)
+```
+
 ---
 
 ## Deleted components
@@ -369,7 +428,7 @@ The `src/components/transitions/` and `src/components/ingestion/` directories no
 
 ## Scope notes
 
-- File upload UI is non-functional — **sample2** / **sample3** / **sample4** map to **queue ids** via `getQueueItemBySample`.
+- File upload UI is non-functional — **sample2** / **sample3** / **sample4** / **sample5** map to **queue ids** via `getQueueItemBySample` (sample5 is seeded on `QI-2026-0007`; primary demo path is the queue row, not Upload buttons).
 - Queue seed is intentionally small; expand in `queue-data.ts` when adding scenarios.
 - Session-created objects live in `IngestContext` only — refresh resets.
 - The Approvals module surfaces **invoice / closure document** approvals.

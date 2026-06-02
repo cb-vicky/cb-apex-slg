@@ -32,12 +32,6 @@ export function customerLinkStatus(customer: Customer): string {
   return hash % 10 === 0 ? "Inactive" : "Active";
 }
 
-export function customerSubscriptionLabel(customer: Customer): string {
-  if (customer.activeContractCount === 0) return "None";
-  if (customer.activeContractCount === 1) return customer.segment;
-  return `${customer.activeContractCount} active`;
-}
-
 export function customerNetPaymentTerms(customer: Customer): string {
   if (customer.poRequired) return "Net 45";
   return customer.paymentMethod === "Wire" ? "Net 30" : "Net 30";

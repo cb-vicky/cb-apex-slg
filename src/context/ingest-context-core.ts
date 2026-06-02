@@ -21,7 +21,7 @@ export type IngestionOverallStatus = "in_review" | "ready" | "awaiting_approval"
 export interface IngestionSession {
   queueItemId: string;
   customerId: string;
-  sampleId: "sample2" | "sample3" | "sample4";
+  sampleId: "sample2" | "sample3" | "sample4" | "sample5";
   customerLink: "matched" | "created";
   overallStatus: IngestionOverallStatus;
   sections: Record<IngestionSectionId, IngestionSectionState>;
@@ -33,8 +33,8 @@ export interface IngestionSession {
 // ---------------------------------------------------------------------------
 
 export interface IngestContextValue {
-  selectedSample: "sample2" | "sample3" | "sample4" | null;
-  setSelectedSample: (s: "sample2" | "sample3" | "sample4" | null) => void;
+  selectedSample: "sample2" | "sample3" | "sample4" | "sample5" | null;
+  setSelectedSample: (s: "sample2" | "sample3" | "sample4" | "sample5" | null) => void;
 
   sessionCustomers: Customer[];
   addSessionCustomer: (c: Customer) => void;
@@ -170,7 +170,7 @@ export interface IngestContextValue {
   startIngestionSession: (
     queueItemId: string,
     customerId: string,
-    sampleId: "sample2" | "sample3" | "sample4",
+    sampleId: "sample2" | "sample3" | "sample4" | "sample5",
     customerLink: "matched" | "created",
   ) => void;
 

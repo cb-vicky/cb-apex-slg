@@ -30,20 +30,23 @@ src/
     contracts/              # upload modal, closure modal + ClosureSummaryCard + ClosureBanner
     queue/                  # QueueIntegrationsModal
     workbench/              # NEW DEAL customer linking: NewDealCustomerLinkModal,
+                            # NewDealCustomerLinkMatchFirstPanel, CustomerClosestMatchPanel,
                             # CreateCustomerForm, CustomerLinkSearchResults,
                             # ExtractedCustomerDetailsCard, LinkedCustomerDetailsCard
     common/                 # EntityDrawer, RootErrorBoundary
     ui/                     # shared primitives (StatusBadge, KV, SectionCard, etc.)
   data/                     # mock-data, revrec, support, billing, ingest, queue-data,
-                            # approval-policy, workbench-tasks, customer-tasks, email-threads,
-                            # contract-transition, zenith-* (catalog, comments, preview, summary)
+                            # customer-link-search-seed, approval-policy, workbench-tasks,
+                            # customer-tasks, email-threads, contract-transition,
+                            # zenith-* (catalog, comments, preview, summary)
   context/                  # IngestProvider + ingest-context-core, DemoPersonaContext,
                             # WorkspaceShellContext
   store/                    # drawer-store (EntityDrawer — invoice approval only),
                             # new-deal-customer-link-store (NewDealCustomerLinkModal)
   hooks/                    # usePendingWorkbenchCounts, useApprovalUrlDrawerSync, useScrolled,
                             # useNewDealCustomerLinkGate
-  lib/                      # new-deal-customer-link (helpers), resolve-ingestion-session
+  lib/                      # new-deal-customer-link (helpers), new-deal-customer-link-workflow
+                            # (standard vs match_first, similar browse), resolve-ingestion-session
 ```
 
 ## Non-negotiable constraints
@@ -114,19 +117,21 @@ Prototype is functionally rich for demo flows. Recent work implemented the **NEW
 **Workbench (`/`):**
 - Tabs: **Your tasks** | **Queue** | **Approvals** (blue underline accent)
 - `deriveWorkbenchTasks` + `DemoPersonaContext` filter operator vs approver views
-- Queue Import opens `UploadModal` → **`NewDealCustomerLinkModal`** → Zenith Contract Review (primary NEW DEAL ingest path)
+- Queue Import opens `UploadModal` → **`NewDealCustomerLinkModal`** → Zenith or Pioneer ingest path
 
-**NEW DEAL Ingestion (Zenith flow):**
-- **`NewDealCustomerLinkModal`** — full-screen modal (left: contract PDF preview, right: customer search/create)
-  - Two modes: "Link to existing" (customer table) or "Create new customer" (inline form)
-  - Shows extracted customer details with match status badge
+**NEW DEAL Ingestion:**
+- **`NewDealCustomerLinkModal`** — full-screen modal (left: contract PDF preview, right: customer link UI)
+  - **Standard** (`sample2` / Zenith): link/create tabs + searchable customer table
+  - **Match-first** (`sample5` / `QI-2026-0007` / `linkWorkflow: "match_first"`): `NewDealCustomerLinkMatchFirstPanel` — closest-match banner (approve/reject), **Ready** state on approve, **View similar matches** / **View all customers** browse with match pills; row selection toggles
+  - Section status: **Ready** pill only (match-first); no Completed/amber header pills
   - On continue: creates ingestion session → navigates to `/customers/:id?tab=ingestion`
-- **Zenith Contract Review** (`src/components/revenue-workspace/contract/zenith/`)
+- **Zenith contract review** (`sample2`) — `src/components/revenue-workspace/contract/zenith/`
   - **`ZenithContractChromeContext`** — shared state for active tab, scroll collapse, line items, comments
   - **Tab strip**: Summary | Items | Billing info | Addresses | Invoice Preview
   - Each tab has completion status (incomplete → complete) with "Mark as done" CTAs
-  - **Items tab**: line item table with catalog mapping (Map to existing / Create new panels)
+  - **Items tab**: line item table with catalog mapping (Map to existing / Create new panels); billing-rule **gap rows** (dashed, Add/Ignore/Restore) for mandatory add-ons not on the PDF (`sample2`, `sample5`); amber **Action needed** / green **All items resolved.** banners
   - **Invoice Preview tab**: PDF-style invoice document with zoom controls + **Send for approval** CTA
+  - **`ZenithContractChromeContext`** — also persists `billingGapResolutions` per gap row (`included` | `ignored`)
   - **Comments panel**: slide-out panel for contract review comments with pinning
 - **Send for approval** creates session contract + invoice, navigates to Invoicing tab detail
 

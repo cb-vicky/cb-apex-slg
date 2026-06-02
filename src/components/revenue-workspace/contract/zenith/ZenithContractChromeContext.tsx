@@ -15,9 +15,11 @@ import {
   type IngestionSubTab,
 } from "@/components/revenue-workspace/ingestion/ingestion-zenith-sync";
 import {
-  zenithSummaryLineItems,
-  type ZenithSummaryLineItem,
-} from "@/data/zenith-contract-summary";
+  getContractLineItemsForIngest,
+  type ContractBillingGapResolution,
+  type ContractLineItem,
+} from "@/data/contract-line-items";
+import type { IngestQueueSampleId } from "@/data/ingest-data";
 import {
   ZENITH_CONTRACT_SCROLL_COLLAPSE_AT,
   ZENITH_CONTRACT_SCROLL_EXPAND_AT,
@@ -57,12 +59,19 @@ export interface ZenithContractChromeValue {
   /** Set when ingestion runs inside Customer 360 (for send-for-approval + queue linkage). */
   ingestionQueueItemId?: string;
   ingestionCustomerId?: string;
+  ingestionSampleId?: IngestQueueSampleId;
   isScrollCollapsed: boolean;
   getContentTabStatus: (tab: ZenithContractContentTab) => ZenithTabCompletionStatus;
   markTabComplete: (tab: ZenithContractContentTab) => void;
   unmarkTabComplete: (tab: ZenithContractContentTab) => void;
-  contractLineItems: ZenithSummaryLineItem[];
-  setContractLineItems: (items: ZenithSummaryLineItem[]) => void;
+  contractLineItems: ContractLineItem[];
+  setContractLineItems: (items: ContractLineItem[]) => void;
+  billingGapResolutions: Record<string, ContractBillingGapResolution>;
+  setBillingGapResolutions: (
+    updater: (
+      prev: Record<string, ContractBillingGapResolution>,
+    ) => Record<string, ContractBillingGapResolution>,
+  ) => void;
   reviewStatus: ZenithContractReviewStatus;
   setReviewStatus: (status: ZenithContractReviewStatus) => void;
   comments: ZenithContractComment[];
@@ -87,6 +96,7 @@ export function ZenithContractChromeProvider({
   ingestionUrlSync = false,
   ingestionQueueItemId,
   ingestionCustomerId,
+  ingestionSampleId,
   children,
 }: {
   enabled: boolean;
@@ -96,6 +106,8 @@ export function ZenithContractChromeProvider({
   ingestionUrlSync?: boolean;
   ingestionQueueItemId?: string;
   ingestionCustomerId?: string;
+  /** Workbench ingest sample — drives Items-tab line item seed (`sample2`, `sample5`, …). */
+  ingestionSampleId?: IngestQueueSampleId;
   children: ReactNode;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -107,9 +119,12 @@ export function ZenithContractChromeProvider({
   
   const [activeTab, setActiveTabState] = useState<ZenithContractActiveTab>("Summary");
   const [isScrollCollapsed, setIsScrollCollapsed] = useState(false);
-  const [contractLineItems, setContractLineItems] = useState<ZenithSummaryLineItem[]>(() => [
-    ...zenithSummaryLineItems,
-  ]);
+  const [contractLineItems, setContractLineItems] = useState<ContractLineItem[]>(() =>
+    getContractLineItemsForIngest({ sampleId: ingestionSampleId }),
+  );
+  const [billingGapResolutions, setBillingGapResolutionsState] = useState<
+    Record<string, ContractBillingGapResolution>
+  >({});
   const [manualTabComplete, setManualTabComplete] = useState<
     Partial<Record<ZenithContractContentTab, boolean>>
   >({});
@@ -126,7 +141,22 @@ export function ZenithContractChromeProvider({
   const transitioningRef = useRef(false);
   const transitionTimerRef = useRef(0);
 
-  const itemsTabComplete = areZenithContractItemsComplete(contractLineItems);
+  const itemsTabComplete = areZenithContractItemsComplete({
+    items: contractLineItems,
+    sampleId: ingestionSampleId,
+    billingGapResolutions,
+  });
+
+  const setBillingGapResolutions = useCallback(
+    (
+      updater: (
+        prev: Record<string, ContractBillingGapResolution>,
+      ) => Record<string, ContractBillingGapResolution>,
+    ) => {
+      setBillingGapResolutionsState((prev) => updater(prev));
+    },
+    [],
+  );
 
   const summaryTabComplete = areZenithSummaryPrerequisiteTabsComplete({
     itemsComplete: itemsTabComplete,
@@ -242,10 +272,13 @@ export function ZenithContractChromeProvider({
 
     setIsScrollCollapsed(false);
 
+    const seedLineItems = getContractLineItemsForIngest({ sampleId: ingestionSampleId });
+
     if (isIngestionComplete) {
-      const completedLineItems = zenithSummaryLineItems.map((item) => ({
+      const completedLineItems = seedLineItems.map((item) => ({
         ...item,
         mappingStatus: "mapped" as const,
+        catalogLink: item.catalogLink ?? ("system_match" as const),
       }));
       setContractLineItems(completedLineItems);
       setManualTabComplete({
@@ -253,10 +286,11 @@ export function ZenithContractChromeProvider({
         "Addresses": true,
       });
     } else {
-      setContractLineItems([...zenithSummaryLineItems]);
+      setContractLineItems(seedLineItems);
       setManualTabComplete({});
     }
 
+    setBillingGapResolutionsState({});
     setReviewStatus(DEFAULT_ZENITH_CONTRACT_REVIEW_STATUS);
     setComments([]);
     setCommentsPanelOpen(false);
@@ -274,7 +308,7 @@ export function ZenithContractChromeProvider({
           : "Summary";
       setActiveTabState(initialTab);
     }
-  }, [enabled, resetKey, isIngestionComplete, ingestionUrlSync]);
+  }, [enabled, resetKey, isIngestionComplete, ingestionUrlSync, ingestionSampleId]);
 
   /** Keep zenith tab aligned when ingestion URL sub-tab changes externally. */
   useEffect(() => {
@@ -336,12 +370,15 @@ export function ZenithContractChromeProvider({
         setActiveTab,
         ingestionQueueItemId,
         ingestionCustomerId,
+        ingestionSampleId,
         isScrollCollapsed,
         getContentTabStatus,
         markTabComplete,
         unmarkTabComplete,
         contractLineItems,
         setContractLineItems,
+        billingGapResolutions,
+        setBillingGapResolutions,
         reviewStatus,
         setReviewStatus,
         comments,

@@ -1,5 +1,10 @@
 import type { Customer } from "@/data/mock-data";
 
+// ---------------------------------------------------------------------------
+// New-deal customer link modal — extra catalog rows (merged in NewDealCustomerLinkModal)
+// pioneerSimilarLinkSearchCustomerIds — four near-duplicate Pioneer Systems rows (sample5)
+// ---------------------------------------------------------------------------
+
 /** Additional site customers for the new-deal customer link modal search table demo. */
 function linkSearchCustomer(
   id: string,
@@ -41,6 +46,20 @@ function linkSearchCustomer(
     ...overrides,
   };
 }
+
+/** Near-duplicate Pioneer Systems rows for sample5 similar / match-found browse (see mock-data.ts). */
+export const pioneerSimilarLinkSearchCustomerIds = [
+  "cust_pioneer_systems_v2",
+  "cust_pioneer_systems_typo",
+  "cust_pioneer_systems_singular",
+  "cust_pioneer_systems_plural",
+] as const;
+
+/** Five match-found rows in the match-first banner (canonical Pioneer + four variants). */
+export const pioneerMatchFoundCustomerIds = [
+  "cust_pioneer_004",
+  ...pioneerSimilarLinkSearchCustomerIds,
+] as const;
 
 export const customerLinkSearchSeedCustomers: Customer[] = [
   linkSearchCustomer("cust_link_search_010", "Atlas BioSystems", "atlasbio.com"),

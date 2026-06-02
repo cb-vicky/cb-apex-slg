@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, CircleCheck, Info, Link2, UserPlus, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, FileText, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,8 @@ import {
   openQueueIngestionTab,
   suggestDomainFromCompanyName,
 } from "@/lib/new-deal-customer-link";
+import { getCustomerLinkWorkflowVariant } from "@/lib/new-deal-customer-link-workflow";
+import { NewDealCustomerLinkMatchFirstPanel } from "./NewDealCustomerLinkMatchFirstPanel";
 import type { ExtractedContract } from "@/data/ingest-data";
 
 function DocumentPreviewPane({
@@ -51,54 +53,92 @@ function DocumentPreviewPane({
 
   const customerName = extracted?.customerName || queueItem.customerName;
   const customerLegalEntity = extracted?.customerLegalEntity || queueItem.customerName;
+  const customerContactName = extracted?.primaryContactName;
+  const customerContactEmail = extracted?.primaryContactEmail;
   const docId = extracted?.docId?.toUpperCase() || queueItem.id;
 
   return (
-    <div className="flex h-full flex-col bg-[#F3F4F6]">
-      <div className="flex shrink-0 items-center justify-between border-b border-border-default bg-white px-4 py-2">
-        <div className="flex items-center gap-2">
-          <div className="rounded bg-blue-100 p-1.5">
-            <FileText size={14} className="text-blue-700" />
+    <div className="flex h-full flex-col bg-[#E8EAED]">
+      <div className="flex shrink-0 items-center gap-3 border-b border-black/10 bg-[#3C3F44] px-3 py-2 text-white shadow-sm">
+        <div className="flex min-w-0 shrink-0 items-center gap-2">
+          <div className="rounded bg-white/10 p-1.5">
+            <FileText size={14} className="text-white/90" />
           </div>
-          <span className="text-sm font-medium text-text-primary">Contract Preview</span>
+          <span className="truncate text-[13px] font-medium text-white/95">Contract Preview</span>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setZoom((z) => Math.max(40, z - 10))}
-              className="rounded p-1.5 hover:bg-gray-100"
-              aria-label="Zoom out"
-            >
-              <ZoomOut size={14} className="text-text-secondary" />
-            </button>
-            <span className="min-w-[2.5rem] text-center text-[11px] text-text-muted">{zoom}%</span>
-            <button
-              onClick={() => setZoom((z) => Math.min(150, z + 10))}
-              className="rounded p-1.5 hover:bg-gray-100"
-              aria-label="Zoom in"
-            >
-              <ZoomIn size={14} className="text-text-secondary" />
-            </button>
-          </div>
-          <button className="rounded p-1.5 hover:bg-gray-100" aria-label="Download">
-            <Download size={14} className="text-text-secondary" />
+        <div
+          className="flex min-w-0 flex-1 items-center justify-center gap-0.5"
+          aria-label={`Page ${currentPage} of ${totalPages}`}
+        >
+          <button
+            type="button"
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="rounded p-1 text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-30"
+            aria-label="Previous page"
+          >
+            <ChevronLeft size={15} strokeWidth={2} />
+          </button>
+          <span className="min-w-[3.25rem] text-center text-[11px] tabular-nums text-white/75">
+            {currentPage} / {totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="rounded p-1 text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-30"
+            aria-label="Next page"
+          >
+            <ChevronRight size={15} strokeWidth={2} />
+          </button>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-0.5 rounded-md border border-white/10 bg-white/5 px-1 py-0.5">
+          <button
+            type="button"
+            onClick={() => setZoom((z) => Math.max(40, z - 10))}
+            className="rounded p-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+            aria-label="Zoom out"
+          >
+            <ZoomOut size={14} />
+          </button>
+          <span className="min-w-[2.25rem] text-center text-[11px] tabular-nums text-white/75">
+            {zoom}%
+          </span>
+          <button
+            type="button"
+            onClick={() => setZoom((z) => Math.min(150, z + 10))}
+            className="rounded p-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+            aria-label="Zoom in"
+          >
+            <ZoomIn size={14} />
+          </button>
+          <span className="mx-0.5 h-4 w-px bg-white/15" aria-hidden />
+          <button
+            type="button"
+            className="rounded p-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+            aria-label="Download"
+          >
+            <Download size={14} />
           </button>
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto p-4">
-        <div className="flex justify-center">
-          <div
-            className="origin-top bg-white shadow-lg"
-            style={{
-              width: "8.5in",
-              minHeight: "11in",
-              transform: `scale(${zoom / 100})`,
-              transformOrigin: "top center",
-            }}
-          >
-            <div className="p-10">
+      <div
+        className="min-h-0 flex-1 overflow-auto p-4"
+        role="region"
+        aria-label="PDF document viewer"
+      >
+        <div
+          className={cn(
+            "mx-auto w-full min-h-[calc(100%-0.5rem)]",
+            "rounded-sm border border-black/[0.08] bg-white",
+            "shadow-[0_1px_3px_rgba(0,0,0,0.12),0_6px_20px_rgba(0,0,0,0.14)]",
+          )}
+          style={{ zoom: zoom / 100 } as CSSProperties}
+        >
+            <div className="px-8 py-10 sm:px-10">
               <div className="border-b border-gray-200 pb-5">
                 <div className="text-center">
                   <h1 className="text-xl font-bold text-gray-900">MASTER SERVICE AGREEMENT</h1>
@@ -113,10 +153,29 @@ function DocumentPreviewPane({
                   <p className="text-xs text-gray-600">340 S Lemon Ave #1111</p>
                   <p className="text-xs text-gray-600">Walnut, CA 91789</p>
                 </div>
-                <div>
-                  <h3 className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Customer</h3>
-                  <p className="mt-1.5 text-sm font-medium text-gray-900">{customerLegalEntity}</p>
-                  <p className="text-xs text-gray-600">{customerName}</p>
+                <div
+                  className={cn(
+                    "relative rounded-md px-2.5 py-2",
+                    "bg-amber-50 ring-2 ring-amber-400/55 ring-inset",
+                    "shadow-[inset_3px_0_0_0_rgba(245,158,11,0.85)]",
+                  )}
+                >
+                  <span className="mb-1.5 inline-flex rounded bg-amber-500/90 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-white">
+                    Customer
+                  </span>
+                  <h3 className="sr-only">Customer</h3>
+                  <p className="text-sm font-medium text-gray-900">{customerLegalEntity}</p>
+                  {customerName !== customerLegalEntity ? (
+                    <p className="mt-0.5 text-xs text-gray-600">{customerName}</p>
+                  ) : null}
+                  {customerContactName ? (
+                    <p className="mt-1.5 text-xs text-gray-700">
+                      <span className="text-gray-500">Contact:</span> {customerContactName}
+                    </p>
+                  ) : null}
+                  {customerContactEmail ? (
+                    <p className="text-xs text-gray-600">{customerContactEmail}</p>
+                  ) : null}
                 </div>
               </div>
 
@@ -204,30 +263,7 @@ function DocumentPreviewPane({
                 </div>
               )}
             </div>
-          </div>
         </div>
-      </div>
-
-      <div className="flex shrink-0 items-center justify-center gap-3 border-t border-border-default bg-white px-4 py-2">
-        <button
-          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-          disabled={currentPage === 1}
-          className="flex items-center gap-1 rounded px-2 py-1 text-xs text-text-secondary hover:bg-gray-100 disabled:opacity-40"
-        >
-          <ChevronLeft size={14} />
-          Prev
-        </button>
-        <span className="text-xs text-text-muted">
-          Page {currentPage} of {totalPages}
-        </span>
-        <button
-          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-          disabled={currentPage === totalPages}
-          className="flex items-center gap-1 rounded px-2 py-1 text-xs text-text-secondary hover:bg-gray-100 disabled:opacity-40"
-        >
-          Next
-          <ChevronRight size={14} />
-        </button>
       </div>
     </div>
   );
@@ -249,6 +285,7 @@ export function NewDealCustomerLinkModal({ queueItem, onClose }: Props) {
     startIngestionSession,
   } = useIngestContext();
   const extracted = getExtractedForQueueItem(queueItem);
+  const workflowVariant = getCustomerLinkWorkflowVariant(queueItem);
 
   const siteCustomers = useMemo(() => {
     const byId = new Map(seedCustomers.map((c) => [c.id, c]));
@@ -356,7 +393,7 @@ export function NewDealCustomerLinkModal({ queueItem, onClose }: Props) {
   function handleContinue() {
     if (!canContinue || !queueItem.sampleId) return;
 
-    const sampleId = queueItem.sampleId as "sample2" | "sample3" | "sample4";
+    const sampleId = queueItem.sampleId as "sample2" | "sample3" | "sample4" | "sample5";
 
     if (mode === "link") {
       const linked = siteCustomers.find((c) => c.id === linkedCustomerId);
@@ -411,6 +448,22 @@ export function NewDealCustomerLinkModal({ queueItem, onClose }: Props) {
         </aside>
 
         <div className="flex min-h-0 flex-col overflow-hidden bg-gray-100">
+          {workflowVariant === "match_first" ? (
+            <NewDealCustomerLinkMatchFirstPanel
+              queueItem={queueItem}
+              extracted={extracted}
+              siteCustomers={siteCustomers}
+              extractedSummary={extractedSummary}
+              mode={mode}
+              onModeChange={setMode}
+              search={search}
+              onSearchChange={setSearch}
+              linkedCustomerId={linkedCustomerId}
+              onLinkedCustomerIdChange={setLinkedCustomerId}
+              createForm={createForm}
+              onCreateFormChange={setCreateForm}
+            />
+          ) : (
           <div
             ref={panelScrollRef}
             className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6"
@@ -544,6 +597,7 @@ export function NewDealCustomerLinkModal({ queueItem, onClose }: Props) {
               )}
             </div>
           </div>
+          )}
         </div>
       </div>
 

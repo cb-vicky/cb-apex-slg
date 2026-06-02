@@ -62,11 +62,20 @@ The entry point for NEW DEAL contract ingestion. Opened via `openNewDealCustomer
 5. **Footer:** Cancel + "Continue to ingest" CTA
 
 **Related components:**
-- `ExtractedCustomerDetailsCard` — displays extracted PDF data
-- `LinkedCustomerDetailsCard` — displays linked customer data
+- `ExtractedCustomerDetailsCard` — displays extracted PDF data (`ready` / `linked` accent props)
+- `LinkedCustomerDetailsCard` — displays linked customer data (standard flow + non-approved browse)
 - `CustomerLinkCondensedStrip` — sticky header when scrolled
-- `CustomerLinkSearchResults` — search bar + customer table
+- `CustomerLinkSearchResults` — `CustomerLinkSearchBar`, `CustomerLinkCustomerTable`, `ViewSimilarMatchesButton`
 - `CreateCustomerForm` — inline customer creation form
+- `NewDealCustomerLinkMatchFirstPanel` — **match-first** right column (`sample5` / `linkWorkflow: "match_first"`)
+- `CustomerClosestMatchPanel` — closest-match banner with approve/reject + optional **View similar matches**
+
+**Workflow variants (right panel):**
+
+| Variant | When | Right panel |
+|---------|------|-------------|
+| **standard** | Default; `sample2` Zenith path | Extracted card + link/create tabs + search table |
+| **match_first** | `QI-2026-0007`, `sample5`, or `linkWorkflow: "match_first"` | `NewDealCustomerLinkMatchFirstPanel` (banner → browse; see `docs/09-contract-ingestion.md`) |
 
 **On submit:**
 ```typescript
@@ -240,6 +249,13 @@ Horizontal tab bar with:
 Renders the appropriate tab component based on `activeTab`:
 - `ZenithContractSummaryTab`
 - `ZenithContractItemsTab` + `ZenithLineItemBottomDrawer`
+
+**`ZenithLineItemBottomDrawer` — line item mapping (additive):**
+
+- Portal overlay; ~80vh default, ~20vh compact after successful map/approve (`compact={Boolean(drawerResolution)}`).
+- `headerTitle` frozen at open (contract PDF name); pinned `LineItemPinnedStrip` shows live row state.
+- Yellow rows (`needs_mapping`, `billing_rule_match`): map/create panels only — **no** green “Match found” banner.
+- Green system-match rows: Match found approve/reject; billing-rule adds use catalog id from `mappedCatalogByLine`.
 - `ZenithContractBillingInfoTab` + `ZenithMarkTabDoneBar`
 - `ZenithContractAddressesTab` + `ZenithMarkTabDoneBar`
 - `ZenithContractInvoicePreviewTab`
@@ -298,12 +314,17 @@ Flow-related store functions (`patchFlowSession`, `setFlowStep`) and types (`Tra
 | `src/components/common/EntityDrawer.tsx` | Invoice approval overlay only |
 | `src/store/drawer-store.ts` | Simplified drawer state |
 | `src/store/new-deal-customer-link-store.ts` | NewDealCustomerLinkModal state |
-| `src/components/workbench/NewDealCustomerLinkModal.tsx` | Full-screen customer linking modal |
+| `src/components/workbench/NewDealCustomerLinkModal.tsx` | Full-screen customer linking modal (branches standard vs match-first) |
+| `src/components/workbench/NewDealCustomerLinkMatchFirstPanel.tsx` | Match-first orchestration (approve, reject, browse scopes) |
+| `src/components/workbench/CustomerClosestMatchPanel.tsx` | Closest-match banner + catalog row table |
 | `src/components/workbench/CreateCustomerForm.tsx` | Inline customer creation form |
-| `src/components/workbench/CustomerLinkSearchResults.tsx` | Customer search table |
+| `src/components/workbench/CustomerLinkSearchResults.tsx` | Search bar, customer table, browse meta links |
+| `src/components/workbench/ExtractedCustomerDetailsCard.tsx` | Extracted PDF fields + ready/linked accents |
 | `src/components/workbench/NewDealCustomerLinkGateHost.tsx` | Modal gate wrapper |
 | `src/hooks/useNewDealCustomerLinkGate.tsx` | Hook to resolve pending queue item |
-| `src/lib/new-deal-customer-link.ts` | Helper functions for linking flow |
+| `src/lib/new-deal-customer-link.ts` | Extracted summary, domain helpers |
+| `src/lib/new-deal-customer-link-workflow.ts` | Variant, closest/similar ranking, browse list builders |
+| `src/data/customer-link-search-seed.ts` | Extra catalog + Pioneer similar-match ids |
 | `src/components/revenue-workspace/contract/zenith/*` | Zenith contract review UI |
 | `src/components/revenue-workspace/ingestion/*` | Legacy ingestion tab components |
 | `src/context/IngestProvider.tsx` | Session state including IngestionSession |
