@@ -120,20 +120,42 @@ export function SectionCard({
   className,
   actions,
   bodyClassName,
+  variant = "card",
 }: {
   title: string;
   children: ReactNode;
   className?: string;
   actions?: ReactNode;
   bodyClassName?: string;
+  /** `flat` — no card chrome. `muted` — grey surface aligned with workspace canvas (Collections overview tables). */
+  variant?: "card" | "flat" | "muted";
 }) {
+  const flat = variant === "flat";
+  const muted = variant === "muted";
+
   return (
-    <div className={cn("overflow-hidden rounded-3xl border border-border-default bg-white", className)}>
-      <div className="flex items-center justify-between gap-3 bg-white px-5 pt-4 pb-3">
+    <div
+      className={cn(
+        flat && "bg-transparent",
+        muted && "overflow-hidden rounded-3xl border border-border-default bg-gray-100",
+        !flat && !muted && "overflow-hidden rounded-3xl border border-border-default bg-white",
+        className,
+      )}
+    >
+      <div
+        className={cn(
+          "flex items-center justify-between gap-3 bg-transparent",
+          flat ? "px-0 pb-2 pt-0" : muted ? "px-4 pb-2 pt-3" : "px-5 pb-3 pt-4",
+        )}
+      >
         <h3 className="font-sora text-[14px] font-bold leading-tight tracking-normal text-text-primary">{title}</h3>
         {actions}
       </div>
-      <div className={cn("px-5 pb-4 pt-1", bodyClassName)}>{children}</div>
+      <div
+        className={cn(flat ? "px-0 pb-0 pt-0" : muted ? "px-4 pb-3 pt-0" : "px-5 pb-4 pt-1", bodyClassName)}
+      >
+        {children}
+      </div>
     </div>
   );
 }

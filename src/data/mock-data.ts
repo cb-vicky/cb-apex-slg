@@ -1582,6 +1582,20 @@ export const invoices: Invoice[] = [
     owner: "Alex Nguyen",
   },
   {
+    id: "INV-2025-0258",
+    customerId: "cust_echo_001",
+    contractId: "CON-2024-0189",
+    date: "2025-11-01",
+    dueDate: "2025-12-01",
+    amount: 3400,
+    status: "Paid",
+    lineItems: [
+      { description: "AI Agent Credits – Overage (Oct 2025)", amount: 2100 },
+      { description: "Premium Support – Monthly Prorate", amount: 1300 },
+    ],
+    owner: "Alex Nguyen",
+  },
+  {
     id: "INV-2026-0040",
     customerId: "cust_northlane_003",
     contractId: "CON-2025-0022",

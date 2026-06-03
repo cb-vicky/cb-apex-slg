@@ -1,94 +1,40 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
-import { currency, shortDate, cn } from "@/lib/utils";
-import type {
-  PromiseToPayInvoiceGroup,
-  PromiseToPayLogEntry,
-  PromiseToPayInvoiceStatus,
-  PromiseToPayEntryStatus,
+import { cn } from "@/lib/utils";
+import type { PromiseToPayRecord } from "@/data/billing-data";
+import {
+  getPrimaryPromiseToPayLog,
+  getPromiseLogAmount,
+  isPromiseSettled,
+  sortPromiseToPayLogs,
 } from "@/data/billing-data";
-import { sortPromiseToPayLogs } from "@/data/billing-data";
+import { PromiseToPayAssociatedInvoices } from "./PromiseToPayAssociatedInvoices";
+import {
+  PromiseToPayExpandableStatusIndicator,
+  PromiseToPayRowPrimaryLine,
+  PromiseToPayTimelineStep,
+  PROMISE_UPDATE_ACTION_LABEL,
+} from "./promise-to-pay-entry-ui";
 
-const GRID_COLS = "grid-cols-[auto_minmax(0,1fr)_88px_100px_minmax(150px,1fr)]";
-
-function formatPromisedFor(iso: string): string {
-  return new Date(iso)
-    .toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })
-    .toUpperCase();
-}
-
-const BADGE_BASE =
-  "inline-flex w-fit items-center rounded px-1.5 py-px text-[11px] font-medium leading-tight capitalize";
-
-function InvoiceStatusBadge({ status }: { status: PromiseToPayInvoiceStatus }) {
-  const paid = status === "paid";
-  return (
-    <span
-      className={cn(
-        BADGE_BASE,
-        paid
-          ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-          : "border border-amber-200 bg-amber-50 text-amber-700",
-      )}
-    >
-      {paid ? "Paid" : "Pending"}
-    </span>
-  );
-}
-
-function EntryStatusBadge({ status }: { status: PromiseToPayEntryStatus }) {
-  const styles: Record<PromiseToPayEntryStatus, string> = {
-    scheduled: "border border-blue-200 bg-blue-50 text-blue-700",
-    failed: "border border-red-200 bg-red-50 text-red-700",
-    paid: "border border-emerald-200 bg-emerald-50 text-emerald-700",
-  };
-
-  return <span className={cn(BADGE_BASE, styles[status])}>{status}</span>;
-}
-
-function logEntryLabel(log: PromiseToPayLogEntry): string {
-  if (log.status === "paid" && log.paidOn) {
-    return `Paid on ${formatPromisedFor(log.paidOn)}`;
-  }
-  if (log.promisedFor) {
-    if (log.status === "failed") {
-      return `Missed promise for ${formatPromisedFor(log.promisedFor)}`;
-    }
-    return `Promised for ${formatPromisedFor(log.promisedFor)}`;
-  }
-  return "Promise logged";
-}
-
-function LogEntryRow({ log }: { log: PromiseToPayLogEntry }) {
-  return (
-    <div
-      className={cn(
-        "grid items-center gap-3 border-b border-border-subtle py-2.5 pl-7 pr-4 last:border-0",
-        GRID_COLS,
-      )}
-    >
-      <span />
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <p className="text-[13px] font-semibold text-text-primary">{logEntryLabel(log)}</p>
-        <EntryStatusBadge status={log.status} />
-      </div>
-      <span />
-      <span className="text-text-muted">—</span>
-      <span className="truncate text-[12px] text-text-secondary">
-        {shortDate(log.loggedOn)} {log.loggedByName}
-      </span>
-    </div>
-  );
-}
+/** Invoice column grows with badges; promise column absorbs shrink. */
+const HEADER_COLS = "grid-cols-[minmax(0,1fr)_auto]";
+const LIST_INVOICE_MAX_VISIBLE = 3;
 
 interface Props {
-  groups: PromiseToPayInvoiceGroup[];
+  promises: PromiseToPayRecord[];
+  onEditScheduled?: (promiseId: string, logId: string) => void;
+  /** Nested inside SectionCard on Collections overview — no duplicate outer card chrome. */
+  embedded?: boolean;
 }
 
-export function PromiseToPayListView({ groups }: Props) {
+export function PromiseToPayListView({
+  promises,
+  onEditScheduled,
+  embedded = false,
+}: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  if (groups.length === 0) {
+  if (promises.length === 0) {
+    if (embedded) return null;
     return (
       <div className="rounded-3xl border border-border-default bg-white px-6 py-12 text-center">
         <p className="text-[13px] text-text-muted">No promise-to-pay records for this customer.</p>
@@ -96,78 +42,141 @@ export function PromiseToPayListView({ groups }: Props) {
     );
   }
 
-  function toggle(invoiceId: string) {
+  function toggle(promiseId: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
-      if (next.has(invoiceId)) next.delete(invoiceId);
-      else next.add(invoiceId);
+      if (next.has(promiseId)) next.delete(promiseId);
+      else next.add(promiseId);
       return next;
     });
   }
 
-  return (
-    <div className="overflow-hidden rounded-3xl border border-border-default bg-white">
+  const list = (
+    <>
       <div
         className={cn(
-          "grid items-center gap-3 border-b border-border-subtle px-4 pt-4 pb-2 text-[11px] font-semibold uppercase tracking-wider text-text-muted",
-          GRID_COLS,
+          "grid items-center gap-3 border-b border-border-subtle px-4 pb-2 text-[11px] font-semibold uppercase tracking-wider text-text-muted",
+          embedded ? "pt-0" : "pt-4",
+          HEADER_COLS,
         )}
       >
-        <span className="w-4" />
-        <span>Invoice</span>
-        <span>Status</span>
-        <span className="text-right">Amount</span>
-        <span />
+        <span>Promise</span>
+        <span className="text-right">Invoice</span>
       </div>
 
       <div className="divide-y divide-border-subtle">
-        {groups.map((group) => {
-          const isExpanded = expanded.has(group.invoiceId);
-          const hasLogs = group.logs.length > 0;
-          const sortedLogs = sortPromiseToPayLogs(group.logs, group.status);
+        {promises.map((record) => {
+          const isExpanded = expanded.has(record.id);
+          const hasLogs = record.logs.length > 0;
+          const settled = isPromiseSettled(record);
+          const sortedLogs = sortPromiseToPayLogs(record.logs, settled);
+          const primaryLog = getPrimaryPromiseToPayLog(record);
+
+          const rowExpandable = hasLogs;
 
           return (
-            <div key={group.invoiceId}>
+            <div key={record.id} className="group">
               <div
+                role={rowExpandable ? "button" : undefined}
+                tabIndex={rowExpandable ? 0 : undefined}
+                aria-expanded={rowExpandable ? isExpanded : undefined}
+                aria-label={
+                  rowExpandable
+                    ? isExpanded
+                      ? "Collapse promise activity"
+                      : "Expand promise activity"
+                    : undefined
+                }
+                onClick={rowExpandable ? () => toggle(record.id) : undefined}
+                onKeyDown={
+                  rowExpandable
+                    ? (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          toggle(record.id);
+                        }
+                      }
+                    : undefined
+                }
                 className={cn(
-                  "grid items-center gap-3 py-3 pl-3 pr-4 transition-colors hover:bg-surface-muted/60",
-                  GRID_COLS,
+                  "grid items-center gap-3 py-3 pl-4 pr-4 transition-colors hover:bg-surface-muted/60",
+                  HEADER_COLS,
+                  rowExpandable && "cursor-pointer",
                 )}
               >
-                <button
-                  type="button"
-                  onClick={() => hasLogs && toggle(group.invoiceId)}
-                  className={cn(
-                    "flex h-5 w-4 items-center justify-center text-text-muted transition-colors",
-                    hasLogs ? "cursor-pointer hover:text-text-primary" : "cursor-default",
+                <div className="min-w-0">
+                  {primaryLog ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <PromiseToPayExpandableStatusIndicator
+                        status={primaryLog.status}
+                        hasLogs={hasLogs}
+                        isExpanded={isExpanded}
+                      />
+                      <PromiseToPayRowPrimaryLine
+                        amount={getPromiseLogAmount(primaryLog, record.amount)}
+                        log={primaryLog}
+                      />
+                      {primaryLog.status === "scheduled" &&
+                      onEditScheduled &&
+                      !isExpanded ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditScheduled(record.id, primaryLog.id);
+                          }}
+                          className="text-[12px] font-semibold text-blue-600 opacity-0 transition-opacity hover:text-blue-700 group-hover:opacity-100 focus:opacity-100"
+                        >
+                          {PROMISE_UPDATE_ACTION_LABEL}
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <span className="text-[13px] text-text-muted">No promise activity</span>
                   )}
-                  aria-expanded={isExpanded}
-                  aria-label={isExpanded ? "Collapse activity" : "Expand activity"}
-                >
-                  {hasLogs ? (
-                    isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />
-                  ) : null}
-                </button>
+                </div>
 
-                <span className="text-[13px] font-semibold text-text-primary">{group.invoiceId}</span>
-                <InvoiceStatusBadge status={group.status} />
-                <span className="text-right text-[13px] font-medium tabular-nums text-text-primary">
-                  {currency(group.amount)}
-                </span>
-                <span />
+                <div className="flex shrink-0 justify-end self-center">
+                  <PromiseToPayAssociatedInvoices
+                    invoiceIds={record.invoiceIds}
+                    maxVisible={LIST_INVOICE_MAX_VISIBLE}
+                  />
+                </div>
               </div>
 
               {isExpanded && hasLogs && (
-                <div className="border-t border-border-subtle bg-gray-50 pb-1">
-                  {sortedLogs.map((log) => (
-                    <LogEntryRow key={log.id} log={log} />
-                  ))}
+                <div className="border-t border-border-subtle bg-gray-50 px-4 py-4 pr-5">
+                  <ol className="m-0 list-none p-0">
+                    {sortedLogs.map((log, idx) => (
+                      <PromiseToPayTimelineStep
+                        key={log.id}
+                        log={log}
+                        amount={getPromiseLogAmount(log, record.amount)}
+                        isLast={idx === sortedLogs.length - 1}
+                        onEdit={
+                          log.status === "scheduled" && onEditScheduled
+                            ? () => onEditScheduled(record.id, log.id)
+                            : undefined
+                        }
+                      />
+                    ))}
+                  </ol>
                 </div>
               )}
             </div>
           );
         })}
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="overflow-hidden">{list}</div>;
+  }
+
+  return (
+    <div className="overflow-hidden rounded-3xl border border-border-default bg-white">
+      {list}
     </div>
   );
 }

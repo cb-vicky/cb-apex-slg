@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { X, Plus, Filter, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +20,7 @@ interface FilterBarProps {
   filterOptions: FilterOption[];
   resultCount?: number;
   resultLabel?: string;
+  leadingContent?: ReactNode;
 }
 
 export function FilterBar({
@@ -28,6 +29,7 @@ export function FilterBar({
   filterOptions,
   resultCount,
   resultLabel = "results",
+  leadingContent,
 }: FilterBarProps) {
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [activeField, setActiveField] = useState<string | null>(null);
@@ -46,8 +48,11 @@ export function FilterBar({
   const activeOption = filterOptions.find((o) => o.field === activeField);
 
   return (
-    <div className="flex items-center justify-between gap-4">
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+    <div className="flex items-start justify-between gap-4">
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        {leadingContent ? <div className="w-full min-w-0">{leadingContent}</div> : null}
+
+        <div className="flex flex-wrap items-center gap-2">
         {filters.length > 0 && (
           <>
             {filters.map((filter) => (
@@ -159,6 +164,7 @@ export function FilterBar({
             }}
           />
         )}
+        </div>
       </div>
 
       {/* Result count */}

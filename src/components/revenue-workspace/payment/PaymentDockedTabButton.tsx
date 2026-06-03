@@ -29,7 +29,7 @@ function DockedSubPill({
         "inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-medium leading-tight transition-[opacity,transform,background-color,color]",
         visible ? "translate-x-0 opacity-100" : "translate-x-2 opacity-0",
         active
-          ? "bg-white/20 text-white"
+          ? "bg-white text-blue-600 shadow-sm"
           : "text-blue-100 hover:bg-white/10 hover:text-white",
       )}
       style={{
@@ -43,7 +43,7 @@ function DockedSubPill({
         <span
           className={cn(
             "rounded-full px-1 py-px text-[10px] leading-none",
-            active ? "bg-white/25" : "bg-white/10",
+            active ? "bg-blue-600/15 text-blue-700" : "bg-white/10",
           )}
         >
           {count}
@@ -53,10 +53,37 @@ function DockedSubPill({
   );
 }
 
+function DockedFlowTabsSeparator({
+  visible,
+  delayMs,
+}: {
+  visible: boolean;
+  delayMs: number;
+}) {
+  return (
+    <span
+      className={cn(
+        "mx-0.5 mb-0.5 inline-block h-4 w-px shrink-0 bg-white/30 transition-[opacity,transform]",
+        visible ? "translate-x-0 opacity-100" : "translate-x-2 opacity-0",
+      )}
+      style={{
+        transitionDuration: `${DOCK_TWEEN_MS}ms`,
+        transitionTimingFunction: DOCK_TWEEN_EASE,
+        transitionDelay: visible ? `${delayMs}ms` : "0ms",
+      }}
+      role="separator"
+      aria-orientation="vertical"
+      aria-hidden
+    />
+  );
+}
+
 interface Props {
   active: boolean;
   collectionsTab: PaymentCollectionsTab;
   promiseToPayCount: number;
+  addTabOpen: boolean;
+  editTabOpen: boolean;
   subTabsVisible?: boolean;
   onSelectCollections: () => void;
   onSubTabChange: (tab: PaymentCollectionsTab) => void;
@@ -66,10 +93,14 @@ export function PaymentDockedTabButton({
   active,
   collectionsTab,
   promiseToPayCount,
+  addTabOpen,
+  editTabOpen,
   subTabsVisible = true,
   onSelectCollections,
   onSubTabChange,
 }: Props) {
+  const hasFlowTabs = addTabOpen || editTabOpen;
+
   return (
     <div className="group/tab relative min-w-0 flex-1" style={{ zIndex: active ? 50 : 10 }}>
       <div
@@ -108,6 +139,27 @@ export function PaymentDockedTabButton({
             delayMs={230}
             onClick={() => onSubTabChange("promise-to-pay")}
           />
+          {hasFlowTabs ? (
+            <DockedFlowTabsSeparator visible={subTabsVisible} delayMs={255} />
+          ) : null}
+          {addTabOpen ? (
+            <DockedSubPill
+              label="Add"
+              active={collectionsTab === "add-promise-to-pay"}
+              visible={subTabsVisible}
+              delayMs={280}
+              onClick={() => onSubTabChange("add-promise-to-pay")}
+            />
+          ) : null}
+          {editTabOpen ? (
+            <DockedSubPill
+              label="Edit"
+              active={collectionsTab === "edit-promise-to-pay"}
+              visible={subTabsVisible}
+              delayMs={330}
+              onClick={() => onSubTabChange("edit-promise-to-pay")}
+            />
+          ) : null}
         </span>
       </div>
     </div>

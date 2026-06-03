@@ -1,6 +1,10 @@
 import { SectionCard, StatusBadge } from "@/components/ui/primitives";
-import { currency, shortDate, cn } from "@/lib/utils";
+import { currency, shortDate } from "@/lib/utils";
 import type { Invoice } from "@/data/mock-data";
+import {
+  formatDueStatusFromDays,
+  ReceivableDueStatusBadge,
+} from "./ReceivableDueStatusBadge";
 
 /** Days until due (negative = past due). */
 function daysUntilDue(dueDate: string): number {
@@ -11,13 +15,11 @@ function formatReceivableStatus(invoice: Invoice): string {
   const days = daysUntilDue(invoice.dueDate);
 
   if (invoice.status === "Overdue" || days < 0) {
-    const overdueDays = Math.abs(days);
-    return overdueDays === 1 ? "Overdue by 1 day" : `Overdue by ${overdueDays} days`;
+    return formatDueStatusFromDays(days);
   }
 
   if (invoice.status === "Pending Review") {
-    if (days === 0) return "Due today";
-    return days === 1 ? "Due in 1 day" : `Due in ${days} days`;
+    return formatDueStatusFromDays(days);
   }
 
   return invoice.status;
@@ -29,18 +31,7 @@ function ReceivableStatusBadge({ invoice }: { invoice: Invoice }) {
   const isDueIn = label.startsWith("Due");
 
   if (isOverdue || isDueIn) {
-    return (
-      <span
-        className={cn(
-          "inline-flex items-center rounded-md border px-2 py-0.5 text-[12px] font-medium leading-4",
-          isOverdue
-            ? "bg-red-50 text-red-700 border-red-200"
-            : "bg-amber-50 text-amber-700 border-amber-200",
-        )}
-      >
-        {label}
-      </span>
-    );
+    return <ReceivableDueStatusBadge label={label} />;
   }
 
   return <StatusBadge status={label} />;

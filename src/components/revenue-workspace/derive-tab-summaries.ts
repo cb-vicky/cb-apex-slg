@@ -1,7 +1,11 @@
+import { getCollectionCommentsForCustomer, getPinnedCollectionComments } from "@/data/collections-comments";
 import type { Customer, Quote, Contract, Invoice } from "@/data/mock-data";
 import { getThreadsForCustomer } from "@/data/email-threads";
 import { getOpenTasksForCustomer } from "@/data/customer-tasks";
 import type { Stage } from "./stage";
+import {
+  ADD_COLLECTION_COMMENT_RECORD_ID,
+} from "./workspace-tabs";
 import {
   deriveContractStatus,
   deriveCustomerStatus,
@@ -109,6 +113,11 @@ export function buildRecordTabSummaries(input: {
   for (const inv of mergedInvoices) {
     map[`record:invoicing:${inv.id}`] = deriveInvoiceRecordTabSummary(inv);
   }
+
+  map[`record:comments:${ADD_COLLECTION_COMMENT_RECORD_ID}`] = {
+    subtitle: "New",
+    severity: "amber",
+  };
 
   return map;
 }
@@ -266,6 +275,22 @@ export function deriveCollectionsTabSummary(
   return { subtitle: short, severity };
 }
 
+export function deriveCommentsTabSummary(customerId: string): TabSummary {
+  const count = getCollectionCommentsForCustomer(customerId).length;
+  const pinned = getPinnedCollectionComments(customerId).length;
+  if (count === 0) return { subtitle: "No comments", severity: "gray" };
+  if (pinned > 0) {
+    return {
+      subtitle: pinned === 1 ? "1 pinned" : `${pinned} pinned`,
+      severity: "amber",
+    };
+  }
+  return {
+    subtitle: count === 1 ? "1 comment" : `${count} comments`,
+    severity: "blue",
+  };
+}
+
 export interface ParentTabSummaryInput {
   customer: Customer;
   quotes: Quote[];
@@ -322,6 +347,8 @@ export function deriveParentTabSummaries(
 
   const collectionsSummary = deriveCollectionsTabSummary(customer.id, invoiceStatusOverrides);
   if (collectionsSummary) summaries.payment = collectionsSummary;
+
+  summaries.comments = deriveCommentsTabSummary(customer.id);
 
   if (primaryContractId) {
     const rev = deriveRevRecStatus(primaryContractId);

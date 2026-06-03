@@ -90,25 +90,45 @@ export interface DelayedPayment {
   paidOn: string;
 }
 
-export type PromiseToPayInvoiceStatus = "pending" | "paid";
-export type PromiseToPayEntryStatus = "scheduled" | "failed" | "paid";
+export type PromiseToPayEntryStatus = "scheduled" | "edited" | "failed" | "paid";
 
 export interface PromiseToPayLogEntry {
   id: string;
   status: PromiseToPayEntryStatus;
+  /** Amount promised for this revision (frozen when status becomes edited). */
+  amount?: number;
   promisedFor?: string;
   paidOn?: string;
+  /** Note for this revision only (frozen when status becomes edited). */
+  note?: string;
   loggedOn: string;
   loggedByName: string;
   loggedByInitials: string;
 }
 
-/** Promise-to-pay activity grouped by invoice (Collections → Promise to pay tab). */
-export interface PromiseToPayInvoiceGroup {
+function normalizePromiseNote(note?: string): string {
+  return (note ?? "").trim();
+}
+
+/** Amount shown for a log line; falls back to record total when not set on the entry. */
+export function getPromiseLogAmount(
+  log: PromiseToPayLogEntry,
+  recordAmount: number,
+): number {
+  return log.amount ?? recordAmount;
+}
+
+export function getPromiseLogNote(log: PromiseToPayLogEntry): string | undefined {
+  const trimmed = normalizePromiseNote(log.note);
+  return trimmed || undefined;
+}
+
+/** A promise-to-pay commitment: date + amount required; invoices optional (0..n). */
+export interface PromiseToPayRecord {
+  id: string;
   customerId: string;
-  invoiceId: string;
   amount: number;
-  status: PromiseToPayInvoiceStatus;
+  invoiceIds: string[];
   logs: PromiseToPayLogEntry[];
 }
 
@@ -118,7 +138,6 @@ export const PROMISE_TO_PAY_AS_OF = "2026-05-26";
 /** Past-due scheduled promises become failed unless already paid on that date. */
 export function resolvePromiseToPayLogs(
   logs: PromiseToPayLogEntry[],
-  invoiceStatus: PromiseToPayInvoiceStatus,
   asOf: string = PROMISE_TO_PAY_AS_OF,
 ): PromiseToPayLogEntry[] {
   const paidEntry = logs.find((l) => l.status === "paid");
@@ -131,7 +150,7 @@ export function resolvePromiseToPayLogs(
       return { ...log, status: "paid" as const, paidOn: paidEntry.paidOn };
     }
 
-    if (invoiceStatus === "paid" || log.promisedFor < asOf) {
+    if (log.promisedFor < asOf) {
       return { ...log, status: "failed" as const };
     }
 
@@ -139,29 +158,80 @@ export function resolvePromiseToPayLogs(
   });
 }
 
-/** Display order: paid first, then failed, then scheduled (newest dates first within each tier). */
+export function isPromiseSettled(record: PromiseToPayRecord): boolean {
+  return resolvePromiseToPayLogs(record.logs).some((l) => l.status === "paid");
+}
+
+/** Open = latest activity is still an active scheduled promise. */
+export function isPromiseOpen(record: PromiseToPayRecord): boolean {
+  const primary = getPrimaryPromiseToPayLog(record);
+  return primary?.status === "scheduled";
+}
+
+/** Display order for activity under a promise. */
 export function sortPromiseToPayLogs(
   logs: PromiseToPayLogEntry[],
-  invoiceStatus: PromiseToPayInvoiceStatus,
+  settled = false,
   asOf: string = PROMISE_TO_PAY_AS_OF,
 ): PromiseToPayLogEntry[] {
-  const resolved = resolvePromiseToPayLogs(logs, invoiceStatus, asOf);
+  const resolved = resolvePromiseToPayLogs(logs, asOf);
   const byDateDesc = (a: PromiseToPayLogEntry, b: PromiseToPayLogEntry) => {
     const aDate = a.paidOn ?? a.promisedFor ?? a.loggedOn;
     const bDate = b.paidOn ?? b.promisedFor ?? b.loggedOn;
     return bDate.localeCompare(aDate);
   };
 
-  if (invoiceStatus === "paid") {
+  if (settled) {
     const paid = resolved.filter((l) => l.status === "paid").sort(byDateDesc);
+    const edited = resolved.filter((l) => l.status === "edited").sort(byDateDesc);
     const failed = resolved.filter((l) => l.status === "failed").sort(byDateDesc);
     const scheduled = resolved.filter((l) => l.status === "scheduled").sort(byDateDesc);
-    return [...paid, ...failed, ...scheduled];
+    return [...paid, ...edited, ...failed, ...scheduled];
   }
 
   const scheduled = resolved.filter((l) => l.status === "scheduled").sort(byDateDesc);
+  const edited = resolved.filter((l) => l.status === "edited").sort(byDateDesc);
   const failed = resolved.filter((l) => l.status === "failed").sort(byDateDesc);
-  return [...scheduled, ...failed];
+  return [...scheduled, ...edited, ...failed];
+}
+
+/** Most relevant log for list-row display. */
+export function getPrimaryPromiseToPayLog(
+  record: PromiseToPayRecord,
+  asOf: string = PROMISE_TO_PAY_AS_OF,
+): PromiseToPayLogEntry | undefined {
+  return sortPromiseToPayLogs(record.logs, isPromiseSettled(record), asOf)[0];
+}
+
+function daysUntilPromisedDate(promisedFor: string, asOf: string = PROMISE_TO_PAY_AS_OF): number {
+  const start = new Date(`${asOf}T00:00:00`);
+  const end = new Date(`${promisedFor}T00:00:00`);
+  return Math.round((end.getTime() - start.getTime()) / 86_400_000);
+}
+
+/** List order: open/failed by nearest promise date to today, then paid (newest first). */
+export function sortPromiseToPayRecords(records: PromiseToPayRecord[]): PromiseToPayRecord[] {
+  return [...records].sort((a, b) => {
+    const aSettled = isPromiseSettled(a);
+    const bSettled = isPromiseSettled(b);
+    if (aSettled !== bSettled) return aSettled ? 1 : -1;
+
+    const aPrimary = getPrimaryPromiseToPayLog(a);
+    const bPrimary = getPrimaryPromiseToPayLog(b);
+
+    if (aSettled && bSettled) {
+      const aDate = aPrimary?.paidOn ?? aPrimary?.loggedOn ?? "";
+      const bDate = bPrimary?.paidOn ?? bPrimary?.loggedOn ?? "";
+      return bDate.localeCompare(aDate);
+    }
+
+    const aFor = aPrimary?.promisedFor ?? "";
+    const bFor = bPrimary?.promisedFor ?? "";
+    const aDist = aFor ? Math.abs(daysUntilPromisedDate(aFor)) : Number.MAX_SAFE_INTEGER;
+    const bDist = bFor ? Math.abs(daysUntilPromisedDate(bFor)) : Number.MAX_SAFE_INTEGER;
+    if (aDist !== bDist) return aDist - bDist;
+    return aFor.localeCompare(bFor);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -252,6 +322,36 @@ const enrichments: Record<string, InvoiceEnrichment> = {
       { label: "No amendment conflict", status: "pass" },
     ],
     deliveryHistory: [],
+  },
+  "INV-2025-0258": {
+    billingPeriodStart: "2025-10-01",
+    billingPeriodEnd: "2025-10-31",
+    currency: "USD",
+    paymentTerms: "Net 30",
+    billToContact: "ap@echocorp.io",
+    poNumber: "PO-EC-2025-041",
+    taxTotal: 240,
+    balanceDue: 0,
+    detailedLineItems: [
+      { sku: "APEX-AI-OVERAGE", name: "AI Agent Credits – Overage (Oct 2025)", type: "usage", lineType: "usage_overage", quantity: 10500, unitPrice: 0.02, discount: 0, tax: 147, netAmount: 2100 },
+      { sku: "APEX-SUPPORT-PRO", name: "Premium Support – Monthly (Oct 2025)", type: "recurring", lineType: "support", quantity: 1, unitPrice: 1300, discount: 0, tax: 93, netAmount: 1300 },
+    ],
+    reviewChecklist: [
+      { label: "Matches contract terms", status: "pass" },
+      { label: "Approval for non-standard pricing", status: "pass" },
+      { label: "Bill-to entity valid", status: "pass" },
+      { label: "PO number available", status: "pass" },
+      { label: "Tax configured", status: "pass" },
+      { label: "Invoice contact valid", status: "pass" },
+      { label: "Usage finalized", status: "pass" },
+      { label: "No blocking dispute", status: "pass" },
+      { label: "No amendment conflict", status: "pass" },
+    ],
+    deliveryHistory: [
+      { date: "2025-11-01", method: "Email", recipient: "ap@echocorp.io", status: "Delivered" },
+      { date: "2025-11-18", method: "Email", recipient: "ap@echocorp.io", status: "Reminder sent" },
+      { date: "2025-12-05", method: "Email", recipient: "ap@echocorp.io", status: "Overdue notice" },
+    ],
   },
   "INV-2026-0012": {
     billingPeriodStart: "2025-12-01",
@@ -394,6 +494,17 @@ export const creditNotes: CreditNote[] = [
 
 export const payments: Payment[] = [
   {
+    id: "PMT-2025-0007",
+    customerId: "cust_echo_001",
+    amount: 3400,
+    method: "Wire Transfer",
+    bankReference: "WT-ECHO-20251213-3400",
+    receiptDate: "2025-12-13",
+    matchStatus: "matched",
+    allocations: [{ invoiceId: "INV-2025-0258", amount: 3400 }],
+    reversals: 0,
+  },
+  {
     id: "PMT-2026-0001",
     customerId: "cust_echo_001",
     amount: 4200,
@@ -480,17 +591,19 @@ function ownerInitials(name: string): string {
     .toUpperCase();
 }
 
-export const promiseToPayInvoiceGroups: PromiseToPayInvoiceGroup[] = [
+export const promiseToPayRecords: PromiseToPayRecord[] = [
   {
+    id: "PTP-ECHO-0044",
     customerId: "cust_echo_001",
-    invoiceId: "INV-2026-0044",
     amount: 6300,
-    status: "pending",
+    invoiceIds: ["INV-2026-0044"],
     logs: [
       {
         id: "PTP-LOG-0044-1",
         status: "scheduled",
+        amount: 6300,
         promisedFor: "2026-06-15",
+        note: "AP confirmed wire after Q2 close; follow up May 20 if not received.",
         loggedOn: "2026-05-11",
         loggedByName: "Lena Patel",
         loggedByInitials: "LP",
@@ -498,14 +611,15 @@ export const promiseToPayInvoiceGroups: PromiseToPayInvoiceGroup[] = [
     ],
   },
   {
+    id: "PTP-ECHO-0034",
     customerId: "cust_echo_001",
-    invoiceId: "INV-2026-0034",
     amount: 1200,
-    status: "paid",
+    invoiceIds: ["INV-2026-0034"],
     logs: [
       {
         id: "PTP-LOG-0034-3",
         status: "paid",
+        amount: 1200,
         paidOn: "2026-05-08",
         loggedOn: "2026-05-08",
         loggedByName: "Sarah Mitchell",
@@ -514,6 +628,7 @@ export const promiseToPayInvoiceGroups: PromiseToPayInvoiceGroup[] = [
       {
         id: "PTP-LOG-0034-1",
         status: "scheduled",
+        amount: 1200,
         promisedFor: "2026-04-10",
         loggedOn: "2026-03-28",
         loggedByName: "Lena Patel",
@@ -522,14 +637,83 @@ export const promiseToPayInvoiceGroups: PromiseToPayInvoiceGroup[] = [
     ],
   },
   {
+    id: "PTP-ECHO-0258",
+    customerId: "cust_echo_001",
+    amount: 3400,
+    invoiceIds: ["INV-2025-0258"],
+    logs: [
+      {
+        id: "PTP-LOG-0258-6",
+        status: "paid",
+        amount: 3400,
+        paidOn: "2025-12-13",
+        note: "Wire WT-ECHO-20251213-3400 received and matched to INV-2025-0258 after treasury corrected beneficiary to Echo Corp Inc.",
+        loggedOn: "2025-12-13",
+        loggedByName: "Sarah Mitchell",
+        loggedByInitials: "SM",
+      },
+      {
+        id: "PTP-LOG-0258-5",
+        status: "failed",
+        amount: 3400,
+        promisedFor: "2025-12-11",
+        note: "AP confirmed wire release; bank returned same day — reference field omitted PO-EC-2025-041 required by Echo treasury.",
+        loggedOn: "2025-12-09",
+        loggedByName: "Lena Patel",
+        loggedByInitials: "LP",
+      },
+      {
+        id: "PTP-LOG-0258-4",
+        status: "failed",
+        amount: 3400,
+        promisedFor: "2025-12-09",
+        note: "Treasury queued batch but missed 2:00 PM PT same-day cut-off; rescheduled to Dec 11.",
+        loggedOn: "2025-12-06",
+        loggedByName: "Priya Mehta",
+        loggedByInitials: "PM",
+      },
+      {
+        id: "PTP-LOG-0258-3",
+        status: "failed",
+        amount: 3400,
+        promisedFor: "2025-12-05",
+        note: "Primary AP approver OOO until Dec 8; backup approver could not access Coupa — no wire initiated.",
+        loggedOn: "2025-12-02",
+        loggedByName: "Lena Patel",
+        loggedByInitials: "LP",
+      },
+      {
+        id: "PTP-LOG-0258-2",
+        status: "failed",
+        amount: 3400,
+        promisedFor: "2025-11-29",
+        note: "Month-end wire rejected by receiving bank — beneficiary listed as EchoCorp LLC; billing entity is Echo Corp Inc.",
+        loggedOn: "2025-11-25",
+        loggedByName: "Sarah Mitchell",
+        loggedByInitials: "SM",
+      },
+      {
+        id: "PTP-LOG-0258-1",
+        status: "failed",
+        amount: 3400,
+        promisedFor: "2025-11-22",
+        note: "CFO Mira Patel committed payment post–Q4 budget freeze; internal approval still pending on Nov 21 collections call.",
+        loggedOn: "2025-11-18",
+        loggedByName: "Priya Mehta",
+        loggedByInitials: "PM",
+      },
+    ],
+  },
+  {
+    id: "PTP-NL-0040",
     customerId: "cust_northlane_003",
-    invoiceId: "INV-2026-0040",
     amount: 31200,
-    status: "pending",
+    invoiceIds: ["INV-2026-0040"],
     logs: [
       {
         id: "PTP-LOG-0040-1",
         status: "scheduled",
+        amount: 31200,
         promisedFor: "2026-05-20",
         loggedOn: "2026-05-18",
         loggedByName: "Priya Mehta",
@@ -538,6 +722,167 @@ export const promiseToPayInvoiceGroups: PromiseToPayInvoiceGroup[] = [
     ],
   },
 ];
+
+const runtimePromiseToPayRecords: PromiseToPayRecord[] = [];
+let runtimePromiseToPayRecordCounter = 0;
+let runtimePromiseToPayLogCounter = 0;
+const runtimeLogStatusOverrides: Record<string, PromiseToPayEntryStatus> = {};
+const runtimeAppendedLogs: Array<{
+  promiseId: string;
+  log: PromiseToPayLogEntry;
+}> = [];
+const runtimeRecordAmountOverrides: Record<string, number> = {};
+/** Frozen amount when a revision is superseded. */
+const runtimeLogAmountSnapshots: Record<string, number> = {};
+/** Frozen note when a revision is superseded (key present = use value, may be undefined). */
+const runtimeLogNoteSnapshots: Record<string, string | undefined> = {};
+
+function applyLogStatusOverride(log: PromiseToPayLogEntry): PromiseToPayLogEntry {
+  const override = runtimeLogStatusOverrides[log.id];
+  const amountSnap = runtimeLogAmountSnapshots[log.id];
+  const hasNoteSnap = Object.hasOwn(runtimeLogNoteSnapshots, log.id);
+  let next = log;
+  if (override) next = { ...next, status: override };
+  if (amountSnap !== undefined) next = { ...next, amount: amountSnap };
+  if (hasNoteSnap) next = { ...next, note: runtimeLogNoteSnapshots[log.id] };
+  return next;
+}
+
+function markLogAsEdited(logId: string): void {
+  runtimeLogStatusOverrides[logId] = "edited";
+  for (const item of runtimeAppendedLogs) {
+    if (item.log.id === logId) {
+      item.log = { ...item.log, status: "edited" };
+    }
+  }
+}
+
+function applyRuntimePromiseToPayMutations(
+  records: PromiseToPayRecord[],
+): PromiseToPayRecord[] {
+  return records.map((record) => {
+    const appended = runtimeAppendedLogs
+      .filter((a) => a.promiseId === record.id)
+      .map((a) => a.log);
+
+    const logsById = new Map<string, PromiseToPayLogEntry>();
+    for (const log of record.logs.map(applyLogStatusOverride)) {
+      logsById.set(log.id, log);
+    }
+    for (const log of appended.map(applyLogStatusOverride)) {
+      logsById.set(log.id, log);
+    }
+
+    return {
+      ...record,
+      amount: runtimeRecordAmountOverrides[record.id] ?? record.amount,
+      logs: [...logsById.values()],
+    };
+  });
+}
+
+export interface AddPromiseToPayParams {
+  customerId: string;
+  promisedDate: string;
+  amount: number;
+  invoiceIds: string[];
+  loggedByName: string;
+  note?: string;
+}
+
+/** Persist a new promise-to-pay record (one row per save). */
+export function addPromiseToPay(params: AddPromiseToPayParams): void {
+  const loggedOn = new Date().toISOString().slice(0, 10);
+  const note = normalizePromiseNote(params.note);
+  const log: PromiseToPayLogEntry = {
+    id: `PTP-LOG-RUNTIME-${++runtimePromiseToPayLogCounter}`,
+    status: "scheduled",
+    amount: params.amount,
+    promisedFor: params.promisedDate,
+    ...(note ? { note } : {}),
+    loggedOn,
+    loggedByName: params.loggedByName,
+    loggedByInitials: ownerInitials(params.loggedByName),
+  };
+
+  runtimePromiseToPayRecords.push({
+    id: `PTP-RUNTIME-${++runtimePromiseToPayRecordCounter}`,
+    customerId: params.customerId,
+    amount: params.amount,
+    invoiceIds: [...params.invoiceIds],
+    logs: [log],
+  });
+}
+
+export interface EditPromiseToPayParams {
+  customerId: string;
+  promiseId: string;
+  logId: string;
+  promisedDate: string;
+  amount: number;
+  loggedByName: string;
+  note?: string;
+}
+
+export function findPromiseToPayLog(
+  customerId: string,
+  promiseId: string,
+  logId: string,
+): { record: PromiseToPayRecord; log: PromiseToPayLogEntry } | null {
+  const record = getPromiseToPayForCustomer(customerId).find((r) => r.id === promiseId);
+  const log = record?.logs.find((entry) => entry.id === logId);
+  if (!record || !log) return null;
+  return { record, log };
+}
+
+/** Mark scheduled logs on this promise as edited and append a new scheduled entry. */
+export function editPromiseToPayLog(params: EditPromiseToPayParams): boolean {
+  const match = findPromiseToPayLog(params.customerId, params.promiseId, params.logId);
+  if (!match || match.log.status !== "scheduled") return false;
+
+  const { record, log } = match;
+  const currentRecordAmount =
+    runtimeRecordAmountOverrides[params.promiseId] ?? record.amount;
+  const logAmount = getPromiseLogAmount(log, currentRecordAmount);
+  const amountChanged = logAmount !== params.amount;
+  const dateChanged = log.promisedFor !== params.promisedDate;
+  const nextNote = normalizePromiseNote(params.note);
+  const noteChanged = normalizePromiseNote(log.note) !== nextNote;
+  if (!amountChanged && !dateChanged && !noteChanged) return true;
+
+  for (const entry of record.logs) {
+    if (entry.status === "scheduled") {
+      runtimeLogAmountSnapshots[entry.id] = getPromiseLogAmount(entry, currentRecordAmount);
+      runtimeLogNoteSnapshots[entry.id] = entry.note;
+      markLogAsEdited(entry.id);
+    }
+  }
+
+  const newLog: PromiseToPayLogEntry = {
+    id: `PTP-LOG-RUNTIME-${++runtimePromiseToPayLogCounter}-edit-${params.logId}`,
+    status: "scheduled",
+    amount: params.amount,
+    promisedFor: params.promisedDate,
+    ...(nextNote ? { note: nextNote } : {}),
+    loggedOn: new Date().toISOString().slice(0, 10),
+    loggedByName: params.loggedByName,
+    loggedByInitials: ownerInitials(params.loggedByName),
+  };
+
+  runtimeAppendedLogs.push({
+    promiseId: params.promiseId,
+    log: newLog,
+  });
+
+  runtimeRecordAmountOverrides[params.promiseId] = params.amount;
+
+  const runtimeRecord = runtimePromiseToPayRecords.find((r) => r.id === params.promiseId);
+  if (runtimeRecord) {
+    runtimeRecord.amount = params.amount;
+  }
+
+  return true;
+}
 
 // ---------------------------------------------------------------------------
 // COLLECTION CASES DATA
@@ -673,17 +1018,23 @@ export function getPaymentsForCustomer(customerId: string): Payment[] {
   return payments.filter((p) => p.customerId === customerId);
 }
 
-export function getPromiseToPayForCustomer(customerId: string): PromiseToPayInvoiceGroup[] {
-  const seeded = promiseToPayInvoiceGroups.filter((g) => g.customerId === customerId);
+function recordCoversInvoice(records: PromiseToPayRecord[], invoiceId: string): boolean {
+  return records.some((r) => r.invoiceIds.includes(invoiceId));
+}
 
-  const fromCases = collectionCases
+export function getPromiseToPayForCustomer(customerId: string): PromiseToPayRecord[] {
+  const seeded = promiseToPayRecords.filter((r) => r.customerId === customerId);
+  const runtime = runtimePromiseToPayRecords.filter((r) => r.customerId === customerId);
+  const existing = [...seeded, ...runtime];
+
+  const fromCases: PromiseToPayRecord[] = collectionCases
     .filter((c) => c.customerId === customerId && c.ptpDate)
-    .filter((c) => !seeded.some((s) => s.invoiceId === c.invoiceId))
+    .filter((c) => !recordCoversInvoice(existing, c.invoiceId))
     .map((c) => ({
+      id: `PTP-CASE-${c.id}`,
       customerId: c.customerId,
-      invoiceId: c.invoiceId,
       amount: c.outstandingAmount,
-      status: "pending" as const,
+      invoiceIds: [c.invoiceId],
       logs: [
         {
           id: `PTP-CASE-LOG-${c.id}`,
@@ -696,16 +1047,12 @@ export function getPromiseToPayForCustomer(customerId: string): PromiseToPayInvo
       ],
     }));
 
-  return [...seeded, ...fromCases]
-    .map((group) => ({
-      ...group,
-      logs: resolvePromiseToPayLogs(group.logs, group.status),
-    }))
-    .sort((a, b) => {
-      const aDate = a.logs.at(-1)?.loggedOn ?? "";
-      const bDate = b.logs.at(-1)?.loggedOn ?? "";
-      return bDate.localeCompare(aDate);
-    });
+  const records = applyRuntimePromiseToPayMutations([...existing, ...fromCases]).map((record) => ({
+    ...record,
+    logs: resolvePromiseToPayLogs(record.logs),
+  }));
+
+  return sortPromiseToPayRecords(records);
 }
 
 export function getDelayedPaymentsForCustomer(

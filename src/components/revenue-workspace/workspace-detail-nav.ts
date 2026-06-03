@@ -1,7 +1,14 @@
 import type { Contract, Customer, Quote } from "@/data/mock-data";
 import { getCustomerExternalLinkedRecords } from "./derive-stage-data";
-import { getTasks } from "@/data/mock-data";
+import { getTasks, getInvoices } from "@/data/mock-data";
 import { getRevenueArrangement } from "@/data/revrec-data";
+import {
+  getDelayedPaymentsForCustomer,
+  getPromiseToPayForCustomer,
+  isPromiseOpen,
+} from "@/data/billing-data";
+import { getEmailActivityForCustomer } from "@/data/collections-email-activity";
+import type { PaymentCollectionsTab } from "./payment/PaymentCollectionsChromeContext";
 import type { Stage } from "./stage";
 
 export interface DetailNavItem {
@@ -16,6 +23,8 @@ export interface DetailNavContext {
   contract: Contract | null;
   quotes: Quote[];
   contracts: Contract[];
+  /** Collections overview sub-tab; nav sections only apply on overview. */
+  paymentCollectionsTab?: PaymentCollectionsTab;
 }
 
 export function getDetailNavItems(ctx: DetailNavContext): DetailNavItem[] {
@@ -29,7 +38,7 @@ export function getDetailNavItems(ctx: DetailNavContext): DetailNavItem[] {
     case "invoicing":
       return getInvoicingNavItems();
     case "payment":
-      return getPaymentNavItems();
+      return getPaymentNavItems(ctx);
     case "revrec":
       return getRevRecNavItems(ctx.contract);
     default:
@@ -111,13 +120,43 @@ function getInvoicingNavItems(): DetailNavItem[] {
   ];
 }
 
-function getPaymentNavItems(): DetailNavItem[] {
-  return [
+function getPaymentNavItems(ctx: DetailNavContext): DetailNavItem[] {
+  if (ctx.paymentCollectionsTab && ctx.paymentCollectionsTab !== "overview") {
+    return [];
+  }
+
+  const customerId = ctx.customer.id;
+  const invoices = getInvoices(customerId);
+  const promises = getPromiseToPayForCustomer(customerId);
+  const hasPendingPromise = promises.some(isPromiseOpen);
+  const hasDelayedPayments =
+    getDelayedPaymentsForCustomer(customerId, invoices).length > 0;
+
+  const items: DetailNavItem[] = [
     { id: "ws-section-payment-ar", label: "AR overview" },
-    { id: "ws-section-payment-receivables", label: "Open receivables" },
-    { id: "ws-section-payment-collections", label: "Collections" },
-    { id: "ws-section-payment-cash", label: "Cash application" },
   ];
+
+  if (hasPendingPromise) {
+    items.push({ id: "ws-section-payment-ptp-pending", label: "Promise to pay" });
+  }
+
+  items.push({
+    id: "ws-section-payment-receivables",
+    label: "Outstanding Invoice",
+  });
+
+  if (hasDelayedPayments) {
+    items.push({
+      id: "ws-section-payment-delayed",
+      label: "Delayed payments history",
+    });
+  }
+
+  if (getEmailActivityForCustomer(customerId).length > 0) {
+    items.push({ id: "ws-section-payment-email", label: "Email activity" });
+  }
+
+  return items;
 }
 
 function getRevRecNavItems(contract: Contract | null): DetailNavItem[] {

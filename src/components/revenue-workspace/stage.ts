@@ -7,4 +7,5 @@ export type Stage =
   | "contract"
   | "invoicing"
   | "payment"
+  | "comments"
   | "revrec";

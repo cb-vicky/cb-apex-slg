@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2 } from "lucide-react";
 import type { Customer, Quote, Contract, Invoice, Task, ContractClosure } from "@/data/mock-data";
 import { getInvoices, getQuoteLineage, getQuotesForCustomer, getContractsForCustomer } from "@/data/mock-data";
 import { getCollectionCasesForCustomer, getPromiseToPayForCustomer } from "@/data/billing-data";
+import { getCollectionCommentsForCustomer } from "@/data/collections-comments";
 import { getRevenueArrangement } from "@/data/revrec-data";
 import { useIngestContext } from "@/context/IngestContext";
 import { useWorkspaceShell } from "@/context/WorkspaceShellContext";
@@ -15,19 +16,26 @@ import {
   isListDetailStage,
   isListMode,
   isRecordDetail,
-  type ListDetailStage,
   type OpenRecordTab,
+  type RecordTabStage,
   type WorkspaceTab,
+  ADD_COLLECTION_COMMENT_RECORD_ID,
 } from "./workspace-tabs";
 import { QuoteStageContent } from "./quote/QuoteStageContent";
 import { ContractStageContent } from "./contract/ContractStageContent";
 import { CustomerStageContent } from "./customer/CustomerStageContent";
 import { InvoicingStageContent } from "./invoicing/InvoicingStageContent";
 import { PaymentStageContent } from "./payment/PaymentStageContent";
+import { CommentsStageContent } from "./payment/CommentsStageContent";
 import {
   PaymentCollectionsChromeProvider,
   type PaymentCollectionsTab,
 } from "./payment/PaymentCollectionsChromeContext";
+import {
+  createEmptyAddPromiseDraft,
+  type AddPromiseToPayDraft,
+} from "./payment/add-promise-draft";
+import { CommentsChromeProvider } from "./payment/CommentsChromeContext";
 import { RevRecStageContent } from "./revrec/RevRecStageContent";
 import { TasksStageContent } from "./tasks/TasksStageContent";
 import { ThreadsStageContent } from "./threads/ThreadsStageContent";
@@ -46,6 +54,15 @@ import { useIsXl } from "@/lib/useIsXl";
 
 // Stages that use a list-then-detail pattern
 const LIST_STAGES: Stage[] = ["quote", "contract", "invoicing"];
+
+interface FlowReturnContext {
+  tab: WorkspaceTab;
+  paymentCollectionsTab?: PaymentCollectionsTab;
+  /** Record opened via openFlowRecordTab — closing it restores the origin flow. */
+  flowRecord?: { stage: RecordTabStage; recordId: string };
+  addPromiseTabOpen?: boolean;
+  editPromiseTarget?: { promiseId: string; logId: string } | null;
+}
 
 interface Props {
   customer: Customer;
@@ -113,7 +130,26 @@ export function CustomerRevenueWorkspace({
   const [hiddenParentStages, setHiddenParentStages] = useState<Set<Stage>>(new Set());
   const [paymentCollectionsTab, setPaymentCollectionsTab] =
     useState<PaymentCollectionsTab>("overview");
+  const [addPromiseTabOpen, setAddPromiseTabOpen] = useState(false);
+  const [editPromiseTarget, setEditPromiseTarget] = useState<{
+    promiseId: string;
+    logId: string;
+  } | null>(null);
   const [paymentSubTabsDocked, setPaymentSubTabsDocked] = useState(false);
+  const [promiseToPayRevision, setPromiseToPayRevision] = useState(0);
+  const addPromiseDraftRef = useRef<AddPromiseToPayDraft | null>(null);
+  const collectionsReturnTabRef = useRef<PaymentCollectionsTab>("promise-to-pay");
+  const [commentsRevision, setCommentsRevision] = useState(0);
+  const [addCommentPinByDefault, setAddCommentPinByDefault] = useState(false);
+  const flowReturnRef = useRef<FlowReturnContext | null>(null);
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+  const paymentCollectionsTabRef = useRef(paymentCollectionsTab);
+  paymentCollectionsTabRef.current = paymentCollectionsTab;
+  const addPromiseTabOpenRef = useRef(addPromiseTabOpen);
+  addPromiseTabOpenRef.current = addPromiseTabOpen;
+  const editPromiseTargetRef = useRef(editPromiseTarget);
+  editPromiseTargetRef.current = editPromiseTarget;
   const [openRecordTabs, setOpenRecordTabs] = useState<OpenRecordTab[]>(() => {
     const stage = closeIntent ? "contract" : initialStage;
     if (activeRecordId && isListDetailStage(stage)) {
@@ -128,6 +164,10 @@ export function CustomerRevenueWorkspace({
   useEffect(() => {
     if (activeStage !== "payment") {
       setPaymentSubTabsDocked(false);
+      if (!flowReturnRef.current) {
+        setAddPromiseTabOpen(false);
+        setEditPromiseTarget(null);
+      }
     }
   }, [activeStage]);
 
@@ -309,7 +349,7 @@ export function CustomerRevenueWorkspace({
   // Disabled stages: downstream tabs are locked when no contract / invoices exist yet
   const disabledStages = new Set<Stage>([
     ...(customerContracts.length === 0 ? (["contract", "invoicing", "revrec"] as Stage[]) : []),
-    ...(customerInvoicesRaw.length === 0 ? (["payment"] as Stage[]) : []),
+    ...(customerInvoicesRaw.length === 0 ? (["payment", "comments"] as Stage[]) : []),
   ]);
 
   const selectedContractId = (activeContract ?? contract)?.id ?? null;
@@ -346,6 +386,8 @@ export function CustomerRevenueWorkspace({
       contract: effectiveContract,
       quotes: customerQuotes,
       contracts: contractsForListView,
+      paymentCollectionsTab:
+        activeStage === "payment" ? paymentCollectionsTab : undefined,
     });
   }, [
     inListMode,
@@ -355,6 +397,7 @@ export function CustomerRevenueWorkspace({
     effectiveContract,
     customerQuotes,
     contractsForListView,
+    paymentCollectionsTab,
   ]);
 
   const hasRecordBar =
@@ -387,7 +430,11 @@ export function CustomerRevenueWorkspace({
       if (c) setActiveContract(c);
     } else if (tab.stage === "invoicing") {
       const inv = invoicesForListView.find((i) => i.id === tab.recordId);
-      if (inv) setActiveInvoice(inv);
+      if (inv) {
+        setActiveInvoice(inv);
+        const linkedContract = contractsForListView.find((c) => c.id === inv.contractId);
+        if (linkedContract) setActiveContract(linkedContract);
+      }
     }
   }
 
@@ -396,7 +443,7 @@ export function CustomerRevenueWorkspace({
     syncRecordForTab(tab);
   }
 
-  function openRecordTab(stage: ListDetailStage, recordId: string) {
+  function openRecordTab(stage: RecordTabStage, recordId: string) {
     setOpenRecordTabs((prev) => {
       if (prev.some((r) => r.stage === stage && r.recordId === recordId)) return prev;
       return [...prev, { stage, recordId }];
@@ -404,6 +451,55 @@ export function CustomerRevenueWorkspace({
     const tab: WorkspaceTab = { kind: "record", stage, recordId };
     setActiveTab(tab);
     syncRecordForTab(tab);
+  }
+
+  function captureFlowReturn() {
+    const originTab = activeTabRef.current;
+    const originStage = originTab.stage;
+    flowReturnRef.current = {
+      tab: originTab,
+      ...(originStage === "payment"
+        ? {
+            paymentCollectionsTab: paymentCollectionsTabRef.current,
+            addPromiseTabOpen: addPromiseTabOpenRef.current,
+            editPromiseTarget: editPromiseTargetRef.current,
+          }
+        : {}),
+    };
+  }
+
+  function openFlowRecordTab(stage: RecordTabStage, recordId: string) {
+    captureFlowReturn();
+    flowReturnRef.current = {
+      ...flowReturnRef.current!,
+      flowRecord: { stage, recordId },
+    };
+    openRecordTab(stage, recordId);
+  }
+
+  function restoreAfterFlowClose(stage: RecordTabStage, recordId: string) {
+    const returnTo = flowReturnRef.current;
+    flowReturnRef.current = null;
+
+    if (returnTo) {
+      setOpenRecordTabs((prev) =>
+        prev.filter((r) => !(r.stage === stage && r.recordId === recordId)),
+      );
+      if (returnTo.paymentCollectionsTab !== undefined) {
+        setPaymentCollectionsTab(returnTo.paymentCollectionsTab);
+      }
+      if (returnTo.addPromiseTabOpen) {
+        setAddPromiseTabOpen(true);
+      }
+      if (returnTo.editPromiseTarget) {
+        setEditPromiseTarget(returnTo.editPromiseTarget);
+      }
+      setActiveTab(returnTo.tab);
+      syncRecordForTab(returnTo.tab);
+      return;
+    }
+
+    handleRecordClose(stage, recordId);
   }
 
   function handleParentClose(stage: Stage) {
@@ -423,7 +519,16 @@ export function CustomerRevenueWorkspace({
     setActiveTab({ kind: "parent", stage });
   }
 
-  function handleRecordClose(stage: ListDetailStage, recordId: string) {
+  function handleRecordClose(stage: RecordTabStage, recordId: string) {
+    const flowReturn = flowReturnRef.current;
+    if (
+      flowReturn?.flowRecord?.stage === stage &&
+      flowReturn.flowRecord.recordId === recordId
+    ) {
+      restoreAfterFlowClose(stage, recordId);
+      return;
+    }
+
     const closingActive =
       activeTab.kind === "record" &&
       activeTab.stage === stage &&
@@ -516,6 +621,13 @@ export function CustomerRevenueWorkspace({
         ) : null;
       case "payment":
         return <PaymentStageContent customer={customer} />;
+      case "comments":
+        return (
+          <CommentsStageContent
+            customer={customer}
+            addCommentFlowOpen={isAddCommentFlowActive}
+          />
+        );
       case "revrec":
         return effectiveContract ? <RevRecStageContent contract={effectiveContract} /> : null;
       default:
@@ -547,16 +659,15 @@ export function CustomerRevenueWorkspace({
     ],
   );
 
-  const recordTabSummaries = useMemo(
-    () =>
-      buildRecordTabSummaries({
-        quotes: customerQuotes,
-        contracts: contractsForListView,
-        invoices: invoicesForListView,
-        invoiceStatusOverrides,
-      }),
-    [customerQuotes, contractsForListView, invoicesForListView, invoiceStatusOverrides],
-  );
+  const recordTabSummaries = useMemo(() => {
+    const map = buildRecordTabSummaries({
+      quotes: customerQuotes,
+      contracts: contractsForListView,
+      invoices: invoicesForListView,
+      invoiceStatusOverrides,
+    });
+    return map;
+  }, [customerQuotes, contractsForListView, invoicesForListView, invoiceStatusOverrides]);
 
   function handleTaskClick(task: CustomerTask) {
     if (task.action?.stage) {
@@ -565,6 +676,11 @@ export function CustomerRevenueWorkspace({
     // TODO: Open drawer if task.action?.drawer is set
     // For now, just switch tabs. Drawer integration can be added later.
   }
+
+  const isAddCommentFlowActive =
+    activeTab.kind === "record" &&
+    activeTab.stage === "comments" &&
+    activeTab.recordId === ADD_COLLECTION_COMMENT_RECORD_ID;
 
   const expandPaymentAllTabs = useCallback(() => {
     setPaymentSubTabsDocked(false);
@@ -578,15 +694,78 @@ export function CustomerRevenueWorkspace({
     () => ({
       collectionsTab: paymentCollectionsTab,
       setCollectionsTab: setPaymentCollectionsTab,
+      addPromiseTabOpen,
+      getAddPromiseDraft: () => addPromiseDraftRef.current,
+      persistAddPromiseDraft: (draft: AddPromiseToPayDraft) => {
+        addPromiseDraftRef.current = draft;
+      },
+      clearAddPromiseDraft: () => {
+        addPromiseDraftRef.current = null;
+      },
+      editPromiseTarget,
       promiseToPayCount: getPromiseToPayForCustomer(customer.id).length,
+      promiseToPayRevision,
+      refreshPromiseToPay: () => setPromiseToPayRevision((r) => r + 1),
+      openAddPromiseTab: () => {
+        collectionsReturnTabRef.current = paymentCollectionsTabRef.current;
+        addPromiseDraftRef.current = createEmptyAddPromiseDraft();
+        setAddPromiseTabOpen(true);
+        setPaymentCollectionsTab("add-promise-to-pay");
+        expandPaymentAllTabs();
+      },
+      closeAddPromiseTab: () => {
+        addPromiseDraftRef.current = null;
+        setAddPromiseTabOpen(false);
+        setPaymentCollectionsTab(collectionsReturnTabRef.current);
+      },
+      openEditPromiseTab: (promiseId: string, logId: string) => {
+        collectionsReturnTabRef.current = paymentCollectionsTabRef.current;
+        setEditPromiseTarget({ promiseId, logId });
+        setPaymentCollectionsTab("edit-promise-to-pay");
+        expandPaymentAllTabs();
+      },
+      closeEditPromiseTab: () => {
+        setEditPromiseTarget(null);
+        setPaymentCollectionsTab("promise-to-pay");
+      },
+      openInvoiceFromCollectionsFlow: (invoiceId: string) => {
+        openFlowRecordTab("invoicing", invoiceId);
+      },
       subTabsDocked: paymentSubTabsDocked,
       setSubTabsDocked: setPaymentSubTabsDocked,
       expandAllTabs: expandPaymentAllTabs,
     }),
-    [paymentCollectionsTab, paymentSubTabsDocked, customer.id, expandPaymentAllTabs],
+    [
+      paymentCollectionsTab,
+      addPromiseTabOpen,
+      editPromiseTarget,
+      paymentSubTabsDocked,
+      promiseToPayRevision,
+      customer.id,
+      expandPaymentAllTabs,
+    ],
+  );
+
+  const commentsChromeValue = useMemo(
+    () => ({
+      commentsCount: getCollectionCommentsForCustomer(customer.id).length,
+      commentsRevision,
+      addCommentPinByDefault,
+      refreshComments: () => setCommentsRevision((r) => r + 1),
+      openAddCommentTab: (options?: { pinByDefault?: boolean }) => {
+        setAddCommentPinByDefault(options?.pinByDefault ?? false);
+        openFlowRecordTab("comments", ADD_COLLECTION_COMMENT_RECORD_ID);
+      },
+      closeAddCommentTab: () => {
+        setAddCommentPinByDefault(false);
+        restoreAfterFlowClose("comments", ADD_COLLECTION_COMMENT_RECORD_ID);
+      },
+    }),
+    [commentsRevision, addCommentPinByDefault, customer.id, activeTab, hiddenParentStages],
   );
 
   return (
+    <CommentsChromeProvider value={commentsChromeValue}>
     <PaymentCollectionsChromeProvider value={paymentChromeValue}>
     <div className="flex flex-1 flex-col bg-gray-100">
       <CustomerContextBar
@@ -669,6 +848,7 @@ export function CustomerRevenueWorkspace({
       )}
     </div>
     </PaymentCollectionsChromeProvider>
+    </CommentsChromeProvider>
   );
 }
 

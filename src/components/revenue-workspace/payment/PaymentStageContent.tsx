@@ -3,25 +3,30 @@ import type { Customer } from "@/data/mock-data";
 import { getInvoices } from "@/data/mock-data";
 import {
   getCustomerArSummary,
-  getPaymentsForCustomer,
-  getCreditNotesForCustomer,
-  getCollectionCasesForCustomer,
   getDelayedPaymentsForCustomer,
   getPromiseToPayForCustomer,
+  findPromiseToPayLog,
+  getPromiseLogAmount,
+  getPromiseLogNote,
 } from "@/data/billing-data";
 import { useIngestContext } from "@/context/IngestContext";
 import { mergeInvoiceStatuses } from "@/components/revenue-workspace/derive-stage-data";
 import { ArOverviewSection } from "./ArOverviewSection";
+import { PendingPromiseToPaySection } from "./PendingPromiseToPaySection";
 import { OpenReceivablesSection } from "./OpenReceivablesSection";
 import { DelayedPaymentsSection } from "./DelayedPaymentsSection";
 import { EmailActivitySection } from "./EmailActivitySection";
 import { getEmailActivityForCustomer } from "@/data/collections-email-activity";
-import { CollectionsWorkflowSection } from "./CollectionsWorkflowSection";
-import { CashApplicationSection } from "./CashApplicationSection";
 import { WorkspaceSectionAnchor } from "../WorkspaceSectionAnchor";
 import { PaymentCollectionsSubTabs } from "./PaymentCollectionsSubTabs";
+import { PaymentCollectionsActionsBar } from "./PaymentCollectionsActionsBar";
+import { AddPromiseToPayForm } from "./AddPromiseToPayForm";
+import { EditPromiseToPayForm } from "./EditPromiseToPayForm";
 import { PromiseToPayListView } from "./PromiseToPayListView";
+import { RecentCollectionCommentBanner } from "./RecentCollectionCommentBanner";
+import { getLatestUnpinnedComment } from "@/data/collections-comments";
 import { usePaymentCollectionsChrome } from "./PaymentCollectionsChromeContext";
+import { useCommentsChrome } from "./CommentsChromeContext";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -29,8 +34,9 @@ interface Props {
 }
 
 export function PaymentStageContent({ customer }: Props) {
-  const { invoiceStatusOverrides, creditNoteStatusOverrides } = useIngestContext();
+  const { invoiceStatusOverrides } = useIngestContext();
   const chrome = usePaymentCollectionsChrome();
+  const commentsChrome = useCommentsChrome();
   const collectionsTab = chrome?.collectionsTab ?? "overview";
   const subTabsDocked = chrome?.subTabsDocked ?? false;
   const subTabsSentinelRef = useRef<HTMLDivElement>(null);
@@ -45,13 +51,6 @@ export function PaymentStageContent({ customer }: Props) {
     () => getCustomerArSummary(customer.id, customerInvoices),
     [customer.id, customerInvoices],
   );
-  const payments = getPaymentsForCustomer(customer.id);
-  const creditNotes = useMemo(
-    () => getCreditNotesForCustomer(customer.id, creditNoteStatusOverrides),
-    [customer.id, creditNoteStatusOverrides],
-  );
-  const cases = getCollectionCasesForCustomer(customer.id);
-  const primaryCase = cases[0];
   const delayedPayments = useMemo(
     () => getDelayedPaymentsForCustomer(customer.id, customerInvoices),
     [customer.id, customerInvoices],
@@ -62,8 +61,22 @@ export function PaymentStageContent({ customer }: Props) {
   );
   const promiseToPay = useMemo(
     () => getPromiseToPayForCustomer(customer.id),
-    [customer.id],
+    [customer.id, chrome?.promiseToPayRevision],
   );
+  const latestUnpinnedComment = useMemo(
+    () => getLatestUnpinnedComment(customer.id),
+    [customer.id, commentsChrome?.commentsRevision],
+  );
+
+  const editPromiseTarget = chrome?.editPromiseTarget ?? null;
+  const editPromiseMatch = useMemo(() => {
+    if (!editPromiseTarget) return null;
+    return findPromiseToPayLog(
+      customer.id,
+      editPromiseTarget.promiseId,
+      editPromiseTarget.logId,
+    );
+  }, [customer.id, editPromiseTarget, chrome?.promiseToPayRevision]);
 
   useEffect(() => {
     const root = document.querySelector<HTMLElement>("[data-main-scroll-container]");
@@ -92,10 +105,8 @@ export function PaymentStageContent({ customer }: Props) {
         const delta = current - lastScrollTopRef.current;
 
         if (delta < -1) {
-          // Scrolling up — restore Overview, Tasks, Threads, etc. immediately.
           chrome.setSubTabsDocked(false);
         } else if (delta > 1 && !subTabsVisibleRef.current) {
-          // Scrolling down past inline sub-tabs — dock Collections full strip.
           chrome.setSubTabsDocked(true);
         }
 
@@ -111,11 +122,14 @@ export function PaymentStageContent({ customer }: Props) {
     };
   }, [chrome]);
 
+  const showActionsBar =
+    collectionsTab === "overview" || collectionsTab === "promise-to-pay";
+
   return (
     <div className="flex flex-col gap-3">
       <div
         ref={subTabsSentinelRef}
-        className="flex h-11 shrink-0 items-center justify-center"
+        className="flex h-11 shrink-0 items-center justify-between gap-4"
       >
         <div
           className={cn(
@@ -126,39 +140,88 @@ export function PaymentStageContent({ customer }: Props) {
           <PaymentCollectionsSubTabs
             active={collectionsTab}
             promiseToPayCount={promiseToPay.length}
+            addTabOpen={chrome?.addPromiseTabOpen ?? false}
+            editTabOpen={chrome?.editPromiseTarget != null}
             onChange={(tab) => chrome?.setCollectionsTab(tab)}
+            onCloseAdd={() => chrome?.closeAddPromiseTab()}
+            onCloseEdit={() => chrome?.closeEditPromiseTab()}
           />
         </div>
+        {!subTabsDocked && showActionsBar ? (
+          <div
+            className={cn(
+              "transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]",
+              subTabsDocked ? "pointer-events-none invisible opacity-0" : "opacity-100",
+            )}
+          >
+            <PaymentCollectionsActionsBar
+              onAddPromiseToPay={() => chrome?.openAddPromiseTab()}
+            />
+          </div>
+        ) : null}
       </div>
 
-      {collectionsTab === "promise-to-pay" ? (
-        <PromiseToPayListView groups={promiseToPay} />
+      {collectionsTab === "add-promise-to-pay" ? (
+        <AddPromiseToPayForm
+          customerId={customer.id}
+          loggedByName={customer.billingOwner}
+          invoices={customerInvoices}
+          onCancel={() => chrome?.closeAddPromiseTab()}
+          onSave={() => {
+            chrome?.refreshPromiseToPay();
+            chrome?.closeAddPromiseTab();
+          }}
+        />
+      ) : collectionsTab === "edit-promise-to-pay" &&
+        editPromiseTarget &&
+        editPromiseMatch?.log.promisedFor ? (
+        <EditPromiseToPayForm
+          customerId={customer.id}
+          loggedByName={customer.billingOwner}
+          promiseId={editPromiseTarget.promiseId}
+          logId={editPromiseTarget.logId}
+          invoiceIds={editPromiseMatch.record.invoiceIds}
+          initialPromisedDate={editPromiseMatch.log.promisedFor}
+          initialAmount={getPromiseLogAmount(
+            editPromiseMatch.log,
+            editPromiseMatch.record.amount,
+          )}
+          initialNote={getPromiseLogNote(editPromiseMatch.log) ?? ""}
+          onCancel={() => chrome?.closeEditPromiseTab()}
+          onSave={() => {
+            chrome?.refreshPromiseToPay();
+            chrome?.closeEditPromiseTab();
+          }}
+        />
+      ) : collectionsTab === "promise-to-pay" ? (
+        <PromiseToPayListView
+          promises={promiseToPay}
+          onEditScheduled={(promiseId, logId) => chrome?.openEditPromiseTab(promiseId, logId)}
+        />
       ) : (
         <>
+          {latestUnpinnedComment && (
+            <RecentCollectionCommentBanner comment={latestUnpinnedComment} />
+          )}
           <WorkspaceSectionAnchor id="ws-section-payment-ar">
-            <ArOverviewSection
-              customerId={customer.id}
-              summary={summary}
-              fallbackOwnerName={primaryCase?.owner}
+            <ArOverviewSection customerId={customer.id} summary={summary} />
+          </WorkspaceSectionAnchor>
+          <WorkspaceSectionAnchor id="ws-section-payment-ptp-pending">
+            <PendingPromiseToPaySection
+              promises={promiseToPay}
+              onEditScheduled={(promiseId, logId) =>
+                chrome?.openEditPromiseTab(promiseId, logId)
+              }
             />
           </WorkspaceSectionAnchor>
           <WorkspaceSectionAnchor id="ws-section-payment-receivables">
-            <div className="flex flex-col gap-3">
-              <OpenReceivablesSection invoices={customerInvoices} />
-              <DelayedPaymentsSection delayedPayments={delayedPayments} />
-              <EmailActivitySection items={emailActivity} />
-            </div>
+            <OpenReceivablesSection invoices={customerInvoices} />
           </WorkspaceSectionAnchor>
-          <WorkspaceSectionAnchor id="ws-section-payment-collections">
-            <CollectionsWorkflowSection cases={cases} />
+          <WorkspaceSectionAnchor id="ws-section-payment-delayed">
+            <DelayedPaymentsSection delayedPayments={delayedPayments} />
           </WorkspaceSectionAnchor>
-          <WorkspaceSectionAnchor id="ws-section-payment-cash">
-            <CashApplicationSection
-              payments={payments}
-              creditNotes={creditNotes}
-              cases={cases}
-              invoices={customerInvoices}
-            />
+          <WorkspaceSectionAnchor id="ws-section-payment-email">
+            <EmailActivitySection items={emailActivity} />
           </WorkspaceSectionAnchor>
         </>
       )}

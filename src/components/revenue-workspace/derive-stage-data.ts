@@ -10,6 +10,7 @@ import {
   getInvoiceEnrichment,
   getPaymentsForCustomer,
 } from "@/data/billing-data";
+import { getCollectionCommentsForCustomer } from "@/data/collections-comments";
 import { getRevenueArrangement, type RevenueArrangement } from "@/data/revrec-data";
 import { getTicketsForCustomer } from "@/data/support-data";
 import type { Stage } from "./stage";
@@ -31,11 +32,9 @@ export interface PriorityChip {
 export function derivePriorityChips(
   customer: Customer,
   customerInvoices: Invoice[],
-  contract: Contract | null,
 ): PriorityChip[] {
   const chips: PriorityChip[] = [];
 
-  // RED --------------------------------------------------------------------
   if (customer.openAr > 0) {
     chips.push({ label: "OPEN AR", value: currency(customer.openAr), severity: "red" });
   }
@@ -51,41 +50,8 @@ export function derivePriorityChips(
       severity: "red",
     });
   }
-  const pendingReview = customerInvoices.filter((i) => i.status === "Pending Review").length;
-  if (pendingReview > 0) {
-    chips.push({
-      label: "REVIEW",
-      value: `${pendingReview} invoice${pendingReview > 1 ? "s" : ""}`,
-      severity: "amber",
-    });
-  }
-  if (contract && contract.enforcement.blockingIssues.length > 0) {
-    chips.push({ label: "ENFORCEMENT", value: "Blocked", severity: "red" });
-  }
 
-  // AMBER ------------------------------------------------------------------
-  if (customer.prepaidCreditTotal > 0) {
-    const usedPct = Math.round(
-      ((customer.prepaidCreditTotal - customer.prepaidCreditBalance) / customer.prepaidCreditTotal) * 100,
-    );
-    if (usedPct >= 70) {
-      chips.push({ label: "CREDITS", value: `${usedPct}% used`, severity: "amber" });
-    }
-  }
-  if (customer.nextRenewalDate) {
-    const days = Math.round((new Date(customer.nextRenewalDate).getTime() - Date.now()) / 86400000);
-    if (days > 0 && days <= 30) {
-      chips.push({ label: "RENEWAL", value: `${days}d`, severity: "amber" });
-    }
-  }
-  const heldCount = customerInvoices.filter((i) => i.holdReason).length;
-  if (heldCount > 0) {
-    chips.push({ label: "HELD", value: `${heldCount} invoice${heldCount > 1 ? "s" : ""}`, severity: "amber" });
-  }
-
-  // Red first, then amber; cap at 3
-  chips.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === "red" ? -1 : 1));
-  return chips.slice(0, 3);
+  return chips;
 }
 
 // ---------------------------------------------------------------------------
@@ -463,6 +429,14 @@ export function deriveAllStageStatuses(
     contract: contract ? deriveContractStatus(contract, invoiceStatusOverrides) : { text: "No contract yet", severity: "blue" },
     invoicing: contract ? deriveInvoicingStatus(customer.id, invoiceStatusOverrides) : { text: "—", severity: "blue" },
     payment: contract ? derivePaymentStatus(customer.id, invoiceStatusOverrides) : { text: "—", severity: "blue" },
+    comments: contract
+      ? (() => {
+          const count = getCollectionCommentsForCustomer(customer.id).length;
+          return count === 0
+            ? { text: "No comments", severity: "gray" as const }
+            : { text: `${count} comment${count === 1 ? "" : "s"}`, severity: "blue" as const };
+        })()
+      : { text: "—", severity: "blue" },
     revrec: contract ? deriveRevRecStatus(contract.id) : { text: "—", severity: "blue" },
   };
 }

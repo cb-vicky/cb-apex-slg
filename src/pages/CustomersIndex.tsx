@@ -1,38 +1,45 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useScrolled } from "@/hooks/useScrolled";
-import { customers, quotes } from "@/data/mock-data";
+import { customers, invoices as seedInvoices } from "@/data/mock-data";
 import type { Customer } from "@/data/mock-data";
 import { useIngestContext } from "@/context/IngestContext";
 import { currency, shortDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/primitives";
-import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStrip";
 import { ListTable, ListCreateRow, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
 import { FilterBar, type FilterTag, type FilterOption } from "@/components/index-page/FilterBar";
+import { CustomerViewSelector } from "@/components/index-page/CustomerViewSelector";
 import { PageHeader } from "@/components/index-page/PageHeader";
 import { IndexPageFrame } from "@/components/index-page/IndexPageFrame";
+import {
+  DEFAULT_CUSTOMER_LIST_VIEW_ID,
+  buildCustomerArViewContextMap,
+  countCustomersByView,
+  filterCustomersByView,
+  type CustomerListViewId,
+} from "@/data/customer-list-views";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function countRenewalsIn30Days(customerList: Customer[]) {
-  let count = 0;
-  for (const c of customerList) {
-    if (c.nextRenewalDate) {
-      const days = Math.round((new Date(c.nextRenewalDate).getTime() - Date.now()) / 86400000);
-      if (days <= 30 && days > 0) count++;
-    }
-  }
-  return count;
+function renewalBucket(customer: Customer): string | null {
+  if (!customer.nextRenewalDate) return null;
+  const days = Math.round((new Date(customer.nextRenewalDate).getTime() - Date.now()) / 86400000);
+  if (days <= 30) return "< 30 days";
+  if (days <= 60) return "30-60 days";
+  return "60+ days";
 }
 
-function countPendingQuotes(customerList: Customer[]) {
-  let count = 0;
-  for (const c of customerList) {
-    count += quotes.filter((q) => q.customerId === c.id && q.approval.status === "pending").length;
+function riskBucket(customer: Customer): string {
+  if (customer.riskBadges.length === 0) return "Healthy";
+  if (customer.riskBadges.length >= 3) return "High Risk";
+  return "At Risk";
+}
+
+function matchesTagFilters(customer: Customer, filters: FilterTag[]): boolean {
+  for (const filter of filters) {
+    if (filter.field === "Risk" && riskBucket(customer) !== filter.value) return false;
+    if (filter.field === "Owner" && customer.billingOwner !== filter.value) return false;
+    if (filter.field === "Renewal" && renewalBucket(customer) !== filter.value) return false;
   }
-  return count;
+  return true;
 }
 
 const listColumns: Column[] = [
@@ -48,18 +55,17 @@ const listColumns: Column[] = [
 
 const filterOptions: FilterOption[] = [
   { field: "Risk", label: "Risk", values: ["Healthy", "At Risk", "High Risk"] },
-  { field: "Owner", label: "Owner", values: ["Sarah Chen", "Mike Ross", "Alex Kim"] },
+  { field: "Owner", label: "Owner", values: ["Alex Nguyen", "Lena Schulz"] },
   { field: "Renewal", label: "Renewal", values: ["< 30 days", "30-60 days", "60+ days"] },
 ];
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
-
 export function CustomersIndex() {
   const navigate = useNavigate();
-  const { sessionCustomers } = useIngestContext();
+  const { sessionCustomers, sessionInvoices, invoiceStatusOverrides } = useIngestContext();
   const [filters, setFilters] = useState<FilterTag[]>([]);
+  const [activeViewId, setActiveViewId] = useState<CustomerListViewId>(
+    DEFAULT_CUSTOMER_LIST_VIEW_ID,
+  );
 
   const customersMerged = useMemo(() => {
     const byId = new Map(customers.map((c) => [c.id, c]));
@@ -69,32 +75,50 @@ export function CustomersIndex() {
     return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
   }, [sessionCustomers]);
 
+  const invoicesMerged = useMemo(() => {
+    const byId = new Map(seedInvoices.map((i) => [i.id, i]));
+    for (const inv of sessionInvoices) {
+      byId.set(inv.id, inv);
+    }
+    return [...byId.values()];
+  }, [sessionInvoices]);
+
+  const arContextMap = useMemo(
+    () => buildCustomerArViewContextMap(customersMerged, invoicesMerged, invoiceStatusOverrides),
+    [customersMerged, invoicesMerged, invoiceStatusOverrides],
+  );
+
+  const viewCounts = useMemo(
+    () => countCustomersByView(customersMerged, arContextMap),
+    [customersMerged, arContextMap],
+  );
+
+  const customersFiltered = useMemo(() => {
+    const byView = filterCustomersByView(customersMerged, activeViewId, arContextMap);
+    return byView.filter((c) => matchesTagFilters(c, filters));
+  }, [customersMerged, activeViewId, arContextMap, filters]);
+
   const { ref: scrollRef, isScrolled } = useScrolled();
-
-  const renewalsIn30Days = useMemo(() => countRenewalsIn30Days(customersMerged), [customersMerged]);
-  const pendingQuotesCount = useMemo(() => countPendingQuotes(customersMerged), [customersMerged]);
-
-  const metrics: MetricCard[] = [
-    { label: "Active customers", value: customersMerged.length },
-    { label: "Renewals in 30 days", value: renewalsIn30Days, variant: renewalsIn30Days > 0 ? "warning" : "default" },
-    { label: "Open AR total", value: currency(customersMerged.reduce((s, c) => s + c.openAr, 0)), variant: "danger" },
-    { label: "Quotes pending", value: pendingQuotesCount, variant: pendingQuotesCount > 0 ? "warning" : "default" },
-    { label: "At-risk customers", value: customersMerged.filter((c) => c.riskBadges.length > 0).length, variant: "danger" },
-  ];
 
   return (
     <IndexPageFrame
       headerRef={scrollRef}
       headerScrolled={isScrolled}
       header={<PageHeader title="Customers" />}
-      metrics={<MetricStrip metrics={metrics} />}
       filterBar={
         <FilterBar
           filters={filters}
           onFiltersChange={setFilters}
           filterOptions={filterOptions}
-          resultCount={customersMerged.length}
+          resultCount={customersFiltered.length}
           resultLabel="customers"
+          leadingContent={
+            <CustomerViewSelector
+              activeViewId={activeViewId}
+              viewCounts={viewCounts}
+              onViewChange={setActiveViewId}
+            />
+          }
         />
       }
     >
@@ -104,7 +128,7 @@ export function CustomersIndex() {
           columnCount={listColumns.length}
           firstColumnWidth={listColumns[0].width}
         />
-        {customersMerged.map((c) => (
+        {customersFiltered.map((c) => (
           <ListRow key={c.id} onClick={() => navigate(`/customers/${c.id}?tab=customer&from=customers`)}>
             <ListCell width="180px" className="font-medium text-text-primary">{c.name}</ListCell>
             <ListCell width="100px" align="right">

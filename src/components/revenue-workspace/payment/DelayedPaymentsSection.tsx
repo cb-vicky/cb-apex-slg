@@ -22,16 +22,10 @@ interface Props {
 }
 
 export function DelayedPaymentsSection({ delayedPayments }: Props) {
-  if (delayedPayments.length === 0) {
-    return (
-      <SectionCard title="Delayed payments">
-        <p className="text-[13px] text-text-muted">No delayed payments for this customer.</p>
-      </SectionCard>
-    );
-  }
+  if (delayedPayments.length === 0) return null;
 
   return (
-    <SectionCard title="Delayed payments">
+    <SectionCard title="Delayed payments history" variant="muted">
       <table className="w-full text-[13px]">
         <thead>
           <tr className="border-b border-border-subtle text-left text-[10px] uppercase tracking-wider text-text-muted">

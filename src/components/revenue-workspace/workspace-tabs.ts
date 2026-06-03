@@ -4,6 +4,39 @@ import type { Stage } from "./stage";
 export const LIST_DETAIL_STAGES = ["quote", "contract", "invoicing"] as const;
 export type ListDetailStage = (typeof LIST_DETAIL_STAGES)[number];
 
+/** Stages that support closable record tabs in the context bar (includes payment / comments flows). */
+export const RECORD_TAB_STAGES = ["quote", "contract", "invoicing", "payment", "comments"] as const;
+export type RecordTabStage = (typeof RECORD_TAB_STAGES)[number];
+
+/** Record tab id for the Add Promise to pay flow (payment stage). */
+export const ADD_PROMISE_TO_PAY_RECORD_ID = "add-promise-to-pay";
+
+/** Record tab id for the Add comment flow (comments stage). */
+export const ADD_COLLECTION_COMMENT_RECORD_ID = "add-collection-comment";
+
+export const EDIT_PROMISE_TO_PAY_RECORD_PREFIX = "edit-promise-to-pay:";
+
+export function buildEditPromiseToPayRecordId(promiseId: string, logId: string): string {
+  return `${EDIT_PROMISE_TO_PAY_RECORD_PREFIX}${encodeURIComponent(promiseId)}|${encodeURIComponent(logId)}`;
+}
+
+export function parseEditPromiseToPayRecordId(
+  recordId: string,
+): { promiseId: string; logId: string } | null {
+  if (!recordId.startsWith(EDIT_PROMISE_TO_PAY_RECORD_PREFIX)) return null;
+  const rest = recordId.slice(EDIT_PROMISE_TO_PAY_RECORD_PREFIX.length);
+  const sep = rest.indexOf("|");
+  if (sep < 0) return null;
+  const promiseId = decodeURIComponent(rest.slice(0, sep));
+  const logId = decodeURIComponent(rest.slice(sep + 1));
+  if (!promiseId || !logId) return null;
+  return { promiseId, logId };
+}
+
+export function isEditPromiseToPayRecordId(recordId: string): boolean {
+  return recordId.startsWith(EDIT_PROMISE_TO_PAY_RECORD_PREFIX);
+}
+
 export const STAGE_ORDER: Stage[] = [
   "customer",
   "tasks",
@@ -12,14 +45,15 @@ export const STAGE_ORDER: Stage[] = [
   "contract",
   "invoicing",
   "payment",
+  "comments",
   "revrec",
 ];
 
 export type WorkspaceTab =
   | { kind: "parent"; stage: Stage }
-  | { kind: "record"; stage: ListDetailStage; recordId: string };
+  | { kind: "record"; stage: RecordTabStage; recordId: string };
 
-export type OpenRecordTab = { stage: ListDetailStage; recordId: string };
+export type OpenRecordTab = { stage: RecordTabStage; recordId: string };
 
 export function tabKey(tab: WorkspaceTab): string {
   return tab.kind === "parent" ? `parent:${tab.stage}` : `record:${tab.stage}:${tab.recordId}`;
@@ -27,6 +61,23 @@ export function tabKey(tab: WorkspaceTab): string {
 
 export function isListDetailStage(stage: Stage): stage is ListDetailStage {
   return (LIST_DETAIL_STAGES as readonly Stage[]).includes(stage);
+}
+
+export function isRecordTabStage(stage: Stage): stage is RecordTabStage {
+  return (RECORD_TAB_STAGES as readonly Stage[]).includes(stage);
+}
+
+export function recordTabDisplayLabel(stage: RecordTabStage, recordId: string): string {
+  if (stage === "payment" && recordId === ADD_PROMISE_TO_PAY_RECORD_ID) {
+    return "Add Promise to pay";
+  }
+  if (stage === "comments" && recordId === ADD_COLLECTION_COMMENT_RECORD_ID) {
+    return "Add comment";
+  }
+  if (stage === "payment" && isEditPromiseToPayRecordId(recordId)) {
+    return "Edit Promise to pay";
+  }
+  return recordId;
 }
 
 export function tabsEqual(a: WorkspaceTab, b: WorkspaceTab): boolean {
@@ -57,7 +108,7 @@ export function buildTabStrip(
 }
 
 export function tabLabel(tab: WorkspaceTab, stageDisplay: Record<Stage, { tab: string }>): string {
-  if (tab.kind === "record") return tab.recordId;
+  if (tab.kind === "record") return recordTabDisplayLabel(tab.stage, tab.recordId);
   return stageDisplay[tab.stage].tab;
 }
 

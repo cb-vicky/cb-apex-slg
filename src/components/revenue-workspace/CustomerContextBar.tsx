@@ -16,7 +16,10 @@ import { SIDEBAR_LAYOUT_EVENT } from "@/components/layout/Sidebar";
 import { ChevronDown, ChevronRight, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Customer } from "@/data/mock-data";
-import { getContractsForCustomer, getInvoices } from "@/data/mock-data";
+import { getInvoices } from "@/data/mock-data";
+import { getCustomerArProfile } from "@/data/collections-ar-profile";
+import { CustomerContactsAvatars } from "./CustomerContactsAvatars";
+import { SubscriptionHeaderHint } from "./payment/subscription-ui";
 import { useIngestContext } from "@/context/IngestContext";
 import type { Stage } from "./stage";
 import {
@@ -43,11 +46,17 @@ import {
   tabLabel,
   tabsEqual,
   STAGE_ORDER,
+  recordTabDisplayLabel,
   type OpenRecordTab,
   type VisibilityOverrides,
   type WorkspaceTab,
 } from "./workspace-tabs";
+import {
+  getPinnedCollectionComments,
+} from "@/data/collections-comments";
 import { usePaymentCollectionsChrome } from "./payment/PaymentCollectionsChromeContext";
+import { useCommentsChrome } from "./payment/CommentsChromeContext";
+import { PinnedCommentsBar } from "./payment/PinnedCommentsBar";
 import { PaymentDockedTabButton } from "./payment/PaymentDockedTabButton";
 
 const SCROLL_THRESHOLD = 40;
@@ -89,6 +98,7 @@ const stageDisplay: Record<Stage, { tab: string; crumb: string }> = {
   contract: { tab: "Contracts", crumb: "Contract" },
   invoicing: { tab: "Invoicing", crumb: "Invoice" },
   payment: { tab: "Collections", crumb: "Collection" },
+  comments: { tab: "Comments", crumb: "Comment" },
   revrec: { tab: "RevRec", crumb: "Arrangement" },
 };
 
@@ -201,6 +211,11 @@ export function CustomerContextBar({
 
   const activeStage = activeTab.kind === "parent" ? activeTab.stage : activeTab.stage;
   const paymentChrome = usePaymentCollectionsChrome();
+  const commentsChrome = useCommentsChrome();
+  const pinnedComments = useMemo(
+    () => getPinnedCollectionComments(customer.id),
+    [customer.id, commentsChrome?.commentsRevision],
+  );
   const collectionsSubTabsDocked =
     activeStage === "payment" && (paymentChrome?.subTabsDocked ?? false);
   const disabled = disabledStages ?? EMPTY_DISABLED_STAGES;
@@ -527,15 +542,12 @@ export function CustomerContextBar({
     [customer.id, invoiceStatusOverrides],
   );
 
-  const primaryContract = useMemo(() => {
-    const contracts = getContractsForCustomer(customer.id);
-    return contracts.find((c) => c.status === "Active") ?? contracts[0] ?? null;
-  }, [customer.id]);
-
   const priorityChips = useMemo(
-    () => derivePriorityChips(customer, customerInvoices, primaryContract),
-    [customer, customerInvoices, primaryContract],
+    () => derivePriorityChips(customer, customerInvoices),
+    [customer, customerInvoices],
   );
+
+  const arProfile = useMemo(() => getCustomerArProfile(customer.id), [customer.id]);
 
   const moreOverflowSubtitle = buildMoreTabSubtitle(
     overflowTabs,
@@ -592,11 +604,30 @@ export function CustomerContextBar({
             >
               {customer.name}
             </h1>
-            <CustomerTeamMeta customer={customer} collapsed={isCollapsed} />
+            <CustomerContactsAvatars customer={customer} collapsed={isCollapsed} />
           </div>
-          <CustomerPriorityChips chips={priorityChips} collapsed={isCollapsed} />
+          <div
+            className={cn(
+              "flex max-w-[72%] shrink-0 items-end gap-5 pb-0.5 transition-all duration-300 ease-out",
+              isCollapsed && "pointer-events-none opacity-0",
+            )}
+          >
+            <SubscriptionHeaderHint
+              items={arProfile.subscriptions}
+              groups={arProfile.subscriptionDetails}
+            />
+            <CustomerPriorityChips chips={priorityChips} />
+          </div>
         </div>
       </div>
+
+      {pinnedComments.length > 0 ? (
+        <PinnedCommentsBar
+          comments={pinnedComments}
+          customerId={customer.id}
+          onUnpin={() => commentsChrome?.refreshComments()}
+        />
+      ) : null}
 
       <div
         ref={tabsContainerRef}
@@ -791,6 +822,8 @@ export function CustomerContextBar({
                 active
                 collectionsTab={paymentChrome!.collectionsTab}
                 promiseToPayCount={paymentChrome!.promiseToPayCount}
+                addTabOpen={paymentChrome!.addPromiseTabOpen}
+                editTabOpen={paymentChrome!.editPromiseTarget != null}
                 subTabsVisible={collectionsSubTabsDocked}
                 onSelectCollections={() => {
                   paymentChrome!.expandAllTabs();
@@ -828,60 +861,61 @@ const PRIORITY_CHIP_TONE: Record<PriorityChip["severity"], string> = {
   amber: "border-amber-200/90 bg-amber-50 text-amber-900",
 };
 
-function CustomerTeamMeta({
-  customer,
-  collapsed,
+/** Red stop-sign signal shown beside the OVERDUE priority chip in the customer header. */
+function OverdueStopSignalIcon({
+  className,
+  title = "Overdue — collections stop signal",
 }: {
-  customer: Customer;
-  collapsed?: boolean;
+  className?: string;
+  title?: string;
 }) {
   return (
-    <p
-      className={cn(
-        "pt-1.5 text-[12px] text-text-muted transition-all duration-300 ease-out",
-        collapsed
-          ? "pointer-events-none h-0 overflow-hidden pt-0 opacity-0"
-          : "whitespace-nowrap",
-      )}
+    <svg
+      viewBox="0 0 16 16"
+      className={cn("size-5 shrink-0", className)}
+      role="img"
+      aria-label={title}
     >
-      AE: {customer.ae}&ensp;·&ensp;CSM: {customer.csm}&ensp;·&ensp;Billing:{" "}
-      {customer.billingOwner}
-    </p>
+      <path
+        d="M8 1.25 13.1 3.55 14.75 8 13.1 12.45 8 14.75 2.9 12.45 1.25 8 2.9 3.55Z"
+        className="fill-red-600"
+      />
+      <rect x="5.25" y="5.25" width="5.5" height="5.5" rx="0.75" className="fill-white" />
+    </svg>
   );
 }
 
-function CustomerPriorityChips({
-  chips,
-  collapsed,
-}: {
-  chips: PriorityChip[];
-  collapsed?: boolean;
-}) {
+function CustomerPriorityChips({ chips }: { chips: PriorityChip[] }) {
   if (chips.length === 0) return null;
 
   return (
     <div
-      className={cn(
-        "flex max-w-[58%] shrink-0 flex-wrap items-end justify-end gap-1.5 pb-0.5 transition-all duration-300 ease-out",
-        collapsed && "pointer-events-none opacity-0",
-      )}
+      className="flex flex-wrap items-end justify-end gap-1.5"
       aria-label="Customer priority signals"
     >
-      {chips.map((chip) => (
-        <span
-          key={`${chip.label}-${chip.value}`}
-          className={cn(
-            "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold leading-tight",
-            PRIORITY_CHIP_TONE[chip.severity],
-          )}
-          title={`${chip.label}: ${chip.value}`}
-        >
-          <span className="text-[10px] font-bold uppercase tracking-wide opacity-75">
-            {chip.label}
+      {chips.map((chip) => {
+        const isOverdue = chip.label === "OVERDUE";
+        return (
+          <span
+            key={`${chip.label}-${chip.value}`}
+            className="inline-flex items-center gap-1"
+          >
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold leading-tight",
+                PRIORITY_CHIP_TONE[chip.severity],
+              )}
+              title={`${chip.label}: ${chip.value}`}
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wide opacity-75">
+                {chip.label}
+              </span>
+              <span className="font-semibold">{chip.value}</span>
+            </span>
+            {isOverdue ? <OverdueStopSignalIcon /> : null}
           </span>
-          <span className="font-semibold">{chip.value}</span>
-        </span>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -933,8 +967,12 @@ function buildCrumbs({
   });
 
   if (activeStage !== "customer" && recordId) {
+    const recordLabel =
+      activeStage === "payment" || activeStage === "comments"
+        ? recordTabDisplayLabel(activeStage, recordId)
+        : recordId;
     crumbs.push({
-      label: `${stageDisplay[activeStage].crumb} · ${recordId}`,
+      label: `${stageDisplay[activeStage].crumb} · ${recordLabel}`,
       kind: "record",
     });
   }

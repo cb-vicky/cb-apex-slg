@@ -6,6 +6,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
+import { cn } from "@/lib/utils";
 
 type Align = "start" | "end";
 
@@ -16,6 +17,7 @@ export function ArAnchoredPanel({
   children,
   width = 320,
   align = "start",
+  blockBackdrop = false,
 }: {
   open: boolean;
   anchorRef: RefObject<HTMLElement | null>;
@@ -23,6 +25,7 @@ export function ArAnchoredPanel({
   children: ReactNode;
   width?: number;
   align?: Align;
+  blockBackdrop?: boolean;
 }) {
   const [style, setStyle] = useState<CSSProperties>({ visibility: "hidden" });
 
@@ -75,9 +78,9 @@ export function ArAnchoredPanel({
   return createPortal(
     <>
       <div
-        className="fixed inset-0 z-[299]"
+        className={cn("fixed inset-0 z-[299]", blockBackdrop && "pointer-events-none")}
         aria-hidden
-        onMouseDown={onClose}
+        onMouseDown={blockBackdrop ? undefined : onClose}
       />
       <div
         style={style}
@@ -95,11 +98,13 @@ export function ArPopoverShell({
   title,
   headerAction,
   onClose,
+  showClose = true,
   children,
 }: {
   title: string;
   headerAction?: ReactNode;
   onClose: () => void;
+  showClose?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -109,15 +114,17 @@ export function ArPopoverShell({
         {headerAction}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">{children}</div>
-      <div className="shrink-0 border-t border-border-default px-3 py-2">
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-[12px] font-medium text-text-muted transition-colors hover:text-text-primary"
-        >
-          Close
-        </button>
-      </div>
+      {showClose ? (
+        <div className="shrink-0 border-t border-border-default px-3 py-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-[12px] font-medium text-text-muted transition-colors hover:text-text-primary"
+          >
+            Close
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

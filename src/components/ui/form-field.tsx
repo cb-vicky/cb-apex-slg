@@ -130,17 +130,15 @@ export const Select = forwardRef<HTMLSelectElement, React.ComponentProps<"select
 // Prefix / Suffix input (e.g. $ amount, % discount)
 // ---------------------------------------------------------------------------
 
-export function PrefixInput({
-  prefix,
-  suffix,
-  inputClassName,
-  className,
-  ...props
-}: React.ComponentProps<"input"> & { prefix?: ReactNode; suffix?: ReactNode; inputClassName?: string }) {
+export const PrefixInput = forwardRef<
+  HTMLInputElement,
+  React.ComponentProps<"input"> & { prefix?: ReactNode; suffix?: ReactNode; inputClassName?: string }
+>(function PrefixInput({ prefix, suffix, inputClassName, className, ...props }, ref) {
   return (
     <div className={cn(formInputShellClass, className)}>
-      {prefix ? <span className="mr-1 shrink-0 text-[13px] text-text-muted">{prefix}</span> : null}
+      {prefix ? <span className="mr-0 shrink-0 text-[13px] text-text-muted">{prefix}</span> : null}
       <input
+        ref={ref}
         {...props}
         className={cn(
           "h-full min-w-0 flex-1 bg-transparent text-[14px] text-text-primary outline-none placeholder:text-text-muted",
@@ -151,7 +149,7 @@ export function PrefixInput({
       {suffix ? <span className="ml-1 shrink-0 text-[13px] text-text-muted">{suffix}</span> : null}
     </div>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // FieldStack / FieldGrid — consistent rhythm for groups of fields
