@@ -10,11 +10,13 @@ export function PromiseToPayAssociatedInvoices({
   emptyLabel,
   /** List row: cap visible badges and show +N (always single horizontal row). */
   maxVisible,
+  onInvoiceClick,
 }: {
   invoiceIds: string[];
   className?: string;
   emptyLabel?: string;
   maxVisible?: number;
+  onInvoiceClick?: (invoiceId: string) => void;
 }) {
   if (invoiceIds.length === 0) {
     if (!emptyLabel) return null;
@@ -38,7 +40,11 @@ export function PromiseToPayAssociatedInvoices({
       )}
     >
       {visible.map((invoiceId) => (
-        <PromiseToPayInvoiceBadge key={invoiceId} invoiceId={invoiceId} />
+        <PromiseToPayInvoiceBadge
+          key={invoiceId}
+          invoiceId={invoiceId}
+          onClick={onInvoiceClick}
+        />
       ))}
       {overflow > 0 ? <PromiseToPayInvoiceOverflowBadge count={overflow} /> : null}
     </span>

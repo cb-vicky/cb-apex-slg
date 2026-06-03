@@ -6,15 +6,37 @@ const INVOICE_BADGE =
 export function PromiseToPayInvoiceBadge({
   invoiceId,
   className,
+  onClick,
 }: {
   invoiceId: string;
   className?: string;
+  onClick?: (invoiceId: string) => void;
 }) {
-  return (
-    <span className={cn(INVOICE_BADGE, "shrink-0 whitespace-nowrap", className)}>
-      {invoiceId}
-    </span>
+  const classNames = cn(
+    INVOICE_BADGE,
+    "shrink-0 whitespace-nowrap",
+    onClick &&
+      "cursor-pointer transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700",
+    className,
   );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClick(invoiceId);
+        }}
+        className={classNames}
+        aria-label={`View invoice ${invoiceId}`}
+      >
+        {invoiceId}
+      </button>
+    );
+  }
+
+  return <span className={classNames}>{invoiceId}</span>;
 }
 
 export function PromiseToPayInvoiceOverflowBadge({

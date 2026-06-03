@@ -22,6 +22,8 @@ This folder replaces the monolithic `apex-ui-plan.md`. Each doc is a self-contai
 | 11 | [`11-workspace-cleanup-and-gating.md`](11-workspace-cleanup-and-gating.md) | Tab gating rules, list-then-detail transitions |
 | 12 | [`12-open-questions.md`](12-open-questions.md) | Decisions, assumptions, stubs, outstanding Qs |
 | 13 | [`13-drawer-and-flows.md`](13-drawer-and-flows.md) | `EntityDrawer`, `drawer-store`, `UnifiedFlowShell`, flow steps |
+| 14 | [`14-receivables-cutdown.md`](14-receivables-cutdown.md) | Receivables cutdown branch — what changed vs `main`, add/remove summary |
+| 15 | [`15-receivables-cutdown-mock-data.md`](15-receivables-cutdown-mock-data.md) | Mock data added on receivables cutdown branch |
 
 ## Archive
 

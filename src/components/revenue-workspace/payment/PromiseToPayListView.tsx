@@ -14,6 +14,7 @@ import {
   PromiseToPayTimelineStep,
   PROMISE_UPDATE_ACTION_LABEL,
 } from "./promise-to-pay-entry-ui";
+import { usePaymentCollectionsChrome } from "./PaymentCollectionsChromeContext";
 
 /** Invoice column grows with badges; promise column absorbs shrink. */
 const HEADER_COLS = "grid-cols-[minmax(0,1fr)_auto]";
@@ -31,6 +32,7 @@ export function PromiseToPayListView({
   onEditScheduled,
   embedded = false,
 }: Props) {
+  const chrome = usePaymentCollectionsChrome();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   if (promises.length === 0) {
@@ -140,6 +142,9 @@ export function PromiseToPayListView({
                   <PromiseToPayAssociatedInvoices
                     invoiceIds={record.invoiceIds}
                     maxVisible={LIST_INVOICE_MAX_VISIBLE}
+                    onInvoiceClick={(invoiceId) =>
+                      chrome?.openInvoiceFromCollectionsFlow(invoiceId)
+                    }
                   />
                 </div>
               </div>
