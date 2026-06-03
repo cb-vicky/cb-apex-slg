@@ -861,30 +861,6 @@ const PRIORITY_CHIP_TONE: Record<PriorityChip["severity"], string> = {
   amber: "border-amber-200/90 bg-amber-50 text-amber-900",
 };
 
-/** Red stop-sign signal shown beside the OVERDUE priority chip in the customer header. */
-function OverdueStopSignalIcon({
-  className,
-  title = "Overdue — collections stop signal",
-}: {
-  className?: string;
-  title?: string;
-}) {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      className={cn("size-5 shrink-0", className)}
-      role="img"
-      aria-label={title}
-    >
-      <path
-        d="M8 1.25 13.1 3.55 14.75 8 13.1 12.45 8 14.75 2.9 12.45 1.25 8 2.9 3.55Z"
-        className="fill-red-600"
-      />
-      <rect x="5.25" y="5.25" width="5.5" height="5.5" rx="0.75" className="fill-white" />
-    </svg>
-  );
-}
-
 function CustomerPriorityChips({ chips }: { chips: PriorityChip[] }) {
   if (chips.length === 0) return null;
 
@@ -893,29 +869,21 @@ function CustomerPriorityChips({ chips }: { chips: PriorityChip[] }) {
       className="flex flex-wrap items-end justify-end gap-1.5"
       aria-label="Customer priority signals"
     >
-      {chips.map((chip) => {
-        const isOverdue = chip.label === "OVERDUE";
-        return (
-          <span
-            key={`${chip.label}-${chip.value}`}
-            className="inline-flex items-center gap-1"
-          >
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold leading-tight",
-                PRIORITY_CHIP_TONE[chip.severity],
-              )}
-              title={`${chip.label}: ${chip.value}`}
-            >
-              <span className="text-[10px] font-bold uppercase tracking-wide opacity-75">
-                {chip.label}
-              </span>
-              <span className="font-semibold">{chip.value}</span>
-            </span>
-            {isOverdue ? <OverdueStopSignalIcon /> : null}
+      {chips.map((chip) => (
+        <span
+          key={`${chip.label}-${chip.value}`}
+          className={cn(
+            "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold leading-tight",
+            PRIORITY_CHIP_TONE[chip.severity],
+          )}
+          title={`${chip.label}: ${chip.value}`}
+        >
+          <span className="text-[10px] font-bold uppercase tracking-wide opacity-75">
+            {chip.label}
           </span>
-        );
-      })}
+          <span className="font-semibold">{chip.value}</span>
+        </span>
+      ))}
     </div>
   );
 }
