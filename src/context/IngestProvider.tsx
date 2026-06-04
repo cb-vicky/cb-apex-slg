@@ -28,6 +28,7 @@ import {
   type IngestionSectionId,
   type IngestionSectionState,
   type IngestionOverallStatus,
+  type IngestionOperatorStatus,
 } from "@/context/ingest-context-core";
 
 export function IngestProvider({ children }: { children: ReactNode }) {
@@ -375,6 +376,17 @@ export function IngestProvider({ children }: { children: ReactNode }) {
     });
   }
 
+  function setIngestionOperatorStatus(queueItemId: string, status: IngestionOperatorStatus | undefined) {
+    setIngestionSessions((prev) => {
+      const session = prev[queueItemId];
+      if (!session) return prev;
+      return {
+        ...prev,
+        [queueItemId]: { ...session, operatorStatus: status },
+      };
+    });
+  }
+
   function discardIngestion(queueItemId: string) {
     setIngestionSessions((prev) => {
       const next = { ...prev };
@@ -496,6 +508,7 @@ export function IngestProvider({ children }: { children: ReactNode }) {
         startIngestionSession,
         setIngestionSectionState,
         setIngestionOverallStatus,
+        setIngestionOperatorStatus,
         discardIngestion,
         restartIngestion,
         completeIngestion,

@@ -18,12 +18,17 @@ export type IngestionSectionId = "summary" | "items" | "billing" | "addresses" |
 export type IngestionSectionState = "issues" | "review" | "done";
 export type IngestionOverallStatus = "in_review" | "ready" | "awaiting_approval";
 
+/** Operator-defined status tag for ingestion workflow */
+export type IngestionOperatorStatus = "in_review" | "awaiting_data" | "on_hold" | "needs_clarification";
+
 export interface IngestionSession {
   queueItemId: string;
   customerId: string;
   sampleId: "sample2" | "sample3" | "sample4" | "sample5";
   customerLink: "matched" | "created";
   overallStatus: IngestionOverallStatus;
+  /** Custom operator-defined status tag */
+  operatorStatus?: IngestionOperatorStatus;
   sections: Record<IngestionSectionId, IngestionSectionState>;
   startedAt: string;
 }
@@ -183,6 +188,9 @@ export interface IngestContextValue {
 
   /** Update the overall status (in_review / ready / awaiting_approval) */
   setIngestionOverallStatus: (queueItemId: string, status: IngestionOverallStatus) => void;
+
+  /** Update the operator-defined status tag */
+  setIngestionOperatorStatus: (queueItemId: string, status: IngestionOperatorStatus | undefined) => void;
 
   /** Discard an ingestion session (clears it from state) */
   discardIngestion: (queueItemId: string) => void;

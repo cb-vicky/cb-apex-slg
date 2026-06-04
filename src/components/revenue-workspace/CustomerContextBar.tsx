@@ -18,14 +18,13 @@ import { cn } from "@/lib/utils";
 import type { Customer } from "@/data/mock-data";
 import { getContractsForCustomer, getInvoices } from "@/data/mock-data";
 import { useIngestContext } from "@/context/IngestContext";
-import type { IngestionSession, IngestionSectionId, IngestionSectionState } from "@/context/ingest-context-core";
+import type { IngestionSession, IngestionSectionId } from "@/context/ingest-context-core";
 import { getExtractedContract } from "@/data/ingest-data";
 import { useZenithContractChrome } from "./contract/zenith/ZenithContractChromeContext";
 import {
   zenithContentTabForIngestionSub,
   type IngestionSubTab as IngestionSubTabSync,
 } from "./ingestion/ingestion-zenith-sync";
-import type { ZenithTabCompletionStatus } from "./contract/zenith/zenith-contract-tab-status";
 import type { Stage } from "./stage";
 import {
   derivePriorityChips,
@@ -35,11 +34,9 @@ import {
 } from "./derive-stage-data";
 import {
   CONNECT_TAB_SUMMARY,
-  deriveIngestionStatus,
   deriveIngestionTabSummary,
   resolveWorkspaceTabSummary,
   TAB_STATUS_HOVER_CLASS,
-  type IngestionStatusDetail,
   type TabSummary,
 } from "./derive-tab-summaries";
 import {
@@ -526,371 +523,13 @@ function InvoicingTabPill({
 
 type IngestionSubTab = IngestionSectionId | `pdf-${string}` | "contract-preview" | "invoice-preview";
 
-function getSectionStatusDot(state: IngestionSectionState): "red" | "amber" | "green" | null {
-  switch (state) {
-    case "issues":
-      return "red";
-    case "review":
-      return "amber";
-    case "done":
-      return "green";
-    default:
-      return null;
-  }
-}
-
-function zenithStatusDot(status: ZenithTabCompletionStatus): "red" | "amber" | "green" | null {
-  if (status === "complete") return "green";
-  if (status === "pending") return "amber";
-  return null;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Inverted Trapezoidal Tab for Ingestion (wider at top, narrower at bottom)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Inverted trapezoid inset — how much narrower the bottom is than the top */
-const INGESTION_TAB_BOTTOM_INSET = 14;
-const INGESTION_TAB_R = 8;
-const INGESTION_TAB_HEIGHT = { expanded: 52, collapsed: 28 } as const;
-const INGESTION_TAB_OVERLAP_CLASS = "-ml-[18px]";
+/** Height for the ingestion progress tracker strip - includes mt-4 (16px) + py-1.5 (6px*2) + h-7 (28px) */
+const INGESTION_TAB_HEIGHT = { expanded: 56, collapsed: 56 } as const;
 
 /**
- * Builds the SVG path for an INVERTED trapezoidal tab — wider at top, narrower at bottom.
- * The path is OPEN (no Z) so the stroke doesn't render on the TOP edge.
- * Uses quadratic curves for smooth bottom corner fillets.
- */
-function buildInvertedTabPath(W: number, H: number, inset = INGESTION_TAB_BOTTOM_INSET, R = INGESTION_TAB_R): string {
-  const L = Math.sqrt(inset * inset + H * H);
-  const ux = inset / L;
-  const uy = H / L;
-  return [
-    `M 0 0`,
-    `L ${inset - R * ux} ${H - R * uy}`,
-    `Q ${inset} ${H} ${inset + R} ${H}`,
-    `L ${W - inset - R} ${H}`,
-    `Q ${W - inset} ${H} ${W - inset + R * ux} ${H - R * uy}`,
-    `L ${W} 0`,
-  ].join(" ");
-}
-
-/**
- * SVG overlay for an inverted tab — renders wider at top, narrower at bottom.
- * Active: solid blue fill with darker blue stroke.
- * Inactive: white fill with grey stroke.
- */
-function IngestionTabSVG({
-  width,
-  height,
-  active,
-  hovered,
-}: {
-  width: number;
-  height: number;
-  active: boolean;
-  hovered?: boolean;
-}) {
-  if (width < 10 || height < 10) return null;
-  const path = buildInvertedTabPath(width, height, INGESTION_TAB_BOTTOM_INSET, INGESTION_TAB_R);
-
-  const fill = active ? TAB_BLUE : hovered ? TAB_HOVER_BG : "#ffffff";
-  const stroke = active ? TAB_BLUE_DARK : hovered ? "#9ca3af" : BORDER_GREY;
-
-  return (
-    <svg
-      className="ingestion-tab-svg"
-      viewBox={`0 0 ${width} ${height}`}
-      width={width}
-      height={height}
-      preserveAspectRatio="none"
-      style={{
-        position: "absolute",
-        inset: 0,
-        width: "100%",
-        height: "100%",
-        pointerEvents: "none",
-        overflow: "visible",
-      }}
-    >
-      <path
-        d={path}
-        fill={fill}
-        stroke={stroke}
-        strokeWidth={1}
-        style={{ 
-          transition: "fill 160ms ease, stroke 160ms ease",
-          filter: active ? "drop-shadow(0 2px 4px rgba(37,99,235,0.25))" : "drop-shadow(0 2px 6px rgba(17,24,39,0.08))",
-        }}
-      />
-    </svg>
-  );
-}
-
-/**
- * Hover popover for ingestion tab status — shows detailed status with issues.
- * Displays dynamic content like "Unable to match X items" based on ingestion state.
- */
-function IngestionTabPopover({
-  visible,
-  label,
-  statusDetail,
-  mouseX,
-  mouseY,
-}: {
-  visible: boolean;
-  label: string;
-  statusDetail: IngestionStatusDetail | null;
-  mouseX: number;
-  mouseY: number;
-}) {
-  const statusColor = statusDetail?.severity ?? null;
-  const statusText = statusDetail?.subtitle ?? "Pending";
-
-  return createPortal(
-    <div
-      className={cn(
-        "fixed z-[9999] pointer-events-none transition-opacity duration-150",
-        visible ? "opacity-100" : "opacity-0",
-      )}
-      style={{
-        left: mouseX + 12,
-        top: mouseY + 16,
-      }}
-    >
-      <div className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 shadow-lg min-w-[180px] max-w-[280px]">
-        {/* Header with label and status badge */}
-        <div className="flex items-center gap-2">
-          <span className="text-[12px] font-semibold text-slate-800">{label}</span>
-          {statusColor && (
-            <span className={cn(
-              "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium",
-              statusColor === "green" && "bg-emerald-50 text-emerald-700",
-              statusColor === "amber" && "bg-amber-50 text-amber-700",
-              statusColor === "red" && "bg-red-50 text-red-700",
-              statusColor === "blue" && "bg-blue-50 text-blue-700",
-              statusColor === "gray" && "bg-gray-50 text-gray-600",
-            )}>
-              <span className={cn(
-                "w-1.5 h-1.5 rounded-full",
-                statusColor === "green" && "bg-emerald-500",
-                statusColor === "amber" && "bg-amber-500",
-                statusColor === "red" && "bg-red-500",
-                statusColor === "blue" && "bg-blue-500",
-                statusColor === "gray" && "bg-gray-400",
-              )} />
-              {statusText}
-            </span>
-          )}
-        </div>
-
-        {/* Issues list */}
-        {statusDetail && statusDetail.issues.length > 0 && (
-          <div className="mt-2 pt-2 border-t border-gray-100">
-            <ul className="space-y-1">
-              {statusDetail.issues.map((issue, idx) => (
-                <li
-                  key={idx}
-                  className="flex items-start gap-1.5 text-[11px] text-slate-600"
-                >
-                  <span className="mt-1.5 w-1 h-1 rounded-full bg-amber-400 shrink-0" />
-                  <span>{issue}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Progress message */}
-        {statusDetail && (
-          <p className={cn(
-            "text-[10px] text-slate-500 mt-1.5",
-            statusDetail.issues.length > 0 && "mt-2"
-          )}>
-            {statusDetail.progressMessage}
-          </p>
-        )}
-      </div>
-    </div>,
-    document.body
-  );
-}
-
-/**
- * Individual ingestion tab button with inverted trapezoidal shape.
- * Supports expand/collapse for status display and hover popover.
- */
-function IngestionTabButton({
-  label,
-  subtitle,
-  dotColor,
-  isActive,
-  isDisabled,
-  isFirst,
-  isPdfTab,
-  isExpanded,
-  zIndex,
-  statusDetail,
-  onClick,
-}: {
-  label: string;
-  subtitle?: string;
-  dotColor: "red" | "amber" | "green" | null;
-  isActive: boolean;
-  isDisabled?: boolean;
-  isFirst: boolean;
-  isPdfTab?: boolean;
-  isExpanded: boolean;
-  zIndex: number;
-  /** Optional detailed status for popover — when provided, shows rich content */
-  statusDetail?: IngestionStatusDetail | null;
-  onClick: () => void;
-}) {
-  const innerRef = useRef<HTMLDivElement>(null);
-  const [tabSize, setTabSize] = useState({ w: 0, h: 0 });
-  const [isHovered, setIsHovered] = useState(false);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-
-  const tabHeight = isExpanded ? INGESTION_TAB_HEIGHT.expanded : INGESTION_TAB_HEIGHT.collapsed;
-  const showSubtitle = isExpanded && subtitle;
-
-  useEffect(() => {
-    if (!innerRef.current) return;
-    const ro = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) {
-        const { width, height } = entry.contentRect;
-        if (width > 0 && height > 0) {
-          setTabSize({ w: width, h: height });
-        }
-      }
-    });
-    ro.observe(innerRef.current);
-    setTabSize({ w: innerRef.current.offsetWidth, h: innerRef.current.offsetHeight });
-    return () => ro.disconnect();
-  }, []);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    setMousePos({ x: e.clientX, y: e.clientY });
-  }, []);
-
-  return (
-    <div
-      className={cn(
-        "group/ingtab relative shrink-0 transition-[height]",
-        !isFirst && INGESTION_TAB_OVERLAP_CLASS,
-      )}
-      style={{
-        zIndex: isActive ? 50 : zIndex,
-        height: tabHeight,
-        transitionDuration: TAB_COLLAPSE_MS,
-        transitionTimingFunction: TAB_COLLAPSE_EASE,
-      }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      onMouseMove={handleMouseMove}
-    >
-      {/* Hover popover */}
-      <IngestionTabPopover
-        visible={isHovered && !isActive}
-        label={label}
-        statusDetail={statusDetail ?? null}
-        mouseX={mousePos.x}
-        mouseY={mousePos.y}
-      />
-
-      <div
-        ref={innerRef}
-        role="button"
-        tabIndex={isDisabled ? -1 : 0}
-        onClick={isDisabled ? undefined : onClick}
-        onKeyDown={(e) => {
-          if (!isDisabled && (e.key === "Enter" || e.key === " ")) onClick();
-        }}
-        style={{
-          height: tabHeight,
-          transitionDuration: TAB_COLLAPSE_MS,
-          transitionTimingFunction: TAB_COLLAPSE_EASE,
-        }}
-        className={cn(
-          "relative inline-flex min-w-[96px] max-w-[200px] items-center justify-center text-center transition-[height,transform]",
-          isDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
-          isActive && "cursor-default",
-        )}
-      >
-        <IngestionTabSVG width={tabSize.w} height={tabSize.h} active={isActive} hovered={isHovered} />
-        <span
-          className={cn(
-            "relative z-[2] flex w-full min-w-0 flex-1 flex-col items-center justify-center overflow-hidden text-center px-5",
-            showSubtitle ? "gap-0.5 pt-1" : "gap-0",
-          )}
-          style={{ transitionDuration: TAB_COLLAPSE_MS, transitionTimingFunction: TAB_COLLAPSE_EASE }}
-        >
-          {/* Main label row with optional status dot */}
-          <span className="flex items-center gap-1.5">
-            {!isPdfTab && dotColor && !isActive && !isExpanded && (
-              <span
-                className={cn(
-                  "size-1.5 shrink-0 rounded-full",
-                  dotColor === "red" && "bg-red-500",
-                  dotColor === "amber" && "bg-amber-500",
-                  dotColor === "green" && "bg-emerald-500",
-                )}
-              />
-            )}
-            <span
-              className={cn(
-                "truncate text-center leading-tight font-semibold whitespace-nowrap transition-all duration-200",
-                isExpanded ? "text-[13px]" : "text-[11px]",
-                isActive
-                  ? "text-white"
-                  : "text-slate-700 group-hover/ingtab:text-slate-900",
-              )}
-              style={{ fontFamily: "'Sora', 'Inter', sans-serif" }}
-            >
-              {label}
-            </span>
-          </span>
-
-          {/* Subtitle row (status text) — shown when expanded */}
-          {subtitle && (
-            <span
-              className={cn(
-                "grid transition-[grid-template-rows,margin] ease-[cubic-bezier(0.32,0.72,0,1)]",
-                showSubtitle ? "mt-0.5 grid-rows-[1fr]" : "mt-0 grid-rows-[0fr]",
-              )}
-              style={{ transitionDuration: TAB_COLLAPSE_MS }}
-            >
-              <span className="min-h-0 overflow-hidden">
-                <span
-                  className={cn(
-                    "block w-full text-center text-[10px] leading-snug font-medium transition-[opacity,transform] ease-[cubic-bezier(0.32,0.72,0,1)]",
-                    showSubtitle
-                      ? "translate-y-0 opacity-100"
-                      : "-translate-y-0.5 opacity-0",
-                    isActive 
-                      ? "text-white/75" 
-                      : dotColor === "green" ? "text-emerald-600"
-                      : dotColor === "amber" ? "text-amber-600"
-                      : dotColor === "red" ? "text-red-600"
-                      : "text-slate-500",
-                  )}
-                  style={{ transitionDuration: TAB_COLLAPSE_MS }}
-                >
-                  {subtitle}
-                </span>
-              </span>
-            </span>
-          )}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Ingestion tab strip — renders inverted trapezoidal tabs matching workflow tab style.
- * PDF tabs first (visually separated), then flow tabs (Summary, Items, etc.)
- * Expands on load, collapses on scroll (via zenithChrome.isScrollCollapsed).
+ * Ingestion progress tracker — linear horizontal steps with Documents separated by pipe.
+ * Sequential flow: Documents | Summary → Items → Billing → Addresses → Preview
+ * Step indicators always visible. Selected state with strong blue bg.
  */
 function IngestionTabPill({
   session,
@@ -903,66 +542,13 @@ function IngestionTabPill({
 }) {
   const zenithChrome = useZenithContractChrome();
   const extracted = useMemo(() => getExtractedContract(session.sampleId), [session.sampleId]);
-  
-  // Derive detailed ingestion status for the popover
-  const ingestionStatusDetail = useMemo(() => {
-    return deriveIngestionStatus({
-      session,
-      contractLineItems: zenithChrome?.contractLineItems,
-      billingGapResolutions: zenithChrome?.billingGapResolutions,
-    });
-  }, [session, zenithChrome?.contractLineItems, zenithChrome?.billingGapResolutions]);
-  
-  // Independent scroll-based expand/collapse for secondary tabs
-  // Starts EXPANDED (ignoring ingestion default collapse), collapses on scroll
-  const [isScrollCollapsed, setIsScrollCollapsed] = useState(false);
-  const rafRef = useRef(0);
 
-  useEffect(() => {
-    const scrollContainer = document.querySelector<HTMLElement>("[data-main-scroll-container]");
-    if (!scrollContainer) return;
-
-    const COLLAPSE_THRESHOLD = 60;
-    const EXPAND_THRESHOLD = 20;
-
-    const updateScrollState = () => {
-      const top = scrollContainer.scrollTop;
-      setIsScrollCollapsed((prev) => {
-        if (prev) {
-          return top > EXPAND_THRESHOLD;
-        } else {
-          return top > COLLAPSE_THRESHOLD;
-        }
-      });
-    };
-
-    const handleScroll = () => {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(updateScrollState);
-    };
-
-    scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
-    requestAnimationFrame(() => requestAnimationFrame(updateScrollState));
-
-    return () => {
-      scrollContainer.removeEventListener("scroll", handleScroll);
-      cancelAnimationFrame(rafRef.current);
-    };
-  }, []);
-
-  const isExpanded = !isScrollCollapsed;
-
-  function pillTabStatusDot(tabId: IngestionSubTabSync): "red" | "amber" | "green" | null {
+  function getStepStatus(tabId: IngestionSubTabSync): "complete" | "active" | "pending" | "error" {
     const zenithTab = zenithContentTabForIngestionSub(tabId);
     if (zenithChrome && zenithTab) {
       const status = zenithChrome.getContentTabStatus(zenithTab);
-      // Only Items tab shows warning/pending status (amber)
-      // Other tabs only show complete (green) or no dot
-      if (tabId === "items") {
-        return zenithStatusDot(status);
-      }
-      // For other tabs, only show green if complete
-      return status === "complete" ? "green" : null;
+      if (status === "complete") return "complete";
+      if (status === "pending") return "pending";
     }
     if (
       tabId === "summary" ||
@@ -971,94 +557,115 @@ function IngestionTabPill({
       tabId === "addresses" ||
       tabId === "additional"
     ) {
-      const sectionDot = getSectionStatusDot(session.sections[tabId]);
-      // Only Items tab shows warning status
-      if (tabId === "items") {
-        return sectionDot;
-      }
-      // For other tabs, only show green if complete
-      return sectionDot === "green" ? "green" : null;
+      const state = session.sections[tabId];
+      if (state === "done") return "complete";
+      if (state === "issues") return "error";
     }
-    return null;
+    return "pending";
   }
 
-  // All tabs in order: Documents (single tab for all PDFs), then flow tabs
-  const allTabs: { id: IngestionSubTab | "documents"; label: string; statusLabel: string; isPdfTab?: boolean }[] = [
-    { id: "documents", label: "Documents", statusLabel: "Source files", isPdfTab: true },
-    { id: "summary", label: "Summary", statusLabel: "Summary" },
-    { id: "items", label: "Items", statusLabel: "Line items" },
-    { id: "billing", label: "Billing info", statusLabel: "Billing" },
-    { id: "addresses", label: "Addresses", statusLabel: "Addresses" },
-    { id: "invoice-preview", label: "Preview", statusLabel: "Invoice" },
+  // Sequential flow tabs (after Documents)
+  const flowTabs: { id: IngestionSubTab; label: string; shortLabel: string }[] = [
+    { id: "summary", label: "Summary", shortLabel: "Summary" },
+    { id: "items", label: "Items", shortLabel: "Items" },
+    { id: "billing", label: "Billing", shortLabel: "Billing" },
+    { id: "addresses", label: "Addresses", shortLabel: "Addresses" },
+    { id: "invoice-preview", label: "Preview", shortLabel: "Preview" },
   ];
 
-  // Check if the active sub-tab is a PDF tab (documents tab is active)
   const isDocumentsActive =
     activeSubTab.startsWith("pdf-") || activeSubTab === "contract-preview";
-  
-  // Get the first PDF tab ID as default when clicking Documents
-  const firstPdfId = extracted.documents.length > 0 
-    ? `pdf-${extracted.documents[0].id}` as IngestionSubTab
-    : "summary" as IngestionSubTab;
+
+  const firstPdfId = extracted.documents.length > 0
+    ? (`pdf-${extracted.documents[0].id}` as IngestionSubTab)
+    : ("summary" as IngestionSubTab);
 
   const invoicePreviewDisabled =
     zenithChrome?.getContentTabStatus("Invoice Preview") === "disabled";
 
-  const totalTabs = allTabs.length;
-  const tabHeight = isExpanded ? INGESTION_TAB_HEIGHT.expanded : INGESTION_TAB_HEIGHT.collapsed;
+  // Find active step index for the flow tabs
+  const activeFlowIndex = flowTabs.findIndex((t) => t.id === activeSubTab);
 
   return (
-    <div
-      className="relative flex items-start justify-center transition-[height]"
-      style={{
-        height: tabHeight + 1,
-        transitionDuration: TAB_COLLAPSE_MS,
-        transitionTimingFunction: TAB_COLLAPSE_EASE,
-      }}
-    >
-      {allTabs.map((tab, idx) => {
-        // Documents tab is active when any pdf-* sub-tab is selected
-        const isActive = tab.id === "documents" ? isDocumentsActive : activeSubTab === tab.id;
-        const dotColor = tab.isPdfTab ? null : pillTabStatusDot(tab.id as IngestionSubTabSync);
-        const isDisabled = tab.id === "invoice-preview" && invoicePreviewDisabled;
-        const isFirst = idx === 0;
-        const zIndex = isActive ? 50 : totalTabs - idx;
+    <div className="flex flex-1 items-center">
+      {/* Documents tab - separated */}
+      <button
+        type="button"
+        onClick={() => onSubTabChange(isDocumentsActive ? activeSubTab : firstPdfId)}
+        className={cn(
+          "relative flex h-7 items-center gap-1.5 rounded-full border px-3 text-[12px] font-medium transition-all",
+          isDocumentsActive
+            ? "border-blue-200 bg-blue-50 text-blue-600"
+            : "border-gray-200 bg-white text-slate-600 hover:bg-gray-50"
+        )}
+      >
+        <span>Documents</span>
+        <span className={cn(
+          "text-[10px]",
+          isDocumentsActive ? "text-blue-500" : "text-slate-400"
+        )}>
+          ({extracted.documents.length})
+        </span>
+      </button>
 
-        // Status text: Items shows warning states, others show Complete or nothing special
-        const statusText = tab.isPdfTab 
-          ? `${extracted.documents.length} files`
-          : tab.id === "items" && dotColor === "amber" ? "Needs attention"
-          : tab.id === "items" && dotColor === "red" ? "Issues found"
-          : dotColor === "green" ? "Complete"
-          : "";
+      {/* Spacer + Pipe separator + Spacer */}
+      <div className="flex-1" />
+      <span className="text-gray-300 text-sm select-none px-1">|</span>
+      <div className="flex-1" />
 
-        // Pass detailed status to Items tab for rich popover
-        const tabStatusDetail = tab.id === "items" ? ingestionStatusDetail : null;
+      {/* Sequential flow tabs with connecting lines - centered */}
+      <div className="flex items-center gap-0.5">
+        {flowTabs.map((tab, idx) => {
+          const isActive = activeSubTab === tab.id;
+          const isDisabled = tab.id === "invoice-preview" && invoicePreviewDisabled;
+          const stepStatus = getStepStatus(tab.id as IngestionSubTabSync);
+          const isPast = activeFlowIndex > idx;
+          const isLast = idx === flowTabs.length - 1;
 
-        return (
-          <IngestionTabButton
-            key={tab.id}
-            label={tab.label}
-            subtitle={statusText}
-            dotColor={dotColor}
-            isActive={isActive}
-            isDisabled={isDisabled}
-            isFirst={isFirst}
-            isPdfTab={tab.isPdfTab}
-            isExpanded={isExpanded}
-            zIndex={zIndex}
-            statusDetail={tabStatusDetail}
-            onClick={() => {
-              if (tab.id === "documents") {
-                // When clicking Documents, go to first PDF or keep current PDF
-                onSubTabChange(isDocumentsActive ? activeSubTab : firstPdfId);
-              } else {
-                onSubTabChange(tab.id as IngestionSubTab);
-              }
-            }}
-          />
-        );
-      })}
+          return (
+            <Fragment key={tab.id}>
+              <button
+                type="button"
+                onClick={() => !isDisabled && onSubTabChange(tab.id)}
+                disabled={isDisabled}
+                className={cn(
+                  "relative flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[12px] font-medium transition-all",
+                  isDisabled && "cursor-not-allowed opacity-40",
+                  isActive
+                    ? "border-blue-200 bg-blue-50 text-blue-600"
+                    : "border-gray-200 bg-white text-slate-600 hover:bg-gray-50"
+                )}
+              >
+                {/* Step number or status indicator - always visible */}
+                <span className={cn(
+                  "flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-semibold",
+                  isActive
+                    ? "bg-blue-600 text-white"
+                    : stepStatus === "complete"
+                      ? "bg-emerald-100 text-emerald-600"
+                      : stepStatus === "error"
+                        ? "bg-red-100 text-red-600"
+                        : "bg-gray-100 text-gray-500",
+                )}>
+                  {stepStatus === "complete" ? "✓" : stepStatus === "error" ? "!" : idx + 1}
+                </span>
+                <span>{tab.shortLabel}</span>
+              </button>
+
+              {/* Connecting line between steps */}
+              {!isLast && (
+                <div className={cn(
+                  "h-px w-2 transition-colors",
+                  isPast || isActive ? "bg-blue-300" : "bg-gray-200"
+                )} />
+              )}
+            </Fragment>
+          );
+        })}
+      </div>
+
+      {/* Spacer after Preview - before actions divider */}
+      <div className="flex-1" />
     </div>
   );
 }
@@ -1345,9 +952,12 @@ function ContextInfoPill({
  * Actions wrapper — floating rounded container for action buttons.
  * Used for ellipsis + primary CTA buttons.
  */
-function ActionsPillWrapper({ children }: { children: ReactNode }) {
+function ActionsPillWrapper({ children, compact }: { children: ReactNode; compact?: boolean }) {
   return (
-    <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 shadow-sm">
+    <div className={cn(
+      "inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white shadow-sm",
+      compact ? "mt-1 px-1.5 py-1" : "mt-2 px-3 py-2",
+    )}>
       {children}
     </div>
   );
@@ -1990,26 +1600,50 @@ export function CustomerContextBar({
       {/* Full-width horizontal line below the tabs — header separator */}
       <div className="relative h-px w-full" style={{ background: BORDER_GREY }}>
         {/* Context pills that hang below the line with 1px gap so line is visible */}
-        <div className="absolute left-0 right-0 top-[1px] flex items-start justify-between px-6">
-          {/* Left info pill */}
-          <ContextInfoPill
-            activeTab={activeTab}
-            customer={customer}
-            contextPillData={contextPillData}
-            invoicingSubTab={invoicingSubTab}
-            onInvoicingSubTabChange={onInvoicingSubTabChange}
-            ingestionSession={ingestionSession}
-            ingestionSubTab={ingestionSubTab}
-            onIngestionSubTabChange={onIngestionSubTabChange}
-          />
-          
-          {/* Right actions pill */}
-          {recordSlot ? (
-            <ActionsPillWrapper>{recordSlot}</ActionsPillWrapper>
-          ) : (
-            <div />
-          )}
-        </div>
+        {/* For ingestion: center-aligned sticky bar with tabs + actions side by side */}
+        {activeTab.stage === "ingestion" && ingestionSession && ingestionSubTab && onIngestionSubTabChange ? (
+          <div className="absolute left-0 right-0 top-[1px] px-6">
+            <div className="sticky top-0 z-20 mt-4 flex items-center gap-2 rounded-full border border-gray-200 bg-gray-100/75 backdrop-blur-md backdrop-saturate-150 px-3 py-1.5">
+              <ContextInfoPill
+                activeTab={activeTab}
+                customer={customer}
+                contextPillData={contextPillData}
+                invoicingSubTab={invoicingSubTab}
+                onInvoicingSubTabChange={onInvoicingSubTabChange}
+                ingestionSession={ingestionSession}
+                ingestionSubTab={ingestionSubTab}
+                onIngestionSubTabChange={onIngestionSubTabChange}
+              />
+              {recordSlot && (
+                <>
+                  <span className="text-gray-300 text-sm select-none">|</span>
+                  {recordSlot}
+                </>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="absolute left-0 right-0 top-[1px] flex items-start justify-between px-6">
+            {/* Left info pill */}
+            <ContextInfoPill
+              activeTab={activeTab}
+              customer={customer}
+              contextPillData={contextPillData}
+              invoicingSubTab={invoicingSubTab}
+              onInvoicingSubTabChange={onInvoicingSubTabChange}
+              ingestionSession={ingestionSession}
+              ingestionSubTab={ingestionSubTab}
+              onIngestionSubTabChange={onIngestionSubTabChange}
+            />
+            
+            {/* Right actions pill */}
+            {recordSlot ? (
+              <ActionsPillWrapper>{recordSlot}</ActionsPillWrapper>
+            ) : (
+              <div />
+            )}
+          </div>
+        )}
       </div>
 
       {/* Spacer to account for hanging pills + 1px gap */}

@@ -20,6 +20,7 @@ import type {
   IngestionSession,
   IngestionSectionId,
   IngestionSectionState,
+  IngestionOperatorStatus,
 } from "@/context/ingest-context-core";
 import type { ContractLineItem, ContractBillingGapResolution } from "@/data/contract-line-items";
 import {
@@ -290,6 +291,10 @@ export interface IngestionStatusDetail {
   issues: string[];
   /** Overall progress message */
   progressMessage: string;
+  /** Operator-defined custom status (if set) */
+  operatorStatus?: IngestionOperatorStatus;
+  /** Human-readable label for operator status */
+  operatorStatusLabel?: string;
 }
 
 export interface IngestionStatusInput {
@@ -297,6 +302,20 @@ export interface IngestionStatusInput {
   contractLineItems?: ContractLineItem[];
   billingGapResolutions?: Readonly<Record<string, ContractBillingGapResolution>>;
 }
+
+const OPERATOR_STATUS_LABELS: Record<IngestionOperatorStatus, string> = {
+  in_review: "In review",
+  awaiting_data: "Awaiting Data",
+  on_hold: "On hold",
+  needs_clarification: "Needs clarification",
+};
+
+const OPERATOR_STATUS_SEVERITY: Record<IngestionOperatorStatus, StatusSeverity> = {
+  in_review: "blue",
+  awaiting_data: "amber",
+  on_hold: "gray",
+  needs_clarification: "red",
+};
 
 /** Derive detailed ingestion status from session and Zenith context data */
 export function deriveIngestionStatus(input: IngestionStatusInput): IngestionStatusDetail {
@@ -338,6 +357,26 @@ export function deriveIngestionStatus(input: IngestionStatusInput): IngestionSta
     issues.push(`Issues in: ${sectionIssues.join(", ")}`);
   }
 
+  // Get operator status info
+  const operatorStatus = session.operatorStatus;
+  const operatorStatusLabel = operatorStatus ? OPERATOR_STATUS_LABELS[operatorStatus] : undefined;
+
+  // If operator has set a custom status, prioritize showing that
+  if (operatorStatus) {
+    const severity = OPERATOR_STATUS_SEVERITY[operatorStatus];
+    const progressMessage = issues.length > 0 
+      ? "Action required before invoice preview."
+      : "Operator has set a custom status.";
+    return {
+      subtitle: operatorStatusLabel!,
+      severity,
+      issues,
+      progressMessage,
+      operatorStatus,
+      operatorStatusLabel,
+    };
+  }
+
   // Determine severity and subtitle
   let severity: StatusSeverity = "green";
   let subtitle = "Ready for review";
@@ -372,7 +411,7 @@ export function deriveIngestionStatus(input: IngestionStatusInput): IngestionSta
     }
   }
 
-  return { subtitle, severity, issues, progressMessage };
+  return { subtitle, severity, issues, progressMessage, operatorStatus, operatorStatusLabel };
 }
 
 function formatSectionName(sectionId: IngestionSectionId): string {

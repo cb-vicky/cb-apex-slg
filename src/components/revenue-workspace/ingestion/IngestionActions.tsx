@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { MoreHorizontal, RotateCcw, Trash2, AlertCircle } from "lucide-react";
+import { MoreHorizontal, RotateCcw, Trash2, AlertCircle, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIngestContext } from "@/context/IngestContext";
 import { useDemoPersona } from "@/context/DemoPersonaContext";
@@ -9,10 +9,37 @@ import {
   buildSessionContractFromIngestion,
   buildSessionInvoiceFromIngestion,
 } from "@/data/ingestion-session";
-import type { IngestionSession } from "@/context/ingest-context-core";
+import type { IngestionSession, IngestionOperatorStatus } from "@/context/ingest-context-core";
 import { RecordHeader } from "../RecordHeader";
 import { useZenithContractChrome } from "../contract/zenith/ZenithContractChromeContext";
 import type { IngestionSubTab } from "./ingestion-zenith-sync";
+
+// ---------------------------------------------------------------------------
+// Operator Status Tag Configuration
+// ---------------------------------------------------------------------------
+
+const OPERATOR_STATUS_OPTIONS: {
+  value: IngestionOperatorStatus;
+  label: string;
+  color: "amber" | "blue" | "red" | "gray";
+}[] = [
+  { value: "in_review", label: "In review", color: "blue" },
+  { value: "awaiting_data", label: "Awaiting Data", color: "amber" },
+  { value: "on_hold", label: "On hold", color: "gray" },
+  { value: "needs_clarification", label: "Needs clarification", color: "red" },
+];
+
+const STATUS_COLOR_CLASSES: Record<string, { bg: string; text: string; border: string }> = {
+  amber: { bg: "bg-amber-100", text: "text-amber-700", border: "border-amber-200" },
+  blue: { bg: "bg-blue-100", text: "text-blue-700", border: "border-blue-200" },
+  red: { bg: "bg-red-100", text: "text-red-700", border: "border-red-200" },
+  gray: { bg: "bg-gray-100", text: "text-gray-600", border: "border-gray-200" },
+};
+
+function getStatusConfig(status: IngestionOperatorStatus | undefined) {
+  if (!status) return null;
+  return OPERATOR_STATUS_OPTIONS.find((o) => o.value === status) ?? null;
+}
 
 interface Props {
   session: IngestionSession;
@@ -48,11 +75,14 @@ export function IngestionActions({ session, customerId }: Props) {
     submitInvoiceForApproval,
     setIngestionOverallStatus,
     setInvoiceStatusOverride,
+    setIngestionOperatorStatus,
   } = useIngestContext();
 
   const [showOverflow, setShowOverflow] = useState(false);
   const [showPreviewWarning, setShowPreviewWarning] = useState(false);
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const overflowRef = useRef<HTMLDivElement>(null);
+  const statusDropdownRef = useRef<HTMLDivElement>(null);
 
   const currentSub = (searchParams.get("sub") || "summary") as IngestionSubTab;
   const extracted = getExtractedContract(session.sampleId);
@@ -75,12 +105,31 @@ export function IngestionActions({ session, customerId }: Props) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showOverflow]);
 
+  // Close status dropdown on outside click
+  useEffect(() => {
+    if (!showStatusDropdown) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(e.target as Node)) {
+        setShowStatusDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showStatusDropdown]);
+
   // Auto-hide warning after 4 seconds
   useEffect(() => {
     if (!showPreviewWarning) return;
     const timer = setTimeout(() => setShowPreviewWarning(false), 4000);
     return () => clearTimeout(timer);
   }, [showPreviewWarning]);
+
+  const currentStatusConfig = getStatusConfig(session.operatorStatus);
+
+  function handleStatusChange(status: IngestionOperatorStatus) {
+    setIngestionOperatorStatus(session.queueItemId, status);
+    setShowStatusDropdown(false);
+  }
 
   function handleNext() {
     // If on a document tab, go to Summary first
@@ -193,58 +242,67 @@ export function IngestionActions({ session, customerId }: Props) {
         <div className="flex items-center gap-2">
           {/* Warning message for preview */}
           {showPreviewWarning && (
-            <div className="flex items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-3 py-1.5 text-[12px] font-medium text-amber-700 animate-in fade-in slide-in-from-right-2 duration-200">
-              <AlertCircle size={14} className="shrink-0" />
-              <span>Preview cannot be generated. Resolve missing items.</span>
+            <div className="flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-1 text-[11px] font-medium text-amber-700 animate-in fade-in slide-in-from-right-2 duration-200">
+              <AlertCircle size={12} className="shrink-0" />
+              <span>Resolve missing items</span>
             </div>
           )}
 
-          {/* Ellipsis menu */}
+          {/* Operator Status Tag Dropdown */}
           {!isApproverReview && (
-            <div ref={overflowRef} className="relative">
+            <div ref={statusDropdownRef} className="relative">
               <button
                 type="button"
-                onClick={() => setShowOverflow((o) => !o)}
-                aria-label="More actions"
+                onClick={() => setShowStatusDropdown((o) => !o)}
                 className={cn(
-                  "inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors",
-                  showOverflow
-                    ? "bg-gray-100 text-gray-700"
-                    : "text-gray-500 hover:bg-gray-100 hover:text-gray-700",
+                  "inline-flex h-7 items-center gap-1.5 rounded-full border px-3 text-[12px] font-medium transition-all",
+                  currentStatusConfig
+                    ? cn(
+                        STATUS_COLOR_CLASSES[currentStatusConfig.color].bg,
+                        STATUS_COLOR_CLASSES[currentStatusConfig.color].text,
+                        STATUS_COLOR_CLASSES[currentStatusConfig.color].border,
+                      )
+                    : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50",
                 )}
               >
-                <MoreHorizontal size={18} strokeWidth={2} />
+                <span>{currentStatusConfig?.label ?? "Set status"}</span>
+                <ChevronDown size={11} className={cn("transition-transform", showStatusDropdown && "rotate-180")} />
               </button>
-              {showOverflow && (
-                <div className="absolute right-0 top-[calc(100%+6px)] z-30 w-56 overflow-hidden rounded-xl border border-border-default bg-white py-1 shadow-xl animate-in fade-in slide-in-from-top-2 duration-150">
-                  <button
-                    type="button"
-                    onClick={handleRestart}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-text-primary transition-colors hover:bg-surface-muted"
-                  >
-                    <RotateCcw size={14} className="shrink-0" />
-                    <span>Restart ingestion</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDiscard}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-red-600 transition-colors hover:bg-red-50"
-                  >
-                    <Trash2 size={14} className="shrink-0" />
-                    <span>Discard contract</span>
-                  </button>
+              {showStatusDropdown && (
+                <div className="absolute right-0 top-[calc(100%+4px)] z-30 w-44 overflow-hidden rounded-xl border border-border-default bg-white py-1 shadow-lg animate-in fade-in slide-in-from-top-2 duration-150">
+                  {OPERATOR_STATUS_OPTIONS.map((option) => {
+                    const colors = STATUS_COLOR_CLASSES[option.color];
+                    const isSelected = session.operatorStatus === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => handleStatusChange(option.value)}
+                        className={cn(
+                          "flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[12px] transition-colors",
+                          isSelected ? "bg-gray-50" : "hover:bg-gray-50",
+                        )}
+                      >
+                        <span className={cn("h-1.5 w-1.5 rounded-full", colors.bg.replace("bg-", "bg-").replace("-100", "-500"))} />
+                        <span className={isSelected ? "font-medium text-text-primary" : "text-text-primary"}>
+                          {option.label}
+                        </span>
+                        {isSelected && <span className="ml-auto text-blue-600 text-[10px]">✓</span>}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
           )}
 
-          {/* Primary CTA */}
+          {/* Primary CTA - same height as status tag */}
           <button
             type="button"
             onClick={ctaAction}
             disabled={ctaDisabled && !showPreviewWarning}
             className={cn(
-              "inline-flex h-9 items-center justify-center rounded-full px-5 text-[13px] font-semibold transition-colors",
+              "inline-flex h-7 items-center justify-center rounded-full px-4 text-[12px] font-semibold transition-colors",
               isLastTabWithItemsComplete
                 ? "bg-blue-600 text-white hover:bg-blue-700"
                 : ctaDisabled
@@ -254,6 +312,45 @@ export function IngestionActions({ session, customerId }: Props) {
           >
             {ctaLabel}
           </button>
+
+          {/* Ellipsis menu */}
+          {!isApproverReview && (
+            <div ref={overflowRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setShowOverflow((o) => !o)}
+                aria-label="More actions"
+                className={cn(
+                  "inline-flex h-7 w-7 items-center justify-center rounded-full border transition-colors",
+                  showOverflow
+                    ? "border-gray-300 bg-gray-100 text-gray-700"
+                    : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700",
+                )}
+              >
+                <MoreHorizontal size={14} strokeWidth={2} />
+              </button>
+              {showOverflow && (
+                <div className="absolute right-0 top-[calc(100%+4px)] z-30 w-48 overflow-hidden rounded-xl border border-border-default bg-white py-1 shadow-lg animate-in fade-in slide-in-from-top-2 duration-150">
+                  <button
+                    type="button"
+                    onClick={handleRestart}
+                    className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[12px] text-text-primary transition-colors hover:bg-surface-muted"
+                  >
+                    <RotateCcw size={12} className="shrink-0" />
+                    <span>Restart ingestion</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDiscard}
+                    className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[12px] text-red-600 transition-colors hover:bg-red-50"
+                  >
+                    <Trash2 size={12} className="shrink-0" />
+                    <span>Discard contract</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       }
     />
