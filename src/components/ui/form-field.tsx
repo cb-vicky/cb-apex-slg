@@ -130,10 +130,16 @@ export const Select = forwardRef<HTMLSelectElement, React.ComponentProps<"select
 // Prefix / Suffix input (e.g. $ amount, % discount)
 // ---------------------------------------------------------------------------
 
-export const PrefixInput = forwardRef<
-  HTMLInputElement,
-  React.ComponentProps<"input"> & { prefix?: ReactNode; suffix?: ReactNode; inputClassName?: string }
->(function PrefixInput({ prefix, suffix, inputClassName, className, ...props }, ref) {
+type PrefixInputProps = Omit<React.ComponentProps<"input">, "prefix" | "suffix"> & {
+  prefix?: ReactNode;
+  suffix?: ReactNode;
+  inputClassName?: string;
+};
+
+export const PrefixInput = forwardRef<HTMLInputElement, PrefixInputProps>(function PrefixInput(
+  { prefix, suffix, inputClassName, className, ...props },
+  ref,
+) {
   return (
     <div className={cn(formInputShellClass, className)}>
       {prefix ? <span className="mr-0 shrink-0 text-[13px] text-text-muted">{prefix}</span> : null}

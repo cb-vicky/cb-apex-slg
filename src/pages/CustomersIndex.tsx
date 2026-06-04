@@ -7,7 +7,11 @@ import { useIngestContext } from "@/context/IngestContext";
 import { currency, shortDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/primitives";
 import { ListTable, ListCreateRow, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
-import { FilterBar, type FilterTag, type FilterOption } from "@/components/index-page/FilterBar";
+import { FilterBar, type FilterTag } from "@/components/index-page/FilterBar";
+import {
+  CUSTOMER_FILTER_PROPERTIES,
+  matchesCustomerPropertyFilter,
+} from "@/data/customer-filter-properties";
 import { CustomerViewSelector } from "@/components/index-page/CustomerViewSelector";
 import { PageHeader } from "@/components/index-page/PageHeader";
 import { IndexPageFrame } from "@/components/index-page/IndexPageFrame";
@@ -19,27 +23,8 @@ import {
   type CustomerListViewId,
 } from "@/data/customer-list-views";
 
-function renewalBucket(customer: Customer): string | null {
-  if (!customer.nextRenewalDate) return null;
-  const days = Math.round((new Date(customer.nextRenewalDate).getTime() - Date.now()) / 86400000);
-  if (days <= 30) return "< 30 days";
-  if (days <= 60) return "30-60 days";
-  return "60+ days";
-}
-
-function riskBucket(customer: Customer): string {
-  if (customer.riskBadges.length === 0) return "Healthy";
-  if (customer.riskBadges.length >= 3) return "High Risk";
-  return "At Risk";
-}
-
 function matchesTagFilters(customer: Customer, filters: FilterTag[]): boolean {
-  for (const filter of filters) {
-    if (filter.field === "Risk" && riskBucket(customer) !== filter.value) return false;
-    if (filter.field === "Owner" && customer.billingOwner !== filter.value) return false;
-    if (filter.field === "Renewal" && renewalBucket(customer) !== filter.value) return false;
-  }
-  return true;
+  return filters.every((filter) => matchesCustomerPropertyFilter(customer, filter));
 }
 
 const listColumns: Column[] = [
@@ -51,12 +36,6 @@ const listColumns: Column[] = [
   { key: "renewal", label: "Renewal", width: "110px", sortable: true },
   { key: "risk", label: "Risk", width: "120px" },
   { key: "owner", label: "Owner", width: "120px" },
-];
-
-const filterOptions: FilterOption[] = [
-  { field: "Risk", label: "Risk", values: ["Healthy", "At Risk", "High Risk"] },
-  { field: "Owner", label: "Owner", values: ["Alex Nguyen", "Lena Schulz"] },
-  { field: "Renewal", label: "Renewal", values: ["< 30 days", "30-60 days", "60+ days"] },
 ];
 
 export function CustomersIndex() {
@@ -109,7 +88,7 @@ export function CustomersIndex() {
         <FilterBar
           filters={filters}
           onFiltersChange={setFilters}
-          filterOptions={filterOptions}
+          filterProperties={CUSTOMER_FILTER_PROPERTIES}
           resultCount={customersFiltered.length}
           resultLabel="customers"
           leadingContent={

@@ -1,22 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import {
-  CUSTOMER_LIST_VIEWS,
-  type CustomerListViewId,
-} from "@/data/customer-list-views";
+  INVOICE_LIST_VIEWS,
+  type InvoiceListViewId,
+} from "@/data/invoice-list-views";
 import { cn } from "@/lib/utils";
 
 interface Props {
-  activeViewId: CustomerListViewId;
-  viewCounts: Record<CustomerListViewId, number>;
-  onViewChange: (viewId: CustomerListViewId) => void;
+  activeViewId: InvoiceListViewId;
+  viewCounts: Record<InvoiceListViewId, number>;
+  onViewChange: (viewId: InvoiceListViewId) => void;
 }
 
-function viewLabel(viewId: CustomerListViewId): string {
-  return CUSTOMER_LIST_VIEWS.find((v) => v.id === viewId)?.label ?? viewId;
+function viewLabel(viewId: InvoiceListViewId): string {
+  return INVOICE_LIST_VIEWS.find((v) => v.id === viewId)?.label ?? viewId;
 }
 
-export function CustomerViewSelector({ activeViewId, viewCounts, onViewChange }: Props) {
+export function InvoiceViewSelector({ activeViewId, viewCounts, onViewChange }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -40,7 +40,7 @@ export function CustomerViewSelector({ activeViewId, viewCounts, onViewChange }:
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
         aria-haspopup="listbox"
-        aria-label="Customer list view"
+        aria-label="Invoice list view"
         className={cn(
           "inline-flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left transition-[colors,box-shadow] duration-150",
           open
@@ -67,13 +67,13 @@ export function CustomerViewSelector({ activeViewId, viewCounts, onViewChange }:
       {open ? (
         <div
           role="listbox"
-          aria-label="Customer list views"
+          aria-label="Invoice list views"
           className="absolute left-0 top-[calc(100%+6px)] z-30 max-h-[min(320px,50vh)] w-full min-w-[260px] overflow-y-auto rounded-xl border border-border-default bg-white py-1 shadow-xl"
         >
           <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted">
             View
           </p>
-          {CUSTOMER_LIST_VIEWS.map((view) => {
+          {INVOICE_LIST_VIEWS.map((view) => {
             const selected = view.id === activeViewId;
             const count = viewCounts[view.id] ?? 0;
 

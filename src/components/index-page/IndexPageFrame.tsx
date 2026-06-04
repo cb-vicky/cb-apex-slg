@@ -3,6 +3,8 @@ import { cn } from "@/lib/utils";
 
 interface IndexPageFrameProps {
   header: ReactNode;
+  /** Saved views / queue selectors — rendered above metric cards. */
+  views?: ReactNode;
   metrics?: ReactNode;
   filterBar?: ReactNode;
   children: ReactNode;
@@ -17,6 +19,7 @@ interface IndexPageFrameProps {
  */
 export function IndexPageFrame({
   header,
+  views,
   metrics,
   filterBar,
   children,
@@ -35,6 +38,7 @@ export function IndexPageFrame({
         {header}
       </div>
       <div className="flex flex-col gap-5 px-6 pt-2 pb-7">
+        {views ? <section aria-label="List views">{views}</section> : null}
         {metrics ? <section aria-label="Summary metrics">{metrics}</section> : null}
         {filterBar ? <section aria-label="Filters">{filterBar}</section> : null}
         <section aria-label="Results">{children}</section>

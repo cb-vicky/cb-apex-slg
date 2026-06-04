@@ -24,6 +24,7 @@ import {
   UserPlus,
   Users,
   Zap,
+  Workflow,
 } from "lucide-react";
 import { useAssistantWorkspace } from "@/lib/assistantWorkspace";
 import {
@@ -69,6 +70,7 @@ const navItems: NavItem[] = [
     showChevron: true,
   },
   { label: "Collections", path: "/collections", icon: Coins },
+  { label: "Automation", path: "/automation", icon: Workflow },
   { label: "RevRec", path: "/revrec", icon: ChartLine },
   { label: "Communications", path: "/communications", icon: Mail },
   { label: "Tasks", path: "/workbench", icon: List },

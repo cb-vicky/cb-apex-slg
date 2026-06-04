@@ -2,30 +2,35 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useScrolled } from "@/hooks/useScrolled";
 import { invoices, customers } from "@/data/mock-data";
+import type { Invoice } from "@/data/mock-data";
 import { useIngestContext } from "@/context/IngestContext";
 import { mergeInvoiceStatuses } from "@/components/revenue-workspace/derive-stage-data";
 import { currency, shortDate } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/primitives";
-import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStrip";
 import { ListTable, ListCreateRow, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
 import { FilterBar, type FilterTag, type FilterOption } from "@/components/index-page/FilterBar";
+import { InvoiceViewSelector } from "@/components/index-page/InvoiceViewSelector";
 import { PageHeader } from "@/components/index-page/PageHeader";
 import { IndexPageFrame } from "@/components/index-page/IndexPageFrame";
+import {
+  DEFAULT_INVOICE_LIST_VIEW_ID,
+  buildInvoiceViewContextMap,
+  countInvoicesByView,
+  filterInvoicesByView,
+  type InvoiceListViewId,
+} from "@/data/invoice-list-views";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function countPendingReview(source: typeof invoices) {
-  return source.filter((inv) => inv.status === "Pending Review" || inv.status === "Pending Approval").length;
-}
-
-function countOverdue(source: typeof invoices) {
-  return source.filter((inv) => inv.status === "Overdue").length;
-}
-
-function countBlocked(source: typeof invoices) {
-  return source.filter((inv) => inv.holdReason).length;
+function matchesTagFilters(invoice: Invoice, filters: FilterTag[]): boolean {
+  for (const filter of filters) {
+    if (filter.field === "Status" && invoice.status !== filter.value) return false;
+    if (filter.field === "Owner" && invoice.owner !== filter.value) return false;
+    if (filter.field === "Blocker") {
+      const hasBlocker = Boolean(invoice.holdReason);
+      if (filter.value === "Has blocker" && !hasBlocker) return false;
+      if (filter.value === "No blocker" && hasBlocker) return false;
+    }
+  }
+  return true;
 }
 
 const listColumns: Column[] = [
@@ -45,14 +50,13 @@ const filterOptions: FilterOption[] = [
   { field: "Blocker", label: "Blocker", values: ["Has blocker", "No blocker"] },
 ];
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
-
 export function InvoicesIndex() {
   const navigate = useNavigate();
   const { invoiceStatusOverrides, sessionInvoices, sessionCustomers } = useIngestContext();
   const [filters, setFilters] = useState<FilterTag[]>([]);
+  const [activeViewId, setActiveViewId] = useState<InvoiceListViewId>(
+    DEFAULT_INVOICE_LIST_VIEW_ID,
+  );
 
   const customersMerged = useMemo(() => {
     const byId = new Map(customers.map((c) => [c.id, c]));
@@ -75,36 +79,42 @@ export function InvoicesIndex() {
     [invoicesWithSession, invoiceStatusOverrides],
   );
 
+  const viewContextMap = useMemo(
+    () => buildInvoiceViewContextMap(invoicesView),
+    [invoicesView],
+  );
+
+  const viewCounts = useMemo(
+    () => countInvoicesByView(invoicesView, viewContextMap),
+    [invoicesView, viewContextMap],
+  );
+
+  const invoicesFiltered = useMemo(() => {
+    const byView = filterInvoicesByView(invoicesView, activeViewId, viewContextMap);
+    return byView.filter((inv) => matchesTagFilters(inv, filters));
+  }, [invoicesView, activeViewId, viewContextMap, filters]);
+
   const { ref: scrollRef, isScrolled } = useScrolled();
-
-  const pendingCount = useMemo(() => countPendingReview(invoicesView), [invoicesView]);
-  const overdueCount = useMemo(() => countOverdue(invoicesView), [invoicesView]);
-  const blockedCount = useMemo(() => countBlocked(invoicesView), [invoicesView]);
-  const openAr = invoicesView
-    .filter((i) => i.status === "Overdue" || i.status === "Pending Review")
-    .reduce((s, i) => s + i.amount, 0);
-
-  const metrics: MetricCard[] = [
-    { label: "Total invoices", value: invoicesView.length },
-    { label: "Pending review", value: pendingCount, variant: pendingCount > 0 ? "warning" : "default" },
-    { label: "Overdue", value: overdueCount, variant: overdueCount > 0 ? "danger" : "default" },
-    { label: "Open AR", value: currency(openAr), variant: "danger" },
-    { label: "Blocked", value: blockedCount, variant: blockedCount > 0 ? "warning" : "default" },
-  ];
 
   return (
     <IndexPageFrame
       headerRef={scrollRef}
       headerScrolled={isScrolled}
       header={<PageHeader title="Invoices" />}
-      metrics={<MetricStrip metrics={metrics} />}
       filterBar={
         <FilterBar
           filters={filters}
           onFiltersChange={setFilters}
           filterOptions={filterOptions}
-          resultCount={invoicesView.length}
+          resultCount={invoicesFiltered.length}
           resultLabel="invoices"
+          leadingContent={
+            <InvoiceViewSelector
+              activeViewId={activeViewId}
+              viewCounts={viewCounts}
+              onViewChange={setActiveViewId}
+            />
+          }
         />
       }
     >
@@ -114,7 +124,7 @@ export function InvoicesIndex() {
           columnCount={listColumns.length}
           firstColumnWidth={listColumns[0].width}
         />
-        {invoicesView.map((inv) => {
+        {invoicesFiltered.map((inv) => {
           const c = customersMerged.find((cu) => cu.id === inv.customerId);
           return (
             <ListRow key={inv.id} onClick={() => navigate(`/customers/${inv.customerId}?tab=invoicing&invoiceId=${inv.id}&from=invoices`)}>
