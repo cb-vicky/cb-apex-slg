@@ -1,7 +1,8 @@
 import type { IngestQueueSampleId } from "@/data/ingest-data";
-import type { ZenithContractActiveTab } from "./zenith-contract-tabs";
+import type { ZenithContractActiveTab, ZenithContractDocumentTabId } from "./zenith-contract-tabs";
 import { ZenithContractAddressesTab } from "./ZenithContractAddressesTab";
 import { ZenithContractBillingInfoTab } from "./ZenithContractBillingInfoTab";
+import { useZenithContractChrome } from "./ZenithContractChromeContext";
 import { ZenithContractDocumentPreview } from "./ZenithContractDocumentPreview";
 import { ZenithContractItemsTab } from "./ZenithContractItemsTab";
 import { ZenithContractSummaryTab } from "./ZenithContractSummaryTab";
@@ -13,6 +14,8 @@ interface Props {
 }
 
 export function ZenithContractTabPanel({ activeTab, ingestionSampleId }: Props) {
+  const chrome = useZenithContractChrome();
+
   if (activeTab === "Summary") {
     return <ZenithContractSummaryTab />;
   }
@@ -33,5 +36,15 @@ export function ZenithContractTabPanel({ activeTab, ingestionSampleId }: Props) 
     return <ZenithContractInvoicePreviewTab />;
   }
 
-  return <ZenithContractDocumentPreview documentTabId={activeTab} />;
+  // Document preview tab - pass the document change handler
+  const handleDocumentChange = (docId: ZenithContractDocumentTabId) => {
+    chrome?.setActiveTab(docId);
+  };
+
+  return (
+    <ZenithContractDocumentPreview 
+      documentTabId={activeTab} 
+      onDocumentChange={handleDocumentChange}
+    />
+  );
 }

@@ -13,15 +13,6 @@ import type { ZenithTabCompletionStatus } from "./zenith-contract-tab-status";
 
 const DOCUMENT_TAB_MAX_WIDTH = "max-w-[200px]";
 
-function tabButtonClass(isActive: boolean) {
-  return cn(
-    "rounded-lg px-2.5 py-1 text-[13px] font-medium transition-colors",
-    isActive
-      ? "border border-blue-200 bg-blue-50 text-blue-700 shadow-sm"
-      : "border border-transparent bg-gray-50 text-text-secondary hover:bg-gray-100 hover:text-text-primary",
-  );
-}
-
 function ContentTabButton({
   tab,
   isActive,
@@ -41,12 +32,14 @@ function ContentTabButton({
       onClick={isDisabled ? undefined : onClick}
       disabled={isDisabled}
       className={cn(
-        tabButtonClass(isActive),
-        "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap",
+        "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-all duration-200",
         isDisabled && "cursor-not-allowed opacity-50",
+        isActive
+          ? "bg-blue-600 text-white shadow-sm"
+          : "bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-800",
       )}
     >
-      <ZenithContractTabStatusIcon status={status} />
+      {!isActive && <ZenithContractTabStatusIcon status={status} />}
       {tab}
     </button>
   );
@@ -67,12 +60,14 @@ function DocumentTabButton({
       onClick={onClick}
       title={label}
       className={cn(
-        tabButtonClass(isActive),
-        "flex shrink items-center gap-1.5",
+        "flex shrink items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-all duration-200",
+        isActive
+          ? "bg-blue-600 text-white shadow-sm"
+          : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800",
         DOCUMENT_TAB_MAX_WIDTH,
       )}
     >
-      <FileText size={14} strokeWidth={2} className="shrink-0 text-text-muted" aria-hidden />
+      <FileText size={14} strokeWidth={2} className={cn("shrink-0", isActive ? "text-white/80" : "text-slate-400")} aria-hidden />
       <span className="min-w-0 truncate">{label}</span>
     </button>
   );
@@ -111,6 +106,18 @@ export function ZenithContractTabStrip({ activeTab, onTabSelect, className }: Pr
             "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
           )}
         >
+          {/* PDF/Document tabs - shown first */}
+          {ZENITH_CONTRACT_DOCUMENT_TABS.map((tab) => (
+            <DocumentTabButton
+              key={tab.id}
+              label={tab.label}
+              isActive={tab.id === activeTab}
+              onClick={() => onTabSelect(tab.id)}
+            />
+          ))}
+          {/* Vertical divider to physically separate PDF tabs from flow tabs */}
+          <div className="mx-2 h-6 w-px shrink-0 bg-slate-300" aria-hidden />
+          {/* Flow tabs - Summary, Items, Billing info, Addresses, Invoice Preview */}
           {ZENITH_CONTRACT_CONTENT_TABS.map((tab) => (
             <ContentTabButton
               key={tab}
@@ -118,15 +125,6 @@ export function ZenithContractTabStrip({ activeTab, onTabSelect, className }: Pr
               isActive={tab === activeTab}
               status={chrome?.getContentTabStatus(tab) ?? "pending"}
               onClick={() => onTabSelect(tab)}
-            />
-          ))}
-          <div className="mx-1 h-5 w-px shrink-0 bg-border-default" aria-hidden />
-          {ZENITH_CONTRACT_DOCUMENT_TABS.map((tab) => (
-            <DocumentTabButton
-              key={tab.id}
-              label={tab.label}
-              isActive={tab.id === activeTab}
-              onClick={() => onTabSelect(tab.id)}
             />
           ))}
         </div>

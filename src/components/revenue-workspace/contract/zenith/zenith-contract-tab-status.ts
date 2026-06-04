@@ -5,7 +5,6 @@ import {
 } from "@/data/contract-line-items";
 import type { IngestQueueSampleId } from "@/data/ingest-data";
 import type { ZenithSummaryLineItem } from "@/data/zenith-contract-summary";
-import type { ZenithContractContentTab } from "./zenith-contract-tabs";
 
 export type ZenithTabCompletionStatus = "pending" | "complete" | "disabled";
 
@@ -25,30 +24,19 @@ export function areZenithContractItemsComplete(input: ZenithContractItemsComplet
   return countPendingBillingGapItems(gapItems, billingGapResolutions) === 0;
 }
 
-/** Tabs the user marks done manually (Summary completes when these + Items are done). */
-export const ZENITH_MANUAL_COMPLETE_TABS: ZenithContractContentTab[] = [
-  "Billing info",
-  "Addresses",
-];
-
-export const ZENITH_SUMMARY_PREREQUISITE_TABS: ZenithContractContentTab[] = [
-  "Items",
-  ...ZENITH_MANUAL_COMPLETE_TABS,
-];
-
+/**
+ * Summary and Invoice Preview are complete by default when Items are resolved.
+ * The operator only needs to resolve item conflicts — all other tabs are implicitly complete.
+ */
 export function areZenithSummaryPrerequisiteTabsComplete(input: {
   itemsComplete: boolean;
-  manualComplete: Partial<Record<ZenithContractContentTab, boolean>>;
 }): boolean {
-  if (!input.itemsComplete) return false;
-  return ZENITH_MANUAL_COMPLETE_TABS.every((tab) => Boolean(input.manualComplete[tab]));
+  return input.itemsComplete;
 }
 
-/** Invoice Preview is enabled when Items, Billing info, and Addresses are all complete */
+/** Invoice Preview is enabled when Items are resolved. */
 export function isZenithInvoicePreviewEnabled(input: {
   itemsComplete: boolean;
-  manualComplete: Partial<Record<ZenithContractContentTab, boolean>>;
 }): boolean {
-  if (!input.itemsComplete) return false;
-  return ZENITH_MANUAL_COMPLETE_TABS.every((tab) => Boolean(input.manualComplete[tab]));
+  return input.itemsComplete;
 }

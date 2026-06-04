@@ -182,8 +182,9 @@ function InvertedPillSVG({
 
 /**
  * SVG overlay for a tab — renders the trapezoidal shape.
- * Active: solid blue fill with darker blue stroke.
- * Inactive: page-bg fill (or white when collapsed) with grey stroke.
+ * Active expanded: solid blue fill with darker blue stroke.
+ * Active collapsed: white fill with grey stroke.
+ * Inactive: page-bg fill with grey stroke.
  */
 function TabSVG({
   width,
@@ -201,10 +202,14 @@ function TabSVG({
   if (width < 10 || height < 10) return null;
   const path = buildTabPath(width, height, TOP_INSET, TOP_R);
 
-  // Inactive tabs are white when collapsed, page-bg when expanded
-  const inactiveFill = collapsed ? "#ffffff" : PAGE_BG;
-  const fill = active ? TAB_BLUE : hovered ? TAB_HOVER_BG : inactiveFill;
-  const stroke = active ? TAB_BLUE_DARK : hovered ? "#9ca3af" : BORDER_GREY;
+  const fill = active
+    ? collapsed
+      ? "#ffffff"
+      : TAB_BLUE
+    : hovered
+      ? TAB_HOVER_BG
+      : PAGE_BG;
+  const stroke = active && !collapsed ? TAB_BLUE_DARK : hovered ? "#9ca3af" : BORDER_GREY;
 
   return (
     <svg
@@ -537,10 +542,326 @@ function zenithStatusDot(status: ZenithTabCompletionStatus): "red" | "amber" | "
   return null;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Inverted Trapezoidal Tab for Ingestion (wider at top, narrower at bottom)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Inverted trapezoid inset — how much narrower the bottom is than the top */
+const INGESTION_TAB_BOTTOM_INSET = 14;
+const INGESTION_TAB_R = 8;
+const INGESTION_TAB_HEIGHT = { expanded: 52, collapsed: 28 } as const;
+const INGESTION_TAB_OVERLAP_CLASS = "-ml-[18px]";
+
 /**
- * Ingestion tab pill — renders section tabs + PDF tabs (Frame 1) or
- * Back / Contract Preview / Invoice Preview (Frame 2). Underline tracks the
- * active sub-tab; tab change is delegated to the parent.
+ * Builds the SVG path for an INVERTED trapezoidal tab — wider at top, narrower at bottom.
+ * The path is OPEN (no Z) so the stroke doesn't render on the TOP edge.
+ * Uses quadratic curves for smooth bottom corner fillets.
+ */
+function buildInvertedTabPath(W: number, H: number, inset = INGESTION_TAB_BOTTOM_INSET, R = INGESTION_TAB_R): string {
+  const L = Math.sqrt(inset * inset + H * H);
+  const ux = inset / L;
+  const uy = H / L;
+  return [
+    `M 0 0`,
+    `L ${inset - R * ux} ${H - R * uy}`,
+    `Q ${inset} ${H} ${inset + R} ${H}`,
+    `L ${W - inset - R} ${H}`,
+    `Q ${W - inset} ${H} ${W - inset + R * ux} ${H - R * uy}`,
+    `L ${W} 0`,
+  ].join(" ");
+}
+
+/**
+ * SVG overlay for an inverted tab — renders wider at top, narrower at bottom.
+ * Active: solid blue fill with darker blue stroke.
+ * Inactive: white fill with grey stroke.
+ */
+function IngestionTabSVG({
+  width,
+  height,
+  active,
+  hovered,
+}: {
+  width: number;
+  height: number;
+  active: boolean;
+  hovered?: boolean;
+}) {
+  if (width < 10 || height < 10) return null;
+  const path = buildInvertedTabPath(width, height, INGESTION_TAB_BOTTOM_INSET, INGESTION_TAB_R);
+
+  const fill = active ? TAB_BLUE : hovered ? TAB_HOVER_BG : "#ffffff";
+  const stroke = active ? TAB_BLUE_DARK : hovered ? "#9ca3af" : BORDER_GREY;
+
+  return (
+    <svg
+      className="ingestion-tab-svg"
+      viewBox={`0 0 ${width} ${height}`}
+      width={width}
+      height={height}
+      preserveAspectRatio="none"
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+        overflow: "visible",
+      }}
+    >
+      <path
+        d={path}
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={1}
+        style={{ 
+          transition: "fill 160ms ease, stroke 160ms ease",
+          filter: active ? "drop-shadow(0 2px 4px rgba(37,99,235,0.25))" : "drop-shadow(0 2px 6px rgba(17,24,39,0.08))",
+        }}
+      />
+    </svg>
+  );
+}
+
+function getIngestionTabStatusText(dotColor: "red" | "amber" | "green" | null): string {
+  if (dotColor === "green") return "Complete";
+  if (dotColor === "amber") return "In review";
+  if (dotColor === "red") return "Issues found";
+  return "Pending";
+}
+
+/**
+ * Hover popover for ingestion tab status — shows status details.
+ * Currently a placeholder that can be expanded later.
+ */
+function IngestionTabPopover({
+  visible,
+  label,
+  statusText,
+  statusColor,
+  mouseX,
+  mouseY,
+}: {
+  visible: boolean;
+  label: string;
+  statusText: string;
+  statusColor: "red" | "amber" | "green" | null;
+  mouseX: number;
+  mouseY: number;
+}) {
+  return createPortal(
+    <div
+      className={cn(
+        "fixed z-[9999] pointer-events-none transition-opacity duration-150",
+        visible ? "opacity-100" : "opacity-0",
+      )}
+      style={{
+        left: mouseX + 12,
+        top: mouseY + 16,
+      }}
+    >
+      <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-lg min-w-[140px]">
+        <div className="flex items-center gap-2">
+          <span className="text-[12px] font-semibold text-slate-800">{label}</span>
+          {statusColor && (
+            <span className={cn(
+              "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium",
+              statusColor === "green" && "bg-emerald-50 text-emerald-700",
+              statusColor === "amber" && "bg-amber-50 text-amber-700",
+              statusColor === "red" && "bg-red-50 text-red-700",
+            )}>
+              <span className={cn(
+                "w-1.5 h-1.5 rounded-full",
+                statusColor === "green" && "bg-emerald-500",
+                statusColor === "amber" && "bg-amber-500",
+                statusColor === "red" && "bg-red-500",
+              )} />
+              {statusText}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+/**
+ * Individual ingestion tab button with inverted trapezoidal shape.
+ * Supports expand/collapse for status display and hover popover.
+ */
+function IngestionTabButton({
+  label,
+  subtitle,
+  dotColor,
+  isActive,
+  isDisabled,
+  isFirst,
+  isPdfTab,
+  isExpanded,
+  zIndex,
+  onClick,
+}: {
+  label: string;
+  subtitle?: string;
+  dotColor: "red" | "amber" | "green" | null;
+  isActive: boolean;
+  isDisabled?: boolean;
+  isFirst: boolean;
+  isPdfTab?: boolean;
+  isExpanded: boolean;
+  zIndex: number;
+  onClick: () => void;
+}) {
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [tabSize, setTabSize] = useState({ w: 0, h: 0 });
+  const [isHovered, setIsHovered] = useState(false);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+  const tabHeight = isExpanded ? INGESTION_TAB_HEIGHT.expanded : INGESTION_TAB_HEIGHT.collapsed;
+  const showSubtitle = isExpanded && subtitle;
+
+  useEffect(() => {
+    if (!innerRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          setTabSize({ w: width, h: height });
+        }
+      }
+    });
+    ro.observe(innerRef.current);
+    setTabSize({ w: innerRef.current.offsetWidth, h: innerRef.current.offsetHeight });
+    return () => ro.disconnect();
+  }, []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    setMousePos({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const statusText = getIngestionTabStatusText(dotColor);
+
+  return (
+    <div
+      className={cn(
+        "group/ingtab relative shrink-0 transition-[height]",
+        !isFirst && INGESTION_TAB_OVERLAP_CLASS,
+      )}
+      style={{
+        zIndex: isActive ? 50 : zIndex,
+        height: tabHeight,
+        transitionDuration: TAB_COLLAPSE_MS,
+        transitionTimingFunction: TAB_COLLAPSE_EASE,
+      }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onMouseMove={handleMouseMove}
+    >
+      {/* Hover popover */}
+      <IngestionTabPopover
+        visible={isHovered && !isActive}
+        label={label}
+        statusText={statusText}
+        statusColor={dotColor}
+        mouseX={mousePos.x}
+        mouseY={mousePos.y}
+      />
+
+      <div
+        ref={innerRef}
+        role="button"
+        tabIndex={isDisabled ? -1 : 0}
+        onClick={isDisabled ? undefined : onClick}
+        onKeyDown={(e) => {
+          if (!isDisabled && (e.key === "Enter" || e.key === " ")) onClick();
+        }}
+        style={{
+          height: tabHeight,
+          transitionDuration: TAB_COLLAPSE_MS,
+          transitionTimingFunction: TAB_COLLAPSE_EASE,
+        }}
+        className={cn(
+          "relative inline-flex min-w-[96px] max-w-[200px] items-center justify-center text-center transition-[height,transform]",
+          isDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+          isActive && "cursor-default",
+        )}
+      >
+        <IngestionTabSVG width={tabSize.w} height={tabSize.h} active={isActive} hovered={isHovered} />
+        <span
+          className={cn(
+            "relative z-[2] flex w-full min-w-0 flex-1 flex-col items-center justify-center overflow-hidden text-center px-5",
+            showSubtitle ? "gap-0.5 pt-1" : "gap-0",
+          )}
+          style={{ transitionDuration: TAB_COLLAPSE_MS, transitionTimingFunction: TAB_COLLAPSE_EASE }}
+        >
+          {/* Main label row with optional status dot */}
+          <span className="flex items-center gap-1.5">
+            {!isPdfTab && dotColor && !isActive && !isExpanded && (
+              <span
+                className={cn(
+                  "size-1.5 shrink-0 rounded-full",
+                  dotColor === "red" && "bg-red-500",
+                  dotColor === "amber" && "bg-amber-500",
+                  dotColor === "green" && "bg-emerald-500",
+                )}
+              />
+            )}
+            <span
+              className={cn(
+                "truncate text-center leading-tight font-semibold whitespace-nowrap transition-all duration-200",
+                isExpanded ? "text-[13px]" : "text-[11px]",
+                isActive
+                  ? "text-white"
+                  : "text-slate-700 group-hover/ingtab:text-slate-900",
+              )}
+              style={{ fontFamily: "'Sora', 'Inter', sans-serif" }}
+            >
+              {label}
+            </span>
+          </span>
+
+          {/* Subtitle row (status text) — shown when expanded */}
+          {subtitle && (
+            <span
+              className={cn(
+                "grid transition-[grid-template-rows,margin] ease-[cubic-bezier(0.32,0.72,0,1)]",
+                showSubtitle ? "mt-0.5 grid-rows-[1fr]" : "mt-0 grid-rows-[0fr]",
+              )}
+              style={{ transitionDuration: TAB_COLLAPSE_MS }}
+            >
+              <span className="min-h-0 overflow-hidden">
+                <span
+                  className={cn(
+                    "block w-full text-center text-[10px] leading-snug font-medium transition-[opacity,transform] ease-[cubic-bezier(0.32,0.72,0,1)]",
+                    showSubtitle
+                      ? "translate-y-0 opacity-100"
+                      : "-translate-y-0.5 opacity-0",
+                    isActive 
+                      ? "text-white/75" 
+                      : dotColor === "green" ? "text-emerald-600"
+                      : dotColor === "amber" ? "text-amber-600"
+                      : dotColor === "red" ? "text-red-600"
+                      : "text-slate-500",
+                  )}
+                  style={{ transitionDuration: TAB_COLLAPSE_MS }}
+                >
+                  {subtitle}
+                </span>
+              </span>
+            </span>
+          )}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Ingestion tab strip — renders inverted trapezoidal tabs matching workflow tab style.
+ * PDF tabs first (visually separated), then flow tabs (Summary, Items, etc.)
+ * Expands on load, collapses on scroll (via zenithChrome.isScrollCollapsed).
  */
 function IngestionTabPill({
   session,
@@ -551,18 +872,59 @@ function IngestionTabPill({
   activeSubTab: IngestionSubTab;
   onSubTabChange: (tab: IngestionSubTab) => void;
 }) {
-  const pillRef = useRef<HTMLDivElement>(null);
-  const [pillWidth, setPillWidth] = useState(0);
-  const [underlineStyle, setUnderlineStyle] = useState({ left: 0, width: 0 });
-  const [isInitialized, setIsInitialized] = useState(false);
   const zenithChrome = useZenithContractChrome();
-
   const extracted = useMemo(() => getExtractedContract(session.sampleId), [session.sampleId]);
+  
+  // Independent scroll-based expand/collapse for secondary tabs
+  // Starts EXPANDED (ignoring ingestion default collapse), collapses on scroll
+  const [isScrollCollapsed, setIsScrollCollapsed] = useState(false);
+  const rafRef = useRef(0);
+
+  useEffect(() => {
+    const scrollContainer = document.querySelector<HTMLElement>("[data-main-scroll-container]");
+    if (!scrollContainer) return;
+
+    const COLLAPSE_THRESHOLD = 60;
+    const EXPAND_THRESHOLD = 20;
+
+    const updateScrollState = () => {
+      const top = scrollContainer.scrollTop;
+      setIsScrollCollapsed((prev) => {
+        if (prev) {
+          return top > EXPAND_THRESHOLD;
+        } else {
+          return top > COLLAPSE_THRESHOLD;
+        }
+      });
+    };
+
+    const handleScroll = () => {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(updateScrollState);
+    };
+
+    scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
+    requestAnimationFrame(() => requestAnimationFrame(updateScrollState));
+
+    return () => {
+      scrollContainer.removeEventListener("scroll", handleScroll);
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  const isExpanded = !isScrollCollapsed;
 
   function pillTabStatusDot(tabId: IngestionSubTabSync): "red" | "amber" | "green" | null {
     const zenithTab = zenithContentTabForIngestionSub(tabId);
     if (zenithChrome && zenithTab) {
-      return zenithStatusDot(zenithChrome.getContentTabStatus(zenithTab));
+      const status = zenithChrome.getContentTabStatus(zenithTab);
+      // Only Items tab shows warning/pending status (amber)
+      // Other tabs only show complete (green) or no dot
+      if (tabId === "items") {
+        return zenithStatusDot(status);
+      }
+      // For other tabs, only show green if complete
+      return status === "complete" ? "green" : null;
     }
     if (
       tabId === "summary" ||
@@ -571,237 +933,90 @@ function IngestionTabPill({
       tabId === "addresses" ||
       tabId === "additional"
     ) {
-      return getSectionStatusDot(session.sections[tabId]);
+      const sectionDot = getSectionStatusDot(session.sections[tabId]);
+      // Only Items tab shows warning status
+      if (tabId === "items") {
+        return sectionDot;
+      }
+      // For other tabs, only show green if complete
+      return sectionDot === "green" ? "green" : null;
     }
     return null;
   }
 
-  const isFrame2 = activeSubTab === "contract-preview";
-
-  const reviewTabs: { id: IngestionSubTab; label: string }[] = [
-    { id: "summary", label: "Summary" },
-    { id: "items", label: "Items" },
-    { id: "billing", label: "Billing info" },
-    { id: "addresses", label: "Addresses" },
-    { id: "invoice-preview", label: "Invoice Preview" },
+  // All tabs in order: Documents (single tab for all PDFs), then flow tabs
+  const allTabs: { id: IngestionSubTab | "documents"; label: string; statusLabel: string; isPdfTab?: boolean }[] = [
+    { id: "documents", label: "Documents", statusLabel: "Source files", isPdfTab: true },
+    { id: "summary", label: "Summary", statusLabel: "Summary" },
+    { id: "items", label: "Items", statusLabel: "Line items" },
+    { id: "billing", label: "Billing info", statusLabel: "Billing" },
+    { id: "addresses", label: "Addresses", statusLabel: "Addresses" },
+    { id: "invoice-preview", label: "Preview", statusLabel: "Invoice" },
   ];
 
-  const pdfTabs = extracted.documents.map((doc) => ({
-    id: `pdf-${doc.id}` as const,
-    label: doc.name.length > 20 ? doc.name.slice(0, 17) + "..." : doc.name,
-  }));
-
-  const frame2Tabs: { id: IngestionSubTab; label: string }[] = [
-    { id: "contract-preview", label: "Contract Preview" },
-  ];
+  // Check if the active sub-tab is a PDF tab (documents tab is active)
+  const isDocumentsActive =
+    activeSubTab.startsWith("pdf-") || activeSubTab === "contract-preview";
+  
+  // Get the first PDF tab ID as default when clicking Documents
+  const firstPdfId = extracted.documents.length > 0 
+    ? `pdf-${extracted.documents[0].id}` as IngestionSubTab
+    : "summary" as IngestionSubTab;
 
   const invoicePreviewDisabled =
     zenithChrome?.getContentTabStatus("Invoice Preview") === "disabled";
 
-  const tabRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map());
-  const textRefs = useRef<Map<string, HTMLSpanElement | null>>(new Map());
-
-  useEffect(() => {
-    if (!pillRef.current) return;
-    const ro = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) setPillWidth(entry.contentRect.width);
-    });
-    ro.observe(pillRef.current);
-    setPillWidth(pillRef.current.offsetWidth);
-    return () => ro.disconnect();
-  }, []);
-
-  const updateUnderlinePosition = useCallback(() => {
-    const pill = pillRef.current;
-    const activeButton = tabRefs.current.get(activeSubTab);
-    const activeText = textRefs.current.get(activeSubTab);
-
-    if (!pill || !activeButton || !activeText) return;
-
-    const pillRect = pill.getBoundingClientRect();
-    const buttonRect = activeButton.getBoundingClientRect();
-    const textWidth = activeText.offsetWidth;
-
-    const underlineWidth = textWidth * 0.5;
-    const buttonCenter = buttonRect.left - pillRect.left + buttonRect.width / 2;
-    const underlineLeft = buttonCenter - underlineWidth / 2;
-
-    setUnderlineStyle({
-      left: underlineLeft,
-      width: underlineWidth,
-    });
-
-    if (!isInitialized) {
-      requestAnimationFrame(() => setIsInitialized(true));
-    }
-  }, [activeSubTab, isInitialized]);
-
-  useEffect(() => {
-    updateUnderlinePosition();
-  }, [updateUnderlinePosition]);
-
-  useEffect(() => {
-    const handleResize = () => updateUnderlinePosition();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [updateUnderlinePosition]);
+  const totalTabs = allTabs.length;
+  const tabHeight = isExpanded ? INGESTION_TAB_HEIGHT.expanded : INGESTION_TAB_HEIGHT.collapsed;
 
   return (
     <div
-      ref={pillRef}
-      className="relative inline-flex items-center justify-center"
-      style={{ height: CONTEXT_PILL_HEIGHT, minWidth: 400 }}
+      className="relative flex items-start justify-center transition-[height]"
+      style={{
+        height: tabHeight + 1,
+        transitionDuration: TAB_COLLAPSE_MS,
+        transitionTimingFunction: TAB_COLLAPSE_EASE,
+      }}
     >
-      <InvertedPillSVG width={pillWidth} height={CONTEXT_PILL_HEIGHT} />
-      <div className="relative z-10 flex items-center gap-1 px-3 py-1.5">
-        {isFrame2 ? (
-          <>
-            {/* Back to ingestion */}
-            <button
-              type="button"
-              onClick={() => onSubTabChange("summary")}
-              className="group/subtab relative flex items-center gap-1 rounded px-2 py-0.5"
-            >
-              <ChevronRight size={11} className="rotate-180 text-slate-400" />
-              <span className="text-[11px] font-medium text-slate-500 group-hover/subtab:text-slate-700 transition-colors duration-200">
-                Back to ingestion
-              </span>
-            </button>
+      {allTabs.map((tab, idx) => {
+        // Documents tab is active when any pdf-* sub-tab is selected
+        const isActive = tab.id === "documents" ? isDocumentsActive : activeSubTab === tab.id;
+        const dotColor = tab.isPdfTab ? null : pillTabStatusDot(tab.id as IngestionSubTabSync);
+        const isDisabled = tab.id === "invoice-preview" && invoicePreviewDisabled;
+        const isFirst = idx === 0;
+        const zIndex = isActive ? 50 : totalTabs - idx;
 
-            <span className="mx-1 text-slate-300">|</span>
+        // Status text: Items shows warning states, others show Complete or nothing special
+        const statusText = tab.isPdfTab 
+          ? `${extracted.documents.length} files`
+          : tab.id === "items" && dotColor === "amber" ? "Needs attention"
+          : tab.id === "items" && dotColor === "red" ? "Issues found"
+          : dotColor === "green" ? "Complete"
+          : "";
 
-            {/* Frame 2 preview tabs */}
-            {frame2Tabs.map((tab) => {
-              const isActive = activeSubTab === tab.id;
-              const dotColor = pillTabStatusDot(tab.id);
-              return (
-                <button
-                  key={tab.id}
-                  ref={(el) => { tabRefs.current.set(tab.id, el); }}
-                  type="button"
-                  onClick={() => onSubTabChange(tab.id)}
-                  className="group/subtab relative flex items-center gap-1 rounded px-2 py-0.5"
-                >
-                  {dotColor && (
-                    <span
-                      className={cn(
-                        "size-1.5 rounded-full",
-                        dotColor === "amber" && "bg-amber-500",
-                        dotColor === "green" && "bg-emerald-500",
-                      )}
-                    />
-                  )}
-                  <span
-                    ref={(el) => { textRefs.current.set(tab.id, el); }}
-                    className={cn(
-                      "text-[11px] font-medium transition-colors duration-200",
-                      isActive
-                        ? "text-slate-900"
-                        : "text-slate-500 group-hover/subtab:text-slate-700",
-                    )}
-                  >
-                    {tab.label}
-                  </span>
-                </button>
-              );
-            })}
-          </>
-        ) : (
-          <>
-            {reviewTabs.map((tab) => {
-              const isActive = activeSubTab === tab.id;
-              const dotColor = pillTabStatusDot(tab.id);
-              const isDisabled =
-                tab.id === "invoice-preview" && invoicePreviewDisabled;
-
-              return (
-                <button
-                  key={tab.id}
-                  ref={(el) => { tabRefs.current.set(tab.id, el); }}
-                  type="button"
-                  disabled={isDisabled}
-                  onClick={() => !isDisabled && onSubTabChange(tab.id)}
-                  className={cn(
-                    "group/subtab relative flex items-center gap-1.5 rounded px-2 py-0.5",
-                    isDisabled && "cursor-not-allowed opacity-50",
-                  )}
-                >
-                  {dotColor && (
-                    <span
-                      className={cn(
-                        "size-1.5 rounded-full",
-                        dotColor === "red" && "bg-red-500",
-                        dotColor === "amber" && "bg-amber-500",
-                        dotColor === "green" && "bg-emerald-500",
-                      )}
-                    />
-                  )}
-                  <span
-                    ref={(el) => { textRefs.current.set(tab.id, el); }}
-                    className={cn(
-                      "text-[11px] font-medium transition-colors duration-200",
-                      isActive
-                        ? "text-slate-900"
-                        : "text-slate-500 group-hover/subtab:text-slate-700",
-                    )}
-                  >
-                    {tab.label}
-                  </span>
-                </button>
-              );
-            })}
-
-            {/* Pipe separator */}
-            {pdfTabs.length > 0 && (
-              <span className="mx-1 text-slate-300">|</span>
-            )}
-
-            {/* PDF tabs */}
-            {pdfTabs.map((tab) => {
-              const isActive = activeSubTab === tab.id;
-
-              return (
-                <button
-                  key={tab.id}
-                  ref={(el) => { tabRefs.current.set(tab.id, el); }}
-                  type="button"
-                  onClick={() => onSubTabChange(tab.id)}
-                  className="group/subtab relative flex items-center gap-1 rounded px-2 py-0.5"
-                >
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className="shrink-0 text-slate-400">
-                    <path d="M4 1h6l4 4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-                    <path d="M10 1v4h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <span
-                    ref={(el) => { textRefs.current.set(tab.id, el); }}
-                    className={cn(
-                      "text-[11px] font-medium transition-colors duration-200",
-                      isActive
-                        ? "text-slate-900"
-                        : "text-slate-500 group-hover/subtab:text-slate-700",
-                    )}
-                  >
-                    {tab.label}
-                  </span>
-                </button>
-              );
-            })}
-          </>
-        )}
-      </div>
-
-      {/* Animated underline */}
-      <span
-        className="absolute bottom-[1px] z-20 h-[2.5px] rounded-full bg-blue-600"
-        style={{
-          left: underlineStyle.left,
-          width: underlineStyle.width,
-          transition: isInitialized
-            ? "left 280ms cubic-bezier(0.4, 0, 0.2, 1), width 280ms cubic-bezier(0.4, 0, 0.2, 1)"
-            : "none",
-        }}
-      />
+        return (
+          <IngestionTabButton
+            key={tab.id}
+            label={tab.label}
+            subtitle={statusText}
+            dotColor={dotColor}
+            isActive={isActive}
+            isDisabled={isDisabled}
+            isFirst={isFirst}
+            isPdfTab={tab.isPdfTab}
+            isExpanded={isExpanded}
+            zIndex={zIndex}
+            onClick={() => {
+              if (tab.id === "documents") {
+                // When clicking Documents, go to first PDF or keep current PDF
+                onSubTabChange(isDocumentsActive ? activeSubTab : firstPdfId);
+              } else {
+                onSubTabChange(tab.id as IngestionSubTab);
+              }
+            }}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -1085,32 +1300,13 @@ function ContextInfoPill({
 }
 
 /**
- * Actions pill wrapper — wraps the recordSlot content in inverted trapezoidal shape.
- * Uses the same height as ContextInfoPill for visual consistency.
+ * Actions wrapper — floating rounded container for action buttons.
+ * Used for ellipsis + primary CTA buttons.
  */
 function ActionsPillWrapper({ children }: { children: ReactNode }) {
-  const pillRef = useRef<HTMLDivElement>(null);
-  const [pillWidth, setPillWidth] = useState(0);
-
-  useEffect(() => {
-    if (!pillRef.current) return;
-    const ro = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) setPillWidth(entry.contentRect.width);
-    });
-    ro.observe(pillRef.current);
-    setPillWidth(pillRef.current.offsetWidth);
-    return () => ro.disconnect();
-  }, []);
-
   return (
-    <div
-      ref={pillRef}
-      className="relative inline-flex items-center justify-center"
-      style={{ height: CONTEXT_PILL_HEIGHT, minWidth: 100 }}
-    >
-      <InvertedPillSVG width={pillWidth} height={CONTEXT_PILL_HEIGHT} />
-      <span className="relative z-10 flex items-center px-4">{children}</span>
+    <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 shadow-sm">
+      {children}
     </div>
   );
 }
@@ -1152,7 +1348,8 @@ export function CustomerContextBar({
 }: Props) {
   const navigate = useNavigate();
   const { invoiceStatusOverrides } = useIngestContext();
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  // Ingestion workflows keep tabs collapsed throughout
+  const [isCollapsed, setIsCollapsed] = useState(!!ingestionSession);
   const [isScrolled, setIsScrolled] = useState(false);
   const rafRef = useRef<number>(0);
   const collapseTransitionLockRef = useRef(false);
@@ -1450,12 +1647,16 @@ export function CustomerContextBar({
     const scrollContainer = document.querySelector<HTMLElement>("[data-main-scroll-container]");
     if (!scrollContainer) return;
 
-    let wasCollapsed = false;
+    let wasCollapsed = !!ingestionSession; // Ingestion starts collapsed
     const TRANSITION_LOCK_MS = 450; // Lock state changes during transition
 
     const updateScrollState = () => {
       const top = scrollContainer.scrollTop;
+      // Always update isScrolled for backdrop blur effect
       setIsScrolled(top > 0);
+      
+      // Ingestion workflows keep tabs collapsed throughout — skip collapse toggling
+      if (ingestionSession) return;
       
       // Don't change collapse state if we're in the middle of a transition
       if (collapseTransitionLockRef.current) return;
@@ -1506,7 +1707,7 @@ export function CustomerContextBar({
         clearTimeout(collapseTransitionTimeoutRef.current);
       }
     };
-  }, []);
+  }, [ingestionSession]);
 
   const crumbs = buildCrumbs({
     from,
@@ -1755,7 +1956,16 @@ export function CustomerContextBar({
       <div
         className="transition-all duration-300 ease-out"
         style={{
-          height: CONTEXT_PILL_HEIGHT + 1 + (isCollapsed ? HEADER_TABS_GAP.collapsed : HEADER_TABS_GAP.expanded),
+          height: (() => {
+            // Ingestion tabs are taller and use their own expand/collapse logic
+            if (activeTab.stage === "ingestion" && ingestionSession) {
+              const ingestionTabHeight = isCollapsed 
+                ? INGESTION_TAB_HEIGHT.collapsed 
+                : INGESTION_TAB_HEIGHT.expanded;
+              return ingestionTabHeight + 1 + (isCollapsed ? HEADER_TABS_GAP.collapsed : HEADER_TABS_GAP.expanded);
+            }
+            return CONTEXT_PILL_HEIGHT + 1 + (isCollapsed ? HEADER_TABS_GAP.collapsed : HEADER_TABS_GAP.expanded);
+          })(),
         }}
       />
     </div>
@@ -2599,9 +2809,11 @@ const WorkspaceTabButton = forwardRef<
           className={cn(
             "w-full text-center leading-tight font-semibold whitespace-nowrap transition-all duration-200",
             tabsCompact ? "text-[12px]" : "text-[14px]",
-            active
-              ? "text-white"
-              : "text-slate-600 group-hover/tab:text-slate-800",
+            active && tabsCompact
+              ? "text-blue-600"
+              : active
+                ? "text-white"
+                : "text-slate-600 group-hover/tab:text-slate-800",
           )}
           style={{ fontFamily: "'Sora', 'Inter', sans-serif" }}
         >

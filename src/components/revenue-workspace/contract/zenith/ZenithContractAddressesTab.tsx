@@ -6,7 +6,6 @@ import {
 } from "@/data/zenith-contract-summary";
 import { Input } from "@/components/ui/form-field";
 import { ZenithContractSectionCard } from "./ZenithContractSectionCard";
-import { ZenithMarkTabDoneBar } from "./ZenithMarkTabDoneBar";
 
 const fieldLabelClass =
   "text-[11px] font-semibold uppercase tracking-wider text-text-muted";
@@ -130,7 +129,6 @@ export function ZenithContractAddressesTab() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <ZenithMarkTabDoneBar tab="Addresses" />
         <ZenithContractSectionCard title="Billing address">
         <AddressFields
           idPrefix="zenith-billing-address"

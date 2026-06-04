@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileText, Send, CheckCircle2, Check, Minus, Plus, Download } from "lucide-react";
+import { FileText, CheckCircle2, Check, Minus, Plus, Download } from "lucide-react";
 import { useZenithContractChrome } from "./ZenithContractChromeContext";
 import {
   zenithSummaryLineItems,
@@ -194,36 +194,6 @@ function InvoicePreviewToolbar({
   );
 }
 
-
-function ReadyForApprovalBanner({ onSendForApproval }: { onSendForApproval: () => void }) {
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4">
-      <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100">
-          <CheckCircle2 size={20} className="text-emerald-600" />
-        </div>
-        <div>
-          <p className="text-[14px] font-semibold text-emerald-900">Ready for approval</p>
-          <p className="text-[13px] text-emerald-700">
-            All sections reviewed. Send this invoice for approval to proceed.
-          </p>
-        </div>
-      </div>
-      <button
-        type="button"
-        onClick={onSendForApproval}
-        className={cn(
-          "inline-flex h-10 shrink-0 items-center gap-2 rounded-full px-5",
-          "bg-emerald-600 text-[13px] font-semibold text-white",
-          "transition-colors hover:bg-emerald-700",
-        )}
-      >
-        <Send size={16} strokeWidth={2} />
-        Send for approval
-      </button>
-    </div>
-  );
-}
 
 function PendingApprovalBanner({ onApprove }: { onApprove: () => void }) {
   return (
@@ -519,9 +489,7 @@ export function ZenithContractInvoicePreviewTab() {
             </p>
           </div>
         </div>
-      ) : (
-        <ReadyForApprovalBanner onSendForApproval={handleSendForApproval} />
-      )}
+      ) : null}
 
       <InvoicePreviewToolbar zoom={zoom} setZoom={setZoom} />
 

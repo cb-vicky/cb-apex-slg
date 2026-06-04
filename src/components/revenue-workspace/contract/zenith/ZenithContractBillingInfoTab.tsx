@@ -8,7 +8,6 @@ import {
 import { Input, Select } from "@/components/ui/form-field";
 import { cn } from "@/lib/utils";
 import { ZenithContractSectionCard } from "./ZenithContractSectionCard";
-import { ZenithMarkTabDoneBar } from "./ZenithMarkTabDoneBar";
 
 const fieldLabelClass =
   "text-[11px] font-semibold uppercase tracking-wider text-text-muted";
@@ -120,7 +119,6 @@ export function ZenithContractBillingInfoTab() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <ZenithMarkTabDoneBar tab="Billing info" />
         <ZenithContractSectionCard title="Billing terms">
         <BillingField label="Term" htmlFor="zenith-billing-term">
           <Input

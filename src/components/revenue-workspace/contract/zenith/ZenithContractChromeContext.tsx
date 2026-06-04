@@ -62,8 +62,6 @@ export interface ZenithContractChromeValue {
   ingestionSampleId?: IngestQueueSampleId;
   isScrollCollapsed: boolean;
   getContentTabStatus: (tab: ZenithContractContentTab) => ZenithTabCompletionStatus;
-  markTabComplete: (tab: ZenithContractContentTab) => void;
-  unmarkTabComplete: (tab: ZenithContractContentTab) => void;
   contractLineItems: ContractLineItem[];
   setContractLineItems: (items: ContractLineItem[]) => void;
   billingGapResolutions: Record<string, ContractBillingGapResolution>;
@@ -118,15 +116,13 @@ export function ZenithContractChromeProvider({
   const isIngestionComplete = zenithInvoiceStatus === "Pending Approval" || zenithInvoiceStatus === "Posted";
   
   const [activeTab, setActiveTabState] = useState<ZenithContractActiveTab>("Summary");
-  const [isScrollCollapsed, setIsScrollCollapsed] = useState(false);
+  // Ingestion workflows default to collapsed; user can expand via scroll or interaction
+  const [isScrollCollapsed, setIsScrollCollapsed] = useState(ingestionUrlSync);
   const [contractLineItems, setContractLineItems] = useState<ContractLineItem[]>(() =>
     getContractLineItemsForIngest({ sampleId: ingestionSampleId }),
   );
   const [billingGapResolutions, setBillingGapResolutionsState] = useState<
     Record<string, ContractBillingGapResolution>
-  >({});
-  const [manualTabComplete, setManualTabComplete] = useState<
-    Partial<Record<ZenithContractContentTab, boolean>>
   >({});
   const [reviewStatus, setReviewStatus] = useState<ZenithContractReviewStatus>(
     DEFAULT_ZENITH_CONTRACT_REVIEW_STATUS,
@@ -160,16 +156,21 @@ export function ZenithContractChromeProvider({
 
   const summaryTabComplete = areZenithSummaryPrerequisiteTabsComplete({
     itemsComplete: itemsTabComplete,
-    manualComplete: manualTabComplete,
   });
 
   const invoicePreviewEnabled = isZenithInvoicePreviewEnabled({
     itemsComplete: itemsTabComplete,
-    manualComplete: manualTabComplete,
   });
 
   const isInvoicePosted = zenithInvoiceStatus === "Posted";
   
+  /**
+   * Tab status logic:
+   * - Items: complete only when all line items mapped + billing gaps resolved
+   * - Summary: complete when Items complete (auto-derived)
+   * - Billing info / Addresses: always complete by default (no explicit "mark as done")
+   * - Invoice Preview: enabled when Items complete; "complete" once invoice posted
+   */
   const getContentTabStatus = useCallback(
     (tab: ZenithContractContentTab): ZenithTabCompletionStatus => {
       if (tab === "Items") return itemsTabComplete ? "complete" : "pending";
@@ -178,24 +179,11 @@ export function ZenithContractChromeProvider({
         if (isInvoicePosted) return "complete";
         return invoicePreviewEnabled ? "pending" : "disabled";
       }
-      return manualTabComplete[tab] ? "complete" : "pending";
+      // Billing info, Addresses: always complete by default
+      return "complete";
     },
-    [itemsTabComplete, summaryTabComplete, invoicePreviewEnabled, manualTabComplete, isInvoicePosted],
+    [itemsTabComplete, summaryTabComplete, invoicePreviewEnabled, isInvoicePosted],
   );
-
-  const markTabComplete = useCallback((tab: ZenithContractContentTab) => {
-    if (tab === "Items" || tab === "Summary") return;
-    setManualTabComplete((prev) => ({ ...prev, [tab]: true }));
-  }, []);
-
-  const unmarkTabComplete = useCallback((tab: ZenithContractContentTab) => {
-    if (tab === "Items" || tab === "Summary") return;
-    setManualTabComplete((prev) => {
-      const next = { ...prev };
-      delete next[tab];
-      return next;
-    });
-  }, []);
 
   const openCommentsPanel = useCallback((focus?: ZenithCommentFocus) => {
     setCommentFocus(focus ?? null);
@@ -248,6 +236,8 @@ export function ZenithContractChromeProvider({
         params.set("sub", sub);
         params.set("frame", ingestionFrameForSub(sub));
         setSearchParams(params, { replace: true });
+        // Ingestion workflows keep tabs collapsed throughout — no scroll-driven expansion
+        return;
       }
 
       if (!scrollContainer) return;
@@ -270,7 +260,8 @@ export function ZenithContractChromeProvider({
       return;
     }
 
-    setIsScrollCollapsed(false);
+    // Ingestion workflows default to collapsed; non-ingestion contexts start expanded
+    setIsScrollCollapsed(ingestionUrlSync);
 
     const seedLineItems = getContractLineItemsForIngest({ sampleId: ingestionSampleId });
 
@@ -281,13 +272,8 @@ export function ZenithContractChromeProvider({
         catalogLink: item.catalogLink ?? ("system_match" as const),
       }));
       setContractLineItems(completedLineItems);
-      setManualTabComplete({
-        "Billing info": true,
-        "Addresses": true,
-      });
     } else {
       setContractLineItems(seedLineItems);
-      setManualTabComplete({});
     }
 
     setBillingGapResolutionsState({});
@@ -329,6 +315,8 @@ export function ZenithContractChromeProvider({
 
   useEffect(() => {
     if (!enabled) return;
+    // Ingestion workflows keep tabs collapsed throughout — skip scroll-driven toggling
+    if (ingestionUrlSync) return;
 
     const scrollContainer = getMainScrollContainer();
     if (!scrollContainer) return;
@@ -361,7 +349,7 @@ export function ZenithContractChromeProvider({
       cancelAnimationFrame(rafRef.current);
       clearTimeout(transitionTimerRef.current);
     };
-  }, [enabled, startTransition]);
+  }, [enabled, ingestionUrlSync, startTransition]);
 
 
   const value: ZenithContractChromeValue | null = enabled
@@ -373,8 +361,6 @@ export function ZenithContractChromeProvider({
         ingestionSampleId,
         isScrollCollapsed,
         getContentTabStatus,
-        markTabComplete,
-        unmarkTabComplete,
         contractLineItems,
         setContractLineItems,
         billingGapResolutions,

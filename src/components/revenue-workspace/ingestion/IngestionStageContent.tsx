@@ -28,7 +28,7 @@ export function IngestionStageContent({ session, customer }: Props) {
   }
 
   return (
-    <div className="relative flex flex-col gap-3">
+    <div className="relative flex flex-col gap-3 pt-8">
       <IngestionActions session={session} customerId={customer.id} />
       <ZenithContractTabPanel activeTab={activeZenithTab} ingestionSampleId={session.sampleId} />
       <ZenithContractCommentsPanel />

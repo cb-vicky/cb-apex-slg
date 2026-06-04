@@ -383,62 +383,68 @@ export function InvoicePDFTabContent({
 export function ContractPDFTabContent({
   contract,
   customer,
+  hideControls = false,
+  zoom: zoomProp,
 }: {
   contract: Contract;
   customer: Customer;
+  hideControls?: boolean;
+  zoom?: number;
 }) {
-  const [zoom, setZoom] = useState(100);
+  const [internalZoom, setInternalZoom] = useState(100);
   const [page, setPage] = useState(1);
   const pageCount = 3;
+  const zoom = zoomProp ?? internalZoom;
 
   return (
     <div className="flex min-h-full flex-col bg-[#F3F4F6]">
-      {/* Controls bar */}
-      <div className="shrink-0 px-6 py-3">
-        <div className="flex items-center justify-end">
-          <div className="flex shrink-0 items-center gap-1 rounded-md border border-border-default bg-white px-2 py-1">
-            <button
-              type="button"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="rounded p-0.5 text-text-muted transition-colors hover:text-text-primary disabled:opacity-40"
-              aria-label="Previous page"
-            >
-              <ChevronLeft size={14} />
-            </button>
-            <span className="min-w-[52px] text-center text-[10px] tabular-nums text-text-secondary">
-              {page} / {pageCount}
-            </span>
-            <button
-              type="button"
-              onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-              disabled={page === pageCount}
-              className="rounded p-0.5 text-text-muted transition-colors hover:text-text-primary disabled:opacity-40"
-              aria-label="Next page"
-            >
-              <ChevronRight size={14} />
-            </button>
-            <div className="mx-1 h-3 w-px bg-border-default" />
-            <button
-              type="button"
-              onClick={() => setZoom((z) => Math.max(50, z - 10))}
-              className="rounded p-0.5 text-text-muted hover:text-text-primary"
-              aria-label="Zoom out"
-            >
-              <Minus size={12} />
-            </button>
-            <span className="min-w-[32px] text-center text-[10px] tabular-nums text-text-secondary">{zoom}%</span>
-            <button
-              type="button"
-              onClick={() => setZoom((z) => Math.min(200, z + 10))}
-              className="rounded p-0.5 text-text-muted hover:text-text-primary"
-              aria-label="Zoom in"
-            >
-              <Plus size={12} />
-            </button>
+      {!hideControls && (
+        <div className="shrink-0 px-6 py-3">
+          <div className="flex items-center justify-end">
+            <div className="flex shrink-0 items-center gap-1 rounded-md border border-border-default bg-white px-2 py-1">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="rounded p-0.5 text-text-muted transition-colors hover:text-text-primary disabled:opacity-40"
+                aria-label="Previous page"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <span className="min-w-[52px] text-center text-[10px] tabular-nums text-text-secondary">
+                {page} / {pageCount}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                disabled={page === pageCount}
+                className="rounded p-0.5 text-text-muted transition-colors hover:text-text-primary disabled:opacity-40"
+                aria-label="Next page"
+              >
+                <ChevronRight size={14} />
+              </button>
+              <div className="mx-1 h-3 w-px bg-border-default" />
+              <button
+                type="button"
+                onClick={() => setInternalZoom((z) => Math.max(50, z - 10))}
+                className="rounded p-0.5 text-text-muted hover:text-text-primary"
+                aria-label="Zoom out"
+              >
+                <Minus size={12} />
+              </button>
+              <span className="min-w-[32px] text-center text-[10px] tabular-nums text-text-secondary">{zoom}%</span>
+              <button
+                type="button"
+                onClick={() => setInternalZoom((z) => Math.min(200, z + 10))}
+                className="rounded p-0.5 text-text-muted hover:text-text-primary"
+                aria-label="Zoom in"
+              >
+                <Plus size={12} />
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Document body */}
       <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">

@@ -24,7 +24,7 @@ const ZENITH_TO_INGESTION_SUB: Partial<Record<ZenithContractActiveTab, Ingestion
   "Billing info": "billing",
   Addresses: "addresses",
   "Invoice Preview": "invoice-preview",
-  "contract-pdf": "contract-preview",
+  "contract-pdf": "pdf-doc-zenith-1",
   "sow-pdf": "pdf-doc-zenith-2",
 };
 

@@ -306,6 +306,37 @@ Optional fields on `QueueItem` for the NEW DEAL link step:
 - **Primary contact column** — not a separate field; derived in `customer-link-display.ts` as `csm` → `billingOwner` → `ae`. Vary `csm` on the Pioneer variant rows in `mock-data.ts` to differentiate the match-found table.
 - Consumed by **`buildSimilarCustomerBrowseList()`** in `src/lib/new-deal-customer-link-workflow.ts` when `queueItem.sampleId === "sample5"`.
 
+### Pioneer Systems — New Deal Ingestion scenario (`sample5`)
+
+Pioneer Systems is the primary demo path for the **match-first customer link** workflow in new deal ingestion. Key data points:
+
+| Data element | Value |
+|--------------|-------|
+| Queue item | `QI-2026-0007` |
+| Sample ID | `sample5` |
+| Document | `PioneerSystems_NewBusiness_Platform_2026_Signed.pdf` |
+| Source | CPQ (Salesforce handoff) |
+| TCV | $186,000 |
+| Suggested match | `cust_pioneer_004` (Pioneer Systems) |
+| Link workflow | `match_first` |
+
+**Extracted contract (`extractedSample5`):**
+- **Customer:** Pioneer Systems / Pioneer Systems Corp.
+- **Primary contact:** Alex Nguyen (alex.nguyen@pioneersystems.com)
+- **Products:** Apex Platform – Growth (50 seats @ $2,400/yr, 10% discount), Implementation Services ($18,000 one-time)
+- **Terms:** 12 months, Annual upfront, Net 30, $150k min commit
+- **Billing-rule gap items:** Standard Support (monthly), AI Credits (overage add-on)
+
+**Match-first flow:**
+1. `NewDealCustomerLinkMatchFirstPanel` shows closest-match banner with `cust_pioneer_004`
+2. Operator can **Approve** (links to existing Pioneer Systems) or **Reject** (browse similar/all customers)
+3. Four near-duplicate Pioneer rows (`cust_pioneer_systems_v2`, `cust_pioneer_systems_typo`, `cust_pioneer_systems_singular`, `cust_pioneer_systems_plural`) demonstrate fuzzy-match handling
+4. After customer link, ingestion proceeds to Zenith contract review tabs
+
+**Ingestion workflow tab behavior:**
+- After customer linking, the Zenith contract review workflow tabs are **collapsed by default** for all ingestion flows
+- Tabs expand on scroll or explicit interaction
+
 ### Customer link workflow helpers (`src/lib/new-deal-customer-link-workflow.ts`)
 
 | Export | Role |
