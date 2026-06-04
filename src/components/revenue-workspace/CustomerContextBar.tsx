@@ -35,8 +35,11 @@ import {
 } from "./derive-stage-data";
 import {
   CONNECT_TAB_SUMMARY,
+  deriveIngestionStatus,
+  deriveIngestionTabSummary,
   resolveWorkspaceTabSummary,
   TAB_STATUS_HOVER_CLASS,
+  type IngestionStatusDetail,
   type TabSummary,
 } from "./derive-tab-summaries";
 import {
@@ -623,32 +626,26 @@ function IngestionTabSVG({
   );
 }
 
-function getIngestionTabStatusText(dotColor: "red" | "amber" | "green" | null): string {
-  if (dotColor === "green") return "Complete";
-  if (dotColor === "amber") return "In review";
-  if (dotColor === "red") return "Issues found";
-  return "Pending";
-}
-
 /**
- * Hover popover for ingestion tab status — shows status details.
- * Currently a placeholder that can be expanded later.
+ * Hover popover for ingestion tab status — shows detailed status with issues.
+ * Displays dynamic content like "Unable to match X items" based on ingestion state.
  */
 function IngestionTabPopover({
   visible,
   label,
-  statusText,
-  statusColor,
+  statusDetail,
   mouseX,
   mouseY,
 }: {
   visible: boolean;
   label: string;
-  statusText: string;
-  statusColor: "red" | "amber" | "green" | null;
+  statusDetail: IngestionStatusDetail | null;
   mouseX: number;
   mouseY: number;
 }) {
+  const statusColor = statusDetail?.severity ?? null;
+  const statusText = statusDetail?.subtitle ?? "Pending";
+
   return createPortal(
     <div
       className={cn(
@@ -660,7 +657,8 @@ function IngestionTabPopover({
         top: mouseY + 16,
       }}
     >
-      <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-lg min-w-[140px]">
+      <div className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 shadow-lg min-w-[180px] max-w-[280px]">
+        {/* Header with label and status badge */}
         <div className="flex items-center gap-2">
           <span className="text-[12px] font-semibold text-slate-800">{label}</span>
           {statusColor && (
@@ -669,17 +667,48 @@ function IngestionTabPopover({
               statusColor === "green" && "bg-emerald-50 text-emerald-700",
               statusColor === "amber" && "bg-amber-50 text-amber-700",
               statusColor === "red" && "bg-red-50 text-red-700",
+              statusColor === "blue" && "bg-blue-50 text-blue-700",
+              statusColor === "gray" && "bg-gray-50 text-gray-600",
             )}>
               <span className={cn(
                 "w-1.5 h-1.5 rounded-full",
                 statusColor === "green" && "bg-emerald-500",
                 statusColor === "amber" && "bg-amber-500",
                 statusColor === "red" && "bg-red-500",
+                statusColor === "blue" && "bg-blue-500",
+                statusColor === "gray" && "bg-gray-400",
               )} />
               {statusText}
             </span>
           )}
         </div>
+
+        {/* Issues list */}
+        {statusDetail && statusDetail.issues.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-gray-100">
+            <ul className="space-y-1">
+              {statusDetail.issues.map((issue, idx) => (
+                <li
+                  key={idx}
+                  className="flex items-start gap-1.5 text-[11px] text-slate-600"
+                >
+                  <span className="mt-1.5 w-1 h-1 rounded-full bg-amber-400 shrink-0" />
+                  <span>{issue}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Progress message */}
+        {statusDetail && (
+          <p className={cn(
+            "text-[10px] text-slate-500 mt-1.5",
+            statusDetail.issues.length > 0 && "mt-2"
+          )}>
+            {statusDetail.progressMessage}
+          </p>
+        )}
       </div>
     </div>,
     document.body
@@ -700,6 +729,7 @@ function IngestionTabButton({
   isPdfTab,
   isExpanded,
   zIndex,
+  statusDetail,
   onClick,
 }: {
   label: string;
@@ -711,6 +741,8 @@ function IngestionTabButton({
   isPdfTab?: boolean;
   isExpanded: boolean;
   zIndex: number;
+  /** Optional detailed status for popover — when provided, shows rich content */
+  statusDetail?: IngestionStatusDetail | null;
   onClick: () => void;
 }) {
   const innerRef = useRef<HTMLDivElement>(null);
@@ -741,8 +773,6 @@ function IngestionTabButton({
     setMousePos({ x: e.clientX, y: e.clientY });
   }, []);
 
-  const statusText = getIngestionTabStatusText(dotColor);
-
   return (
     <div
       className={cn(
@@ -763,8 +793,7 @@ function IngestionTabButton({
       <IngestionTabPopover
         visible={isHovered && !isActive}
         label={label}
-        statusText={statusText}
-        statusColor={dotColor}
+        statusDetail={statusDetail ?? null}
         mouseX={mousePos.x}
         mouseY={mousePos.y}
       />
@@ -874,6 +903,15 @@ function IngestionTabPill({
 }) {
   const zenithChrome = useZenithContractChrome();
   const extracted = useMemo(() => getExtractedContract(session.sampleId), [session.sampleId]);
+  
+  // Derive detailed ingestion status for the popover
+  const ingestionStatusDetail = useMemo(() => {
+    return deriveIngestionStatus({
+      session,
+      contractLineItems: zenithChrome?.contractLineItems,
+      billingGapResolutions: zenithChrome?.billingGapResolutions,
+    });
+  }, [session, zenithChrome?.contractLineItems, zenithChrome?.billingGapResolutions]);
   
   // Independent scroll-based expand/collapse for secondary tabs
   // Starts EXPANDED (ignoring ingestion default collapse), collapses on scroll
@@ -994,6 +1032,9 @@ function IngestionTabPill({
           : dotColor === "green" ? "Complete"
           : "";
 
+        // Pass detailed status to Items tab for rich popover
+        const tabStatusDetail = tab.id === "items" ? ingestionStatusDetail : null;
+
         return (
           <IngestionTabButton
             key={tab.id}
@@ -1006,6 +1047,7 @@ function IngestionTabPill({
             isPdfTab={tab.isPdfTab}
             isExpanded={isExpanded}
             zIndex={zIndex}
+            statusDetail={tabStatusDetail}
             onClick={() => {
               if (tab.id === "documents") {
                 // When clicking Documents, go to first PDF or keep current PDF
@@ -1348,6 +1390,24 @@ export function CustomerContextBar({
 }: Props) {
   const navigate = useNavigate();
   const { invoiceStatusOverrides } = useIngestContext();
+  const zenithChrome = useZenithContractChrome();
+  
+  // Derive ingestion tab summary when there's an active session
+  const enrichedParentTabSummaries = useMemo(() => {
+    if (!ingestionSession) return parentTabSummaries;
+    
+    const ingestionSummary = deriveIngestionTabSummary({
+      session: ingestionSession,
+      contractLineItems: zenithChrome?.contractLineItems,
+      billingGapResolutions: zenithChrome?.billingGapResolutions,
+    });
+    
+    return {
+      ...parentTabSummaries,
+      ingestion: ingestionSummary,
+    };
+  }, [parentTabSummaries, ingestionSession, zenithChrome?.contractLineItems, zenithChrome?.billingGapResolutions]);
+  
   // Ingestion workflows keep tabs collapsed throughout
   const [isCollapsed, setIsCollapsed] = useState(!!ingestionSession);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -1734,7 +1794,7 @@ export function CustomerContextBar({
 
   /** Sync More tab height with siblings — true when any visible tab has a subtitle row. */
   const anyVisibleTabHasSubtitle = visibleTabs.some(
-    (tab) => Boolean(resolveWorkspaceTabSummary(tab, parentTabSummaries, recordTabSummaries)?.subtitle),
+    (tab) => Boolean(resolveWorkspaceTabSummary(tab, enrichedParentTabSummaries, recordTabSummaries)?.subtitle),
   );
 
   /** More is always shown — Connect and overflow tabs live in its menu. */
@@ -1804,7 +1864,7 @@ export function CustomerContextBar({
             const label = tabLabel(tab, stageDisplay);
             const summary = resolveWorkspaceTabSummary(
               tab,
-              parentTabSummaries,
+              enrichedParentTabSummaries,
               recordTabSummaries,
             );
             return (
@@ -1871,7 +1931,7 @@ export function CustomerContextBar({
           const closable = isTabClosable(tab);
           const summary = resolveWorkspaceTabSummary(
             tab,
-            parentTabSummaries,
+            enrichedParentTabSummaries,
             recordTabSummaries,
           );
           return (
@@ -2467,6 +2527,59 @@ function generateTooltipContent(
         status: subtitle,
         statusColor: sev,
         message: "Review revenue recognition status for compliance.",
+      };
+
+    case "ingestion":
+      if (subtitle?.includes("Pending approval") || subtitle?.includes("approval")) {
+        return {
+          title: "Ingestion",
+          status: "Pending approval",
+          statusColor: "blue",
+          message: "Invoice sent for approval. Awaiting approver action.",
+        };
+      }
+      if (subtitle?.includes("Ready") || isHealthy) {
+        return {
+          title: "Ingestion",
+          status: subtitle ?? "Ready",
+          statusColor: "green",
+          message: getQuirkyMessage("ingestion"),
+        };
+      }
+      if (subtitle?.includes("mapping") || subtitle?.includes("items")) {
+        return {
+          title: "Ingestion",
+          status: subtitle,
+          statusColor: "amber",
+          message: "Some items require catalog mapping before proceeding.",
+          details: [
+            "Map extracted line items to your product catalog",
+            "Review billing-rule add-ons",
+          ],
+        };
+      }
+      if (subtitle?.includes("add-on") || subtitle?.includes("pending")) {
+        return {
+          title: "Ingestion",
+          status: subtitle,
+          statusColor: "amber",
+          message: "Billing-rule add-ons require action.",
+          details: ["Include or ignore suggested add-ons"],
+        };
+      }
+      if (subtitle?.includes("review") || subtitle?.includes("section")) {
+        return {
+          title: "Ingestion",
+          status: subtitle,
+          statusColor: "amber",
+          message: "Some sections need your review before proceeding.",
+        };
+      }
+      return {
+        title: "Ingestion",
+        status: subtitle ?? "In progress",
+        statusColor: sev,
+        message: "Review the extracted contract data and complete the ingestion workflow.",
       };
       
     default:
