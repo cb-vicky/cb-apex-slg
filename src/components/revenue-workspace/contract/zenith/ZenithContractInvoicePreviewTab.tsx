@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { FileText, CheckCircle2, Check, Minus, Plus, Download } from "lucide-react";
 import { useZenithContractChrome } from "./ZenithContractChromeContext";
@@ -234,16 +234,11 @@ export function ZenithContractInvoicePreviewTab() {
   const { persona } = useDemoPersona();
   const [zoom, setZoom] = useState(100);
   const {
-    submitInvoiceForApproval,
     setInvoiceStatusOverride,
     invoiceStatusOverrides,
-    addSessionInvoice,
-    addSessionContract,
     updateApprovalStatus,
     approvalRequests,
-    applyQueueItemOverride,
     completeIngestion,
-    setIngestionOverallStatus,
   } = useIngestContext();
 
   const lineItems = chrome?.contractLineItems ?? zenithSummaryLineItems;
@@ -252,12 +247,6 @@ export function ZenithContractInvoicePreviewTab() {
   // Invoice dates
   const invoiceDate = "2026-05-01";
   const dueDate = "2026-05-31";
-
-  // Calculate total from line items
-  const invoiceTotal = useMemo(() => {
-    const subtotal = lineItems.reduce((sum, item) => sum + item.totalPrice, 0);
-    return subtotal * 1.0875; // Add 8.75% tax
-  }, [lineItems]);
 
   // Get invoice status from overrides
   const invoiceStatus = invoiceStatusOverrides[ZENITH_FIRST_INVOICE_ID];
@@ -271,131 +260,6 @@ export function ZenithContractInvoicePreviewTab() {
 
   const customerId = chrome?.ingestionCustomerId ?? ZENITH_ANALYTICS_INC_ID;
   const queueItemId = chrome?.ingestionQueueItemId;
-
-  const handleSendForApproval = useCallback(() => {
-    const now = new Date().toISOString();
-    const subtotal = lineItems.reduce((sum, item) => sum + item.totalPrice, 0);
-
-    // Create the session contract (Scheduled status for new ingestion)
-    const contract = {
-      id: ZENITH_CONTRACT_ID,
-      customerId,
-      sourceQuoteId: "",
-      status: "Scheduled" as const,
-      signedDate: now.slice(0, 10),
-      effectiveDate: "2026-05-01",
-      term: "12 months",
-      endDate: "2027-04-30",
-      tcv: subtotal,
-      minAnnualCommit: subtotal * 0.8,
-      prepaidCreditBalance: 0,
-      prepaidCreditTotal: 0,
-      renewalDate: "2027-04-30",
-      products: lineItems.map((item) => ({
-        sku: item.id,
-        name: item.name,
-        type: "recurring" as const,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        discountApplied: 0,
-        minimumCommit: 0,
-        prepaidCredits: 0,
-        overageRate: 0,
-        billingCadence: item.frequency,
-      })),
-      enforcement: {
-        sourceType: "Contract Ingestion",
-        linkedQuoteId: "",
-        saleOrderStatus: "Pending" as const,
-        enforcementStatus: "Pending" as const,
-        productMappingIssues: [],
-        missingFields: [],
-        provisioningStatus: "Not Started" as const,
-        entitlementStatus: "Pending" as const,
-        manualOverrides: [],
-        blockingIssues: [],
-      },
-      billingSchedule: [],
-      amendments: [],
-      invoicesGenerated: 0,
-      creditNotes: 0,
-      openAr: 0,
-      paymentsReceived: 0,
-      unappliedCash: 0,
-      revRecSummary: { recognized: 0, deferred: subtotal, status: "Not Started" as const },
-      signedDocumentUrl: "",
-      ingestionTimestamp: now,
-      extractionConfidence: 95,
-      quoteMatchConfidence: 0,
-      importantClauses: [],
-      comparisonToQuote: [],
-      timeline: [
-        {
-          date: now,
-          action: "Contract ingested",
-          actor: "System",
-          detail: "Created from ZenithAnalytics_NewBusiness_Contract_2026_Signed.pdf",
-        },
-      ],
-      paymentTerms: "Net 30",
-      billingFrequency: "Annual upfront",
-      coTermBehavior: "Standard" as const,
-      owner: "Alex Nguyen",
-    };
-
-    addSessionContract(contract);
-
-    // Create the session invoice
-    const invoice = {
-      id: ZENITH_FIRST_INVOICE_ID,
-      customerId,
-      contractId: ZENITH_CONTRACT_ID,
-      date: now.slice(0, 10),
-      dueDate: "2026-05-31",
-      amount: invoiceTotal,
-      status: "Pending Approval",
-      lineItems: lineItems.map((item) => ({
-        description: item.name,
-        amount: item.totalPrice,
-      })),
-      owner: "Alex Nguyen",
-    };
-
-    addSessionInvoice(invoice);
-    setInvoiceStatusOverride(ZENITH_FIRST_INVOICE_ID, "Pending Approval");
-
-    submitInvoiceForApproval(ZENITH_FIRST_INVOICE_ID, {
-      customerId,
-      customerName: "Zenith Analytics",
-      invoiceAmount: invoiceTotal,
-      invoiceDate: invoice.date,
-      ingestId: queueItemId,
-    });
-
-    if (queueItemId) {
-      applyQueueItemOverride(queueItemId, {
-        status: "Ingested",
-        contractId: ZENITH_CONTRACT_ID,
-        invoiceId: ZENITH_FIRST_INVOICE_ID,
-        customerId,
-      });
-      setIngestionOverallStatus(queueItemId, "awaiting_approval");
-    }
-
-    navigate(`/customers/${customerId}?tab=invoicing&invoiceId=${ZENITH_FIRST_INVOICE_ID}`);
-  }, [
-    invoiceTotal,
-    lineItems,
-    addSessionContract,
-    addSessionInvoice,
-    setInvoiceStatusOverride,
-    submitInvoiceForApproval,
-    navigate,
-    customerId,
-    queueItemId,
-    applyQueueItemOverride,
-    setIngestionOverallStatus,
-  ]);
 
   const handleApprove = useCallback(() => {
     setInvoiceStatusOverride(ZENITH_FIRST_INVOICE_ID, "Posted");
