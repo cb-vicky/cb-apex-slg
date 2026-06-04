@@ -1,5 +1,5 @@
 import type { MouseEvent, ReactNode } from "react";
-import { CircleCheck, Info, Maximize2 } from "lucide-react";
+import { CircleCheck, Maximize2 } from "lucide-react";
 import { useZenithContractChrome, type ZenithContractChromeValue } from "./ZenithContractChromeContext";
 import { areZenithContractItemsComplete } from "./zenith-contract-tab-status";
 import type { ZenithContractContentTab } from "./zenith-contract-tabs";
@@ -35,14 +35,24 @@ function SummarySectionReadyBadge() {
   );
 }
 
+function SectionNeedsMappingBadge({ count }: { count: number }) {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold leading-4 text-amber-800">
+      {count} item{count === 1 ? "" : "s"} need mapping
+    </span>
+  );
+}
+
 function SectionHeading({
   title,
   description,
   ready,
+  needsMappingCount,
 }: {
   title: string;
   description: string;
   ready?: boolean;
+  needsMappingCount?: number;
 }) {
   return (
     <div className="max-w-3xl space-y-1.5">
@@ -51,8 +61,36 @@ function SectionHeading({
           {title}
         </h2>
         {ready ? <SummarySectionReadyBadge /> : null}
+        {!ready && needsMappingCount && needsMappingCount > 0 ? (
+          <SectionNeedsMappingBadge count={needsMappingCount} />
+        ) : null}
       </div>
       <p className="text-[13px] leading-relaxed text-text-secondary">{description}</p>
+    </div>
+  );
+}
+
+function SectionDot({ isLast = false, hasError = false }: { isLast?: boolean; hasError?: boolean }) {
+  return (
+    <div className="flex flex-col items-center self-stretch">
+      {/* Dot */}
+      <div
+        className={cn(
+          "mt-1 h-2.5 w-2.5 shrink-0 rounded-full border-2 bg-white",
+          hasError ? "border-red-400" : "border-gray-400"
+        )}
+      />
+      {/* Connecting line */}
+      {!isLast && (
+        <div
+          className={cn(
+            "w-px flex-1",
+            hasError
+              ? "bg-gradient-to-b from-red-300 to-gray-200"
+              : "bg-gradient-to-b from-gray-300 to-gray-200"
+          )}
+        />
+      )}
     </div>
   );
 }
@@ -70,51 +108,60 @@ function ExpandCardAction({ onClick }: { onClick?: (e: MouseEvent<HTMLButtonElem
   );
 }
 
-function KvExtractCard({ title, rows }: { title: string; rows: ZenithSummaryKvRow[] }) {
-  return (
-    <div className="w-fit max-w-full overflow-hidden rounded-xl border border-border-default bg-white">
-      <div className="flex items-center justify-between gap-6 border-b border-border-subtle px-4 py-2">
-        <p className="text-[13px] font-semibold text-text-primary">{title}</p>
-        <ExpandCardAction />
-      </div>
-      <table className="w-auto text-[13px]">
-        <tbody>
-          {rows.map((row, index) => (
-            <tr
-              key={row.label}
-              className={index > 0 ? "border-t border-border-subtle" : undefined}
-            >
-              <th className="bg-gray-50 px-4 py-1.5 text-left font-medium leading-tight whitespace-nowrap text-text-secondary">
-                {row.label}
-              </th>
-              <td className="max-w-md px-4 py-1.5 leading-tight text-text-primary">{row.value}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+function KvExtractCard({
+  title,
+  rows,
+  onCardClick,
+}: {
+  title: string;
+  rows: ZenithSummaryKvRow[];
+  onCardClick?: () => void;
+}) {
+  const wrapperClassName = cn(
+    "w-full overflow-hidden rounded-xl border border-border-default bg-white transition-colors",
+    onCardClick && "cursor-pointer hover:border-gray-300",
   );
-}
 
-function MappingStatusIcon({ status }: { status: ZenithSummaryLineItem["mappingStatus"] }) {
-  if (status === "mapped") {
+  const cardContent = (
+    <>
+      <div className="flex items-center justify-between gap-4 border-b border-border-subtle px-4 py-2.5">
+        <p className="text-[13px] font-semibold text-text-primary">{title}</p>
+        <ExpandCardAction
+          onClick={(e) => {
+            e.stopPropagation();
+            onCardClick?.();
+          }}
+        />
+      </div>
+      <div className="max-h-[180px] overflow-y-auto">
+        <table className="w-full text-[13px]">
+          <tbody>
+            {rows.map((row, index) => (
+              <tr
+                key={row.label}
+                className={index > 0 ? "border-t border-border-subtle" : undefined}
+              >
+                <th className="bg-gray-50/80 px-3 py-1.5 text-left font-medium leading-tight whitespace-nowrap text-text-secondary">
+                  {row.label}
+                </th>
+                <td className="px-3 py-1.5 leading-tight text-text-primary">{row.value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+
+  if (onCardClick) {
     return (
-      <CircleCheck
-        size={14}
-        strokeWidth={2.25}
-        className="shrink-0 text-emerald-600"
-        aria-hidden
-      />
+      <button type="button" onClick={onCardClick} className={cn(wrapperClassName, "text-left")}>
+        {cardContent}
+      </button>
     );
   }
-  return (
-    <Info
-      size={14}
-      strokeWidth={2.25}
-      className="shrink-0 text-amber-600"
-      aria-hidden
-    />
-  );
+
+  return <div className={wrapperClassName}>{cardContent}</div>;
 }
 
 function LineItemsExtractCard({
@@ -125,56 +172,50 @@ function LineItemsExtractCard({
   onCardClick?: () => void;
 }) {
   const needMapping = zenithSummaryLineItemsNeedMappingCount(items);
-  const cardClassName = cn(
-    "w-fit max-w-full overflow-hidden rounded-xl border border-border-default bg-white text-left transition-colors",
-    needMapping > 0 && "border-l-[3px] border-l-amber-500",
-    onCardClick && "cursor-pointer hover:border-gray-300 hover:bg-gray-50/60",
+  const wrapperClassName = cn(
+    "w-full overflow-hidden rounded-xl border border-border-default bg-white text-left transition-colors",
+    onCardClick && "cursor-pointer hover:border-gray-300",
   );
   const cardBody = (
     <>
       <div className="flex items-center justify-between gap-2 border-b border-border-subtle px-4 py-2.5">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <span className="flex items-center gap-1.5">
           <p className="text-[13px] font-semibold text-text-primary">Items ({items.length})</p>
-          {needMapping > 0 ? (
-            <span className="inline-flex rounded-full bg-amber-50 px-2 py-px text-[11px] font-medium leading-4 text-amber-800">
-              {needMapping} item{needMapping === 1 ? "" : "s"} need mapping
-            </span>
-          ) : null}
-        </div>
+          {needMapping > 0 && (
+            <span className="h-2 w-2 rounded-full bg-red-500" aria-label="Items need mapping" />
+          )}
+        </span>
         <ExpandCardAction
           onClick={(e) => {
             e.stopPropagation();
           }}
         />
       </div>
-      <div>
-        <table className="w-auto text-left text-[13px]">
-          <thead>
+      <div className="max-h-[180px] overflow-y-auto">
+        <table className="w-full text-left text-[13px]">
+          <thead className="sticky top-0 bg-gray-50/95 backdrop-blur-sm">
             <tr className="border-b border-border-subtle text-[10px] font-semibold uppercase tracking-wide text-text-muted">
-              <th className="px-4 py-2 font-semibold">Item</th>
-              <th className="px-3 py-2 font-semibold">Frequency</th>
-              <th className="px-3 py-2 text-right font-semibold">Qty</th>
-              <th className="px-3 py-2 text-right font-semibold">Unit price</th>
-              <th className="px-4 py-2 text-right font-semibold">Total price</th>
+              <th className="px-3 py-2 font-semibold">Item</th>
+              <th className="px-2 py-2 font-semibold">Frequency</th>
+              <th className="px-2 py-2 text-right font-semibold">Qty</th>
+              <th className="px-2 py-2 text-right font-semibold">Unit price</th>
+              <th className="px-3 py-2 text-right font-semibold">Total price</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle">
             {items.map((item) => (
               <tr key={item.id}>
-                <td className="px-4 py-2.5 whitespace-nowrap">
-                  <div className="flex items-center gap-1.5">
-                    <MappingStatusIcon status={item.mappingStatus} />
-                    <span className="font-semibold text-text-primary">{item.name}</span>
-                  </div>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <span className="font-semibold text-text-primary">{item.name}</span>
                 </td>
-                <td className="px-3 py-2.5 whitespace-nowrap text-text-secondary">{item.frequency}</td>
-                <td className="px-3 py-2.5 text-right whitespace-nowrap tabular-nums text-text-primary">
+                <td className="px-2 py-2 whitespace-nowrap text-text-secondary">{item.frequency}</td>
+                <td className="px-2 py-2 text-right whitespace-nowrap tabular-nums text-text-primary">
                   {item.quantity}
                 </td>
-                <td className="px-3 py-2.5 text-right whitespace-nowrap tabular-nums text-text-primary">
+                <td className="px-2 py-2 text-right whitespace-nowrap tabular-nums text-text-primary">
                   {formatMoney(item.unitPrice)}
                 </td>
-                <td className="px-4 py-2.5 text-right whitespace-nowrap tabular-nums font-medium text-text-primary">
+                <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums font-medium text-text-primary">
                   {formatMoney(item.totalPrice)}
                 </td>
               </tr>
@@ -187,39 +228,52 @@ function LineItemsExtractCard({
 
   if (onCardClick) {
     return (
-      <button type="button" onClick={onCardClick} className={cardClassName}>
+      <button type="button" onClick={onCardClick} className={wrapperClassName}>
         {cardBody}
       </button>
     );
   }
 
-  return <div className={cardClassName}>{cardBody}</div>;
+  return <div className={wrapperClassName}>{cardBody}</div>;
 }
 
 function ZenithSummarySectionCard({
   heading,
   description,
   ready,
+  needsMappingCount,
   children,
   snippetVariant,
+  isLast = false,
+  hasError = false,
 }: {
   heading: string;
   description: string;
   ready?: boolean;
+  needsMappingCount?: number;
   children: ReactNode;
   snippetVariant?: ZenithSnippetVariant;
+  isLast?: boolean;
+  hasError?: boolean;
 }) {
   return (
-    <section className="overflow-hidden rounded-3xl border border-border-default bg-white">
-      <div className="flex flex-col gap-5 px-5 py-4">
-        <SectionHeading title={heading} description={description} ready={ready} />
-        <div className="flex max-w-full items-start gap-8">
-          {children}
+    <section className="flex gap-3">
+      {/* Vertical dot + line anchor */}
+      <SectionDot isLast={isLast} hasError={hasError} />
+      {/* Two-column grid layout: 35-65 split */}
+      <div className="grid min-w-0 flex-1 grid-cols-[35fr_65fr] gap-12 pb-12">
+        {/* Left column: Title, description, and source snippet */}
+        <div className="flex flex-col gap-3">
+          <SectionHeading title={heading} description={description} ready={ready} needsMappingCount={needsMappingCount} />
           {snippetVariant ? (
-            <div className="shrink-0 pt-0.5">
-              <ZenithContractSourceSnippet variant={snippetVariant} />
+            <div className="mt-1 flex-1">
+              <ZenithContractSourceSnippet variant={snippetVariant} fillContainer />
             </div>
           ) : null}
+        </div>
+        {/* Right column: Extracted data table */}
+        <div className="flex items-start">
+          {children}
         </div>
       </div>
     </section>
@@ -248,13 +302,25 @@ export function ZenithContractSummaryTab() {
     chrome?.setActiveTab("Items");
   }
 
+  function goToBillingTab() {
+    chrome?.setActiveTab("Billing info");
+  }
+
+  function goToAddressesTab() {
+    chrome?.setActiveTab("Addresses");
+  }
+
+  const needsMappingCount = zenithSummaryLineItemsNeedMappingCount(lineItems);
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col py-2">
       <ZenithSummarySectionCard
         heading="Line items extracted"
         description={zenithSummaryLineItemsDescription(lineItems)}
         ready={itemsComplete}
+        needsMappingCount={needsMappingCount}
         snippetVariant="line-items"
+        hasError={needsMappingCount > 0}
       >
         <LineItemsExtractCard items={lineItems} onCardClick={chrome ? goToItemsTab : undefined} />
       </ZenithSummarySectionCard>
@@ -265,7 +331,7 @@ export function ZenithContractSummaryTab() {
         ready={billingComplete}
         snippetVariant="billing"
       >
-        <KvExtractCard title="Billing info" rows={zenithSummaryBillingRows} />
+        <KvExtractCard title="Billing info" rows={zenithSummaryBillingRows} onCardClick={chrome ? goToBillingTab : undefined} />
       </ZenithSummarySectionCard>
 
       <ZenithSummarySectionCard
@@ -273,8 +339,9 @@ export function ZenithContractSummaryTab() {
         description={zenithSummaryAddressesDescription}
         ready={addressesComplete}
         snippetVariant="addresses"
+        isLast
       >
-        <KvExtractCard title="Addresses" rows={zenithSummaryAddressRows} />
+        <KvExtractCard title="Addresses" rows={zenithSummaryAddressRows} onCardClick={chrome ? goToAddressesTab : undefined} />
       </ZenithSummarySectionCard>
     </div>
   );

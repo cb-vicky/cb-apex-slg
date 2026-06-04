@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { MoreHorizontal, RotateCcw, Trash2, AlertCircle, ChevronDown } from "lucide-react";
+import { MoreHorizontal, RotateCcw, Trash2, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIngestContext } from "@/context/IngestContext";
 import { useDemoPersona } from "@/context/DemoPersonaContext";
@@ -79,7 +79,6 @@ export function IngestionActions({ session, customerId }: Props) {
   } = useIngestContext();
 
   const [showOverflow, setShowOverflow] = useState(false);
-  const [showPreviewWarning, setShowPreviewWarning] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const overflowRef = useRef<HTMLDivElement>(null);
   const statusDropdownRef = useRef<HTMLDivElement>(null);
@@ -117,13 +116,6 @@ export function IngestionActions({ session, customerId }: Props) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showStatusDropdown]);
 
-  // Auto-hide warning after 4 seconds
-  useEffect(() => {
-    if (!showPreviewWarning) return;
-    const timer = setTimeout(() => setShowPreviewWarning(false), 4000);
-    return () => clearTimeout(timer);
-  }, [showPreviewWarning]);
-
   const currentStatusConfig = getStatusConfig(session.operatorStatus);
 
   function handleStatusChange(status: IngestionOperatorStatus) {
@@ -142,15 +134,13 @@ export function IngestionActions({ session, customerId }: Props) {
     
     // If on addresses and going to preview, check if items are resolved
     if (currentSub === "addresses" && !previewEnabled) {
-      // Still go to preview but show the warning
+      // Still go to preview
       navigateToTab("invoice-preview");
-      setShowPreviewWarning(true);
       return;
     }
 
-    // If on preview and items not resolved, show warning
+    // If on preview and items not resolved, do nothing
     if (currentSub === "invoice-preview" && !itemsComplete) {
-      setShowPreviewWarning(true);
       return;
     }
 
@@ -240,14 +230,6 @@ export function IngestionActions({ session, customerId }: Props) {
     <RecordHeader
       actions={
         <div className="flex items-center gap-2">
-          {/* Warning message for preview */}
-          {showPreviewWarning && (
-            <div className="flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-1 text-[11px] font-medium text-amber-700 animate-in fade-in slide-in-from-right-2 duration-200">
-              <AlertCircle size={12} className="shrink-0" />
-              <span>Resolve missing items</span>
-            </div>
-          )}
-
           {/* Operator Status Tag Dropdown */}
           {!isApproverReview && (
             <div ref={statusDropdownRef} className="relative">
@@ -300,7 +282,7 @@ export function IngestionActions({ session, customerId }: Props) {
           <button
             type="button"
             onClick={ctaAction}
-            disabled={ctaDisabled && !showPreviewWarning}
+            disabled={ctaDisabled}
             className={cn(
               "inline-flex h-7 items-center justify-center rounded-full px-4 text-[12px] font-semibold transition-colors",
               isLastTabWithItemsComplete

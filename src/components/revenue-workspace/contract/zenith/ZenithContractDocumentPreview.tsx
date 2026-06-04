@@ -3,8 +3,8 @@ import { ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
 import { ContractPDFTabContent } from "@/components/approvals/approval-document-preview";
 import { buildZenithIngestPreviewContract } from "@/data/zenith-contract-preview";
 import { zenithAnalyticsIncCustomer } from "@/data/zenith-analytics-inc-seed";
-import { cn, shortDate } from "@/lib/utils";
-import { ZENITH_CONTRACT_DOCUMENT_TABS, type ZenithContractDocumentTabId } from "./zenith-contract-tabs";
+import { shortDate } from "@/lib/utils";
+import type { ZenithContractDocumentTabId } from "./zenith-contract-tabs";
 
 const previewContract = buildZenithIngestPreviewContract();
 const previewCustomer = zenithAnalyticsIncCustomer;
@@ -96,70 +96,31 @@ function SowPDFPreview({ zoom }: { zoom: number }) {
 
 interface Props {
   documentTabId: ZenithContractDocumentTabId;
-  onDocumentChange?: (docId: ZenithContractDocumentTabId) => void;
 }
 
 /**
- * Document switcher bar with underline tabs on the left and controls on the right.
- * Horizontal line stretches edge to edge below.
+ * Document controls bar — page navigation and zoom controls only.
+ * Document switching is now handled by the CustomerContextBar.
  */
-function DocumentSwitcherBar({
-  activeDocumentId,
-  onDocumentChange,
+function DocumentControlsBar({
+  documentTabId,
   zoom,
   onZoomChange,
   page,
   onPageChange,
 }: {
-  activeDocumentId: ZenithContractDocumentTabId;
-  onDocumentChange?: (docId: ZenithContractDocumentTabId) => void;
+  documentTabId: ZenithContractDocumentTabId;
   zoom: number;
   onZoomChange: (zoom: number) => void;
   page: number;
   onPageChange: (page: number) => void;
 }) {
-  const pageCount = activeDocumentId === "contract-pdf" ? 3 : 2;
+  const pageCount = documentTabId === "contract-pdf" ? 3 : 2;
 
   return (
     <div className="shrink-0 border-b border-border-default bg-white">
-      <div className="flex items-center justify-between px-5 py-2">
-        {/* Left: Document underline tabs */}
-        <div className="flex items-center gap-1">
-          {ZENITH_CONTRACT_DOCUMENT_TABS.map((doc) => {
-            const isActive = doc.id === activeDocumentId;
-            const displayLabel = doc.label.length > 28 
-              ? doc.label.slice(0, 25) + "…" 
-              : doc.label;
-            
-            return (
-              <button
-                key={doc.id}
-                type="button"
-                onClick={() => onDocumentChange?.(doc.id)}
-                className={cn(
-                  "relative px-3 py-2 text-[12px] font-medium transition-colors",
-                  isActive
-                    ? "text-blue-600"
-                    : "text-slate-500 hover:text-slate-700",
-                )}
-              >
-                <span className="flex items-center gap-1.5">
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className={cn("shrink-0", isActive ? "text-blue-500" : "text-slate-400")}>
-                    <path d="M4 1h6l4 4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-                    <path d="M10 1v4h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  {displayLabel}
-                </span>
-                {/* Underline indicator */}
-                {isActive && (
-                  <span className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full bg-blue-600" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Right: Document controls */}
+      <div className="flex items-center justify-end px-5 py-2">
+        {/* Document controls */}
         <div className="flex shrink-0 items-center gap-1 rounded-md border border-border-default bg-gray-50 px-2 py-1">
           <button
             type="button"
@@ -208,20 +169,14 @@ function DocumentSwitcherBar({
   );
 }
 
-export function ZenithContractDocumentPreview({ documentTabId, onDocumentChange }: Props) {
+export function ZenithContractDocumentPreview({ documentTabId }: Props) {
   const [zoom, setZoom] = useState(100);
   const [page, setPage] = useState(1);
 
-  const handleDocumentChange = (docId: ZenithContractDocumentTabId) => {
-    setPage(1);
-    onDocumentChange?.(docId);
-  };
-
   return (
     <div className="overflow-hidden rounded-3xl border border-border-default bg-white">
-      <DocumentSwitcherBar
-        activeDocumentId={documentTabId}
-        onDocumentChange={handleDocumentChange}
+      <DocumentControlsBar
+        documentTabId={documentTabId}
         zoom={zoom}
         onZoomChange={setZoom}
         page={page}

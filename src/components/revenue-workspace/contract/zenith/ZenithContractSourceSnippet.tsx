@@ -230,12 +230,18 @@ function ContractSnippetLightbox({
   );
 }
 
-export function ZenithContractSourceSnippet({ variant }: { variant: ZenithSnippetVariant }) {
+export function ZenithContractSourceSnippet({
+  variant,
+  fillContainer = false,
+}: {
+  variant: ZenithSnippetVariant;
+  fillContainer?: boolean;
+}) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
   return (
     <>
-      <div className="w-[300px] shrink-0">
+      <div className={cn(fillContainer ? "w-full" : "w-[300px] shrink-0")}>
         <button
           type="button"
           onClick={() => setLightboxOpen(true)}

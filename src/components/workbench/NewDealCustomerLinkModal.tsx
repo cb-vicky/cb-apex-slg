@@ -419,21 +419,43 @@ export function NewDealCustomerLinkModal({ queueItem, onClose }: Props) {
       aria-modal="true"
       aria-labelledby="new-deal-customer-link-title"
     >
-      <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border-default bg-white px-6 py-4">
+      <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border-default bg-white px-6 py-3">
         <h2
           id="new-deal-customer-link-title"
           className="min-w-0 font-sora text-[15px] font-bold text-text-primary"
         >
           Confirm customer to ingest contract
         </h2>
-        <button
-          type="button"
-          onClick={onClose}
-          className="shrink-0 rounded-md p-1.5 text-text-muted transition-colors hover:bg-gray-100 hover:text-text-primary"
-          aria-label="Close"
-        >
-          <X size={18} strokeWidth={2} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-border-default px-4 py-1.5 text-[13px] font-medium text-text-secondary transition-colors hover:bg-surface-muted"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!canContinue}
+            onClick={handleContinue}
+            className={cn(
+              "rounded-md px-4 py-1.5 text-[13px] font-semibold text-white transition-colors",
+              canContinue
+                ? "bg-blue-600 hover:bg-blue-700"
+                : "cursor-not-allowed bg-blue-300",
+            )}
+          >
+            Continue to ingest
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 rounded-md p-1.5 text-text-muted transition-colors hover:bg-gray-100 hover:text-text-primary"
+            aria-label="Close"
+          >
+            <X size={18} strokeWidth={2} />
+          </button>
+        </div>
       </header>
 
       <div className="grid min-h-0 flex-1 grid-cols-[2fr_3fr] overflow-hidden">
@@ -600,29 +622,6 @@ export function NewDealCustomerLinkModal({ queueItem, onClose }: Props) {
           )}
         </div>
       </div>
-
-      <footer className="flex shrink-0 justify-end gap-2 border-t border-border-default bg-white px-6 py-4">
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md border border-border-default px-4 py-1.5 text-[13px] font-medium text-text-secondary transition-colors hover:bg-surface-muted"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          disabled={!canContinue}
-          onClick={handleContinue}
-          className={cn(
-            "rounded-md px-4 py-1.5 text-[13px] font-semibold text-white transition-colors",
-            canContinue
-              ? "bg-blue-600 hover:bg-blue-700"
-              : "cursor-not-allowed bg-blue-300",
-          )}
-        >
-          Continue to ingest
-        </button>
-      </footer>
     </div>
   );
 }

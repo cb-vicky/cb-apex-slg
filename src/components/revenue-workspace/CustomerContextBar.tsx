@@ -13,7 +13,7 @@ import {
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { SIDEBAR_LAYOUT_EVENT } from "@/components/layout/Sidebar";
-import { ChevronDown, ChevronRight, Plus, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, X, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Customer } from "@/data/mock-data";
 import { getContractsForCustomer, getInvoices } from "@/data/mock-data";
@@ -259,6 +259,25 @@ const stageDisplay: Record<Stage, { tab: string; crumb: string }> = {
 
 const DISABLED_TOOLTIP = "No content to show";
 const EMPTY_DISABLED_STAGES = new Set<Stage>();
+
+/** Breakpoint for responsive document switcher (below this width, show dropdown) */
+const DOCUMENT_SWITCHER_COMPACT_QUERY = "(max-width: 1199px)";
+
+function useIsCompactDocumentSwitcher(): boolean {
+  const [isCompact, setIsCompact] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia(DOCUMENT_SWITCHER_COMPACT_QUERY).matches;
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const q = window.matchMedia(DOCUMENT_SWITCHER_COMPACT_QUERY);
+    const fn = () => setIsCompact(q.matches);
+    fn();
+    q.addEventListener("change", fn);
+    return () => q.removeEventListener("change", fn);
+  }, []);
+  return isCompact;
+}
 
 function overflowKeysEqual(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((k, i) => k === b[i]);
@@ -526,10 +545,203 @@ type IngestionSubTab = IngestionSectionId | `pdf-${string}` | "contract-preview"
 /** Height for the ingestion progress tracker strip - includes mt-4 (16px) + py-1.5 (6px*2) + h-7 (28px) */
 const INGESTION_TAB_HEIGHT = { expanded: 56, collapsed: 56 } as const;
 
+/** Generate a 2-line summary for a document based on its kind */
+function getDocumentSummary(kind: "contract" | "sow" | "addendum"): string {
+  switch (kind) {
+    case "contract":
+      return "Main agreement document with terms, pricing, and signatures";
+    case "sow":
+      return "Statement of Work detailing deliverables and scope";
+    case "addendum":
+      return "Additional terms or amendments to the main contract";
+    default:
+      return "Supporting document for contract review";
+  }
+}
+
+/** Truncate document name for display */
+function truncateDocName(name: string, maxLen = 20): string {
+  if (name.length <= maxLen) return name;
+  const ext = name.includes(".") ? name.slice(name.lastIndexOf(".")) : "";
+  const baseName = name.slice(0, name.length - ext.length);
+  const truncated = baseName.slice(0, maxLen - 3 - ext.length);
+  return `${truncated}...${ext}`;
+}
+
+/**
+ * Document switcher dropdown for compact screens.
+ * Shows "View PDF" label when not viewing documents, or current document when viewing.
+ */
+function DocumentSwitcherDropdown({
+  documents,
+  activeDocumentId,
+  isDocumentsActive,
+  onDocumentChange,
+}: {
+  documents: { id: string; name: string; kind: "contract" | "sow" | "addendum" }[];
+  activeDocumentId: string;
+  isDocumentsActive: boolean;
+  onDocumentChange: (docId: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuStyle, setMenuStyle] = useState<{ top: number; left: number } | null>(null);
+
+  const activeDoc = documents.find((d) => `pdf-${d.id}` === activeDocumentId) ?? documents[0];
+
+  const updateMenuPosition = useCallback(() => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    setMenuStyle({ top: rect.bottom + 4, left: rect.left });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!isOpen) {
+      setMenuStyle(null);
+      return;
+    }
+    updateMenuPosition();
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+    };
+  }, [isOpen, updateMenuPosition]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      const target = e.target as Node;
+      if (buttonRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setIsOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setIsOpen((v) => !v)}
+        className={cn(
+          "relative flex h-7 items-center gap-1.5 rounded-full border px-3 text-[12px] font-medium transition-all",
+          isDocumentsActive
+            ? "border-blue-200 bg-blue-50 text-blue-600"
+            : "border-gray-200 bg-white text-slate-600 hover:bg-gray-50"
+        )}
+      >
+        <FileText size={12} className={cn("shrink-0", isDocumentsActive ? "text-blue-500" : "text-slate-400")} />
+        <span className="truncate max-w-[120px]">
+          {isDocumentsActive ? truncateDocName(activeDoc?.name ?? "Document", 16) : "View PDF"}
+        </span>
+        <ChevronDown
+          size={12}
+          className={cn("shrink-0 transition-transform", isOpen && "rotate-180")}
+        />
+      </button>
+      {isOpen && menuStyle && createPortal(
+        <div
+          ref={menuRef}
+          className="fixed z-[200] min-w-[260px] max-w-[320px] rounded-xl border border-gray-200 bg-white py-1.5 shadow-xl animate-in fade-in slide-in-from-top-2 duration-150"
+          style={{ top: menuStyle.top, left: menuStyle.left }}
+        >
+          <div className="px-3 py-1.5 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+            View PDFs
+          </div>
+          {documents.map((doc) => {
+            const docTabId = `pdf-${doc.id}`;
+            const isActive = isDocumentsActive && docTabId === activeDocumentId;
+            return (
+              <button
+                key={doc.id}
+                type="button"
+                onClick={() => {
+                  onDocumentChange(docTabId);
+                  setIsOpen(false);
+                }}
+                className={cn(
+                  "flex w-full flex-col gap-0.5 px-3 py-2 text-left transition-colors",
+                  isActive
+                    ? "bg-blue-50"
+                    : "hover:bg-gray-50"
+                )}
+              >
+                <span className={cn(
+                  "flex items-center gap-1.5 text-[12px] font-medium",
+                  isActive ? "text-blue-700" : "text-slate-700"
+                )}>
+                  <FileText size={12} className={cn("shrink-0", isActive ? "text-blue-500" : "text-slate-400")} />
+                  <span className="truncate">{doc.name}</span>
+                </span>
+                <span className="pl-[18px] text-[11px] leading-snug text-slate-500">
+                  {getDocumentSummary(doc.kind)}
+                </span>
+              </button>
+            );
+          })}
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
+/**
+ * Document switcher tabs for wider screens.
+ * Shows document tabs in unselected state when not viewing documents.
+ */
+function DocumentSwitcherTabs({
+  documents,
+  activeDocumentId,
+  isDocumentsActive,
+  onDocumentChange,
+}: {
+  documents: { id: string; name: string; kind: "contract" | "sow" | "addendum" }[];
+  activeDocumentId: string;
+  isDocumentsActive: boolean;
+  onDocumentChange: (docId: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {documents.map((doc) => {
+        const docTabId = `pdf-${doc.id}`;
+        const isActive = isDocumentsActive && docTabId === activeDocumentId;
+        const displayName = truncateDocName(doc.name, 11);
+
+        return (
+          <button
+            key={doc.id}
+            type="button"
+            onClick={() => onDocumentChange(docTabId)}
+            className={cn(
+              "relative flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[12px] font-medium transition-all",
+              isActive
+                ? "border-blue-200 bg-blue-50 text-blue-600"
+                : "border-gray-200 bg-white text-slate-600 hover:bg-gray-50"
+            )}
+            title={doc.name}
+          >
+            <FileText size={11} className={cn("shrink-0", isActive ? "text-blue-500" : "text-slate-400")} />
+            <span>{displayName}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
  * Ingestion progress tracker — linear horizontal steps with Documents separated by pipe.
  * Sequential flow: Documents | Summary → Items → Billing → Addresses → Preview
  * Step indicators always visible. Selected state with strong blue bg.
+ * 
+ * On larger screens: Shows individual document tabs
+ * On smaller screens: Shows dropdown selector with PDF name and summary
  */
 function IngestionTabPill({
   session,
@@ -542,6 +754,7 @@ function IngestionTabPill({
 }) {
   const zenithChrome = useZenithContractChrome();
   const extracted = useMemo(() => getExtractedContract(session.sampleId), [session.sampleId]);
+  const isCompact = useIsCompactDocumentSwitcher();
 
   function getStepStatus(tabId: IngestionSubTabSync): "complete" | "active" | "pending" | "error" {
     const zenithTab = zenithContentTabForIngestionSub(tabId);
@@ -580,93 +793,99 @@ function IngestionTabPill({
     ? (`pdf-${extracted.documents[0].id}` as IngestionSubTab)
     : ("summary" as IngestionSubTab);
 
+  // Get active document id for the switcher
+  const activeDocumentId = isDocumentsActive ? activeSubTab : firstPdfId;
+
   const invoicePreviewDisabled =
     zenithChrome?.getContentTabStatus("Invoice Preview") === "disabled";
 
   // Find active step index for the flow tabs
   const activeFlowIndex = flowTabs.findIndex((t) => t.id === activeSubTab);
 
+  const handleDocumentChange = (docTabId: string) => {
+    onSubTabChange(docTabId as IngestionSubTab);
+  };
+
   return (
-    <div className="flex flex-1 items-center">
-      {/* Documents tab - separated */}
-      <button
-        type="button"
-        onClick={() => onSubTabChange(isDocumentsActive ? activeSubTab : firstPdfId)}
-        className={cn(
-          "relative flex h-7 items-center gap-1.5 rounded-full border px-3 text-[12px] font-medium transition-all",
-          isDocumentsActive
-            ? "border-blue-200 bg-blue-50 text-blue-600"
-            : "border-gray-200 bg-white text-slate-600 hover:bg-gray-50"
-        )}
-      >
-        <span>Documents</span>
-        <span className={cn(
-          "text-[10px]",
-          isDocumentsActive ? "text-blue-500" : "text-slate-400"
-        )}>
-          ({extracted.documents.length})
-        </span>
-      </button>
-
-      {/* Spacer + Pipe separator + Spacer */}
-      <div className="flex-1" />
-      <span className="text-gray-300 text-sm select-none px-1">|</span>
-      <div className="flex-1" />
-
-      {/* Sequential flow tabs with connecting lines - centered */}
-      <div className="flex items-center gap-0.5">
-        {flowTabs.map((tab, idx) => {
-          const isActive = activeSubTab === tab.id;
-          const isDisabled = tab.id === "invoice-preview" && invoicePreviewDisabled;
-          const stepStatus = getStepStatus(tab.id as IngestionSubTabSync);
-          const isPast = activeFlowIndex > idx;
-          const isLast = idx === flowTabs.length - 1;
-
-          return (
-            <Fragment key={tab.id}>
-              <button
-                type="button"
-                onClick={() => !isDisabled && onSubTabChange(tab.id)}
-                disabled={isDisabled}
-                className={cn(
-                  "relative flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[12px] font-medium transition-all",
-                  isDisabled && "cursor-not-allowed opacity-40",
-                  isActive
-                    ? "border-blue-200 bg-blue-50 text-blue-600"
-                    : "border-gray-200 bg-white text-slate-600 hover:bg-gray-50"
-                )}
-              >
-                {/* Step number or status indicator - always visible */}
-                <span className={cn(
-                  "flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-semibold",
-                  isActive
-                    ? "bg-blue-600 text-white"
-                    : stepStatus === "complete"
-                      ? "bg-emerald-100 text-emerald-600"
-                      : stepStatus === "error"
-                        ? "bg-red-100 text-red-600"
-                        : "bg-gray-100 text-gray-500",
-                )}>
-                  {stepStatus === "complete" ? "✓" : stepStatus === "error" ? "!" : idx + 1}
-                </span>
-                <span>{tab.shortLabel}</span>
-              </button>
-
-              {/* Connecting line between steps */}
-              {!isLast && (
-                <div className={cn(
-                  "h-px w-2 transition-colors",
-                  isPast || isActive ? "bg-blue-300" : "bg-gray-200"
-                )} />
-              )}
-            </Fragment>
-          );
-        })}
+    <>
+      {/* Left section: Document switcher - aligned to left extreme */}
+      <div className="flex flex-1 items-center justify-start">
+        <div className="flex shrink-0 items-center rounded-full border border-gray-200/80 px-1 py-1">
+          {isCompact ? (
+            <DocumentSwitcherDropdown
+              documents={extracted.documents}
+              activeDocumentId={activeDocumentId}
+              isDocumentsActive={isDocumentsActive}
+              onDocumentChange={handleDocumentChange}
+            />
+          ) : (
+            <DocumentSwitcherTabs
+              documents={extracted.documents}
+              activeDocumentId={activeDocumentId}
+              isDocumentsActive={isDocumentsActive}
+              onDocumentChange={handleDocumentChange}
+            />
+          )}
+        </div>
+        {/* Connecting line to center */}
+        <div className="h-px flex-1 bg-gray-300" />
       </div>
 
-      {/* Spacer after Preview - before actions divider */}
-      <div className="flex-1" />
-    </div>
+      {/* Center section: Sequential flow tabs - centered */}
+      <div className="flex shrink-0 items-center rounded-full border border-gray-200/80 bg-white px-2 py-1.5">
+        <div className="flex items-center gap-0.5">
+          {flowTabs.map((tab, idx) => {
+            const isActive = activeSubTab === tab.id;
+            const isDisabled = tab.id === "invoice-preview" && invoicePreviewDisabled;
+            const stepStatus = getStepStatus(tab.id as IngestionSubTabSync);
+            const isPast = activeFlowIndex > idx;
+            const isLast = idx === flowTabs.length - 1;
+
+            return (
+              <Fragment key={tab.id}>
+                <button
+                  type="button"
+                  onClick={() => !isDisabled && onSubTabChange(tab.id)}
+                  disabled={isDisabled}
+                  className={cn(
+                    "relative flex h-7 items-center gap-1.5 rounded-full border px-2.5 font-sora text-[13px] font-semibold transition-all",
+                    isDisabled && "cursor-not-allowed opacity-40",
+                    isActive
+                      ? "border-blue-600 bg-blue-600 text-white"
+                      : stepStatus === "complete"
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                        : "border-gray-200 bg-gray-50 text-slate-600 hover:bg-gray-100"
+                  )}
+                >
+                  {/* Step number or status indicator - always visible */}
+                  <span className={cn(
+                    "flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-semibold",
+                    isActive
+                      ? "bg-white text-blue-600"
+                      : stepStatus === "complete"
+                        ? "bg-emerald-100 text-emerald-600"
+                        : stepStatus === "error"
+                          ? "bg-red-100 text-red-600"
+                          : "bg-gray-100 text-gray-500",
+                  )}>
+                    {stepStatus === "complete" ? "✓" : stepStatus === "error" ? "!" : idx + 1}
+                  </span>
+                  <span>{tab.shortLabel}</span>
+                </button>
+
+                {/* Connecting line between steps */}
+                {!isLast && (
+                  <div className={cn(
+                    "h-px w-2 transition-colors",
+                    isPast || isActive ? "bg-blue-400" : "bg-gray-300"
+                  )} />
+                )}
+              </Fragment>
+            );
+          })}
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -1018,12 +1237,30 @@ export function CustomerContextBar({
     };
   }, [parentTabSummaries, ingestionSession, zenithChrome?.contractLineItems, zenithChrome?.billingGapResolutions]);
   
+  // Track whether we're on the ingestion tab
+  const isOnIngestionTab = activeTab.stage === "ingestion" && !!ingestionSession;
+  
   // Ingestion workflows keep tabs collapsed throughout
-  const [isCollapsed, setIsCollapsed] = useState(!!ingestionSession);
+  const [isCollapsed, setIsCollapsed] = useState(isOnIngestionTab);
   const [isScrolled, setIsScrolled] = useState(false);
   const rafRef = useRef<number>(0);
   const collapseTransitionLockRef = useRef(false);
   const collapseTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // When switching tabs: ingestion → collapsed, other tabs → expanded (normal scroll behavior)
+  const prevIsOnIngestionTabRef = useRef(isOnIngestionTab);
+  useEffect(() => {
+    const wasOnIngestion = prevIsOnIngestionTabRef.current;
+    prevIsOnIngestionTabRef.current = isOnIngestionTab;
+    
+    if (isOnIngestionTab && !wasOnIngestion) {
+      // Switching TO ingestion tab → collapse immediately
+      setIsCollapsed(true);
+    } else if (!isOnIngestionTab && wasOnIngestion) {
+      // Switching AWAY from ingestion tab → expand (let scroll behavior take over)
+      setIsCollapsed(false);
+    }
+  }, [isOnIngestionTab]);
 
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const visibleStripRef = useRef<HTMLDivElement>(null);
@@ -1317,7 +1554,7 @@ export function CustomerContextBar({
     const scrollContainer = document.querySelector<HTMLElement>("[data-main-scroll-container]");
     if (!scrollContainer) return;
 
-    let wasCollapsed = !!ingestionSession; // Ingestion starts collapsed
+    let wasCollapsed = isOnIngestionTab; // Ingestion starts collapsed
     const TRANSITION_LOCK_MS = 450; // Lock state changes during transition
 
     const updateScrollState = () => {
@@ -1326,7 +1563,7 @@ export function CustomerContextBar({
       setIsScrolled(top > 0);
       
       // Ingestion workflows keep tabs collapsed throughout — skip collapse toggling
-      if (ingestionSession) return;
+      if (isOnIngestionTab) return;
       
       // Don't change collapse state if we're in the middle of a transition
       if (collapseTransitionLockRef.current) return;
@@ -1377,7 +1614,7 @@ export function CustomerContextBar({
         clearTimeout(collapseTransitionTimeoutRef.current);
       }
     };
-  }, [ingestionSession]);
+  }, [isOnIngestionTab]);
 
   const crumbs = buildCrumbs({
     from,
@@ -1603,7 +1840,7 @@ export function CustomerContextBar({
         {/* For ingestion: center-aligned sticky bar with tabs + actions side by side */}
         {activeTab.stage === "ingestion" && ingestionSession && ingestionSubTab && onIngestionSubTabChange ? (
           <div className="absolute left-0 right-0 top-[1px] px-6">
-            <div className="sticky top-0 z-20 mt-4 flex items-center gap-2 rounded-full border border-gray-200 bg-gray-100/75 backdrop-blur-md backdrop-saturate-150 px-3 py-1.5">
+            <div className="sticky top-0 z-20 mt-4 flex items-center rounded-3xl bg-gray-100/75 px-2 py-1.5 backdrop-blur-md backdrop-saturate-150">
               <ContextInfoPill
                 activeTab={activeTab}
                 customer={customer}
@@ -1614,12 +1851,16 @@ export function CustomerContextBar({
                 ingestionSubTab={ingestionSubTab}
                 onIngestionSubTabChange={onIngestionSubTabChange}
               />
-              {recordSlot && (
-                <>
-                  <span className="text-gray-300 text-sm select-none">|</span>
-                  {recordSlot}
-                </>
-              )}
+              {/* Right section: Action area - aligned to right extreme */}
+              <div className="flex flex-1 items-center justify-end">
+                {/* Connecting line from center */}
+                <div className="h-px flex-1 bg-gray-300" />
+                {recordSlot && (
+                  <div className="flex shrink-0 items-center rounded-full border border-gray-200/80 px-2 py-1">
+                    {recordSlot}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         ) : (

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Maximize2, Minimize2, X } from "lucide-react";
+import { Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ZenithSummaryLineItem } from "@/data/zenith-contract-summary";
 
@@ -10,6 +10,8 @@ interface Props {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  /** Action button to show in the header (right side). */
+  headerAction?: ReactNode;
   /** Pinned below the drawer header — does not scroll with body content. */
   pinnedStrip?: ReactNode;
   /** Compact height after line item is resolved (success summary). */
@@ -27,6 +29,7 @@ export function ZenithLineItemBottomDrawer({
   onClose,
   children,
   footer,
+  headerAction,
   pinnedStrip,
   compact = false,
   contentClassName,
@@ -102,7 +105,8 @@ export function ZenithLineItemBottomDrawer({
               {title}
             </h2>
           </div>
-          <div className="flex shrink-0 items-center gap-0.5">
+          <div className="flex shrink-0 items-center gap-2">
+            {headerAction}
             <button
               type="button"
               onClick={() => setExpanded((prev) => !prev)}
@@ -114,14 +118,6 @@ export function ZenithLineItemBottomDrawer({
               ) : (
                 <Maximize2 size={18} strokeWidth={2} aria-hidden />
               )}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-gray-100 hover:text-text-primary"
-              aria-label="Close"
-            >
-              <X size={18} strokeWidth={2} />
             </button>
           </div>
         </header>

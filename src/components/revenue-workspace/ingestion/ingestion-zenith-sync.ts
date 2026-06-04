@@ -1,7 +1,9 @@
 import type { IngestionSectionId } from "@/context/ingest-context-core";
+import type { ExtractedDocument } from "@/data/ingest-data";
 import type {
   ZenithContractActiveTab,
   ZenithContractContentTab,
+  ZenithContractDocumentTabId,
 } from "../contract/zenith/zenith-contract-tabs";
 
 export type IngestionSubTab =
@@ -24,28 +26,73 @@ const ZENITH_TO_INGESTION_SUB: Partial<Record<ZenithContractActiveTab, Ingestion
   "Billing info": "billing",
   Addresses: "addresses",
   "Invoice Preview": "invoice-preview",
-  "contract-pdf": "pdf-doc-zenith-1",
-  "sow-pdf": "pdf-doc-zenith-2",
 };
 
-/** Map ingestion PDF sub-tab ids to Zenith document tab ids. */
-const PDF_DOC_TO_ZENITH: Record<string, ZenithContractActiveTab> = {
-  "doc-zenith-1": "contract-pdf",
-  "doc-zenith-2": "sow-pdf",
-};
+/** Zenith document tab IDs — first doc is contract-pdf, second is sow-pdf */
+const ZENITH_DOC_TABS: ZenithContractDocumentTabId[] = ["contract-pdf", "sow-pdf"];
 
-export function ingestionSubToZenithTab(sub: IngestionSubTab): ZenithContractActiveTab {
+/**
+ * Map a document ID from ExtractedContract.documents to a Zenith document tab ID.
+ * Uses index-based mapping: first document → contract-pdf, second → sow-pdf.
+ */
+export function docIdToZenithDocTab(
+  docId: string,
+  documents: ExtractedDocument[],
+): ZenithContractDocumentTabId {
+  const idx = documents.findIndex((d) => d.id === docId);
+  if (idx >= 0 && idx < ZENITH_DOC_TABS.length) {
+    return ZENITH_DOC_TABS[idx];
+  }
+  return "contract-pdf";
+}
+
+/**
+ * Map a Zenith document tab ID back to the corresponding document ID.
+ */
+export function zenithDocTabToDocId(
+  zenithTab: ZenithContractDocumentTabId,
+  documents: ExtractedDocument[],
+): string | undefined {
+  const idx = ZENITH_DOC_TABS.indexOf(zenithTab);
+  if (idx >= 0 && idx < documents.length) {
+    return documents[idx].id;
+  }
+  return documents[0]?.id;
+}
+
+export function ingestionSubToZenithTab(
+  sub: IngestionSubTab,
+  documents?: ExtractedDocument[],
+): ZenithContractActiveTab {
   if (sub === "contract-preview") return "contract-pdf";
   if (sub === "invoice-preview") return "Invoice Preview";
   if (sub.startsWith("pdf-")) {
     const docId = sub.slice(4);
-    return PDF_DOC_TO_ZENITH[docId] ?? "contract-pdf";
+    if (documents) {
+      return docIdToZenithDocTab(docId, documents);
+    }
+    return "contract-pdf";
   }
   return CONTENT_TO_ZENITH[sub as IngestionSectionId] ?? "Summary";
 }
 
-export function zenithTabToIngestionSub(tab: ZenithContractActiveTab): IngestionSubTab {
-  return ZENITH_TO_INGESTION_SUB[tab] ?? "summary";
+export function zenithTabToIngestionSub(
+  tab: ZenithContractActiveTab,
+  documents?: ExtractedDocument[],
+): IngestionSubTab {
+  const staticMapping = ZENITH_TO_INGESTION_SUB[tab];
+  if (staticMapping) return staticMapping;
+  
+  // Handle document tabs
+  if (tab === "contract-pdf" || tab === "sow-pdf") {
+    if (documents) {
+      const docId = zenithDocTabToDocId(tab, documents);
+      if (docId) return `pdf-${docId}`;
+    }
+    return "pdf-doc-1";
+  }
+  
+  return "summary";
 }
 
 export function isZenithBackedIngestionSub(sub: IngestionSubTab): boolean {

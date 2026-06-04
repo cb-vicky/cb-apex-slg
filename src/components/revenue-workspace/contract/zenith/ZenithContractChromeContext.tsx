@@ -19,7 +19,7 @@ import {
   type ContractBillingGapResolution,
   type ContractLineItem,
 } from "@/data/contract-line-items";
-import type { IngestQueueSampleId } from "@/data/ingest-data";
+import { getExtractedContract, type IngestQueueSampleId } from "@/data/ingest-data";
 import {
   ZENITH_CONTRACT_SCROLL_COLLAPSE_AT,
   ZENITH_CONTRACT_SCROLL_EXPAND_AT,
@@ -231,7 +231,8 @@ export function ZenithContractChromeProvider({
       setActiveTabState(tab);
 
       if (ingestionUrlSync) {
-        const sub = zenithTabToIngestionSub(tab);
+        const documents = ingestionSampleId ? getExtractedContract(ingestionSampleId).documents : undefined;
+        const sub = zenithTabToIngestionSub(tab, documents);
         const params = new URLSearchParams(searchParams);
         params.set("sub", sub);
         params.set("frame", ingestionFrameForSub(sub));
@@ -250,7 +251,7 @@ export function ZenithContractChromeProvider({
 
       setIsScrollCollapsed(scrollTop > ZENITH_CONTRACT_SCROLL_EXPAND_AT);
     },
-    [ingestionUrlSync, searchParams, setSearchParams],
+    [ingestionUrlSync, ingestionSampleId, searchParams, setSearchParams],
   );
 
   /** Reset workflow state only when the ingestion session changes — not on every sub-tab URL change. */
@@ -281,28 +282,25 @@ export function ZenithContractChromeProvider({
     setComments([]);
     setCommentsPanelOpen(false);
     setCommentFocus(null);
-
-    if (ingestionUrlSync) {
-      const sub = (searchParams.get("sub") ?? "summary") as IngestionSubTab;
-      setActiveTabState(ingestionSubToZenithTab(sub));
-    } else {
-      const zenithTabParam = searchParams.get("zenithTab");
-      const initialTab: ZenithContractActiveTab =
-        zenithTabParam &&
-        (ZENITH_CONTRACT_CONTENT_TABS as readonly string[]).includes(zenithTabParam)
-          ? (zenithTabParam as ZenithContractActiveTab)
-          : "Summary";
-      setActiveTabState(initialTab);
-    }
+    // Note: Initial tab is set separately via the tab-sync effect below
   }, [enabled, resetKey, isIngestionComplete, ingestionUrlSync, ingestionSampleId]);
 
-  /** Keep zenith tab aligned when ingestion URL sub-tab changes externally. */
+  /** Keep zenith tab aligned when URL changes — handles both ingestion sub-tabs and direct zenithTab params. */
   useEffect(() => {
-    if (!enabled || !ingestionUrlSync) return;
-    const sub = (searchParams.get("sub") ?? "summary") as IngestionSubTab;
-    const next = ingestionSubToZenithTab(sub);
-    setActiveTabState((prev) => (prev === next ? prev : next));
-  }, [enabled, ingestionUrlSync, searchParams]);
+    if (!enabled) return;
+    
+    if (ingestionUrlSync) {
+      const sub = (searchParams.get("sub") ?? "summary") as IngestionSubTab;
+      const documents = ingestionSampleId ? getExtractedContract(ingestionSampleId).documents : undefined;
+      const next = ingestionSubToZenithTab(sub, documents);
+      setActiveTabState((prev) => (prev === next ? prev : next));
+    } else {
+      const zenithTabParam = searchParams.get("zenithTab");
+      if (zenithTabParam && (ZENITH_CONTRACT_CONTENT_TABS as readonly string[]).includes(zenithTabParam)) {
+        setActiveTabState((prev) => (prev === zenithTabParam ? prev : (zenithTabParam as ZenithContractActiveTab)));
+      }
+    }
+  }, [enabled, ingestionUrlSync, ingestionSampleId, searchParams]);
 
   /** Mark a chrome height transition as in-progress for `durationMs`. */
   const startTransition = useCallback((durationMs = 220) => {

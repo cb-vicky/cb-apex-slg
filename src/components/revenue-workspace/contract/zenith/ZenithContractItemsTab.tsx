@@ -1757,33 +1757,29 @@ export function ZenithContractItemsTab({
             />
           ) : undefined
         }
-        footer={
+        headerAction={
           drawerItem && !lineItemResolution[drawerItem.id] ? (
             panelMode === "map" && pendingCatalogByLine[drawerItem.id] ? (
-              <div className="flex shrink-0 justify-end border-t border-border-subtle px-8 py-3">
-                <button
-                  type="button"
-                  onClick={() => submitMapCatalogFromDrawer(drawerItem.id)}
-                  className="inline-flex h-8 items-center rounded-full bg-blue-600 px-4 text-[12px] font-semibold text-white transition-colors hover:bg-blue-700"
-                >
-                  {isAddRowDrawer ? "Add item" : "Submit"}
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => submitMapCatalogFromDrawer(drawerItem.id)}
+                className="inline-flex h-8 items-center rounded-full bg-blue-600 px-4 text-[12px] font-semibold text-white transition-colors hover:bg-blue-700"
+              >
+                {isAddRowDrawer ? "Add item" : "Submit"}
+              </button>
             ) : panelMode === "create" ? (
-              <div className="flex shrink-0 justify-end border-t border-border-subtle px-8 py-3">
-                <button
-                  type="submit"
-                  form={CREATE_CATALOG_ITEM_FORM_ID}
-                  disabled={
-                    !isCreateCatalogItemFormComplete(
-                      getCreateCatalogForm(drawerItem.id, drawerItem),
-                    )
-                  }
-                  className="inline-flex h-8 items-center rounded-full bg-blue-600 px-4 text-[12px] font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
-                >
-                  {isAddRowDrawer ? "Add item" : "Submit"}
-                </button>
-              </div>
+              <button
+                type="submit"
+                form={CREATE_CATALOG_ITEM_FORM_ID}
+                disabled={
+                  !isCreateCatalogItemFormComplete(
+                    getCreateCatalogForm(drawerItem.id, drawerItem),
+                  )
+                }
+                className="inline-flex h-8 items-center rounded-full bg-blue-600 px-4 text-[12px] font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+              >
+                {isAddRowDrawer ? "Add item" : "Submit"}
+              </button>
             ) : undefined
           ) : undefined
         }

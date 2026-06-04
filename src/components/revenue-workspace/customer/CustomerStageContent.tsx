@@ -5,6 +5,7 @@ import { getQuotesForCustomer, getContractsForCustomer, getTasks } from "@/data/
 import { useIngestContext } from "@/context/IngestContext";
 import { SectionCard, KV } from "@/components/ui/primitives";
 import { shortDate, cn } from "@/lib/utils";
+import { PinnedNotesSection } from "@/components/notes";
 import { CustomerNbaCard } from "./CustomerNbaCard";
 import { AiInsightsCard } from "./AiInsightsCard";
 import { CustomerMetricsSection } from "./CustomerMetricsSection";
@@ -69,6 +70,9 @@ export function CustomerStageContent({ customer }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
+      <WorkspaceSectionAnchor id="ws-section-customer-notes">
+        <PinnedNotesSection customerId={customer.id} customerName={customer.name} />
+      </WorkspaceSectionAnchor>
       <WorkspaceSectionAnchor id="ws-section-customer-nba">
         <CustomerNbaCard action={action} />
       </WorkspaceSectionAnchor>

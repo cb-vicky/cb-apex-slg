@@ -202,7 +202,7 @@ export function ZenithContractBillingInfoTab() {
 
       <ZenithContractSectionCard
         title="Invoicing options"
-        contentClassName="flex max-w-xl flex-col gap-6"
+        contentClassName="gap-6"
       >
         <InvoicingCheckboxOption
           id="zenith-do-not-auto-close"

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { TopNav } from "./TopNav";
 import { Sidebar } from "./Sidebar";
 import { AIAgentSidebar } from "@/components/assistant/AIAgentSidebar";
+import { NotesDrawer, NotesFloatingButton } from "@/components/notes";
 import { useAssistantWorkspace } from "@/lib/assistantWorkspace";
 import { useIsMd } from "@/lib/useIsMd";
 import { useWorkspaceShell } from "@/context/WorkspaceShellContext";
@@ -53,6 +54,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </div>
+      <NotesFloatingButton />
+      <NotesDrawer />
     </div>
   );
 }

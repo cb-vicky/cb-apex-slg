@@ -766,10 +766,13 @@ export function CustomerRevenueWorkspace({
         >
           <div
             className={cn(
-              "grid min-w-0 px-6 pt-2 pb-12",
+              "grid min-w-0 pt-2 pb-12",
+              activeStage === "ingestion" ? "px-3 lg:px-6" : "px-6",
               inListMode
                 ? "grid-cols-[1fr_minmax(0,min(1020px,100%))_1fr]"
-                : "grid-cols-[1fr_minmax(0,min(860px,100%))_1fr]",
+                : activeStage === "ingestion"
+                  ? "grid-cols-[0_minmax(0,min(920px,100%))_0] lg:grid-cols-[1fr_minmax(0,min(920px,100%))_1fr]"
+                  : "grid-cols-[1fr_minmax(0,min(860px,100%))_1fr]",
             )}
           >
             {!inListMode && isXl && detailNavItems.length > 0 ? (
