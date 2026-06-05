@@ -93,7 +93,6 @@ export function IngestionActions({ session, customerId }: Props) {
   const isOnSubscriptionPreview = currentSub === "subscription-preview";
   const isOnInvoicePreview = currentSub === "invoice-preview";
   const subscriptionPreviewEnabled = chrome?.getContentTabStatus("Subscription Preview") !== "disabled";
-  const invoicePreviewEnabled = chrome?.getContentTabStatus("Invoice Preview") !== "disabled";
 
   // Close overflow menu on outside click
   useEffect(() => {

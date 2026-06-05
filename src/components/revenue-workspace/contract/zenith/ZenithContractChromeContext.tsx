@@ -16,7 +16,6 @@ import {
 } from "@/components/revenue-workspace/ingestion/ingestion-zenith-sync";
 import {
   getContractLineItemsForIngest,
-  type ContractBillingGapResolution,
   type ContractLineItem,
 } from "@/data/contract-line-items";
 import { getExtractedContract, type IngestQueueSampleId } from "@/data/ingest-data";
@@ -65,12 +64,6 @@ export interface ZenithContractChromeValue {
   getContentTabStatus: (tab: ZenithContractContentTab) => ZenithTabCompletionStatus;
   contractLineItems: ContractLineItem[];
   setContractLineItems: (items: ContractLineItem[]) => void;
-  billingGapResolutions: Record<string, ContractBillingGapResolution>;
-  setBillingGapResolutions: (
-    updater: (
-      prev: Record<string, ContractBillingGapResolution>,
-    ) => Record<string, ContractBillingGapResolution>,
-  ) => void;
   reviewStatus: ZenithContractReviewStatus;
   setReviewStatus: (status: ZenithContractReviewStatus) => void;
   comments: ZenithContractComment[];
@@ -122,9 +115,6 @@ export function ZenithContractChromeProvider({
   const [contractLineItems, setContractLineItems] = useState<ContractLineItem[]>(() =>
     getContractLineItemsForIngest({ sampleId: ingestionSampleId }),
   );
-  const [billingGapResolutions, setBillingGapResolutionsState] = useState<
-    Record<string, ContractBillingGapResolution>
-  >({});
   const [reviewStatus, setReviewStatus] = useState<ZenithContractReviewStatus>(
     DEFAULT_ZENITH_CONTRACT_REVIEW_STATUS,
   );
@@ -140,20 +130,7 @@ export function ZenithContractChromeProvider({
 
   const itemsTabComplete = areZenithContractItemsComplete({
     items: contractLineItems,
-    sampleId: ingestionSampleId,
-    billingGapResolutions,
   });
-
-  const setBillingGapResolutions = useCallback(
-    (
-      updater: (
-        prev: Record<string, ContractBillingGapResolution>,
-      ) => Record<string, ContractBillingGapResolution>,
-    ) => {
-      setBillingGapResolutionsState((prev) => updater(prev));
-    },
-    [],
-  );
 
   const summaryTabComplete = areZenithSummaryPrerequisiteTabsComplete({
     itemsComplete: itemsTabComplete,
@@ -286,7 +263,6 @@ export function ZenithContractChromeProvider({
       setContractLineItems(seedLineItems);
     }
 
-    setBillingGapResolutionsState({});
     setReviewStatus(DEFAULT_ZENITH_CONTRACT_REVIEW_STATUS);
     setComments([]);
     setCommentsPanelOpen(false);
@@ -370,8 +346,6 @@ export function ZenithContractChromeProvider({
         getContentTabStatus,
         contractLineItems,
         setContractLineItems,
-        billingGapResolutions,
-        setBillingGapResolutions,
         reviewStatus,
         setReviewStatus,
         comments,

@@ -86,19 +86,6 @@ export interface ExtractedDocument {
 
 export type IngestionSectionId = "summary" | "items" | "billing" | "addresses" | "additional";
 
-/** Billing-rule catalog item suggested on Items tab but not present on the uploaded contract PDF. */
-export interface BillingRuleGapSuggestion {
-  id: string;
-  catalogItemId: string;
-  name: string;
-  frequency: string;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-  /** Info-icon tooltip and row subtitle on Items tab. */
-  inclusionReason: string;
-}
-
 export interface ExtractedContract {
   docId: "sample1" | IngestQueueSampleId;
   documentName: string;
@@ -121,8 +108,6 @@ export interface ExtractedContract {
   documents: ExtractedDocument[];
   /** Per-section issue messages (sections with issues start as "issues" state) */
   sectionIssues: Partial<Record<IngestionSectionId, string>>;
-  /** Mandatory / rule-driven add-ons not found on the contract document (Items tab dashed rows). */
-  billingRuleGapItems: BillingRuleGapSuggestion[];
 }
 
 export interface CreatedObject {
@@ -292,7 +277,6 @@ export const extractedSample1: ExtractedContract = {
     { id: "doc-echo-1", name: "EchoCorp_MSA_Renewal_2026_Signed.pdf", kind: "contract" },
   ],
   sectionIssues: {},
-  billingRuleGapItems: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -409,7 +393,6 @@ export const extractedSample2: ExtractedContract = {
     items: "2 items need mapping to your catalog",
     addresses: "Review required — confirm addresses",
   },
-  billingRuleGapItems: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -520,7 +503,6 @@ export const extractedSample5: ExtractedContract = {
   sectionIssues: {
     items: "1 item needs mapping to your catalog",
   },
-  billingRuleGapItems: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -602,7 +584,6 @@ export const extractedSample3: ExtractedContract = {
     { id: "doc-verdant-1", name: "VerdantHealth_EarlyRenewal_2026.pdf", kind: "contract" },
   ],
   sectionIssues: {},
-  billingRuleGapItems: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -699,7 +680,6 @@ export const extractedSample4: ExtractedContract = {
   sectionIssues: {
     billing: "Confirm billing frequency change from annual to monthly",
   },
-  billingRuleGapItems: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -727,14 +707,6 @@ export function getExtractedContract(
   if (sampleId === "sample4") return extractedSample4;
   if (sampleId === "sample5") return extractedSample5;
   return extractedSample2;
-}
-
-/** Billing-rule gap rows for Items tab — sourced from extracted contract mock per sample. */
-export function getBillingRuleGapItemsForSample(
-  sampleId: IngestQueueSampleId | undefined,
-): BillingRuleGapSuggestion[] {
-  if (!sampleId) return [];
-  return getExtractedContract(sampleId).billingRuleGapItems.map((item) => ({ ...item }));
 }
 
 export function buildIngestResult(

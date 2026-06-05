@@ -192,7 +192,7 @@ export function ZenithSubscriptionPreviewTab() {
   const sampleId = chrome?.ingestionSampleId;
   
   const extracted = useMemo(
-    () => getExtractedContract(sampleId),
+    () => getExtractedContract(sampleId ?? "sample2"),
     [sampleId]
   );
   
