@@ -1228,14 +1228,13 @@ export function CustomerContextBar({
     const ingestionSummary = deriveIngestionTabSummary({
       session: ingestionSession,
       contractLineItems: zenithChrome?.contractLineItems,
-      billingGapResolutions: zenithChrome?.billingGapResolutions,
     });
     
     return {
       ...parentTabSummaries,
       ingestion: ingestionSummary,
     };
-  }, [parentTabSummaries, ingestionSession, zenithChrome?.contractLineItems, zenithChrome?.billingGapResolutions]);
+  }, [parentTabSummaries, ingestionSession, zenithChrome?.contractLineItems]);
   
   // Track whether we're on the ingestion tab
   const isOnIngestionTab = activeTab.stage === "ingestion" && !!ingestionSession;

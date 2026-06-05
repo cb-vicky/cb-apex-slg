@@ -1,16 +1,9 @@
 /**
  * Contract line items for Workbench ingestion / contract review (Items tab).
  * Keyed by ingest sample and session contract id — not Zenith-specific.
- *
- * Billing-rule gap seeds live on each `ExtractedContract` in `ingest-data.ts`
- * (`billingRuleGapItems`). Resolutions: `ZenithContractChromeContext.billingGapResolutions`.
  */
 
-import {
-  getBillingRuleGapItemsForSample,
-  type BillingRuleGapSuggestion,
-  type IngestQueueSampleId,
-} from "@/data/ingest-data";
+import { type IngestQueueSampleId } from "@/data/ingest-data";
 
 export type ContractLineItemMappingStatus = "mapped" | "needs_mapping";
 
@@ -29,7 +22,7 @@ export interface ContractLineItem {
   unitPrice: number;
   totalPrice: number;
   mappingStatus: ContractLineItemMappingStatus;
-  /** Set when `mappingStatus` is `mapped` — system_match shows “Match found” UX. */
+  /** Set when `mappingStatus` is `mapped` — system_match shows "Match found" UX. */
   catalogLink?: ContractLineItemCatalogLink;
   /** Tooltip copy for rows added from billing-rule suggestions. */
   billingRuleInclusionReason?: string;
@@ -149,54 +142,24 @@ export function inferIngestSampleIdFromLineItems(
   return undefined;
 }
 
-/** Billing-rule item suggested for contract but absent from the uploaded document. */
-export type ContractBillingGapItem = BillingRuleGapSuggestion;
-
-export type ContractBillingGapResolution = "included" | "ignored";
-
-export function getBillingGapItemsForIngest(
-  sampleId: IngestQueueSampleId | undefined,
-  contractItems: ContractLineItem[],
-): ContractBillingGapItem[] {
-  const effectiveSampleId = sampleId ?? inferIngestSampleIdFromLineItems(contractItems);
-  return getBillingRuleGapItemsForSample(effectiveSampleId);
-}
-
-export function countPendingBillingGapItems(
-  gapItems: ContractBillingGapItem[],
-  resolutions: Readonly<Record<string, ContractBillingGapResolution>>,
-): number {
-  return gapItems.filter((item) => !resolutions[item.id]).length;
-}
-
 export interface ItemsTabActionSummary {
   totalCount: number;
   unmappedMatchCount: number;
-  addToContractCount: number;
 }
 
-/** Derives Items-tab “action needed” counts from line items + ingest sample seed. */
+/** Derives Items-tab "action needed" counts from line items. */
 export function deriveItemsTabActionSummary(
   items: ContractLineItem[],
-  sampleId: IngestQueueSampleId | undefined,
+  _sampleId: IngestQueueSampleId | undefined,
   resolvedLineIds: ReadonlySet<string> = new Set(),
-  billingGapResolutions: Readonly<Record<string, ContractBillingGapResolution>> = {},
 ): ItemsTabActionSummary {
-  const unmappedMatchCount = contractLineItemsNeedMappingCount(items);
-  const pendingSystemMatchCount = items.filter(
-    (item) => isContractLineSystemMatch(item) && !resolvedLineIds.has(item.id),
+  // Count only unmapped items that haven't been resolved yet
+  // System-matched items are pre-matched and don't require action
+  const unmappedMatchCount = items.filter(
+    (item) => item.mappingStatus === "needs_mapping" && !resolvedLineIds.has(item.id),
   ).length;
-  const pendingBillingRuleMatchCount = items.filter(
-    (item) => isContractLineBillingRuleMatch(item) && !resolvedLineIds.has(item.id),
-  ).length;
-  const gapItems = getBillingGapItemsForIngest(sampleId, items);
-  const addToContractCount = countPendingBillingGapItems(gapItems, billingGapResolutions);
-  const totalCount =
-    unmappedMatchCount +
-    addToContractCount +
-    pendingSystemMatchCount +
-    pendingBillingRuleMatchCount;
-  return { totalCount, unmappedMatchCount, addToContractCount };
+  const totalCount = unmappedMatchCount;
+  return { totalCount, unmappedMatchCount };
 }
 
 export function getContractLineItemsForIngest(input: {

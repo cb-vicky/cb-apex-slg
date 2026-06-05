@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Pin, PinOff, ChevronLeft, ChevronRight } from "lucide-react";
+import { Pin, PinOff, ChevronUp, ChevronDown } from "lucide-react";
 import { cn, shortDate } from "@/lib/utils";
 import { useNotesStore } from "@/hooks/useNotesStore";
 import { getTabLabel, type Note } from "@/data/notes-data";
@@ -50,7 +50,7 @@ function SingleNoteDisplay({
         "group relative rounded-xl border px-3 py-2.5 transition-all duration-300",
         isHighlighted
           ? "border-blue-400 bg-blue-100 shadow-[0_0_0_3px_rgba(59,130,246,0.2)]"
-          : "border-blue-200 bg-blue-50/80 hover:border-blue-300 hover:bg-blue-50",
+          : "border-blue-200 bg-blue-50 hover:border-blue-300 hover:bg-blue-100",
       )}
       style={{
         animation: isHighlighted ? "highlightWash 0.5s ease-out 3" : undefined,
@@ -165,8 +165,6 @@ function StackedNoteCard({
   // Smooth card shuffle animation values
   const stackOffset = stackIndex * 5;
   const stackScale = 1 - stackIndex * 0.03;
-  const stackOpacity = isActive ? 1 : Math.max(0.6, 1 - stackIndex * 0.2);
-  const stackBlur = isActive ? 0 : stackIndex * 0.4;
 
   return (
     <div
@@ -177,16 +175,14 @@ function StackedNoteCard({
         isActive
           ? isHighlighted
             ? "border-blue-400 bg-blue-100 shadow-[0_0_0_3px_rgba(59,130,246,0.2)]"
-            : "border-blue-200 bg-blue-50/80 hover:border-blue-300 hover:bg-blue-50 shadow-sm"
-          : "border-blue-100 bg-blue-50/60 pointer-events-none",
+            : "border-blue-200 bg-blue-50 hover:border-blue-300 hover:bg-blue-100 shadow-sm"
+          : "border-blue-200 bg-blue-100 shadow-[0_1px_2px_rgba(0,0,0,0.06)] pointer-events-none",
       )}
       style={{
         transform: `translateY(${stackOffset}px) scale(${stackScale})`,
-        opacity: stackOpacity,
         zIndex: totalCount - stackIndex,
-        filter: stackBlur > 0 ? `blur(${stackBlur}px)` : undefined,
         animation: isHighlighted ? "highlightWash 0.5s ease-out 3" : undefined,
-        transition: "transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease, filter 0.3s ease, box-shadow 0.3s ease",
+        transition: "transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease",
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -337,10 +333,10 @@ export function NoteCard({ notes }: NoteCardProps) {
   };
 
   return (
-    <div>
+    <div className="flex gap-2 items-stretch">
       {/* Stacked cards container */}
       <div 
-        className="relative"
+        className="relative flex-1"
         style={{ height: `${stackHeight}px` }}
       >
         {sortedNotes.map((note, idx) => {
@@ -362,45 +358,51 @@ export function NoteCard({ notes }: NoteCardProps) {
         })}
       </div>
 
-      {/* Carousel controls */}
-      <div className="mt-1.5 flex items-center justify-center gap-2">
+      {/* Vertical carousel controls */}
+      <div className="flex flex-col items-center justify-center gap-0 px-0.5">
         <button
           type="button"
           onClick={handlePrev}
           disabled={isAnimating}
-          className="rounded-full p-1.5 text-blue-400 hover:bg-blue-50 hover:text-blue-600 transition-colors disabled:opacity-50"
+          className="rounded p-0 text-blue-400 hover:text-blue-600 transition-colors disabled:opacity-50"
           aria-label="Previous note"
         >
-          <ChevronLeft size={14} />
+          <ChevronUp size={12} />
         </button>
 
-        {/* Dots */}
-        <div className="flex items-center gap-1.5">
-          {sortedNotes.map((note, idx) => (
-            <button
-              key={note.id}
-              type="button"
-              onClick={() => handleNavigate(idx)}
-              disabled={isAnimating}
-              className={cn(
-                "h-1.5 rounded-full transition-all duration-300",
-                idx === currentIndex
-                  ? "w-4 bg-blue-500"
-                  : "w-1.5 bg-blue-200 hover:bg-blue-300",
-              )}
-              aria-label={`Go to note ${idx + 1}`}
-            />
-          ))}
-        </div>
+        {/* Symbolic indicator: show dots if <= 3, otherwise show "n/total" */}
+        {sortedNotes.length <= 3 ? (
+          <div className="flex flex-col items-center gap-0.5">
+            {sortedNotes.map((note, idx) => (
+              <button
+                key={note.id}
+                type="button"
+                onClick={() => handleNavigate(idx)}
+                disabled={isAnimating}
+                className={cn(
+                  "rounded-full transition-all duration-200",
+                  idx === currentIndex
+                    ? "h-1.5 w-1.5 bg-blue-500"
+                    : "h-1 w-1 bg-blue-300 hover:bg-blue-400",
+                )}
+                aria-label={`Go to note ${idx + 1}`}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="text-[9px] font-medium text-blue-500 tabular-nums leading-none">
+            {currentIndex + 1}/{sortedNotes.length}
+          </div>
+        )}
 
         <button
           type="button"
           onClick={handleNext}
           disabled={isAnimating}
-          className="rounded-full p-1.5 text-blue-400 hover:bg-blue-50 hover:text-blue-600 transition-colors disabled:opacity-50"
+          className="rounded p-0 text-blue-400 hover:text-blue-600 transition-colors disabled:opacity-50"
           aria-label="Next note"
         >
-          <ChevronRight size={14} />
+          <ChevronDown size={12} />
         </button>
       </div>
     </div>

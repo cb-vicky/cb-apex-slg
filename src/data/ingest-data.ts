@@ -409,28 +409,7 @@ export const extractedSample2: ExtractedContract = {
     items: "2 items need mapping to your catalog",
     addresses: "Review required — confirm addresses",
   },
-  billingRuleGapItems: [
-    {
-      id: "bg-analytics-pro",
-      catalogItemId: "item-analytics-pro",
-      name: "Apex Analytics Pro",
-      frequency: "Yearly",
-      quantity: 1,
-      unitPrice: 960,
-      totalPrice: 960,
-      inclusionReason: "Mandatory add-on for Growth CRM plan",
-    },
-    {
-      id: "bg-standard-support",
-      catalogItemId: "item-support-standard",
-      name: "Standard Support",
-      frequency: "Monthly",
-      quantity: 1,
-      unitPrice: 800,
-      totalPrice: 800,
-      inclusionReason: "Mandatory add-on for Growth CRM plan",
-    },
-  ],
+  billingRuleGapItems: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -541,28 +520,7 @@ export const extractedSample5: ExtractedContract = {
   sectionIssues: {
     items: "1 item needs mapping to your catalog",
   },
-  billingRuleGapItems: [
-    {
-      id: "bg-pioneer-standard-support",
-      catalogItemId: "item-support-standard",
-      name: "Standard Support",
-      frequency: "Monthly",
-      quantity: 1,
-      unitPrice: 800,
-      totalPrice: 800,
-      inclusionReason: "Mandatory add-on for Apex Platform Growth plan",
-    },
-    {
-      id: "bg-pioneer-ai-credits",
-      catalogItemId: "item-ai-credits",
-      name: "AI Credits",
-      frequency: "Monthly",
-      quantity: 1,
-      unitPrice: 0.02,
-      totalPrice: 0.02,
-      inclusionReason: "Mandatory overage add-on for Apex Platform Growth plan",
-    },
-  ],
+  billingRuleGapItems: [],
 };
 
 // ---------------------------------------------------------------------------

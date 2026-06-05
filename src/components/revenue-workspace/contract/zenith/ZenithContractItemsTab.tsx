@@ -5,11 +5,9 @@ import { CircleCheck, ChevronDown, Info, Link2, MoreVertical, Plus, Sparkles, Us
 import { getZenithCatalogItemById, type ZenithCatalogSiteItem } from "@/data/zenith-catalog-items";
 import {
   deriveItemsTabActionSummary,
-  getBillingGapItemsForIngest,
   isContractLineBillingRuleMatch,
   isContractLineCatalogMatch,
   isContractLineSystemMatch,
-  type ContractBillingGapItem,
   type ContractLineItemCatalogLink,
   type ItemsTabActionSummary,
 } from "@/data/contract-line-items";
@@ -44,7 +42,6 @@ import { LineItemPinnedStrip } from "./LineItemPinnedStrip";
 import { MatchedItemCondensedStrip } from "./MatchedItemCondensedStrip";
 import {
   zenithLineItemsTableClassName,
-  zenithLineItemsBillingGapTdClass,
   zenithLineItemsTdClass,
   zenithLineItemsThClass,
 } from "./zenith-line-items-table-layout";
@@ -370,13 +367,6 @@ function ItemsMappingAlert({ summary }: { summary: ItemsTabActionSummary }) {
               new with extracted data.
             </li>
           ) : null}
-          {summary.addToContractCount > 0 ? (
-            <li>
-              {summary.addToContractCount} mandatory add-on
-              {summary.addToContractCount === 1 ? "" : "s"} not present in the contract need your
-              approval.
-            </li>
-          ) : null}
         </ul>
       </div>
     </div>
@@ -395,8 +385,6 @@ function ItemsAllResolvedAlert() {
   );
 }
 
-const billingGapCopyClass = "text-text-muted";
-
 function LineItemStatusAccentStrip({
   colorClass,
   curveBottomLeft = false,
@@ -412,153 +400,6 @@ function LineItemStatusAccentStrip({
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-bl-xl">
       <span aria-hidden className={cn("absolute inset-y-0 left-0 w-[3px] rounded-bl-xl", colorClass)} />
     </div>
-  );
-}
-
-const ZENITH_LINE_ITEMS_TABLE_COLUMN_COUNT = 7;
-
-function BillingGapSectionHeaderRow() {
-  return (
-    <tr className="bg-gray-50">
-      <td
-        colSpan={ZENITH_LINE_ITEMS_TABLE_COLUMN_COUNT}
-        className="border-t border-border-subtle bg-gray-50 px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-text-muted"
-      >
-        Items not in contract
-      </td>
-    </tr>
-  );
-}
-
-function BillingGapTableRow({
-  item,
-  isFirstRow,
-  isLastRow,
-  ignored = false,
-  onInclude,
-  onIgnore,
-  onRestore,
-}: {
-  item: ContractBillingGapItem;
-  isFirstRow: boolean;
-  isLastRow: boolean;
-  ignored?: boolean;
-  onInclude: () => void;
-  onIgnore: () => void;
-  onRestore: () => void;
-}) {
-  const rowPosition = { isFirst: isFirstRow, isLast: isLastRow };
-  const gapTd = (column: "first" | "middle" | "last") =>
-    zenithLineItemsBillingGapTdClass(column, rowPosition);
-  const struckCopyClass = cn(billingGapCopyClass, ignored && "line-through decoration-text-muted/70");
-
-  return (
-    <tr className={cn("group bg-white", isLastRow && "relative z-10", ignored && "opacity-70")}>
-      <td className={cn(gapTd("first"), "relative w-10 align-top")}>
-        {!ignored ? (
-          <LineItemStatusAccentStrip colorClass="bg-amber-500" curveBottomLeft={isLastRow} />
-        ) : null}
-        <div className="relative flex h-9 items-center justify-center">
-          {ignored ? (
-            <span
-              aria-hidden
-              className="inline-block h-3.5 w-3.5 rounded-full border border-border-subtle bg-gray-100"
-            />
-          ) : (
-            <BillingGapStatusIcon
-              tooltip={item.inclusionReason}
-              elevateTooltip={isLastRow}
-            />
-          )}
-        </div>
-      </td>
-      <td className={cn(gapTd("middle"), "min-w-[200px]")}>
-        <div className="flex min-h-9 items-center gap-2 px-3 py-1.5">
-          <span className={cn("text-[13px] font-medium", struckCopyClass)}>{item.name}</span>
-          <span
-            className={cn(
-              "inline-flex shrink-0 items-center rounded-full border border-border-subtle bg-white px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-muted",
-              ignored && "line-through decoration-text-muted/70",
-            )}
-          >
-            Mandatory add-on
-          </span>
-        </div>
-      </td>
-      <td className={cn(gapTd("middle"), "min-w-[140px]")}>
-        <span className={cn("flex h-9 items-center px-3 text-[13px]", struckCopyClass)}>
-          {item.frequency}
-        </span>
-      </td>
-      <td className={cn(gapTd("middle"), "w-[88px]")}>
-        <span className={cn("flex h-9 items-center justify-end px-3 text-[13px] tabular-nums", struckCopyClass)}>
-          {item.quantity}
-        </span>
-      </td>
-      <td className={cn(gapTd("middle"), "w-[120px]")}>
-        <span className={cn("flex h-9 items-center justify-end px-3 text-[13px] tabular-nums", struckCopyClass)}>
-          {formatMoney(item.unitPrice)}
-        </span>
-      </td>
-      <td className={cn(gapTd("middle"), "w-[120px]")}>
-        <span className={cn("flex h-9 items-center justify-end px-3 text-[13px] tabular-nums", struckCopyClass)}>
-          {formatMoney(item.totalPrice)}
-        </span>
-      </td>
-      <td className={cn(gapTd("last"), "relative w-11 align-top")}>
-        {!ignored ? (
-          <div
-            className={cn(
-              "absolute top-1/2 right-2 z-10 flex -translate-y-1/2 items-center gap-1.5",
-              "opacity-0 transition-opacity duration-150",
-              "group-hover:opacity-100 group-focus-within:opacity-100",
-              "[@media(hover:none)]:opacity-100",
-            )}
-          >
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onIgnore();
-              }}
-              className="inline-flex h-7 items-center rounded-full border border-border-default bg-white px-2.5 text-[11px] font-semibold text-text-secondary shadow-sm transition-colors hover:bg-gray-50 hover:text-text-primary"
-            >
-              Ignore
-            </button>
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onInclude();
-              }}
-              className="inline-flex h-7 items-center rounded-full bg-blue-600 px-2.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
-            >
-              Add
-            </button>
-          </div>
-        ) : (
-          <div
-            className={cn(
-              "absolute top-1/2 right-2 z-10 flex -translate-y-1/2 items-center",
-              "opacity-0 transition-opacity duration-150",
-              "group-hover:opacity-100 group-focus-within:opacity-100",
-              "[@media(hover:none)]:opacity-100",
-            )}
-          >
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onRestore();
-              }}
-              className="inline-flex h-7 items-center rounded-full border border-border-default bg-white px-2.5 text-[11px] font-semibold text-text-secondary shadow-sm transition-colors hover:bg-gray-50 hover:text-text-primary"
-            >
-              Restore
-            </button>
-          </div>
-        )}
-      </td>
-    </tr>
   );
 }
 
@@ -1086,14 +927,12 @@ function ItemsTableRow({
   selected,
   resolution,
   isLastRow,
-  isLastBeforeBillingGaps = false,
   onSelect,
 }: {
   item: ZenithSummaryLineItem;
   selected: boolean;
   resolution?: LineItemResolutionDetail;
   isLastRow: boolean;
-  isLastBeforeBillingGaps?: boolean;
   onSelect: () => void;
 }) {
   const resolved = resolution != null;
@@ -1139,9 +978,7 @@ function ItemsTableRow({
         "bg-white",
         selected && "bg-blue-50/60",
         expandable && "cursor-pointer",
-        (isLastRow && showMappingStrip) || isLastBeforeBillingGaps
-          ? "[&>td]:border-b-0"
-          : null,
+        isLastRow && showMappingStrip ? "[&>td]:border-b-0" : null,
       )}
       onClick={expandable ? onSelect : undefined}
     >
@@ -1244,9 +1081,6 @@ export function ZenithContractItemsTab({
     Record<string, string>
   >({});
 
-  const billingGapResolutions = chrome?.billingGapResolutions ?? {};
-  const setBillingGapResolutions = chrome?.setBillingGapResolutions;
-
   const resolvedLineIds = useMemo(
     () => new Set(Object.keys(lineItemResolution)),
     [lineItemResolution],
@@ -1254,66 +1088,18 @@ export function ZenithContractItemsTab({
 
   const effectiveSampleId = ingestionSampleIdProp ?? chrome?.ingestionSampleId;
 
-  const billingGapItems = useMemo(
-    () => getBillingGapItemsForIngest(effectiveSampleId, persistedItems),
-    [effectiveSampleId, persistedItems],
-  );
-
-  const visibleBillingGapItems = useMemo(
-    () => billingGapItems.filter((item) => billingGapResolutions[item.id] !== "included"),
-    [billingGapItems, billingGapResolutions],
-  );
-
   const itemsActionSummary = useMemo(
     () =>
       deriveItemsTabActionSummary(
         persistedItems,
         effectiveSampleId,
         resolvedLineIds,
-        billingGapResolutions,
       ),
-    [persistedItems, effectiveSampleId, resolvedLineIds, billingGapResolutions],
+    [persistedItems, effectiveSampleId, resolvedLineIds],
   );
 
   const itemsAllResolved =
-    itemsActionSummary.totalCount === 0 &&
-    (persistedItems.length > 0 || billingGapItems.length > 0);
-
-  function includeBillingGapItem(gapItem: ContractBillingGapItem) {
-    const catalogItem = getZenithCatalogItemById(gapItem.catalogItemId);
-    if (!catalogItem || !setBillingGapResolutions) return;
-
-    const lineId = `li-included-${gapItem.id}`;
-    const includedLine: ZenithSummaryLineItem = {
-      id: lineId,
-      name: catalogItem.name,
-      frequency: catalogItem.billingFrequency,
-      quantity: gapItem.quantity,
-      unitPrice: catalogItem.unitPrice,
-      totalPrice: gapItem.quantity * catalogItem.unitPrice,
-      mappingStatus: "mapped",
-      catalogLink: "billing_rule_match",
-      billingRuleInclusionReason: gapItem.inclusionReason,
-    };
-
-    setPersistedItems((prev) => [...prev, includedLine]);
-    setMappedCatalogByLine((prev) => ({ ...prev, [lineId]: gapItem.catalogItemId }));
-    setBillingGapResolutions((prev) => ({ ...prev, [gapItem.id]: "included" }));
-  }
-
-  function ignoreBillingGapItem(gapItemId: string) {
-    if (!setBillingGapResolutions) return;
-    setBillingGapResolutions((prev) => ({ ...prev, [gapItemId]: "ignored" }));
-  }
-
-  function restoreBillingGapItem(gapItemId: string) {
-    if (!setBillingGapResolutions) return;
-    setBillingGapResolutions((prev) => {
-      const next = { ...prev };
-      delete next[gapItemId];
-      return next;
-    });
-  }
+    itemsActionSummary.totalCount === 0 && persistedItems.length > 0;
 
   function resolveLineItem(lineId: string, detail: LineItemResolutionDetail) {
     setLineItemResolution((prev) => ({ ...prev, [lineId]: detail }));
@@ -1697,32 +1483,10 @@ export function ZenithContractItemsTab({
                     item={item}
                     resolution={lineItemResolution[item.id]}
                     selected={expandedItemId === item.id}
-                    isLastRow={
-                      index === tableLineItems.length - 1 && visibleBillingGapItems.length === 0
-                    }
-                    isLastBeforeBillingGaps={
-                      index === tableLineItems.length - 1 && visibleBillingGapItems.length > 0
-                    }
+                    isLastRow={index === tableLineItems.length - 1}
                     onSelect={() => toggleLineItem(item)}
                   />
                 ))}
-                {visibleBillingGapItems.length > 0 ? (
-                  <>
-                    <BillingGapSectionHeaderRow />
-                    {visibleBillingGapItems.map((item, index) => (
-                      <BillingGapTableRow
-                        key={item.id}
-                        item={item}
-                        isFirstRow={index === 0}
-                        isLastRow={index === visibleBillingGapItems.length - 1}
-                        ignored={billingGapResolutions[item.id] === "ignored"}
-                        onInclude={() => includeBillingGapItem(item)}
-                        onIgnore={() => ignoreBillingGapItem(item.id)}
-                        onRestore={() => restoreBillingGapItem(item.id)}
-                      />
-                    ))}
-                  </>
-                ) : null}
               </tbody>
             </table>
           </div>

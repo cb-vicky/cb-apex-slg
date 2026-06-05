@@ -22,13 +22,8 @@ import type {
   IngestionSectionState,
   IngestionOperatorStatus,
 } from "@/context/ingest-context-core";
-import type { ContractLineItem, ContractBillingGapResolution } from "@/data/contract-line-items";
-import {
-  contractLineItemsNeedMappingCount,
-  countPendingBillingGapItems,
-  getBillingGapItemsForIngest,
-} from "@/data/contract-line-items";
-import type { IngestQueueSampleId } from "@/data/ingest-data";
+import type { ContractLineItem } from "@/data/contract-line-items";
+import { contractLineItemsNeedMappingCount } from "@/data/contract-line-items";
 
 export interface TabSummary {
   subtitle: string;
@@ -300,7 +295,6 @@ export interface IngestionStatusDetail {
 export interface IngestionStatusInput {
   session: IngestionSession;
   contractLineItems?: ContractLineItem[];
-  billingGapResolutions?: Readonly<Record<string, ContractBillingGapResolution>>;
 }
 
 const OPERATOR_STATUS_LABELS: Record<IngestionOperatorStatus, string> = {
@@ -319,8 +313,7 @@ const OPERATOR_STATUS_SEVERITY: Record<IngestionOperatorStatus, StatusSeverity> 
 
 /** Derive detailed ingestion status from session and Zenith context data */
 export function deriveIngestionStatus(input: IngestionStatusInput): IngestionStatusDetail {
-  const { session, contractLineItems = [], billingGapResolutions = {} } = input;
-  const sampleId = session.sampleId as IngestQueueSampleId | undefined;
+  const { session, contractLineItems = [] } = input;
 
   const issues: string[] = [];
 
@@ -331,17 +324,6 @@ export function deriveIngestionStatus(input: IngestionStatusInput): IngestionSta
       unmappedCount === 1
         ? "1 item needs catalog mapping"
         : `${unmappedCount} items need catalog mapping`
-    );
-  }
-
-  // Count pending billing gap items
-  const gapItems = getBillingGapItemsForIngest(sampleId, contractLineItems);
-  const pendingGaps = countPendingBillingGapItems(gapItems, billingGapResolutions);
-  if (pendingGaps > 0) {
-    issues.push(
-      pendingGaps === 1
-        ? "1 add-on requires action"
-        : `${pendingGaps} add-ons require action`
     );
   }
 
@@ -390,8 +372,6 @@ export function deriveIngestionStatus(input: IngestionStatusInput): IngestionSta
     // Prioritize unmapped items in subtitle
     if (unmappedCount > 0) {
       subtitle = unmappedCount === 1 ? "1 item needs mapping" : `${unmappedCount} items need mapping`;
-    } else if (pendingGaps > 0) {
-      subtitle = pendingGaps === 1 ? "1 add-on pending" : `${pendingGaps} add-ons pending`;
     } else if (sectionIssues.length > 0) {
       subtitle = `${sectionIssues.length} section${sectionIssues.length > 1 ? "s" : ""} need review`;
     }

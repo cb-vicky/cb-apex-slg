@@ -292,8 +292,6 @@ export function ZenithContractSummaryTab() {
   const lineItems = chrome?.contractLineItems ?? zenithSummaryLineItems;
   const itemsComplete = areZenithContractItemsComplete({
     items: lineItems,
-    sampleId: chrome?.ingestionSampleId,
-    billingGapResolutions: chrome?.billingGapResolutions,
   });
   const billingComplete = isSummarySectionReady(chrome, "Billing info");
   const addressesComplete = isSummarySectionReady(chrome, "Addresses");

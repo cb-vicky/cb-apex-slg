@@ -4,8 +4,9 @@ import { cn } from "@/lib/utils";
 
 export type ZenithSnippetVariant = "line-items" | "billing" | "addresses";
 
-const PAPER_CLIP_PATH =
-  "polygon(0% 4%, 3% 0%, 7% 3%, 12% 0%, 18% 4%, 24% 1%, 30% 3%, 36% 0%, 42% 4%, 48% 1%, 54% 3%, 60% 0%, 66% 4%, 72% 1%, 78% 3%, 84% 0%, 90% 4%, 96% 1%, 100% 3%, 100% 96%, 96% 100%, 90% 97%, 84% 100%, 78% 96%, 72% 99%, 66% 97%, 60% 100%, 54% 96%, 48% 99%, 42% 97%, 36% 100%, 30% 96%, 24% 99%, 18% 97%, 12% 100%, 6% 96%, 0% 99%)";
+// Torn paper effect only on top and bottom edges (straight vertical sides)
+const TORN_PAPER_CLIP_PATH =
+  "polygon(0% 4%, 4% 0%, 8% 3%, 12% 0%, 16% 4%, 20% 1%, 24% 3%, 28% 0%, 32% 4%, 36% 1%, 40% 3%, 44% 0%, 48% 4%, 52% 1%, 56% 3%, 60% 0%, 64% 4%, 68% 1%, 72% 3%, 76% 0%, 80% 4%, 84% 1%, 88% 3%, 92% 0%, 96% 3%, 100% 0%, 100% 96%, 96% 100%, 92% 97%, 88% 100%, 84% 96%, 80% 99%, 76% 96%, 72% 100%, 68% 97%, 64% 100%, 60% 96%, 56% 99%, 52% 96%, 48% 100%, 44% 97%, 40% 100%, 36% 96%, 32% 99%, 28% 96%, 24% 100%, 20% 97%, 16% 100%, 12% 96%, 8% 99%, 4% 96%, 0% 100%)";
 
 const SNIPPET_SECTION_TITLE: Record<ZenithSnippetVariant, string> = {
   "line-items": "Subscription items (contract excerpt)",
@@ -47,11 +48,11 @@ function ContractSnippetPaper({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-sm bg-[#f4f1ea] shadow-md ring-1 ring-black/5",
+        "relative overflow-hidden bg-[#f4f1ea] shadow-sm",
         t.pad,
         className,
       )}
-      style={{ clipPath: PAPER_CLIP_PATH }}
+      style={{ clipPath: TORN_PAPER_CLIP_PATH }}
     >
       {variant === "line-items" && <LineItemsSnippetBody typography={t} />}
       {variant === "billing" && <BillingSnippetBody typography={t} />}
