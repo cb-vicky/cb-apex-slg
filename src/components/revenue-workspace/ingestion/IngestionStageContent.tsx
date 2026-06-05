@@ -25,6 +25,7 @@ function zenithTabToNotesSubTab(tab: string): string {
     Items: "items",
     "Billing info": "billing",
     Addresses: "addresses",
+    "Subscription Preview": "subscription_preview",
     "Invoice Preview": "invoice_preview",
   };
   return mapping[tab] ?? "summary";

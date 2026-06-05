@@ -31,6 +31,7 @@ import {
   areZenithContractItemsComplete,
   areZenithSummaryPrerequisiteTabsComplete,
   isZenithInvoicePreviewEnabled,
+  isZenithSubscriptionPreviewEnabled,
   type ZenithTabCompletionStatus,
 } from "./zenith-contract-tab-status";
 import { useIngestContext } from "@/context/IngestContext";
@@ -158,6 +159,10 @@ export function ZenithContractChromeProvider({
     itemsComplete: itemsTabComplete,
   });
 
+  const subscriptionPreviewEnabled = isZenithSubscriptionPreviewEnabled({
+    itemsComplete: itemsTabComplete,
+  });
+
   const invoicePreviewEnabled = isZenithInvoicePreviewEnabled({
     itemsComplete: itemsTabComplete,
   });
@@ -169,12 +174,16 @@ export function ZenithContractChromeProvider({
    * - Items: complete only when all line items mapped + billing gaps resolved
    * - Summary: complete when Items complete (auto-derived)
    * - Billing info / Addresses: always complete by default (no explicit "mark as done")
+   * - Subscription Preview: enabled when Items complete
    * - Invoice Preview: enabled when Items complete; "complete" once invoice posted
    */
   const getContentTabStatus = useCallback(
     (tab: ZenithContractContentTab): ZenithTabCompletionStatus => {
       if (tab === "Items") return itemsTabComplete ? "complete" : "pending";
       if (tab === "Summary") return summaryTabComplete ? "complete" : "pending";
+      if (tab === "Subscription Preview") {
+        return subscriptionPreviewEnabled ? "pending" : "disabled";
+      }
       if (tab === "Invoice Preview") {
         if (isInvoicePosted) return "complete";
         return invoicePreviewEnabled ? "pending" : "disabled";
@@ -182,7 +191,7 @@ export function ZenithContractChromeProvider({
       // Billing info, Addresses: always complete by default
       return "complete";
     },
-    [itemsTabComplete, summaryTabComplete, invoicePreviewEnabled, isInvoicePosted],
+    [itemsTabComplete, summaryTabComplete, subscriptionPreviewEnabled, invoicePreviewEnabled, isInvoicePosted],
   );
 
   const openCommentsPanel = useCallback((focus?: ZenithCommentFocus) => {

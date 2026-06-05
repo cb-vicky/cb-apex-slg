@@ -10,6 +10,7 @@ export type IngestionSubTab =
   | IngestionSectionId
   | `pdf-${string}`
   | "contract-preview"
+  | "subscription-preview"
   | "invoice-preview";
 
 const CONTENT_TO_ZENITH: Record<IngestionSectionId, ZenithContractContentTab> = {
@@ -25,6 +26,7 @@ const ZENITH_TO_INGESTION_SUB: Partial<Record<ZenithContractActiveTab, Ingestion
   Items: "items",
   "Billing info": "billing",
   Addresses: "addresses",
+  "Subscription Preview": "subscription-preview",
   "Invoice Preview": "invoice-preview",
 };
 
@@ -65,6 +67,7 @@ export function ingestionSubToZenithTab(
   documents?: ExtractedDocument[],
 ): ZenithContractActiveTab {
   if (sub === "contract-preview") return "contract-pdf";
+  if (sub === "subscription-preview") return "Subscription Preview";
   if (sub === "invoice-preview") return "Invoice Preview";
   if (sub.startsWith("pdf-")) {
     const docId = sub.slice(4);
@@ -102,6 +105,7 @@ export function isZenithBackedIngestionSub(sub: IngestionSubTab): boolean {
 export function zenithContentTabForIngestionSub(
   sub: IngestionSubTab,
 ): ZenithContractContentTab | null {
+  if (sub === "subscription-preview") return "Subscription Preview";
   if (sub === "invoice-preview") return "Invoice Preview";
   if (sub.startsWith("pdf-") || sub === "contract-preview") return null;
   if (sub === "additional") return null;

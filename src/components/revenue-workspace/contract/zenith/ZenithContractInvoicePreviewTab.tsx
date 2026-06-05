@@ -286,14 +286,19 @@ export function ZenithContractInvoicePreviewTab() {
   // If there are still unmapped items, show a warning
   if (unmappedCount > 0) {
     return (
-      <div className="flex flex-col gap-4">
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
-          <p className="text-[14px] font-medium text-amber-900">
-            Cannot preview invoice — {unmappedCount} item{unmappedCount === 1 ? "" : "s"} still need
-            mapping.
+      <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-amber-200 bg-amber-50 px-8 py-12">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100">
+          <FileText size={28} className="text-amber-600" />
+        </div>
+        <div className="text-center">
+          <p className="text-[16px] font-semibold text-amber-900">
+            Cannot show invoice preview
           </p>
-          <p className="mt-1 text-[13px] text-amber-700">
-            Go back to the Items tab to resolve all mapping issues.
+          <p className="mt-1 text-[14px] text-amber-700">
+            All items must be resolved before the invoice can be previewed.
+          </p>
+          <p className="mt-2 text-[13px] text-amber-600">
+            Go to the Items tab to resolve mapping issues.
           </p>
         </div>
       </div>

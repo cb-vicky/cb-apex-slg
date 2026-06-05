@@ -22,6 +22,13 @@ export function areZenithSummaryPrerequisiteTabsComplete(input: {
   return input.itemsComplete;
 }
 
+/** Subscription Preview is enabled when Items are resolved. */
+export function isZenithSubscriptionPreviewEnabled(input: {
+  itemsComplete: boolean;
+}): boolean {
+  return input.itemsComplete;
+}
+
 /** Invoice Preview is enabled when Items are resolved. */
 export function isZenithInvoicePreviewEnabled(input: {
   itemsComplete: boolean;

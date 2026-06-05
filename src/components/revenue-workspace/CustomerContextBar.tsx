@@ -540,7 +540,7 @@ function InvoicingTabPill({
   );
 }
 
-type IngestionSubTab = IngestionSectionId | `pdf-${string}` | "contract-preview" | "invoice-preview";
+type IngestionSubTab = IngestionSectionId | `pdf-${string}` | "contract-preview" | "subscription-preview" | "invoice-preview";
 
 /** Height for the ingestion progress tracker strip - includes mt-4 (16px) + py-1.5 (6px*2) + h-7 (28px) */
 const INGESTION_TAB_HEIGHT = { expanded: 56, collapsed: 56 } as const;
@@ -783,7 +783,8 @@ function IngestionTabPill({
     { id: "items", label: "Items", shortLabel: "Items" },
     { id: "billing", label: "Billing", shortLabel: "Billing" },
     { id: "addresses", label: "Addresses", shortLabel: "Addresses" },
-    { id: "invoice-preview", label: "Preview", shortLabel: "Preview" },
+    { id: "subscription-preview", label: "Subscription", shortLabel: "Subscription" },
+    { id: "invoice-preview", label: "Invoice", shortLabel: "Invoice" },
   ];
 
   const isDocumentsActive =
@@ -796,6 +797,8 @@ function IngestionTabPill({
   // Get active document id for the switcher
   const activeDocumentId = isDocumentsActive ? activeSubTab : firstPdfId;
 
+  const subscriptionPreviewDisabled =
+    zenithChrome?.getContentTabStatus("Subscription Preview") === "disabled";
   const invoicePreviewDisabled =
     zenithChrome?.getContentTabStatus("Invoice Preview") === "disabled";
 
@@ -836,7 +839,9 @@ function IngestionTabPill({
         <div className="flex items-center gap-0.5">
           {flowTabs.map((tab, idx) => {
             const isActive = activeSubTab === tab.id;
-            const isDisabled = tab.id === "invoice-preview" && invoicePreviewDisabled;
+            const isDisabled = 
+              (tab.id === "subscription-preview" && subscriptionPreviewDisabled) ||
+              (tab.id === "invoice-preview" && invoicePreviewDisabled);
             const stepStatus = getStepStatus(tab.id as IngestionSubTabSync);
             const isPast = activeFlowIndex > idx;
             const isLast = idx === flowTabs.length - 1;

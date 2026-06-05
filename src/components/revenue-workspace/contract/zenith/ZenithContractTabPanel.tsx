@@ -5,6 +5,7 @@ import { ZenithContractBillingInfoTab } from "./ZenithContractBillingInfoTab";
 import { ZenithContractDocumentPreview } from "./ZenithContractDocumentPreview";
 import { ZenithContractItemsTab } from "./ZenithContractItemsTab";
 import { ZenithContractSummaryTab } from "./ZenithContractSummaryTab";
+import { ZenithSubscriptionPreviewTab } from "./ZenithSubscriptionPreviewTab";
 import { ZenithContractInvoicePreviewTab } from "./ZenithContractInvoicePreviewTab";
 
 interface Props {
@@ -27,6 +28,10 @@ export function ZenithContractTabPanel({ activeTab, ingestionSampleId }: Props) 
 
   if (activeTab === "Addresses") {
     return <ZenithContractAddressesTab />;
+  }
+
+  if (activeTab === "Subscription Preview") {
+    return <ZenithSubscriptionPreviewTab />;
   }
 
   if (activeTab === "Invoice Preview") {

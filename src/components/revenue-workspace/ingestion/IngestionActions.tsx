@@ -52,6 +52,7 @@ const TAB_FLOW_ORDER: IngestionSubTab[] = [
   "items",
   "billing",
   "addresses",
+  "subscription-preview",
   "invoice-preview",
 ];
 
@@ -89,8 +90,10 @@ export function IngestionActions({ session, customerId }: Props) {
 
   // Check if items are resolved (all mapped + billing gaps resolved)
   const itemsComplete = chrome?.getContentTabStatus("Items") === "complete";
-  const isOnPreviewTab = currentSub === "invoice-preview";
-  const previewEnabled = chrome?.getContentTabStatus("Invoice Preview") !== "disabled";
+  const isOnSubscriptionPreview = currentSub === "subscription-preview";
+  const isOnInvoicePreview = currentSub === "invoice-preview";
+  const subscriptionPreviewEnabled = chrome?.getContentTabStatus("Subscription Preview") !== "disabled";
+  const invoicePreviewEnabled = chrome?.getContentTabStatus("Invoice Preview") !== "disabled";
 
   // Close overflow menu on outside click
   useEffect(() => {
@@ -132,14 +135,19 @@ export function IngestionActions({ session, customerId }: Props) {
 
     const currentIndex = TAB_FLOW_ORDER.indexOf(currentSub);
     
-    // If on addresses and going to preview, check if items are resolved
-    if (currentSub === "addresses" && !previewEnabled) {
-      // Still go to preview
-      navigateToTab("invoice-preview");
+    // If on addresses and going to subscription preview, check if items are resolved
+    if (currentSub === "addresses" && !subscriptionPreviewEnabled) {
+      // Still go to subscription preview (will show disabled message)
+      navigateToTab("subscription-preview");
       return;
     }
 
-    // If on preview and items not resolved, do nothing
+    // If on subscription preview and items not resolved, do nothing
+    if (currentSub === "subscription-preview" && !itemsComplete) {
+      return;
+    }
+
+    // If on invoice preview and items not resolved, do nothing
     if (currentSub === "invoice-preview" && !itemsComplete) {
       return;
     }
@@ -157,7 +165,9 @@ export function IngestionActions({ session, customerId }: Props) {
   function navigateToTab(tab: IngestionSubTab) {
     if (chrome) {
       // Use zenith chrome to navigate tabs
-      if (tab === "invoice-preview") {
+      if (tab === "subscription-preview") {
+        chrome.setActiveTab("Subscription Preview");
+      } else if (tab === "invoice-preview") {
         chrome.setActiveTab("Invoice Preview");
       } else if (tab === "summary") {
         chrome.setActiveTab("Summary");
@@ -221,17 +231,22 @@ export function IngestionActions({ session, customerId }: Props) {
     persona === "approver" && session.overallStatus === "awaiting_approval";
 
   // Determine CTA label and action
-  const isLastTabWithItemsComplete = isOnPreviewTab && itemsComplete;
+  // "Send for approval" only shows on Invoice Preview when items are complete
+  const isLastTabWithItemsComplete = isOnInvoicePreview && itemsComplete;
   const ctaLabel = isLastTabWithItemsComplete ? "Send for approval" : "Next";
   const ctaAction = isLastTabWithItemsComplete ? handleSendForApproval : handleNext;
-  const ctaDisabled = isOnPreviewTab && !itemsComplete;
+  // Disable Next on subscription preview or invoice preview if items not resolved
+  const ctaDisabled = (isOnSubscriptionPreview || isOnInvoicePreview) && !itemsComplete;
+
+  // Show status dropdown as separate button only when items NOT complete
+  const showStatusAsSeparateButton = !isApproverReview && !itemsComplete;
 
   return (
     <RecordHeader
       actions={
         <div className="flex items-center gap-2">
-          {/* Operator Status Tag Dropdown */}
-          {!isApproverReview && (
+          {/* Operator Status Tag Dropdown - only when items not resolved */}
+          {showStatusAsSeparateButton && (
             <div ref={statusDropdownRef} className="relative">
               <button
                 type="button"
@@ -313,6 +328,39 @@ export function IngestionActions({ session, customerId }: Props) {
               </button>
               {showOverflow && (
                 <div className="absolute right-0 top-[calc(100%+4px)] z-30 w-48 overflow-hidden rounded-xl border border-border-default bg-white py-1 shadow-lg animate-in fade-in slide-in-from-top-2 duration-150">
+                  {/* Status submenu - only when items are resolved */}
+                  {itemsComplete && (
+                    <>
+                      <div className="px-2.5 py-1.5">
+                        <p className="text-[10px] font-medium uppercase tracking-wider text-text-muted">Status</p>
+                      </div>
+                      {OPERATOR_STATUS_OPTIONS.map((option) => {
+                        const colors = STATUS_COLOR_CLASSES[option.color];
+                        const isSelected = session.operatorStatus === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => {
+                              handleStatusChange(option.value);
+                              setShowOverflow(false);
+                            }}
+                            className={cn(
+                              "flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[12px] transition-colors",
+                              isSelected ? "bg-gray-50" : "hover:bg-gray-50",
+                            )}
+                          >
+                            <span className={cn("h-1.5 w-1.5 rounded-full", colors.bg.replace("bg-", "bg-").replace("-100", "-500"))} />
+                            <span className={isSelected ? "font-medium text-text-primary" : "text-text-primary"}>
+                              {option.label}
+                            </span>
+                            {isSelected && <span className="ml-auto text-blue-600 text-[10px]">✓</span>}
+                          </button>
+                        );
+                      })}
+                      <div className="my-1 border-t border-border-default" />
+                    </>
+                  )}
                   <button
                     type="button"
                     onClick={handleRestart}

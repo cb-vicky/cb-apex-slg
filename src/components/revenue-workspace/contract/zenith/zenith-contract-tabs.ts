@@ -3,16 +3,25 @@ export const ZENITH_CONTRACT_CONTENT_TABS = [
   "Items",
   "Billing info",
   "Addresses",
+  "Subscription Preview",
   "Invoice Preview",
 ] as const;
 
 export type ZenithContractContentTab = (typeof ZENITH_CONTRACT_CONTENT_TABS)[number];
+
+/** Tabs that must be complete before Subscription Preview is enabled */
+export const ZENITH_SUBSCRIPTION_PREVIEW_PREREQUISITE_TABS: ZenithContractContentTab[] = [
+  "Items",
+  "Billing info", 
+  "Addresses",
+];
 
 /** Tabs that must be complete before Invoice Preview is enabled */
 export const ZENITH_INVOICE_PREVIEW_PREREQUISITE_TABS: ZenithContractContentTab[] = [
   "Items",
   "Billing info", 
   "Addresses",
+  "Subscription Preview",
 ];
 
 export const ZENITH_CONTRACT_DOCUMENT_TABS = [
