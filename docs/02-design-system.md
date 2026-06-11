@@ -107,10 +107,32 @@ Components live under `src/components/revenue-workspace/`, `src/components/index
 
 ### Workspace chrome (live)
 
-- **`CustomerContextBar`** — sticky workspace chrome: breadcrumb, customer title (collapses on scroll), file-folder tabs with grouped child tabs, optional `recordSlot`
-- **`RecordHeader`** — **action-only** slim glass pill (`rounded-full`, `bg-white/65`, `backdrop-blur-md`) portaled into `RecordSlotContext`
+- **`CustomerContextBar`** — sticky workspace chrome with:
+  - **Header rows:** Breadcrumb + team meta (row 1), Customer name + priority chips (row 2)
+  - **Trapezoidal tabs:** Center-aligned, 62px expanded / 30px collapsed, 10px corner radius
+  - **Context pills:** Two inverted trapezoid pills below tab line — left (info) + right (actions)
+- **`RecordHeader`** — renders action CTAs inside the right context pill (no separate container)
 - **`RecordSlotContext`** — portal target for stage-rendered record actions
 - **`SectionCard`** — shared section wrapper with title + slot
+
+### Tab design specs
+
+- **Shape:** Trapezoidal — narrower at top, wider at bottom
+- **Height:** 62px expanded, 30px collapsed (on scroll)
+- **Corner radius:** 10px (reduced from 14px to minimize visual jump during collapse)
+- **Title truncation:** 11 characters for parent tabs, 8 characters for record tabs
+- **Spacing:** Tightly packed, **no** flex-fill stretch — extra space on right
+- **Alignment:** Center-aligned in container
+- **Overlap:** 22px negative margin between adjacent tabs
+
+### Context pill design specs
+
+- **Shape:** Inverted trapezoidal — wider at top, narrower at bottom
+- **Height:** 34px (same for both left and right pills)
+- **Position:** 1px below horizontal separator line (line remains visible)
+- **Fill:** Semi-transparent white (`rgba(255,255,255,0.85)`)
+- **Stroke:** Only on sides and bottom (top edge open — no double border)
+- **Shadow:** Subtle drop shadow (`drop-shadow(0 4px 12px rgba(17,24,39,0.08))`)
 
 ### Workspace types
 
@@ -131,39 +153,23 @@ Each lifecycle stage has a `<Stage>StageContent.tsx`:
 
 ### Drawer & overlay primitives
 
-- **`EntityDrawer`** (`src/components/common/EntityDrawer.tsx`) — global 75% right panel, orchestrated by `src/store/drawer-store.ts`
-- **`UnifiedFlowShell`** — multi-step flows (ingest → invoice review → close_prior / grace)
-- **`IngestDrawer`** — ingest/approval body; `presentation="default"` (drawer) or `"page"` (full-page grid)
+- **`EntityDrawer`** (`src/components/common/EntityDrawer.tsx`) — global 75% right panel, simplified to render `InvoiceApprovalDrawer` only (mode `invoice_approval`); orchestrated by `src/store/drawer-store.ts`
+- **`LinkCustomerModal`** (`src/components/ingestion/LinkCustomerModal.tsx`) — 720px centered modal that links a queue item to a new or existing customer; orchestrated by `src/store/link-customer-modal-store.ts`. Replaces the deleted `IngestDrawer` / `UnifiedFlowShell` as the ingestion entry point. Customer selection synced via `useEffect` on `preselectedCustomer`
 
 ### Visual primitives
 
-- `StatusBadge`, `KV`, `TimelineRow`, `ActionButton`
+- `StatusBadge`, `KV`, `TimelineRow`, `ActionButton` (supports `disabled` prop for state-aware CTAs)
 - Index: `PageHeader`, `MetricStrip`, `FilterBar`, `ListTable` / `ListRow` / `ListCell`
 
-### Ingest drawer primitives
+### Customer 360 Ingestion primitives
 
-- `IngestFieldGroup` — bordered card wrapper for ingest sections with header chrome + optional status chip
-- `DrawerStackedField`, `DrawerRailIndent`, `DrawerSelectShell`, `DrawerNativeSelect`
-- `ValidationPanel` — `vertical` | `horizontal` | `sidebar` layouts
+- `IngestionStageContent` — frame/sub router; portals `IngestionActions` into the `RecordHeader` slot
+- `IngestionSummarySection` / `IngestionItemsSection` / `IngestionBillingSection` / `IngestionAddressesSection` / `IngestionAdditionalInfoSection` — Frame 1 section views (each owns its own status indicator + "Mark as done" CTA)
+- `IngestionPdfPreview` — self-contained `min-h-[78vh]` document viewer
+- `IngestionContractPreview` / `IngestionInvoicePreview` — Frame 2 mock previews
+- `IngestionActions` — flat-CTA composition (`Preview` in Frame 1, `Send for approval` + overflow in Frame 2)
 
-#### ValidationPanel layouts
-
-**`vertical`** — Full-height column for 25% left column in full-page ingest: sticky header, scrollable validation list, comments toggle.
-
-**`horizontal`** — Compact row for narrow contexts: inline chips + expandable comments.
-
-**`sidebar`** — Minimal vertical list for tight spaces.
-
-Status icons: `valid` → emerald check; `warning` / `error` → amber/red alert; `pending` → gray dot.
-
-### Ingest field group chip tones
-
-| Tone | Use case |
-|------|----------|
-| `valid` | Validation passed, mapped |
-| `warning` | Needs attention, unmapped lines |
-| `error` | Blocking error |
-| `neutral` | Default, informational |
+Per-section status dots (rendered inside the left context pill on the Ingestion tab): green `done`, amber `review`, red `issues`, gray `pending`.
 
 ## Section card usage rules
 

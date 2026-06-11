@@ -10,7 +10,8 @@ import { useIngestContext } from "@/context/IngestContext";
 import { useDemoPersona } from "@/context/DemoPersonaContext";
 import type { QueueItem, QueueSource } from "@/data/queue-data";
 import { queueItemKindLabel } from "@/data/workbench-tasks";
-import { openDrawer } from "@/store/drawer-store";
+import { useNewDealCustomerLinkGate } from "@/hooks/useNewDealCustomerLinkGate";
+import { openQueueIngestionTab } from "@/lib/new-deal-customer-link";
 
 function SourceBadge({ source, detail }: { source: QueueSource; detail?: string }) {
   const config: Record<QueueSource, { icon: typeof FileText; tone: string; label: string }> = {
@@ -102,48 +103,24 @@ export function QueueTabContent() {
   const navigate = useNavigate();
   const { queueItems, approvalRequests } = useIngestContext();
   const { persona } = useDemoPersona();
+  const { openQueueFlow } = useNewDealCustomerLinkGate();
 
   function handleRowClick(q: QueueItem) {
     const pendingInvoiceApproval = approvalRequests.find(
       (r) => r.ingestId === q.id && r.status === "Pending Approval",
     );
-    if (q.status === "Invoice review" && q.invoiceId) {
-      openDrawer({
-        entityType: "queue_item",
-        mode: "ingest",
-        entityId: q.id,
-        flow: {
-          scenario: "ingest_invoice",
-          step: "invoice_review",
-          furthestUnlockedStep: "invoice_review",
-          queueItemId: q.id,
-          invoiceId: q.invoiceId,
-          contractId: q.contractId,
-          customerId: q.customerId,
-        },
+    if (q.status === "Invoice review" && q.invoiceId && q.customerId) {
+      navigate(`/customers/${q.customerId}?tab=invoicing&invoiceId=${q.invoiceId}`);
+      return;
+    }
+    if (q.status === "Returned" && q.ingestable && q.customerId) {
+      openQueueFlow(q, () => {
+        openQueueIngestionTab(q.customerId!, q.id, navigate);
       });
       return;
     }
-    if (q.status === "Returned" && q.ingestable) {
-      openDrawer({ entityType: "queue_item", mode: "ingest", entityId: q.id });
-      return;
-    }
-    if (q.status === "Ingested" && persona === "approver" && q.invoiceId && pendingInvoiceApproval) {
-      openDrawer({
-        entityType: "invoice",
-        mode: "invoice_approval",
-        entityId: q.invoiceId,
-        context: { queueItemId: q.id },
-        flow: {
-          scenario: "ingest_invoice",
-          step: "invoice_review",
-          furthestUnlockedStep: "invoice_review",
-          invoiceId: q.invoiceId,
-          queueItemId: q.id,
-          contractId: q.contractId,
-          customerId: q.customerId,
-        },
-      });
+    if (q.status === "Ingested" && persona === "approver" && q.invoiceId && pendingInvoiceApproval && q.customerId) {
+      navigate(`/customers/${q.customerId}?tab=invoicing&invoiceId=${q.invoiceId}`);
       return;
     }
     if (q.status === "Ingested" && q.customerId && q.contractId) {
@@ -151,21 +128,25 @@ export function QueueTabContent() {
       return;
     }
     if (q.status === "Failed" || q.status === "Rejected") {
-      navigate(`/queue/${q.id}`);
+      if (q.customerId) {
+        navigate(`/customers/${q.customerId}?tab=ingestion&queueItemId=${q.id}`);
+      }
       return;
     }
     if (
       q.ingestable &&
       (q.status === "Pending Review" || q.status === "In Progress")
     ) {
-      openDrawer({
-        entityType: "queue_item",
-        mode: "ingest",
-        entityId: q.id,
+      openQueueFlow(q, () => {
+        if (q.customerId) {
+          openQueueIngestionTab(q.customerId, q.id, navigate);
+        }
       });
       return;
     }
-    navigate(`/queue/${q.id}`);
+    if (q.customerId) {
+      navigate(`/customers/${q.customerId}?tab=ingestion&queueItemId=${q.id}`);
+    }
   }
 
   return (

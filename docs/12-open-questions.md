@@ -38,6 +38,12 @@ Six seed customers with distinct lifecycle stories — enough for demos, not pro
 
 Echo Corp and Northlane Labs have representative tickets and email summaries; Threads tab uses `email-threads.ts`.
 
+### Items tab — billing-rule gaps (May 2026, additive)
+
+- Gap suggestions are **mock-only** on `ExtractedContract.billingRuleGapItems` in `ingest-data.ts`; not derived from PDF extraction.
+- **Ignore** is a valid terminal state for tab completion (same as **Add** + link).
+- Renewal samples (`sample3`, `sample4`) have empty gap arrays until Items grid exists for those flows.
+
 ---
 
 ## Lifecycle tab assumptions
@@ -76,7 +82,14 @@ RevRec must never imply cash-based recognition.
 
 ### Queue seed size
 
-Three-row minimal seed in `queue-data.ts` — expand when adding scenarios.
+Minimal seed in `queue-data.ts` includes Zenith (`QI-2026-0002`), Pioneer match-first (`QI-2026-0007`), Early/Late renewal rows — expand when adding scenarios.
+
+### Match-first customer link
+
+- **`linkWorkflow: "match_first"`** on queue row (or `sample5`) selects `NewDealCustomerLinkMatchFirstPanel`.
+- Closest match is **suggested**, not auto-linked — operator must **Approve** (or pick another row after Reject / browse).
+- After **Approve**, extracted card stays in **Ready** state when opening similar browse; dual linked cards are not shown until operator picks a different customer or leaves approved-ready flow.
+- **Reject** lands in **View all customers** with matches on top; closest row has outline **Closest match** pill without green row fill.
 
 ### IngestFieldGroup
 

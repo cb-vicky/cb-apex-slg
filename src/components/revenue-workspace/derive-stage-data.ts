@@ -427,6 +427,7 @@ export function deriveAllStageStatuses(
     threads: { text: "Threads", severity: "blue" },
     quote: quote ? deriveQuoteStatus(quote) : { text: "No quote", severity: "blue" },
     contract: contract ? deriveContractStatus(contract, invoiceStatusOverrides) : { text: "No contract yet", severity: "blue" },
+    ingestion: { text: "In progress", severity: "blue" },
     invoicing: contract ? deriveInvoicingStatus(customer.id, invoiceStatusOverrides) : { text: "—", severity: "blue" },
     payment: contract ? derivePaymentStatus(customer.id, invoiceStatusOverrides) : { text: "—", severity: "blue" },
     comments: contract

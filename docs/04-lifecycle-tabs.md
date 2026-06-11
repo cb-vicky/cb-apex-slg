@@ -2,7 +2,7 @@
 
 Detail specs for each tab inside the `CustomerRevenueWorkspace`. Read alongside `docs/03-customer-workspace.md` (shell anatomy) and `docs/07-dynamic-status.md` (insight/NBA derivation).
 
-Tab order: **Overview → Tasks → Threads → Quotes → Contracts → Invoicing → Collections → RevRec**.
+Tab order: **Overview → Tasks → Threads → Quotes → Contracts → Ingestion (conditional) → Invoicing → Collections → RevRec**.
 
 > **Shell note:** The live UI uses **`CustomerContextBar`** file-folder tabs. Intelligence lives in **tab content** and dedicated **Tasks** / **Threads** tabs.
 >
@@ -278,6 +278,98 @@ Related records appear in stage sections (source quote, invoices, etc.).
 
 ---
 
+## Ingestion tab (conditional)
+
+**Purpose:** Contract ingestion workspace for reviewing extracted contract data and creating the corresponding Chargebee contract and first invoice. This tab is **conditionally visible** — it only appears when the customer has an active ingestion session.
+
+**Record actions** (rendered via `RecordHeader` portal into the right context pill — flat CTAs only, no status dropdown):
+- Frame 1: **Preview** (enabled when `overallStatus === "ready"` OR every section is `done`)
+- Frame 2: **Send for approval** + overflow (`Restart ingestion`, `Discard contract`)
+
+Component: `IngestionStageContent` (`src/components/revenue-workspace/ingestion/`).
+
+### Visibility
+
+The Ingestion tab only appears in the workspace when `getActiveIngestionForCustomer(customerId)` returns an active `IngestionSession`. This is unlike other tabs which are always visible (but may be disabled).
+
+### Two-frame architecture
+
+**Frame 1 (Review):** Sub-tab navigation via `ContextInfoPill`:
+- Summary — contract terms overview
+- Items — line items with catalog mapping
+- Billing — billing frequency, payment terms
+- Addresses — billing/shipping addresses
+- Additional Info — notes, clauses
+- PDFs — uploaded document preview
+
+Each section displays a status indicator (issues/review/done) with a "Mark as done" CTA.
+
+**Frame 2 (Preview):** Accessed after review is complete:
+- Contract Preview — mock of how the contract will appear
+- Invoice Preview — mock of the first invoice
+
+### URL structure
+
+```
+/customers/:id?tab=ingestion&frame=1&sub=summary
+/customers/:id?tab=ingestion&frame=1&sub=items
+/customers/:id?tab=ingestion&frame=2&sub=contract-preview
+```
+
+### Sections (Frame 1)
+
+**1. Summary** (`IngestionSummarySection`)
+Contract terms overview: term, dates, billing frequency, payment terms, TCV, ARR, minimum commit, prepaid credits.
+
+**2. Items** (`IngestionItemsSection`)
+Extracted line items with catalog matching status. Unmapped items show "Map to catalog" action with product search.
+
+**3. Billing** (`IngestionBillingSection`)
+Contract term visualization, billing frequency, payment terms, financial summary.
+
+**4. Addresses** (`IngestionAddressesSection`)
+Billing and shipping address forms with "Same as billing" option.
+
+**5. Additional Info** (`IngestionAdditionalInfoSection`)
+Notes field and expandable contract clauses list.
+
+**6. PDFs** (`IngestionPdfPreview`)
+Document viewer with zoom and page navigation.
+
+### Previews (Frame 2)
+
+**Contract Preview** (`IngestionContractPreview`)
+Mock contract display showing: contract ID, customer, status, terms, products, clauses.
+
+**Invoice Preview** (`IngestionInvoicePreview`)
+Mock invoice display showing: invoice number, dates, addresses, line items, totals.
+
+### State management
+
+Session state is managed in `IngestContext` via `IngestionSession`:
+- `queueItemId` — source queue item
+- `customerId` — linked customer
+- `sampleId` — which extracted data set to use
+- `customerLink` — "matched" or "created"
+- `overallStatus` — "in_review" | "ready" | "awaiting_approval"
+- `sections` — per-section completion state
+
+### Send for approval flow
+
+1. Build `Contract` from extracted data (`buildSessionContractFromIngestion`)
+2. Build `Invoice` for first billing period (`buildSessionInvoiceFromIngestion`)
+3. Add to session contracts/invoices
+4. Submit invoice for approval (`submitInvoiceForApproval`)
+5. Override invoice status to `"Pending Approval"` (`setInvoiceStatusOverride`) so the status reflects everywhere `mergeInvoiceStatuses` reads (lists, badges, customer 360, Workbench Approvals)
+6. Mark queue item `"Ingested"` (`applyQueueItemOverride`) and `completeIngestion` to remove the session — Ingestion tab becomes hidden
+7. Navigate to `/customers/:id?tab=invoicing&invoiceId=<new>` — workspace's URL-sync effect opens the new invoice's detail tab automatically
+
+The approver flow then continues from the invoice's details page (see Invoicing tab "Pending Approval" actions below).
+
+See `docs/09-contract-ingestion.md` for the full ingestion pipeline.
+
+---
+
 ## Invoicing tab
 
 **Purpose:** Billing execution workspace answering: What should be invoiced? What is pending? What is blocked? Does the invoice match the contract?
@@ -286,7 +378,21 @@ Related records appear in stage sections (source quote, invoices, etc.).
 
 **Record context bar fields:** Invoice ID, status, amount, billing period, due date, linked contract, invoice type, PO state if relevant.
 
-**Actions:** Review invoice · Approve & Send · Put on hold / Release hold · Regenerate · Create credit note · Preview PDF.
+**Actions:** State-aware via `RecordHeader` (composed in `InvoicingStageContent`). Reads `effectiveStatus = invoiceStatusOverrides[id] ?? invoice.status` and short-circuits on `holdReason` / `disputeReason`.
+
+| Invoice state | Primary actions | Overflow (`…`) |
+|---|---|---|
+| Held (`holdReason` set) | Preview · Clear hold | Regenerate · Issue credit note |
+| Disputed (`disputeReason` set) | Preview · Review dispute | Issue credit note · Regenerate |
+| Cancelled | Preview | — |
+| **Pending Approval** (post Send-for-approval) | Preview · **View in Approvals** | Regenerate |
+| Pending Review — submitted (in `submittedInvoiceIds`) | Preview · View in Approvals | Regenerate |
+| Pending Review — not yet submitted | Preview · **Send for approval** | Regenerate |
+| Overdue | Preview · Record payment | Send reminder · Issue credit note |
+| Paid | Preview · Issue credit note | — |
+| Other (Approved / default) | Preview · Regenerate | Issue credit note |
+
+**View in Approvals** opens `InvoiceApprovalDrawer` via `EntityDrawer` (mode `invoice_approval`) — same path used by `Workbench → Approvals`. **Send for approval** runs `submitInvoiceForApproval` for invoices that originate outside the ingestion flow (existing draft Pending Review invoices).
 
 Component: `InvoicingStageContent`.
 

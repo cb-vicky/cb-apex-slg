@@ -4,8 +4,6 @@ import {
   closeDrawer,
   getDrawerState,
   openDrawer as openDrawerInternal,
-  patchFlowSession as patchFlowSessionInternal,
-  setFlowStep as setFlowStepInternal,
   subscribeDrawer,
 } from "./drawer-store";
 
@@ -20,19 +18,9 @@ export function useDrawerStore() {
     closeDrawer();
   }, []);
 
-  const patchFlowSession = useCallback((partial: Parameters<typeof patchFlowSessionInternal>[0]) => {
-    patchFlowSessionInternal(partial);
-  }, []);
-
-  const setFlowStep = useCallback((step: Parameters<typeof setFlowStepInternal>[0]) => {
-    setFlowStepInternal(step);
-  }, []);
-
   return {
     ...(snap as DrawerState),
     openDrawer,
     closeDrawer: close,
-    patchFlowSession,
-    setFlowStep,
   };
 }

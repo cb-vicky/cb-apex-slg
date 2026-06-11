@@ -78,7 +78,7 @@ const SIDEBAR_COLLAPSED_W = 32;
 const SIDEBAR_COLLAPSED_HOVER_W = 36;
 
 const ASIDE_BASE =
-  "squircle flex flex-col border-l border-slate-200 bg-slate-50 shadow-[inset_1px_0_0_rgba(148,163,184,0.12)] md:relative md:h-full md:min-h-0 md:rounded-none md:border-l md:shadow-none";
+  "squircle flex flex-col border-l border-gray-300 bg-slate-50 shadow-[inset_1px_0_0_rgba(148,163,184,0.12)] md:relative md:h-full md:min-h-0 md:rounded-none md:border-l md:shadow-none";
 
 const ASIDE_EXPANDED = `${ASIDE_BASE} max-w-none min-w-0`;
 

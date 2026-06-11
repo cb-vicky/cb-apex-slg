@@ -9,7 +9,7 @@ alwaysApply: false
 When editing Workbench (`WorkbenchHome`, tab content, `WorkbenchTaskList`):
 
 - **`docs/10-workbench-home.md`** — Your tasks | Queue | Approvals, persona, stats, drawer destinations
-- **`docs/09-contract-ingestion.md`** — queue ingest, Import, UnifiedFlowShell
+- **`docs/09-contract-ingestion.md`** — queue ingest, Import, `LinkCustomerModal` → Customer 360 Ingestion tab
 - **`docs/02-design-system.md`** — tone and tab styling (blue active underline)
 
 ## Key rules
@@ -17,6 +17,6 @@ When editing Workbench (`WorkbenchHome`, tab content, `WorkbenchTaskList`):
 1. **Tabs:** **Your tasks** (default) | **Queue** | **Approvals** — via `?tab=queue|approvals`.
 2. **Persona:** Operator / Approver in **TopNav** (`DemoPersonaContext`) — filters `deriveWorkbenchTasks`.
 3. **Your tasks:** Flat severity-sorted table; data from `IngestContext` only — no duplicate global state.
-4. **Queue tab:** Import opens `UploadModal` → drawer-first ingest (`EntityDrawer`).
+4. **Queue tab:** Import opens `UploadModal` → `LinkCustomerModal` → Customer 360 Ingestion tab on the customer workspace.
 5. **Getting Started** components are **not** mounted — do not document as active without wiring.
 6. No outer wrapper card inside the canvas.

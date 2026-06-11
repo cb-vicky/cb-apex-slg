@@ -8,6 +8,7 @@ import { useIngestContext } from "@/context/IngestContext";
 import { useDemoPersona } from "@/context/DemoPersonaContext";
 import { invoices, customers } from "@/data/mock-data";
 import { approvalRequestKindLabel } from "@/data/workbench-tasks";
+import { getCustomerIngestionInvoicePreviewUrl } from "@/lib/new-deal-customer-link";
 
 const columns: Column[] = [
   { key: "kind", label: "Task type", width: "200px", sortable: true },
@@ -75,22 +76,19 @@ export function ApprovalsTabContent() {
               key={req.id}
               onClick={() => {
                 if (persona === "approver" && req.effectiveStatus === "Pending Approval") {
+                  if (req.ingestId && req.customerId) {
+                    navigate(
+                      getCustomerIngestionInvoicePreviewUrl(req.customerId, req.ingestId, {
+                        from: "workbench",
+                      }),
+                    );
+                    return;
+                  }
                   openDrawer({
                     entityType: "invoice",
                     mode: "invoice_approval",
                     entityId: req.invoiceId,
                     context: req.ingestId ? { queueItemId: req.ingestId } : undefined,
-                    ...(req.ingestId
-                      ? {
-                          flow: {
-                            scenario: "ingest_invoice",
-                            step: "invoice_review",
-                            furthestUnlockedStep: "invoice_review",
-                            invoiceId: req.invoiceId,
-                            queueItemId: req.ingestId,
-                          },
-                        }
-                      : {}),
                   });
                   return;
                 }

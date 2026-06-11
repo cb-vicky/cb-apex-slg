@@ -21,9 +21,10 @@ This folder replaces the monolithic `apex-ui-plan.md`. Each doc is a self-contai
 | 10 | [`10-workbench-home.md`](10-workbench-home.md) | Workbench: Your tasks + Queue + Approvals tabs |
 | 11 | [`11-workspace-cleanup-and-gating.md`](11-workspace-cleanup-and-gating.md) | Tab gating rules, list-then-detail transitions |
 | 12 | [`12-open-questions.md`](12-open-questions.md) | Decisions, assumptions, stubs, outstanding Qs |
-| 13 | [`13-drawer-and-flows.md`](13-drawer-and-flows.md) | `EntityDrawer`, `drawer-store`, `UnifiedFlowShell`, flow steps |
+| 13 | [`13-drawer-and-flows.md`](13-drawer-and-flows.md) | `EntityDrawer`, `drawer-store`, `LinkCustomerModal`, Customer 360 Ingestion tab |
 | 14 | [`14-receivables-cutdown.md`](14-receivables-cutdown.md) | Receivables cutdown branch — what changed vs `main`, add/remove summary |
 | 15 | [`15-receivables-cutdown-mock-data.md`](15-receivables-cutdown-mock-data.md) | Mock data added on receivables cutdown branch |
+| 16 | [`16-bucket-3-defer.md`](16-bucket-3-defer.md) | Bucket-3 chrome deferred during main merge — keep vs defer checklist |
 
 ## Archive
 
@@ -37,7 +38,7 @@ This folder replaces the monolithic `apex-ui-plan.md`. Each doc is a self-contai
 |---|---|---|
 | `revenue-workspace.mdc` | `src/components/revenue-workspace/**`, detail page components | docs 03, 04, 07, 02, 11 |
 | `index-pages.mdc` | `src/pages/*Index.tsx`, `src/components/index-page/**` | docs 05, 06, 02, 08 |
-| `ingestion-approvals.mdc` | ingest/approval pages, `IngestContext`, drawer store, transitions | docs 09, 13, 06, 08 |
+| `ingestion-approvals.mdc` | ingest/approval pages, `IngestContext`, drawer store, ingestion components | docs 09, 13, 06, 08 |
 | `mock-data.mdc` | `src/data/**`, `src/context/**` | doc 08 |
 | `shell-and-layout.mdc` | `src/components/layout/**`, `App.tsx`, `main.tsx` | docs 01, 02, 06 |
 | `workbench-home.mdc` | `src/pages/workbench/**` | docs 10, 02, 09 |

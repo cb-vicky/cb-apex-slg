@@ -54,13 +54,9 @@ export function RecordHeader(props: Props) {
 function RecordCard({ actions, overflowItems }: Props) {
   if (!actions && (!overflowItems || overflowItems.length === 0)) return null;
 
+  // Render actions inline — the parent ActionsPillWrapper provides the trapezoidal container
   return (
-    <div
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white/80 px-4 py-2",
-        "shadow-[0_6px_16px_-8px_rgba(17,24,39,0.15)] backdrop-blur-md backdrop-saturate-150",
-      )}
-    >
+    <div className="inline-flex items-center">
       <ActionRow overflowItems={overflowItems}>{actions}</ActionRow>
     </div>
   );

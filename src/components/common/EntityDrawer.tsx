@@ -1,14 +1,13 @@
 import { useEffect } from "react";
 import { useDrawerStore } from "@/store/useDrawerStore";
-import { IngestDrawer } from "@/components/transitions/IngestDrawer";
 import { InvoiceApprovalDrawer } from "@/components/approvals/InvoiceApprovalDrawer";
-import { UnifiedFlowShell } from "@/components/transitions/UnifiedFlowShell";
 
 /**
- * Global full-page overlay for tri-column ingest / review layouts.
+ * Global full-page overlay for invoice approval drawer.
+ * Note: Contract ingestion is now handled via the Customer 360 Ingestion tab.
  */
 export function EntityDrawer() {
-  const { isOpen, closeDrawer, entityType, mode, entityId, context, flow } = useDrawerStore();
+  const { isOpen, closeDrawer, entityType, mode, entityId, context } = useDrawerStore();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -21,12 +20,10 @@ export function EntityDrawer() {
 
   if (!isOpen) return null;
 
-  const useUnifiedShell = Boolean(
-    flow &&
-      (flow.scenario === "ingest_invoice" ||
-        flow.scenario === "invoice_only" ||
-        flow.scenario === "late_grace"),
-  );
+  // Only render for invoice approval mode
+  if (mode !== "invoice_approval" || entityType !== "invoice" || !entityId) {
+    return null;
+  }
 
   return (
     <div className="fixed inset-0 z-[60] flex">
@@ -38,25 +35,12 @@ export function EntityDrawer() {
       />
       {/* Drawer panel - 75% width */}
       <div className="relative flex h-full min-h-0 w-[75%] flex-col overflow-hidden rounded-l-[24px] bg-white shadow-[-4px_0_24px_rgba(0,0,0,0.12)]">
-        {useUnifiedShell && flow ? (
-          <UnifiedFlowShell key={flow.key ?? `flow-${entityId ?? ""}`} onClose={closeDrawer} />
-        ) : mode === "invoice_approval" && entityType === "invoice" && entityId ? (
-          <InvoiceApprovalDrawer
-            key={`inv-approval-${entityId}-${context?.queueItemId ?? ""}`}
-            invoiceId={entityId}
-            queueItemId={context?.queueItemId}
-            onClose={closeDrawer}
-          />
-        ) : (
-          <IngestDrawer
-            key={`${entityType}-${entityId ?? ""}-${context?.contractId ?? ""}-${mode ?? ""}-${context?.latePhase ?? ""}`}
-            entityType={entityType}
-            mode={mode}
-            entityId={entityId}
-            context={context}
-            onClose={closeDrawer}
-          />
-        )}
+        <InvoiceApprovalDrawer
+          key={`inv-approval-${entityId}-${context?.queueItemId ?? ""}`}
+          invoiceId={entityId}
+          queueItemId={context?.queueItemId}
+          onClose={closeDrawer}
+        />
       </div>
     </div>
   );

@@ -76,7 +76,7 @@ export function ProductNavCollapseProvider({
   const inWorkspace = mode === "workspace";
 
   const [collapsed, setCollapsed] = useState<boolean>(() =>
-    readBooleanSetting(PERSIST_KEYS.productNavCollapsed, false),
+    readBooleanSetting(PERSIST_KEYS.productNavCollapsed, true),
   );
   const [collapsePeek, setCollapsePeek] = useState(false);
 

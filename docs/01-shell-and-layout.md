@@ -16,7 +16,8 @@ The outer shell is built in `src/components/layout/` (`AppShell.tsx`, `TopNav.ts
 ### B. Left sidebar (grey, integrated)
 
 - Background: `bg-grey-100` — merges visually with the content frame (not a white card-in-card)
-- Width: **228px** expanded, **48px** collapsed; persisted in `localStorage` (`apex-sidebar-collapsed`)
+- Width: **210px** expanded, **48px** collapsed; persisted in `localStorage` (`apex-sidebar-collapsed`)
+- **Defaults to collapsed** on fresh page load — user can expand manually
 - **Flat nav list** — no Desk / Records / Catalog groups
 - Collapse control + non-functional **"Go to ⌘K"** affordance at bottom
 - Active row: orange left accent + semibold label
@@ -44,7 +45,14 @@ The outer shell is built in `src/components/layout/` (`AppShell.tsx`, `TopNav.ts
 
 Queue and Approvals are **Workbench tabs**, not standalone sidebar modules.
 
-### C. Content area
+### C. AI Assistant sidebar (right)
+
+- **Defaults to collapsed** on fresh page load — user can expand manually
+- Width: 320px default when expanded, 32px collapsed strip
+- Resizable via drag handle
+- Can expand to full workspace mode with sessions rail + artifact column
+
+### D. Content area
 
 - Outer frame: `#012A38` full-screen; inner scroll area `bg-grey-100` with `rounded-tr-[24px]`
 - `WorkspaceShellContext` sets customer workspace inner bg to `bg-gray-100`

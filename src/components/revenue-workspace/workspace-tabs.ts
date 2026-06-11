@@ -43,6 +43,7 @@ export const STAGE_ORDER: Stage[] = [
   "threads",
   "quote",
   "contract",
+  "ingestion",
   "invoicing",
   "payment",
   "comments",

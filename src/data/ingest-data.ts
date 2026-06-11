@@ -1,9 +1,20 @@
 // ---------------------------------------------------------------------------
+// Contract Ingestion + Approvals — extracted PDF samples for queue / modal demos
+// ---------------------------------------------------------------------------
+// sample2 — Zenith Analytics (standard link → Zenith contract review)
+// sample3 — Verdant Health early renewal
+// sample4 — late renewal (queue-only / workspace path)
+// sample5 — Pioneer Systems new business (match-first customer link; QI-2026-0007)
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
 // TYPES — Contract Ingestion + Approvals
 // ---------------------------------------------------------------------------
 
+export type IngestQueueSampleId = "sample2" | "sample3" | "sample4" | "sample5";
+
 export interface SampleDoc {
-  id: "sample2" | "sample3" | "sample4";
+  id: IngestQueueSampleId;
   label: string;
   subtitle: string;
   path: "happy" | "exception";
@@ -42,13 +53,49 @@ export interface IngestIssue {
   detail?: string;
 }
 
+export interface ExtractedAddress {
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+}
+
+export interface ExtractedAddresses {
+  billing: ExtractedAddress;
+  shipping: ExtractedAddress;
+  sameAsBilling: boolean;
+}
+
+export interface ExtractedClause {
+  title: string;
+  body: string;
+}
+
+export interface ExtractedAdditionalInfo {
+  notes: string[];
+  clauses: ExtractedClause[];
+}
+
+export interface ExtractedDocument {
+  id: string;
+  name: string;
+  kind: "contract" | "sow" | "addendum";
+}
+
+export type IngestionSectionId = "summary" | "items" | "billing" | "addresses" | "additional";
+
 export interface ExtractedContract {
-  docId: "sample1" | "sample2" | "sample3" | "sample4";
+  docId: "sample1" | IngestQueueSampleId;
   documentName: string;
   extractedAt: string;
   extractionConfidence: number;
   customerName: string;
   customerLegalEntity: string;
+  /** Signatory / billing contact parsed from the agreement (when available). */
+  primaryContactName?: string;
+  primaryContactEmail?: string;
   customerId?: string;           // set if matched
   customerFound: boolean;
   quoteMatchId?: string;         // set if matched
@@ -56,6 +103,11 @@ export interface ExtractedContract {
   products: ExtractedProduct[];
   terms: ExtractedTerms;
   issues: IngestIssue[];
+  addresses: ExtractedAddresses;
+  additionalInfo: ExtractedAdditionalInfo;
+  documents: ExtractedDocument[];
+  /** Per-section issue messages (sections with issues start as "issues" state) */
+  sectionIssues: Partial<Record<IngestionSectionId, string>>;
 }
 
 export interface CreatedObject {
@@ -66,7 +118,7 @@ export interface CreatedObject {
 }
 
 export interface IngestResult {
-  docId: "sample1" | "sample2" | "sample3" | "sample4";
+  docId: "sample1" | IngestQueueSampleId;
   contractId: string;
   customerId: string;
   invoiceId: string;
@@ -116,6 +168,13 @@ export const sampleDocs: SampleDoc[] = [
     subtitle: "Early renewal path: active contract requires closure before ingestion",
     path: "happy",
     documentName: "VerdantHealth_EarlyRenewal_2026.pdf",
+  },
+  {
+    id: "sample5",
+    label: "Pioneer Systems — New Business",
+    subtitle: "New deal: extracted customer matches site record — confirm and link",
+    path: "exception",
+    documentName: "PioneerSystems_NewBusiness_Platform_2026_Signed.pdf",
   },
 ];
 
@@ -189,6 +248,35 @@ export const extractedSample1: ExtractedContract = {
     autoRenew: true,
   },
   issues: [],
+  addresses: {
+    billing: {
+      line1: "100 Market Street",
+      line2: "Suite 400",
+      city: "San Francisco",
+      state: "CA",
+      postalCode: "94105",
+      country: "United States",
+    },
+    shipping: {
+      line1: "100 Market Street",
+      line2: "Suite 400",
+      city: "San Francisco",
+      state: "CA",
+      postalCode: "94105",
+      country: "United States",
+    },
+    sameAsBilling: true,
+  },
+  additionalInfo: {
+    notes: ["Existing customer renewal with expanded seat count."],
+    clauses: [
+      { title: "Data Processing Addendum", body: "Standard DPA applies as per prior agreement." },
+    ],
+  },
+  documents: [
+    { id: "doc-echo-1", name: "EchoCorp_MSA_Renewal_2026_Signed.pdf", kind: "contract" },
+  ],
+  sectionIssues: {},
 };
 
 // ---------------------------------------------------------------------------
@@ -202,41 +290,53 @@ export const extractedSample2: ExtractedContract = {
   extractionConfidence: 91,
   customerName: "Zenith Analytics Inc.",
   customerLegalEntity: "Zenith Analytics Inc.",
+  primaryContactName: "David Chen",
+  primaryContactEmail: "d.chen@zenithanalytics.com",
   customerId: undefined,
   customerFound: false,
   quoteMatchId: undefined,
   quoteMatchConfidence: undefined,
   products: [
     {
-      extractedName: "Apex Analytics Pro",
-      extractedSku: "APEX-ANALYTICS-PRO",
-      catalogSku: undefined,
-      matched: false,
-      quantity: 200,
-      unitPrice: 65,
-      discount: 10,
-      billingModel: "Per seat / month",
+      extractedName: "Growth CRM",
+      extractedSku: "GROWTH-CRM",
+      catalogSku: "GROWTH-CRM-YR",
+      matched: true,
+      quantity: 25,
+      unitPrice: 1200,
+      discount: 0,
+      billingModel: "Yearly",
     },
     {
-      extractedName: "Premium Support",
-      extractedSku: "APEX-SUPPORT",
-      catalogSku: "APEX-SUPPORT",
-      matched: true,
+      extractedName: "Onboarding & Training",
+      extractedSku: "ONBOARDING-PKG",
+      catalogSku: undefined,
+      matched: false,
       quantity: 1,
-      unitPrice: 2000,
+      unitPrice: 2500,
       discount: 0,
-      billingModel: "Flat / month",
+      billingModel: "One-time",
+    },
+    {
+      extractedName: "Premium Support Add-on",
+      extractedSku: "SUPPORT-PREMIUM",
+      catalogSku: undefined,
+      matched: false,
+      quantity: 1,
+      unitPrice: 4200,
+      discount: 0,
+      billingModel: "Monthly",
     },
   ],
   terms: {
     term: "12 months",
-    startDate: "2026-05-01",
-    endDate: "2027-04-30",
-    billingFrequency: "Annual upfront",
+    startDate: "2026-07-15",
+    endDate: "2027-07-14",
+    billingFrequency: "Annual, billed upfront",
     paymentTerms: "Net 30",
-    tcv: 155000,
-    arr: 155000,
-    minCommit: 130000,
+    tcv: 36700,
+    arr: 36700,
+    minCommit: 30000,
     prepaidCredits: 0,
     autoRenew: false,
   },
@@ -252,10 +352,157 @@ export const extractedSample2: ExtractedContract = {
       id: "issue-product",
       type: "product_mismatch",
       severity: "blocking",
-      message: "Product SKU not in catalog",
-      detail: "\"APEX-ANALYTICS-PRO\" is not in the product catalog. Map to an existing plan or create a new one.",
+      message: "2 items need mapping",
+      detail: "\"Onboarding & Training\" and \"Premium Support Add-on\" are not in the product catalog. Map to existing plans or create new ones.",
     },
   ],
+  addresses: {
+    billing: {
+      line1: "4th Floor, Lattice Tower",
+      line2: "MG Road",
+      city: "Bangalore",
+      state: "Karnataka",
+      postalCode: "560001",
+      country: "India",
+    },
+    shipping: {
+      line1: "4th Floor, Lattice Tower",
+      line2: "MG Road",
+      city: "Bangalore",
+      state: "Karnataka",
+      postalCode: "560001",
+      country: "India",
+    },
+    sameAsBilling: true,
+  },
+  additionalInfo: {
+    notes: [
+      "New business deal closed by Jordan Kim.",
+      "Customer requires onboarding within 30 days of contract start.",
+    ],
+    clauses: [
+      { title: "SLA Terms", body: "99.9% uptime guarantee with 4-hour response time for critical issues." },
+      { title: "Data Residency", body: "All customer data must be stored within India region." },
+    ],
+  },
+  documents: [
+    { id: "doc-zenith-1", name: "ZenithAnalytics_NewB...", kind: "contract" },
+    { id: "doc-zenith-2", name: "Sow.pdf", kind: "sow" },
+  ],
+  sectionIssues: {
+    items: "2 items need mapping to your catalog",
+    addresses: "Review required — confirm addresses",
+  },
+};
+
+// ---------------------------------------------------------------------------
+// EXTRACTED CONTRACT DATA — Sample 5 (Pioneer Systems new business — match-first link)
+// Closest site match: cust_pioneer_004 (Pioneer Systems). customerFound: false so
+// operator confirms via NewDealCustomerLinkMatchFirstPanel (QI-2026-0007).
+// ---------------------------------------------------------------------------
+
+export const extractedSample5: ExtractedContract = {
+  docId: "sample5",
+  documentName: "PioneerSystems_NewBusiness_Platform_2026_Signed.pdf",
+  extractedAt: "2026-04-21T14:32:00Z",
+  extractionConfidence: 93,
+  customerName: "Pioneer Systems",
+  customerLegalEntity: "Pioneer Systems Corp.",
+  primaryContactName: "Alex Nguyen",
+  primaryContactEmail: "alex.nguyen@pioneersystems.com",
+  customerId: undefined,
+  customerFound: false,
+  quoteMatchId: undefined,
+  quoteMatchConfidence: undefined,
+  products: [
+    {
+      extractedName: "Apex Platform – Growth",
+      extractedSku: "APEX-GROWTH",
+      catalogSku: "APEX-GROWTH-YR",
+      matched: true,
+      quantity: 50,
+      unitPrice: 2400,
+      discount: 10,
+      billingModel: "Yearly",
+    },
+    {
+      extractedName: "Implementation Services",
+      extractedSku: "IMPL-SVC",
+      catalogSku: undefined,
+      matched: false,
+      quantity: 1,
+      unitPrice: 18000,
+      discount: 0,
+      billingModel: "One-time",
+    },
+  ],
+  terms: {
+    term: "12 months",
+    startDate: "2026-05-01",
+    endDate: "2027-04-30",
+    billingFrequency: "Annual, billed upfront",
+    paymentTerms: "Net 30",
+    tcv: 186000,
+    arr: 186000,
+    minCommit: 150000,
+    prepaidCredits: 0,
+    autoRenew: false,
+  },
+  issues: [
+    {
+      id: "issue-customer",
+      type: "customer_not_found",
+      severity: "blocking",
+      message: "Confirm customer link",
+      detail:
+        "\"Pioneer Systems\" was extracted from the contract. Link to the existing site record or create a new customer before ingest.",
+    },
+    {
+      id: "issue-product",
+      type: "product_mismatch",
+      severity: "blocking",
+      message: "1 item needs mapping",
+      detail: "\"Implementation Services\" is not in the product catalog. Map to an existing charge or create a new item.",
+    },
+  ],
+  addresses: {
+    billing: {
+      line1: "1200 Congress Ave",
+      line2: "Suite 400",
+      city: "Austin",
+      state: "Texas",
+      postalCode: "78701",
+      country: "United States",
+    },
+    shipping: {
+      line1: "1200 Congress Ave",
+      line2: "Suite 400",
+      city: "Austin",
+      state: "Texas",
+      postalCode: "78701",
+      country: "United States",
+    },
+    sameAsBilling: true,
+  },
+  additionalInfo: {
+    notes: [
+      "New business CPQ handoff — AE Sophia Brandt.",
+      "Customer record exists in CRM (001Dn000011xD7W); billing entity must match Pioneer Systems Corp.",
+    ],
+    clauses: [
+      {
+        title: "Payment method",
+        body: "Customer prefers card on file; confirm payment method before first invoice.",
+      },
+    ],
+  },
+  documents: [
+    { id: "doc-pioneer-1", name: "PioneerSystems_NewB...", kind: "contract" },
+    { id: "doc-pioneer-2", name: "Order_Form.pdf", kind: "sow" },
+  ],
+  sectionIssues: {
+    items: "1 item needs mapping to your catalog",
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -308,6 +555,35 @@ export const extractedSample3: ExtractedContract = {
     autoRenew: true,
   },
   issues: [],
+  addresses: {
+    billing: {
+      line1: "200 Healthcare Plaza",
+      line2: "Building C",
+      city: "Boston",
+      state: "MA",
+      postalCode: "02210",
+      country: "United States",
+    },
+    shipping: {
+      line1: "200 Healthcare Plaza",
+      line2: "Building C",
+      city: "Boston",
+      state: "MA",
+      postalCode: "02210",
+      country: "United States",
+    },
+    sameAsBilling: true,
+  },
+  additionalInfo: {
+    notes: ["Early renewal to lock in pricing before end of current term."],
+    clauses: [
+      { title: "HIPAA Compliance", body: "Full HIPAA BAA included as standard." },
+    ],
+  },
+  documents: [
+    { id: "doc-verdant-1", name: "VerdantHealth_EarlyRenewal_2026.pdf", kind: "contract" },
+  ],
+  sectionIssues: {},
 };
 
 // ---------------------------------------------------------------------------
@@ -370,6 +646,40 @@ export const extractedSample4: ExtractedContract = {
     autoRenew: true,
   },
   issues: [],
+  addresses: {
+    billing: {
+      line1: "500 Innovation Drive",
+      city: "Austin",
+      state: "TX",
+      postalCode: "78701",
+      country: "United States",
+    },
+    shipping: {
+      line1: "500 Innovation Drive",
+      city: "Austin",
+      state: "TX",
+      postalCode: "78701",
+      country: "United States",
+    },
+    sameAsBilling: true,
+  },
+  additionalInfo: {
+    notes: [
+      "Late renewal — contract expired, customer in grace period.",
+      "Renewal includes seat expansion from 300 to 350.",
+    ],
+    clauses: [
+      { title: "Service Credits", body: "15% service credit applied for Q1 downtime incident." },
+      { title: "Usage Cap", body: "AI credit overage capped at 120% of prepaid block." },
+    ],
+  },
+  documents: [
+    { id: "doc-northlane-1", name: "NorthlaneLabs_LateRenewal_Commercial_2026.pdf", kind: "contract" },
+    { id: "doc-northlane-2", name: "Northlane_Addendum_2026.pdf", kind: "addendum" },
+  ],
+  sectionIssues: {
+    billing: "Confirm billing frequency change from annual to monthly",
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -389,15 +699,18 @@ export const analysisMessages = [
 // HELPERS
 // ---------------------------------------------------------------------------
 
-export function getExtractedContract(sampleId: "sample1" | "sample2" | "sample3" | "sample4"): ExtractedContract {
+export function getExtractedContract(
+  sampleId: "sample1" | IngestQueueSampleId,
+): ExtractedContract {
   if (sampleId === "sample1") return extractedSample1;
   if (sampleId === "sample3") return extractedSample3;
   if (sampleId === "sample4") return extractedSample4;
+  if (sampleId === "sample5") return extractedSample5;
   return extractedSample2;
 }
 
 export function buildIngestResult(
-  docId: "sample1" | "sample2" | "sample3" | "sample4",
+  docId: "sample1" | IngestQueueSampleId,
   resolvedCustomerId: string,
   meta?: {
     customerLabel?: string;
@@ -444,6 +757,23 @@ export function buildIngestResult(
         { type: "customer", id: "cust_northlane_003", label: "Customer: Northlane Labs", action: "reused" },
         { type: "product", id: "APEX-PLATFORM", label: "APEX-PLATFORM, APEX-AI-CREDITS, APEX-SUPPORT", action: "reused" },
         { type: "contract", id: "CON-2026-0NL1", label: "Contract CON-2026-0NL1 (Scheduled)", action: "created" },
+      ],
+    };
+  }
+  if (docId === "sample5") {
+    const label = meta?.customerLabel?.trim() || "Pioneer Systems";
+    const contractId = meta?.contractId ?? "CON-INGEST-005";
+    const invoiceId = meta?.invoiceId ?? "INV-INGEST-005";
+    const customerAction = meta?.customerAction ?? "reused";
+    return {
+      docId,
+      contractId,
+      customerId: resolvedCustomerId,
+      invoiceId,
+      createdObjects: [
+        { type: "customer", id: resolvedCustomerId, label: `Customer: ${label}`, action: customerAction },
+        { type: "product", id: "APEX-GROWTH", label: "APEX-GROWTH, IMPL-SVC", action: "created" },
+        { type: "contract", id: contractId, label: `Contract ${contractId}`, action: "created" },
       ],
     };
   }

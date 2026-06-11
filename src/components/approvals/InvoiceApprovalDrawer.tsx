@@ -10,14 +10,12 @@ import { activateScheduledContractAfterInvoiceApproval } from "@/data/zenith-ing
 import type { Invoice } from "@/data/mock-data";
 import { getInvoiceEnrichment } from "@/data/billing-data";
 import { ApprovalDocumentPreviewPane } from "@/components/approvals/approval-document-preview";
-import { patchFlowSession } from "@/store/drawer-store";
 import {
   approvalPreviewVariant,
   getApprovalDocKind,
   getApprovalDocUi,
 } from "@/components/approvals/approval-doc-ui";
 import { CriticalFieldsCard } from "@/components/approvals/approval-critical-fields-card";
-import { DrawerRailIndent } from "@/components/transitions/DrawerSelectShell";
 
 function Toast({ message, onDone }: { message: string; onDone: () => void }) {
   useEffect(() => {
@@ -204,8 +202,6 @@ export function InvoiceApprovalDrawer({
     setShowToast(false);
     if (ingestId && !firstApprovalCompletedFor[ingestId]) {
       markFirstApprovalCompleted(ingestId);
-      patchFlowSession({ step: "approval_settings" });
-      return;
     }
     onClose();
   }
@@ -376,7 +372,7 @@ export function InvoiceApprovalDrawer({
 
               <div className="border-t border-border-default pt-5">
                 <p className="text-[12px] font-semibold uppercase tracking-wide text-text-secondary">Context</p>
-                <DrawerRailIndent className="mt-3">
+                <div className="mt-3 rounded-lg border border-border-subtle bg-surface-muted/50 px-4 py-3">
                   <div className="flex flex-col divide-y divide-border-subtle">
                     {contract ? (
                       <KV
@@ -398,7 +394,7 @@ export function InvoiceApprovalDrawer({
                     <KV label="Submitted by" value={approval?.submittedBy ?? "—"} />
                     <KV label="Submitted on" value={approval ? shortDate(approval.submittedAt) : "—"} />
                   </div>
-                </DrawerRailIndent>
+                </div>
               </div>
             </div>
           </div>

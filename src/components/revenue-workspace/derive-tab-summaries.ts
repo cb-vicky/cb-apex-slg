@@ -20,6 +20,14 @@ import type { WorkspaceTab } from "./workspace-tabs";
 import { tabKey } from "./workspace-tabs";
 import type { ContractGraceExtension } from "@/data/contract-transition";
 import type { ContractClosure } from "@/data/mock-data";
+import type {
+  IngestionSession,
+  IngestionSectionId,
+  IngestionSectionState,
+  IngestionOperatorStatus,
+} from "@/context/ingest-context-core";
+import type { ContractLineItem } from "@/data/contract-line-items";
+import { contractLineItemsNeedMappingCount } from "@/data/contract-line-items";
 
 export interface TabSummary {
   subtitle: string;
@@ -288,6 +296,151 @@ export function deriveCommentsTabSummary(customerId: string): TabSummary {
   return {
     subtitle: count === 1 ? "1 comment" : `${count} comments`,
     severity: "blue",
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Ingestion Tab Status — detailed status for popover and tab summary
+// ---------------------------------------------------------------------------
+
+export interface IngestionStatusDetail {
+  /** Short subtitle for the tab strip (e.g., "2 items need attention") */
+  subtitle: string;
+  severity: StatusSeverity;
+  /** Detailed issue messages for popover */
+  issues: string[];
+  /** Overall progress message */
+  progressMessage: string;
+  /** Operator-defined custom status (if set) */
+  operatorStatus?: IngestionOperatorStatus;
+  /** Human-readable label for operator status */
+  operatorStatusLabel?: string;
+}
+
+export interface IngestionStatusInput {
+  session: IngestionSession;
+  contractLineItems?: ContractLineItem[];
+}
+
+const OPERATOR_STATUS_LABELS: Record<IngestionOperatorStatus, string> = {
+  in_review: "In review",
+  awaiting_data: "Awaiting Data",
+  on_hold: "On hold",
+  needs_clarification: "Needs clarification",
+};
+
+const OPERATOR_STATUS_SEVERITY: Record<IngestionOperatorStatus, StatusSeverity> = {
+  in_review: "blue",
+  awaiting_data: "amber",
+  on_hold: "gray",
+  needs_clarification: "red",
+};
+
+/** Derive detailed ingestion status from session and Zenith context data */
+export function deriveIngestionStatus(input: IngestionStatusInput): IngestionStatusDetail {
+  const { session, contractLineItems = [] } = input;
+
+  const issues: string[] = [];
+
+  // Count unmapped items
+  const unmappedCount = contractLineItemsNeedMappingCount(contractLineItems);
+  if (unmappedCount > 0) {
+    issues.push(
+      unmappedCount === 1
+        ? "1 item needs catalog mapping"
+        : `${unmappedCount} items need catalog mapping`
+    );
+  }
+
+  // Check section states for issues
+  const sectionIssues: string[] = [];
+  const sections = session.sections;
+  for (const [sectionId, state] of Object.entries(sections) as [IngestionSectionId, IngestionSectionState][]) {
+    if (state === "issues") {
+      sectionIssues.push(formatSectionName(sectionId));
+    }
+  }
+  if (sectionIssues.length > 0) {
+    issues.push(`Issues in: ${sectionIssues.join(", ")}`);
+  }
+
+  // Get operator status info
+  const operatorStatus = session.operatorStatus;
+  const operatorStatusLabel = operatorStatus ? OPERATOR_STATUS_LABELS[operatorStatus] : undefined;
+
+  // If operator has set a custom status, prioritize showing that
+  if (operatorStatus) {
+    const severity = OPERATOR_STATUS_SEVERITY[operatorStatus];
+    const progressMessage = issues.length > 0 
+      ? "Action required before invoice preview."
+      : "Operator has set a custom status.";
+    return {
+      subtitle: operatorStatusLabel!,
+      severity,
+      issues,
+      progressMessage,
+      operatorStatus,
+      operatorStatusLabel,
+    };
+  }
+
+  // Determine severity and subtitle
+  let severity: StatusSeverity = "green";
+  let subtitle = "Ready for review";
+  let progressMessage = "All items resolved. Ready to preview invoice.";
+
+  if (session.overallStatus === "awaiting_approval") {
+    subtitle = "Pending approval";
+    severity = "blue";
+    progressMessage = "Invoice sent for approval.";
+  } else if (issues.length > 0) {
+    // Prioritize unmapped items in subtitle
+    if (unmappedCount > 0) {
+      subtitle = unmappedCount === 1 ? "1 item needs mapping" : `${unmappedCount} items need mapping`;
+    } else if (sectionIssues.length > 0) {
+      subtitle = `${sectionIssues.length} section${sectionIssues.length > 1 ? "s" : ""} need review`;
+    }
+    severity = unmappedCount > 0 || sectionIssues.length > 0 ? "amber" : "blue";
+    progressMessage = "Action required before invoice preview.";
+  } else if (session.overallStatus === "in_review") {
+    // No issues but still in review — check if all sections are done
+    const allDone = Object.values(sections).every((s) => s === "done");
+    if (allDone) {
+      subtitle = "Ready for preview";
+      severity = "green";
+      progressMessage = "All sections reviewed. Ready to preview invoice.";
+    } else {
+      subtitle = "Review in progress";
+      severity = "blue";
+      progressMessage = "Continue reviewing sections.";
+    }
+  }
+
+  return { subtitle, severity, issues, progressMessage, operatorStatus, operatorStatusLabel };
+}
+
+function formatSectionName(sectionId: IngestionSectionId): string {
+  switch (sectionId) {
+    case "summary":
+      return "Summary";
+    case "items":
+      return "Items";
+    case "billing":
+      return "Billing";
+    case "addresses":
+      return "Addresses";
+    case "additional":
+      return "Additional";
+    default:
+      return sectionId;
+  }
+}
+
+export function deriveIngestionTabSummary(input: IngestionStatusInput): TabSummary {
+  const status = deriveIngestionStatus(input);
+  return {
+    subtitle: truncateStatus(status.subtitle),
+    severity: status.severity,
   };
 }
 

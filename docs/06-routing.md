@@ -2,7 +2,9 @@
 
 Routes are declared in `src/App.tsx`. The principle: **every customer detail route renders through `CustomerRevenueWorkspace`** — no standalone customer detail pages.
 
-Global overlay: `<EntityDrawer />` is mounted once in `App.tsx` (outside `<Routes>`) for drawer-first ingest, approval, and transition flows.
+Global overlays mounted in `App.tsx` (outside `<Routes>`):
+- `<EntityDrawer />` — invoice approval drawer
+- `<LinkCustomerModal />` — customer linking modal for contract ingestion
 
 ## Provider tree
 
@@ -77,13 +79,13 @@ Render through the same shell (no redirect). Page components resolve `customerId
 ## Queue & approvals detail routes
 
 ```
-/queue/:queueItemId              → QueueIngestPage (full-page IngestDrawer, presentation="page")
+/queue/:queueItemId              → Redirects to /?tab=queue (ingestion now uses Customer 360 tab)
 /approvals/invoices/:invoiceId   → ApprovalDetailPage (full-page 25/25/50 grid)
 ```
 
-**Primary ingest path (demo):** `UploadModal` / Queue tab row → `openDrawer({ entityType: "queue_item", mode: "ingest", … })` via `drawer-store.ts`. Full-page URL remains valid for deep links and bookmarking.
+**Primary ingest path (demo):** `UploadModal` / Queue tab row / Workbench task → `openLinkCustomerModal(queueItemId)` → `LinkCustomerModal` → navigates to `/customers/:customerId?tab=ingestion`.
 
-Approval URL sync: `useApprovalUrlDrawerSync` opens the drawer from `/approvals/invoices/:id?ingestId=&step=` — see `docs/13-drawer-and-flows.md`.
+Approval URL sync: `useApprovalUrlDrawerSync` opens the drawer from `/approvals/invoices/:id?ingestId=` — see `docs/13-drawer-and-flows.md`.
 
 ## Stage / tab type
 
@@ -94,6 +96,7 @@ type Stage =
   | "threads"
   | "quote"
   | "contract"
+  | "ingestion"  // Conditional — only visible with active session
   | "invoicing"
   | "payment"    // Collections tab label
   | "revrec"
@@ -103,8 +106,19 @@ type Stage =
 
 1. Read `?tab` from URL (default `"customer"` for `/customers/:customerId`)
 2. Read `?quoteId`, `?contractId`, `?invoiceId`
-3. Pass `initialStage` + `selectedRecordId` to `CustomerRevenueWorkspace`
-4. Tab clicks update URL search params
+3. For ingestion tab: read `?frame` and `?sub` params
+4. Pass `initialStage` + `selectedRecordId` to `CustomerRevenueWorkspace`
+5. Tab clicks update URL search params
+
+## Ingestion tab URL params
+
+```
+/customers/:id?tab=ingestion&frame=1&sub=summary     # Frame 1, Summary section
+/customers/:id?tab=ingestion&frame=1&sub=items       # Frame 1, Items section
+/customers/:id?tab=ingestion&frame=1&sub=pdf-doc1    # Frame 1, PDF preview
+/customers/:id?tab=ingestion&frame=2&sub=contract-preview  # Frame 2, Contract preview
+/customers/:id?tab=ingestion&frame=2&sub=invoice-preview   # Frame 2, Invoice preview
+```
 
 ## Deep-linking examples
 
@@ -115,10 +129,11 @@ From Customers index:
 From Quotes index:
   /customers/cust_echo_001?tab=quote&quoteId=QT-2026-0042&from=quotes
 
-From Workbench task row (drawer):
-  openDrawer({ entityType: "queue_item", entityId: "QI-2026-0002", mode: "ingest" })
+From Workbench task row (queue ingest):
+  openLinkCustomerModal("QI-2026-0002")
+    → LinkCustomerModal → /customers/:customerId?tab=ingestion
 
-From Workbench task row (navigate):
+From Workbench task row (approval):
   /approvals/invoices/INV-INGEST-002?ingestId=QI-2026-0002
 ```
 
@@ -127,12 +142,22 @@ From Workbench task row (navigate):
 See `docs/09-contract-ingestion.md`. Summary:
 
 ```
-/?tab=queue → Import → sample2 → EntityDrawer (or /queue/QI-2026-0002 full page)
-  → Ingest contract → customer contract tab / session invoice
-  → /approvals/invoices/:id?ingestId=… → Approve → ApprovalSettingsModal → success panel
+/?tab=queue → Import → sample2 → LinkCustomerModal
+  → Link customer (match or create)
+  → /customers/:customerId?tab=ingestion&frame=1&sub=summary
+  → Review all sections (Summary, Items, Billing, Addresses, Additional)
+  → Preview enables → Frame 2 → Send for approval
+       • setInvoiceStatusOverride(invoice, "Pending Approval")
+       • completeIngestion (Ingestion tab disappears)
+  → /customers/:customerId?tab=invoicing&invoiceId=INV-…
+       (workspace's URL → activeTab sync effect opens the new invoice automatically)
+  → Invoice details "Pending Approval": [Preview · View in Approvals · …]
+  → Approver: View in Approvals → InvoiceApprovalDrawer → Approve
+       • setInvoiceStatusOverride(invoice, "Approved")
+  → (First-cycle only) ApprovalSettingsModal → success panel
 ```
 
-Early Renewal (`sample3`) short-circuits to `closeIntent` + `CloseContractPane` instead of standard ingest finish.
+Early Renewal (`sample3`) and Late Renewal (`sample4`) require additional closure handoff integration.
 
 ## Sidebar navigation
 

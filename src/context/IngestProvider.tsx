@@ -7,7 +7,7 @@ import {
 } from "react";
 import type { Customer, Contract, ContractClosure, Invoice } from "@/data/mock-data";
 import type { IngestResult, ApprovalRequest, ApprovalComment } from "@/data/ingest-data";
-import { seedApprovalComments } from "@/data/ingest-data";
+import { seedApprovalComments, getExtractedContract } from "@/data/ingest-data";
 import {
   queueItems as seedQueueItems,
   type QueueItem,
@@ -21,10 +21,20 @@ import {
 } from "@/data/approval-policy";
 import type { ContractGraceExtension } from "@/data/contract-transition";
 import { ZENITH_CUSTOMER_ID } from "@/data/zenith-ingest-session";
-import { IngestContext } from "@/context/ingest-context-core";
+import { resolveIngestionSessionForCustomer } from "@/lib/resolve-ingestion-session";
+import {
+  IngestContext,
+  type IngestionSession,
+  type IngestionSectionId,
+  type IngestionSectionState,
+  type IngestionOverallStatus,
+  type IngestionOperatorStatus,
+} from "@/context/ingest-context-core";
 
 export function IngestProvider({ children }: { children: ReactNode }) {
-  const [selectedSample, setSelectedSample] = useState<"sample2" | "sample3" | "sample4" | null>(null);
+  const [selectedSample, setSelectedSample] = useState<
+    "sample2" | "sample3" | "sample4" | "sample5" | null
+  >(null);
   const [sessionCustomers, setSessionCustomers] = useState<Customer[]>([]);
   const [sessionProductSkus, setSessionProductSkus] = useState<string[]>([]);
   const [ingestResult, setIngestResult] = useState<IngestResult | null>(null);
@@ -50,6 +60,7 @@ export function IngestProvider({ children }: { children: ReactNode }) {
     Record<string, ContractGraceExtension>
   >({});
   const workbenchTaskSnapshotRef = useRef<string[]>([]);
+  const [ingestionSessions, setIngestionSessions] = useState<Record<string, IngestionSession>>({});
 
   function addSessionCustomer(c: Customer) {
     setSessionCustomers((prev) => [...prev.filter((x) => x.id !== c.id), c]);
@@ -302,6 +313,119 @@ export function IngestProvider({ children }: { children: ReactNode }) {
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // Ingestion Session Handlers
+  // ---------------------------------------------------------------------------
+
+  function startIngestionSession(
+    queueItemId: string,
+    customerId: string,
+    sampleId: "sample2" | "sample3" | "sample4" | "sample5",
+    customerLink: "matched" | "created",
+  ) {
+    const extracted = getExtractedContract(sampleId);
+    const sectionIssues = extracted.sectionIssues;
+
+    const sections: Record<IngestionSectionId, IngestionSectionState> = {
+      summary: sectionIssues.summary ? "issues" : "review",
+      items: sectionIssues.items ? "issues" : "review",
+      billing: sectionIssues.billing ? "issues" : "review",
+      addresses: sectionIssues.addresses ? "issues" : "review",
+      additional: sectionIssues.additional ? "issues" : "review",
+    };
+
+    const session: IngestionSession = {
+      queueItemId,
+      customerId,
+      sampleId,
+      customerLink,
+      overallStatus: "in_review",
+      sections,
+      startedAt: new Date().toISOString(),
+    };
+
+    setIngestionSessions((prev) => ({ ...prev, [queueItemId]: session }));
+  }
+
+  function setIngestionSectionState(
+    queueItemId: string,
+    section: IngestionSectionId,
+    state: IngestionSectionState,
+  ) {
+    setIngestionSessions((prev) => {
+      const session = prev[queueItemId];
+      if (!session) return prev;
+      return {
+        ...prev,
+        [queueItemId]: {
+          ...session,
+          sections: { ...session.sections, [section]: state },
+        },
+      };
+    });
+  }
+
+  function setIngestionOverallStatus(queueItemId: string, status: IngestionOverallStatus) {
+    setIngestionSessions((prev) => {
+      const session = prev[queueItemId];
+      if (!session) return prev;
+      return {
+        ...prev,
+        [queueItemId]: { ...session, overallStatus: status },
+      };
+    });
+  }
+
+  function setIngestionOperatorStatus(queueItemId: string, status: IngestionOperatorStatus | undefined) {
+    setIngestionSessions((prev) => {
+      const session = prev[queueItemId];
+      if (!session) return prev;
+      return {
+        ...prev,
+        [queueItemId]: { ...session, operatorStatus: status },
+      };
+    });
+  }
+
+  function discardIngestion(queueItemId: string) {
+    setIngestionSessions((prev) => {
+      const next = { ...prev };
+      delete next[queueItemId];
+      return next;
+    });
+  }
+
+  function restartIngestion(queueItemId: string) {
+    setIngestionSessions((prev) => {
+      const session = prev[queueItemId];
+      if (!session) return prev;
+
+      const extracted = getExtractedContract(session.sampleId);
+      const sectionIssues = extracted.sectionIssues;
+
+      const sections: Record<IngestionSectionId, IngestionSectionState> = {
+        summary: sectionIssues.summary ? "issues" : "review",
+        items: sectionIssues.items ? "issues" : "review",
+        billing: sectionIssues.billing ? "issues" : "review",
+        addresses: sectionIssues.addresses ? "issues" : "review",
+        additional: sectionIssues.additional ? "issues" : "review",
+      };
+
+      return {
+        ...prev,
+        [queueItemId]: {
+          ...session,
+          overallStatus: "in_review",
+          sections,
+        },
+      };
+    });
+  }
+
+  function completeIngestion(queueItemId: string) {
+    discardIngestion(queueItemId);
+  }
+
   // Merge seed queue items with runtime overrides
   const mergedQueueItems = useMemo<QueueItem[]>(() => {
     return seedQueueItems.map((q) => {
@@ -309,6 +433,19 @@ export function IngestProvider({ children }: { children: ReactNode }) {
       return ov ? { ...q, ...ov } : q;
     });
   }, [queueOverrides]);
+
+  const getActiveIngestionForCustomer = useCallback(
+    (customerId: string, preferredQueueItemId?: string): IngestionSession | undefined => {
+      return resolveIngestionSessionForCustomer(
+        customerId,
+        ingestionSessions,
+        mergedQueueItems,
+        approvalRequests,
+        preferredQueueItemId,
+      );
+    },
+    [ingestionSessions, mergedQueueItems, approvalRequests],
+  );
 
   return (
     <IngestContext.Provider
@@ -367,6 +504,15 @@ export function IngestProvider({ children }: { children: ReactNode }) {
         contractGraceExtensions,
         setContractGraceExtension,
         workbenchTaskSnapshotRef,
+        ingestionSessions,
+        startIngestionSession,
+        setIngestionSectionState,
+        setIngestionOverallStatus,
+        setIngestionOperatorStatus,
+        discardIngestion,
+        restartIngestion,
+        completeIngestion,
+        getActiveIngestionForCustomer,
       }}
     >
       {children}

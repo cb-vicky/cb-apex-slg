@@ -65,11 +65,17 @@ Sources from **`deriveWorkbenchTasks`**:
 ## Queue tab
 
 - Replaces legacy `/queue` index page (route redirects here)
-- **Import** → `UploadModal` → `getQueueItemBySample` → **`EntityDrawer`** (primary)
+- **Import** → `UploadModal` → `getQueueItemBySample` → **`openLinkCustomerModal(queueItemId)`** (primary)
 - **Connect** → `QueueIntegrationsModal`
-- Row behavior: ingestable samples open drawer or `UnifiedFlowShell`; ingested + approver persona may show review CTA
+- Row behavior: ingestable samples open `LinkCustomerModal`, which routes the user to `/customers/:id?tab=ingestion` after linking; ingested + approver persona may show review CTA
 
-See `docs/09-contract-ingestion.md` for scenario matrix (`sample2`, `sample3`, `sample4`). Drawer behavior: `docs/13-drawer-and-flows.md`.
+See `docs/09-contract-ingestion.md` for scenario matrix (`sample2`, `sample3`, `sample4`, **`sample5`**). Drawer behavior: `docs/13-drawer-and-flows.md`.
+
+### Pioneer new-deal row (`QI-2026-0007`)
+
+- Queue seed: **Pioneer Systems**, `sample5`, `linkWorkflow: "match_first"`, `suggestedCustomerId: cust_pioneer_004`
+- Row / ingest task opens **`NewDealCustomerLinkModal`** with **`NewDealCustomerLinkMatchFirstPanel`** (closest-match banner, approve/reject, similar + full catalog browse)
+- **Zenith** path remains **`QI-2026-0002`** / `sample2` (standard link UI → Zenith contract review)
 
 ## Approvals tab
 

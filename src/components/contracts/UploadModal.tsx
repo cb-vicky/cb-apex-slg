@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { openDrawer } from "@/store/drawer-store";
 import { X, Upload, FileText, Loader2, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { sampleDocs, analysisMessages } from "@/data/ingest-data";
 import { getQueueItemBySample } from "@/data/queue-data";
 import { useIngestContext } from "@/context/IngestContext";
+import { openNewDealCustomerLinkModal } from "@/store/new-deal-customer-link-store";
 
 interface Props {
   onClose: () => void;
@@ -16,7 +16,9 @@ export function UploadModal({ onClose }: Props) {
   const { setSelectedSample } = useIngestContext();
 
   const [step, setStep] = useState<Step>("choose");
-  const [chosenSample, setChosenSample] = useState<"sample2" | "sample3" | "sample4" | null>(null);
+  const [chosenSample, setChosenSample] = useState<
+    "sample2" | "sample3" | "sample4" | "sample5" | null
+  >(null);
   const [progress, setProgress] = useState(0);
   const [msgIdx, setMsgIdx] = useState(0);
 
@@ -42,21 +44,21 @@ export function UploadModal({ onClose }: Props) {
     return () => clearInterval(iv);
   }, [step]);
 
-  // Auto-navigate after done
+  // Auto-open new-deal customer link modal after analysis completes
   useEffect(() => {
     if (step !== "done" || !chosenSample) return;
     const t = setTimeout(() => {
       setSelectedSample(chosenSample);
       const queueItem = getQueueItemBySample(chosenSample);
       if (queueItem) {
-        openDrawer({ entityType: "queue_item", mode: "ingest", entityId: queueItem.id });
+        openNewDealCustomerLinkModal(queueItem.id);
       }
       onClose();
     }, 600);
     return () => clearTimeout(t);
   }, [step, chosenSample, setSelectedSample, onClose]);
 
-  function handleSampleClick(id: "sample2" | "sample3" | "sample4") {
+  function handleSampleClick(id: "sample2" | "sample3" | "sample4" | "sample5") {
     setChosenSample(id);
     setStep("loading");
     setProgress(0);

@@ -4,8 +4,8 @@
 //
 // The Queue is the operational landing for every signed commercial document
 // flowing into APEX (PDF upload, API sync from CRM/CLM, native CPQ handoff).
-// Ingestable rows map to `ExtractedContract` sample2 (new business) or sample3
-// (early renewal). Late renewal is a queue-only ops row (opens contract workspace / drawer).
+// Ingestable rows map to `ExtractedContract` samples (sample2/sample5 new business,
+// sample3 early renewal). Late renewal is queue-only (opens contract workspace / drawer).
 //
 // Lifecycle: Pending Review → In Progress → Ingested
 //                                   ↘ Failed / Rejected
@@ -45,7 +45,7 @@ export interface QueueItem {
   tcv: number;
   uploadedAt: string;
   uploadedBy: string;
-  sampleId?: "sample1" | "sample2" | "sample3" | "sample4";
+  sampleId?: "sample1" | "sample2" | "sample3" | "sample4" | "sample5";
   contractId?: string;
   invoiceId?: string;
   failureReason?: string;
@@ -54,6 +54,10 @@ export interface QueueItem {
   activeContractId?: string;
   /** Set when an approver rejects and the row returns to the operator. */
   returnReason?: string;
+  /** Customer link modal workflow (Pioneer / sample5 uses match-first). */
+  linkWorkflow?: "standard" | "match_first";
+  /** Closest catalog customer for match-first approve flow. */
+  suggestedCustomerId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -74,6 +78,23 @@ export const queueItems: QueueItem[] = [
     uploadedBy: "Jordan Kim",
     sampleId: "sample2",
     ingestable: true,
+  },
+  {
+    // Match-first customer link demo: extractedSample5 → cust_pioneer_004 (approve/reject banner).
+    id: "QI-2026-0007",
+    documentName: "PioneerSystems_NewBusiness_Platform_2026_Signed.pdf",
+    source: "CPQ",
+    sourceDetail: "Handoff from Salesforce CPQ",
+    scenario: "New Business",
+    status: "Pending Review",
+    customerName: "Pioneer Systems",
+    tcv: 186000,
+    uploadedAt: "2026-04-21T14:30:00Z",
+    uploadedBy: "Sophia Brandt",
+    sampleId: "sample5",
+    ingestable: true,
+    linkWorkflow: "match_first",
+    suggestedCustomerId: "cust_pioneer_004",
   },
   {
     id: "QI-2026-0006",
@@ -117,7 +138,9 @@ export function getQueueItem(id: string): QueueItem | undefined {
   return queueItems.find((q) => q.id === id);
 }
 
-export function getQueueItemBySample(sampleId: "sample2" | "sample3" | "sample4"): QueueItem | undefined {
+export function getQueueItemBySample(
+  sampleId: "sample2" | "sample3" | "sample4" | "sample5",
+): QueueItem | undefined {
   return queueItems.find((q) => q.sampleId === sampleId);
 }
 
