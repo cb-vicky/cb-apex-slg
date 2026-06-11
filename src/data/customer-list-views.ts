@@ -1,175 +1,322 @@
-import type { Customer, Invoice } from "@/data/mock-data";
-import { collectionCases } from "@/data/billing-data";
-import { getCustomerArProfile } from "@/data/collections-ar-profile";
-import { mergeInvoiceStatuses } from "@/components/revenue-workspace/derive-stage-data";
+import type { FilterTag } from "@/components/index-page/FilterBar";
+import type { Customer } from "@/data/mock-data";
+import {
+  type CustomerListColumnKey,
+  type CustomerListRowData,
+  buildCustomerListRowDataMap,
+} from "@/data/customer-list-columns";
 
 export type CustomerListViewId =
   | "all-outstanding"
   | "overdue"
-  | "high-value-disputes"
-  | "without-billing-email"
+  | "ninety-plus-days-overdue"
+  | "never-contacted"
+  | "sequence-inactive-exhausted"
+  | "missing-email"
+  | "no-active-sequence"
+  | "auto-collection-on"
+  | "auto-collection-off"
   | "current-due"
-  | "aged-0-30"
-  | "aged-31-60"
-  | "aged-61-90"
-  | "aged-90-plus"
-  | "less-likely-to-pay";
+  | "with-available-balance";
+
+export interface CustomerListViewDefaultFilter {
+  field: string;
+  operator: string;
+  value: string;
+}
 
 export interface CustomerListView {
   id: CustomerListViewId;
   label: string;
+  /** Reference filter logic from product spec (display / docs). */
+  filterLogic: string;
+  columns: CustomerListColumnKey[];
+  defaultFilters: CustomerListViewDefaultFilter[];
 }
 
 export const CUSTOMER_LIST_VIEWS: CustomerListView[] = [
-  { id: "all-outstanding", label: "All Outstanding" },
-  { id: "overdue", label: "Overdue" },
-  { id: "high-value-disputes", label: "High value disputes" },
-  { id: "without-billing-email", label: "Without billing email" },
-  { id: "current-due", label: "Current Due" },
-  { id: "aged-0-30", label: "Aged 0–30 days" },
-  { id: "aged-31-60", label: "Aged 31–60 days" },
-  { id: "aged-61-90", label: "Aged 61–90 days" },
-  { id: "aged-90-plus", label: "Aged 90+ days" },
-  { id: "less-likely-to-pay", label: "Less likely to pay" },
+  {
+    id: "all-outstanding",
+    label: "All Outstanding",
+    filterLogic: "customer.outstanding_amount > 0",
+    columns: [
+      "company",
+      "outstandingAmount",
+      "overdueAmount",
+      "openInvoiceCount",
+      "autoCollection",
+      "overdue0_30",
+      "overdue31_60",
+      "overdue61_90",
+      "overdue90Plus",
+      "collectionOwner",
+    ],
+    defaultFilters: [{ field: "Outstanding Amount", operator: "is greater than", value: "0" }],
+  },
+  {
+    id: "overdue",
+    label: "Overdue",
+    filterLogic: "customer.overdue_amount > 0",
+    columns: [
+      "company",
+      "overdueAmount",
+      "outstandingAmount",
+      "oldestOverdueDays",
+      "autoCollection",
+      "overdue0_30",
+      "overdue90Plus",
+      "lastEmailSent",
+      "collectionOwner",
+    ],
+    defaultFilters: [{ field: "Overdue Amount", operator: "is greater than", value: "0" }],
+  },
+  {
+    id: "ninety-plus-days-overdue",
+    label: "90+ Days Overdue",
+    filterLogic: "customer.90_plus_days_overdue_amount > 0",
+    columns: [
+      "company",
+      "overdue90Plus",
+      "overdue90PlusCount",
+      "overdue61_90",
+      "overdueAmount",
+      "oldestOverdueDays",
+      "customerMrr",
+      "lastEmailSent",
+      "collectionOwner",
+    ],
+    defaultFilters: [{ field: "Overdue Amount", operator: "is greater than", value: "0" }],
+  },
+  {
+    id: "never-contacted",
+    label: "Never Contacted",
+    filterLogic:
+      "customer.overdue_amount > 0 AND customer.last_email_sent IS NULL AND customer.dunning_status NOT IN ('In Progress', 'Success')",
+    columns: [
+      "company",
+      "overdueAmount",
+      "outstandingAmount",
+      "oldestOverdueDays",
+      "overdue0_30",
+      "overdue90Plus",
+      "autoCollection",
+      "collectionOwner",
+    ],
+    defaultFilters: [
+      { field: "Overdue Amount", operator: "is greater than", value: "0" },
+    ],
+  },
+  {
+    id: "sequence-inactive-exhausted",
+    label: "Sequence Inactive / Exhausted",
+    filterLogic:
+      "customer.auto_collection = 'Off' AND customer has >= 1 invoice where invoice.sequence_reminder_status IN ('Stopped', 'Exhausted')",
+    columns: [
+      "company",
+      "overdueAmount",
+      "outstandingAmount",
+      "oldestOverdueDays",
+      "overdue90Plus",
+      "reminderSequenceStatus",
+      "reminderSequenceName",
+      "lastEmailSent",
+      "collectionOwner",
+    ],
+    defaultFilters: [
+      { field: "Auto-collection", operator: "is", value: "Off" },
+      {
+        field: "Reminder Sequence Status",
+        operator: "is any of",
+        value: "Stopped, Exhausted",
+      },
+    ],
+  },
+  {
+    id: "missing-email",
+    label: "Missing Email",
+    filterLogic: "customer.email IS NULL",
+    columns: [
+      "company",
+      "businessEntity",
+      "outstandingAmount",
+      "overdueAmount",
+      "oldestOverdueDays",
+      "overdue90Plus",
+      "autoCollection",
+      "collectionOwner",
+    ],
+    defaultFilters: [{ field: "Email", operator: "is empty", value: "" }],
+  },
+  {
+    id: "no-active-sequence",
+    label: "No Active Sequence / Sequence Stopped",
+    filterLogic:
+      "customer.auto_collection = 'Off' AND customer.overdue_amount > 0 AND customer has no invoice with active sequence",
+    columns: [
+      "company",
+      "overdueAmount",
+      "outstandingAmount",
+      "oldestOverdueDays",
+      "netTerms",
+      "overdue0_30",
+      "overdue90Plus",
+      "reminderSequenceStatus",
+      "lastEmailSent",
+      "collectionOwner",
+    ],
+    defaultFilters: [
+      { field: "Auto-collection", operator: "is", value: "Off" },
+      { field: "Overdue Amount", operator: "is greater than", value: "0" },
+    ],
+  },
+  {
+    id: "auto-collection-on",
+    label: "Auto-collection ON",
+    filterLogic: "customer.auto_collection = 'On'",
+    columns: [
+      "company",
+      "customerMrr",
+      "outstandingAmount",
+      "overdueAmount",
+      "overdue0_30",
+      "overdue90Plus",
+      "dunningStatus",
+      "lastPaymentAttemptDate",
+      "cardExpiryDate",
+      "collectionOwner",
+    ],
+    defaultFilters: [{ field: "Auto-collection", operator: "is", value: "On" }],
+  },
+  {
+    id: "auto-collection-off",
+    label: "Auto-collection OFF",
+    filterLogic: "customer.auto_collection = 'Off'",
+    columns: [
+      "company",
+      "outstandingAmount",
+      "overdueAmount",
+      "overdue0_30",
+      "overdue90Plus",
+      "netTerms",
+      "offlinePaymentMethod",
+      "reminderSequenceStatus",
+      "lastEmailSent",
+      "collectionOwner",
+    ],
+    defaultFilters: [{ field: "Auto-collection", operator: "is", value: "Off" }],
+  },
+  {
+    id: "current-due",
+    label: "Current Due",
+    filterLogic:
+      "customer has >= 1 invoice where invoice.status = 'payment_due' AND invoice.due_date >= today",
+    columns: [
+      "company",
+      "outstandingAmount",
+      "overdueAmount",
+      "netTerms",
+      "autoCollection",
+      "customerMrr",
+      "collectionOwner",
+    ],
+    defaultFilters: [{ field: "Outstanding Amount", operator: "is greater than", value: "0" }],
+  },
+  {
+    id: "with-available-balance",
+    label: "With Available Balance",
+    filterLogic: "customer.available_balance > 0",
+    columns: [
+      "company",
+      "availableBalance",
+      "netOutstanding",
+      "outstandingAmount",
+      "overdueAmount",
+      "overdue0_30",
+      "overdue90Plus",
+      "customerMrr",
+      "collectionOwner",
+    ],
+    defaultFilters: [{ field: "Available Balance", operator: "is greater than", value: "0" }],
+  },
 ];
 
 export const DEFAULT_CUSTOMER_LIST_VIEW_ID: CustomerListViewId = "all-outstanding";
 
-export interface CustomerArViewContext {
-  hasOutstanding: boolean;
-  hasOverdue: boolean;
-  maxDaysOverdue: number;
-  hasCurrentDue: boolean;
-  hasHighValueDispute: boolean;
-  missingBillingEmail: boolean;
-  lessLikelyToPay: boolean;
+const VIEW_BY_ID = new Map(CUSTOMER_LIST_VIEWS.map((view) => [view.id, view]));
+
+export function getCustomerListView(viewId: CustomerListViewId): CustomerListView {
+  return VIEW_BY_ID.get(viewId) ?? CUSTOMER_LIST_VIEWS[0];
 }
 
-function isOpenInvoice(inv: Invoice): boolean {
-  return inv.status !== "Paid";
+export function defaultFilterTagsForView(viewId: CustomerListViewId): FilterTag[] {
+  const view = getCustomerListView(viewId);
+  return view.defaultFilters.map((filter, index) => ({
+    id: `view-${viewId}-${index}`,
+    field: filter.field,
+    operator: filter.operator,
+    value: filter.value,
+  }));
 }
 
-function daysPastDue(dueDate: string): number {
-  return Math.max(0, Math.round((Date.now() - new Date(dueDate).getTime()) / 86400000));
-}
-
-function hasBillingEmailOnFile(customer: Customer): boolean {
-  const profile = getCustomerArProfile(customer.id, customer.billingOwner);
-  return profile.internalContacts.some(
-    (c) =>
-      c.roleLabel.toLowerCase().includes("billing") ||
-      c.email.toLowerCase().includes("billing") ||
-      c.email.toLowerCase().startsWith("ap@"),
-  );
-}
-
-export function buildCustomerArViewContext(
-  customer: Customer,
-  invoices: Invoice[],
-): CustomerArViewContext {
-  const customerInvoices = invoices.filter((i) => i.customerId === customer.id);
-  const openInvoices = customerInvoices.filter(isOpenInvoice);
-
-  const overdueInvoices = openInvoices.filter(
-    (inv) => inv.status === "Overdue" || daysPastDue(inv.dueDate) > 0,
-  );
-  const maxDaysOverdue =
-    overdueInvoices.length > 0
-      ? Math.max(...overdueInvoices.map((inv) => daysPastDue(inv.dueDate)))
-      : 0;
-
-  const cases = collectionCases.filter((c) => c.customerId === customer.id);
-  const hasDispute =
-    cases.some((c) => Boolean(c.disputeReason)) ||
-    openInvoices.some((inv) => Boolean(inv.disputeReason));
-
-  const hasOutstanding = customer.openAr > 0 || openInvoices.length > 0;
-  const hasHighValueDispute = hasDispute && customer.openAr >= 10000;
-
-  const hasCurrentDue = openInvoices.some((inv) => {
-    const pastDue = daysPastDue(inv.dueDate);
-    return pastDue === 0 && inv.status !== "Overdue";
-  });
-
-  const lessLikelyToPay = cases.some(
-    (c) =>
-      c.stage === "No Response" ||
-      (c.daysOverdue >= 14 && !c.ptpDate && c.stage !== "Resolved"),
-  );
-
-  return {
-    hasOutstanding,
-    hasOverdue: overdueInvoices.length > 0,
-    maxDaysOverdue,
-    hasCurrentDue,
-    hasHighValueDispute,
-    missingBillingEmail: !hasBillingEmailOnFile(customer),
-    lessLikelyToPay,
-  };
-}
-
-export function buildCustomerArViewContextMap(
-  customers: Customer[],
-  invoices: Invoice[],
-  invoiceStatusOverrides?: Record<string, string>,
-): Map<string, CustomerArViewContext> {
-  const merged = mergeInvoiceStatuses(invoices, invoiceStatusOverrides);
-  const map = new Map<string, CustomerArViewContext>();
-  for (const customer of customers) {
-    map.set(customer.id, buildCustomerArViewContext(customer, merged));
-  }
-  return map;
-}
-
-export function matchesCustomerListView(
-  ctx: CustomerArViewContext,
-  viewId: CustomerListViewId,
-): boolean {
+export function matchesCustomerListView(row: CustomerListRowData, viewId: CustomerListViewId): boolean {
   switch (viewId) {
     case "all-outstanding":
-      return ctx.hasOutstanding;
+      return row.outstandingAmount > 0;
     case "overdue":
-      return ctx.hasOverdue;
-    case "high-value-disputes":
-      return ctx.hasHighValueDispute;
-    case "without-billing-email":
-      return ctx.hasOutstanding && ctx.missingBillingEmail;
+      return row.overdueAmount > 0;
+    case "ninety-plus-days-overdue":
+      return row.overdue90Plus > 0;
+    case "never-contacted":
+      return (
+        row.overdueAmount > 0 &&
+        !row.hasLastEmailSent &&
+        row.dunningStatus !== "In Progress" &&
+        row.dunningStatus !== "Success"
+      );
+    case "sequence-inactive-exhausted":
+      return row.autoCollection === "Off" && row.hasSequenceStoppedOrExhausted;
+    case "missing-email":
+      return !row.hasEmail;
+    case "no-active-sequence":
+      return (
+        row.autoCollection === "Off" &&
+        row.overdueAmount > 0 &&
+        !row.hasActiveReminderSequence
+      );
+    case "auto-collection-on":
+      return row.autoCollection === "On";
+    case "auto-collection-off":
+      return row.autoCollection === "Off";
     case "current-due":
-      return ctx.hasCurrentDue;
-    case "aged-0-30":
-      return ctx.maxDaysOverdue >= 1 && ctx.maxDaysOverdue <= 30;
-    case "aged-31-60":
-      return ctx.maxDaysOverdue >= 31 && ctx.maxDaysOverdue <= 60;
-    case "aged-61-90":
-      return ctx.maxDaysOverdue >= 61 && ctx.maxDaysOverdue <= 90;
-    case "aged-90-plus":
-      return ctx.maxDaysOverdue >= 90;
-    case "less-likely-to-pay":
-      return ctx.lessLikelyToPay;
+      return row.hasCurrentDueInvoice;
+    case "with-available-balance":
+      return row.availableBalance > 0;
   }
 }
 
 export function filterCustomersByView(
   customers: Customer[],
   viewId: CustomerListViewId,
-  contextMap: Map<string, CustomerArViewContext>,
+  rowMap: Map<string, CustomerListRowData>,
 ): Customer[] {
-  return customers.filter((c) => {
-    const ctx = contextMap.get(c.id);
-    if (!ctx) return false;
-    return matchesCustomerListView(ctx, viewId);
+  return customers.filter((customer) => {
+    const row = rowMap.get(customer.id);
+    if (!row) return false;
+    return matchesCustomerListView(row, viewId);
   });
 }
 
 export function countCustomersByView(
   customers: Customer[],
-  contextMap: Map<string, CustomerArViewContext>,
+  rowMap: Map<string, CustomerListRowData>,
 ): Record<CustomerListViewId, number> {
   return CUSTOMER_LIST_VIEWS.reduce(
     (acc, view) => {
-      acc[view.id] = filterCustomersByView(customers, view.id, contextMap).length;
+      acc[view.id] = filterCustomersByView(customers, view.id, rowMap).length;
       return acc;
     },
     {} as Record<CustomerListViewId, number>,
   );
 }
+
+export { buildCustomerListRowDataMap };

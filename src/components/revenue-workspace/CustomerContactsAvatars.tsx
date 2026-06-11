@@ -26,6 +26,8 @@ interface HeaderContact {
   roleLabel: string;
 }
 
+const MAX_VISIBLE_AVATARS = 4;
+
 interface Props {
   customer: Customer;
   collapsed?: boolean;
@@ -56,7 +58,7 @@ export function CustomerContactsAvatars({ customer, collapsed }: Props) {
     seed.collectionOwnerOptions.find((o) => o.id === ownerId) ??
     seed.collectionOwnerOptions[0]!;
 
-  const coreContacts = useMemo<HeaderContact[]>(
+  const accountTeamContacts = useMemo<HeaderContact[]>(
     () => [
       {
         id: "role_ae",
@@ -76,14 +78,69 @@ export function CustomerContactsAvatars({ customer, collapsed }: Props) {
         email: emailFromName(customer.billingOwner),
         roleLabel: "Billing",
       },
-      {
-        id: owner.id,
-        name: owner.name,
-        email: owner.email,
-        roleLabel: "Collection owner",
-      },
     ],
-    [customer.ae, customer.csm, customer.billingOwner, owner],
+    [customer.ae, customer.csm, customer.billingOwner],
+  );
+
+  const collectionOwnerContact = useMemo<HeaderContact>(
+    () => ({
+      id: owner.id,
+      name: owner.name,
+      email: owner.email,
+      roleLabel: "Collection owner",
+    }),
+    [owner],
+  );
+
+  const additionalHeaderContacts = useMemo<HeaderContact[]>(
+    () =>
+      additionalContacts.map((contact) => ({
+        id: contact.id,
+        name: contact.name,
+        email: contact.email,
+        roleLabel: contact.roleLabel,
+      })),
+    [additionalContacts],
+  );
+
+  const coreContacts = useMemo<HeaderContact[]>(
+    () => [...accountTeamContacts, collectionOwnerContact],
+    [accountTeamContacts, collectionOwnerContact],
+  );
+
+  const allHeaderContacts = useMemo(
+    () => [...accountTeamContacts, collectionOwnerContact, ...additionalHeaderContacts],
+    [accountTeamContacts, collectionOwnerContact, additionalHeaderContacts],
+  );
+
+  const visibleHeaderContacts = useMemo(
+    () => allHeaderContacts.slice(0, MAX_VISIBLE_AVATARS),
+    [allHeaderContacts],
+  );
+
+  const overflowCount = Math.max(0, allHeaderContacts.length - MAX_VISIBLE_AVATARS);
+
+  const visibleAccountTeam = useMemo(
+    () =>
+      visibleHeaderContacts.filter((contact) =>
+        accountTeamContacts.some((member) => member.id === contact.id),
+      ),
+    [visibleHeaderContacts, accountTeamContacts],
+  );
+
+  const visibleCollectionOwner = useMemo(
+    () =>
+      visibleHeaderContacts.find((contact) => contact.id === collectionOwnerContact.id) ??
+      null,
+    [visibleHeaderContacts, collectionOwnerContact.id],
+  );
+
+  const visibleAdditionalContacts = useMemo(
+    () =>
+      visibleHeaderContacts.filter((contact) =>
+        additionalHeaderContacts.some((member) => member.id === contact.id),
+      ),
+    [visibleHeaderContacts, additionalHeaderContacts],
   );
 
   const closePanel = useCallback(() => setPanelOpen(false), []);
@@ -123,23 +180,42 @@ export function CustomerContactsAvatars({ customer, collapsed }: Props) {
           collapsed && "pointer-events-none h-0 overflow-hidden pt-0 opacity-0",
         )}
       >
-        <div className="flex items-center">
-          {coreContacts.map((contact, index) => (
+        <span className="shrink-0 text-[12px] font-medium text-text-muted">Team:</span>
+        <div className="flex items-center gap-2">
+          {visibleAccountTeam.length > 0 ? (
+            <AvatarStack
+              contacts={visibleAccountTeam}
+              panelOpen={panelOpen}
+              onOpenPanel={() => setPanelOpen(true)}
+            />
+          ) : null}
+          {visibleCollectionOwner ? (
+            <AvatarStack
+              contacts={[visibleCollectionOwner]}
+              panelOpen={panelOpen}
+              onOpenPanel={() => setPanelOpen(true)}
+            />
+          ) : null}
+          {visibleAdditionalContacts.length > 0 ? (
+            <AvatarStack
+              contacts={visibleAdditionalContacts}
+              panelOpen={panelOpen}
+              onOpenPanel={() => setPanelOpen(true)}
+            />
+          ) : null}
+          {overflowCount > 0 ? (
             <button
-              key={contact.id}
               type="button"
               onClick={() => setPanelOpen(true)}
               aria-expanded={panelOpen}
               aria-haspopup="dialog"
-              title={`${contact.roleLabel}: ${contact.name}`}
-              className={cn(
-                "relative rounded-full ring-2 ring-gray-100 transition hover:z-10 hover:ring-blue-200/90",
-                index > 0 && "-ml-2",
-              )}
+              aria-label={`${overflowCount} more contacts`}
+              title={`${overflowCount} more contacts`}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[11px] font-semibold text-text-secondary ring-2 ring-gray-100 transition hover:bg-gray-200 hover:text-text-primary"
             >
-              <ArContactAvatar name={contact.name} size="md" />
+              +{overflowCount}
             </button>
-          ))}
+          ) : null}
         </div>
       </div>
 
@@ -153,9 +229,6 @@ export function CustomerContactsAvatars({ customer, collapsed }: Props) {
         <ContactsPopoverContent
           coreContacts={coreContacts}
           additionalContacts={additionalContacts}
-          ownerOptions={seed.collectionOwnerOptions}
-          ownerId={ownerId}
-          onOwnerChange={setOwnerId}
           onEdit={openEditModal}
           onClose={closePanel}
         />
@@ -178,20 +251,74 @@ export function CustomerContactsAvatars({ customer, collapsed }: Props) {
   );
 }
 
+function AvatarStack({
+  contacts,
+  panelOpen,
+  onOpenPanel,
+}: {
+  contacts: HeaderContact[];
+  panelOpen: boolean;
+  onOpenPanel: () => void;
+}) {
+  if (contacts.length === 0) return null;
+
+  return (
+    <div className="flex items-center">
+      {contacts.map((contact, index) => (
+        <AvatarWithTooltip
+          key={contact.id}
+          contact={contact}
+          panelOpen={panelOpen}
+          onOpenPanel={onOpenPanel}
+          stacked={index > 0}
+        />
+      ))}
+    </div>
+  );
+}
+
+function AvatarWithTooltip({
+  contact,
+  panelOpen,
+  onOpenPanel,
+  stacked,
+}: {
+  contact: HeaderContact;
+  panelOpen: boolean;
+  onOpenPanel: () => void;
+  stacked: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onOpenPanel}
+      aria-expanded={panelOpen}
+      aria-haspopup="dialog"
+      aria-label={`${contact.roleLabel}: ${contact.name}`}
+      className={cn(
+        "group/avatar relative rounded-full ring-2 ring-gray-100 transition hover:z-20 hover:ring-blue-200/90",
+        stacked && "-ml-2",
+      )}
+    >
+      <ArContactAvatar name={contact.name} size="md" />
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute bottom-[calc(100%+6px)] left-1/2 z-30 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-900 px-2 py-1 text-[11px] font-medium leading-none text-white opacity-0 shadow-md transition-opacity group-hover/avatar:opacity-100"
+      >
+        {contact.name}
+      </span>
+    </button>
+  );
+}
+
 function ContactsPopoverContent({
   coreContacts,
   additionalContacts,
-  ownerOptions,
-  ownerId,
-  onOwnerChange,
   onEdit,
   onClose,
 }: {
   coreContacts: HeaderContact[];
   additionalContacts: ArInternalContact[];
-  ownerOptions: ArPerson[];
-  ownerId: string;
-  onOwnerChange: (id: string) => void;
   onEdit: () => void;
   onClose: () => void;
 }) {
@@ -214,29 +341,7 @@ function ContactsPopoverContent({
         </button>
       }
     >
-      {ownerContact && (
-        <ContactPopoverSection title="Collection owner">
-          <ContactPopoverRow contact={ownerContact} />
-          <label className="mt-2 block">
-            <span className="text-[10px] font-medium uppercase tracking-wide text-text-muted">
-              Reassign owner
-            </span>
-            <select
-              value={ownerId}
-              onChange={(e) => onOwnerChange(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-border-default bg-white px-2 py-1.5 text-[12px] text-text-primary outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-            >
-              {ownerOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </ContactPopoverSection>
-      )}
-
-      <ContactPopoverSection title="Account team" className="mt-3 border-t border-border-default pt-3">
+      <ContactPopoverSection title="Account team">
         {nonOwnerCore.map((contact) => (
           <ContactPopoverRow key={contact.id} contact={contact} />
         ))}
@@ -260,6 +365,15 @@ function ContactsPopoverContent({
           ))}
         </ContactPopoverSection>
       )}
+
+      {ownerContact ? (
+        <ContactPopoverSection
+          title="Collection owner"
+          className="mt-3 border-t border-border-default pt-3"
+        >
+          <ContactPopoverRow contact={ownerContact} />
+        </ContactPopoverSection>
+      ) : null}
     </ArPopoverShell>
   );
 }

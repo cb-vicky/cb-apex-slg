@@ -1,4 +1,5 @@
 import type { Customer } from "@/data/mock-data";
+import type { CustomerListRowData } from "@/data/customer-list-columns";
 
 export interface CustomerFilterPropertyDef {
   name: string;
@@ -68,6 +69,12 @@ export const CUSTOMER_FILTER_PROPERTIES: CustomerFilterPropertyDef[] = [
     sampleValues: '"On", "Off"',
     operators: ["is"],
     valueOptions: ["On", "Off"],
+  },
+  {
+    name: "Reminder Sequence Status",
+    sampleValues: '"Stopped", "Exhausted", "In Progress"',
+    operators: ["is any of", "is none of"],
+    valueOptions: ["Stopped", "Exhausted", "In Progress"],
   },
   {
     name: "Payment Source Type",
@@ -196,13 +203,58 @@ function amountMatch(actual: number, filterValue: string, operator: string): boo
   }
 }
 
+function deriveAutoCollection(customer: Customer): "On" | "Off" {
+  const method = customer.paymentMethod.toLowerCase();
+  if (method.includes("card") || method.includes("ach") || method.includes("auto")) {
+    return "On";
+  }
+  return "Off";
+}
+
+function matchesReminderSequenceStatus(
+  row: CustomerListRowData,
+  operator: string,
+  value: string,
+): boolean {
+  const status = (row.reminderSequenceStatus ?? "").toLowerCase();
+  const options = value.split(",").map((v) => v.trim().toLowerCase()).filter(Boolean);
+
+  if (operator === "is any of") {
+    if (status && options.includes(status)) return true;
+    if (
+      row.hasSequenceStoppedOrExhausted &&
+      options.some((o) => o === "stopped" || o === "exhausted")
+    ) {
+      return true;
+    }
+    return false;
+  }
+  if (operator === "is none of") {
+    if (status && options.includes(status)) return false;
+    if (
+      row.hasSequenceStoppedOrExhausted &&
+      options.some((o) => o === "stopped" || o === "exhausted")
+    ) {
+      return false;
+    }
+    return true;
+  }
+  return textMatch(status, value, operator) ?? true;
+}
+
 /** Best-effort evaluation for customer list filters (prototype). */
 export function matchesCustomerPropertyFilter(
   customer: Customer,
   filter: { field: string; operator?: string; value: string },
+  row?: CustomerListRowData,
 ): boolean {
   const operator = filter.operator ?? "is";
   const value = filter.value.trim();
+
+  if (filter.field === "Reminder Sequence Status" && row) {
+    if (!operatorRequiresValue(operator)) return true;
+    return matchesReminderSequenceStatus(row, operator, value);
+  }
 
   if (!operatorRequiresValue(operator)) {
     const fieldValue = customerFieldValue(customer, filter.field);
@@ -253,7 +305,7 @@ function customerFieldValue(customer: Customer, property: string): string | null
     case "Customer Since":
       return customer.createdAt;
     case "Auto-collection":
-      return customer.paymentMethod.toLowerCase().includes("auto") ? "On" : "Off";
+      return deriveAutoCollection(customer);
     case "Payment Source Type":
       return customer.paymentMethod;
     default:

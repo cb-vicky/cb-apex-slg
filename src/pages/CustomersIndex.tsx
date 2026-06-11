@@ -1,12 +1,17 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useScrolled } from "@/hooks/useScrolled";
 import { customers, invoices as seedInvoices } from "@/data/mock-data";
 import type { Customer } from "@/data/mock-data";
 import { useIngestContext } from "@/context/IngestContext";
-import { currency, shortDate } from "@/lib/utils";
-import { StatusBadge } from "@/components/ui/primitives";
-import { ListTable, ListCreateRow, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
+import {
+  columnsForView,
+  formatCustomerListCell,
+  cellClassName,
+  type CustomerListColumnKey,
+  type CustomerListRowData,
+} from "@/data/customer-list-columns";
+import { ListTable, ListCreateRow, ListRow, ListCell } from "@/components/index-page/ListTable";
 import { FilterBar, type FilterTag } from "@/components/index-page/FilterBar";
 import {
   CUSTOMER_FILTER_PROPERTIES,
@@ -17,34 +22,38 @@ import { PageHeader } from "@/components/index-page/PageHeader";
 import { IndexPageFrame } from "@/components/index-page/IndexPageFrame";
 import {
   DEFAULT_CUSTOMER_LIST_VIEW_ID,
-  buildCustomerArViewContextMap,
+  buildCustomerListRowDataMap,
   countCustomersByView,
+  defaultFilterTagsForView,
   filterCustomersByView,
+  getCustomerListView,
   type CustomerListViewId,
 } from "@/data/customer-list-views";
 
-function matchesTagFilters(customer: Customer, filters: FilterTag[]): boolean {
-  return filters.every((filter) => matchesCustomerPropertyFilter(customer, filter));
+function matchesTagFilters(
+  customer: Customer,
+  filters: FilterTag[],
+  row: CustomerListRowData,
+): boolean {
+  return filters.every((filter) => matchesCustomerPropertyFilter(customer, filter, row));
 }
-
-const listColumns: Column[] = [
-  { key: "customer", label: "Customer", width: "180px", sortable: true },
-  { key: "arr", label: "ARR", width: "100px", align: "right" },
-  { key: "openAr", label: "Open AR", width: "100px", align: "right" },
-  { key: "contracts", label: "Contracts", width: "80px", align: "right" },
-  { key: "quotes", label: "Quotes", width: "80px", align: "right" },
-  { key: "renewal", label: "Renewal", width: "110px", sortable: true },
-  { key: "risk", label: "Risk", width: "120px" },
-  { key: "owner", label: "Owner", width: "120px" },
-];
 
 export function CustomersIndex() {
   const navigate = useNavigate();
   const { sessionCustomers, sessionInvoices, invoiceStatusOverrides } = useIngestContext();
-  const [filters, setFilters] = useState<FilterTag[]>([]);
   const [activeViewId, setActiveViewId] = useState<CustomerListViewId>(
     DEFAULT_CUSTOMER_LIST_VIEW_ID,
   );
+  const [filters, setFilters] = useState<FilterTag[]>(() =>
+    defaultFilterTagsForView(DEFAULT_CUSTOMER_LIST_VIEW_ID),
+  );
+
+  const activeView = useMemo(() => getCustomerListView(activeViewId), [activeViewId]);
+  const listColumns = useMemo(() => columnsForView(activeView.columns), [activeView.columns]);
+
+  useEffect(() => {
+    setFilters(defaultFilterTagsForView(activeViewId));
+  }, [activeViewId]);
 
   const customersMerged = useMemo(() => {
     const byId = new Map(customers.map((c) => [c.id, c]));
@@ -62,20 +71,24 @@ export function CustomersIndex() {
     return [...byId.values()];
   }, [sessionInvoices]);
 
-  const arContextMap = useMemo(
-    () => buildCustomerArViewContextMap(customersMerged, invoicesMerged, invoiceStatusOverrides),
+  const rowDataMap = useMemo(
+    () => buildCustomerListRowDataMap(customersMerged, invoicesMerged, invoiceStatusOverrides),
     [customersMerged, invoicesMerged, invoiceStatusOverrides],
   );
 
   const viewCounts = useMemo(
-    () => countCustomersByView(customersMerged, arContextMap),
-    [customersMerged, arContextMap],
+    () => countCustomersByView(customersMerged, rowDataMap),
+    [customersMerged, rowDataMap],
   );
 
   const customersFiltered = useMemo(() => {
-    const byView = filterCustomersByView(customersMerged, activeViewId, arContextMap);
-    return byView.filter((c) => matchesTagFilters(c, filters));
-  }, [customersMerged, activeViewId, arContextMap, filters]);
+    const byView = filterCustomersByView(customersMerged, activeViewId, rowDataMap);
+    return byView.filter((c) => {
+      const row = rowDataMap.get(c.id);
+      if (!row) return false;
+      return matchesTagFilters(c, filters, row);
+    });
+  }, [customersMerged, activeViewId, rowDataMap, filters]);
 
   const { ref: scrollRef, isScrolled } = useScrolled();
 
@@ -105,30 +118,33 @@ export function CustomersIndex() {
         <ListCreateRow
           label="New customer"
           columnCount={listColumns.length}
-          firstColumnWidth={listColumns[0].width}
+          firstColumnWidth={listColumns[0]?.width}
         />
-        {customersFiltered.map((c) => (
-          <ListRow key={c.id} onClick={() => navigate(`/customers/${c.id}?tab=customer&from=customers`)}>
-            <ListCell width="180px" className="font-medium text-text-primary">{c.name}</ListCell>
-            <ListCell width="100px" align="right">
-              {currency(c.arr)}
-            </ListCell>
-            <ListCell width="100px" align="right" className={c.openAr > 0 ? "text-red-600 font-medium" : ""}>
-              {currency(c.openAr)}
-            </ListCell>
-            <ListCell width="80px" align="right">
-              {c.activeContractCount}
-            </ListCell>
-            <ListCell width="80px" align="right">
-              {c.openQuoteCount}
-            </ListCell>
-            <ListCell width="110px">{c.nextRenewalDate ? shortDate(c.nextRenewalDate) : "—"}</ListCell>
-            <ListCell width="120px">
-              {c.riskBadges.length > 0 ? <StatusBadge status={`${c.riskBadges.length} flags`} /> : <span className="text-emerald-600 text-[12px]">Healthy</span>}
-            </ListCell>
-            <ListCell width="120px">{c.billingOwner}</ListCell>
-          </ListRow>
-        ))}
+        {customersFiltered.map((customer) => {
+          const row = rowDataMap.get(customer.id);
+          if (!row) return null;
+
+          return (
+            <ListRow
+              key={customer.id}
+              onClick={() => navigate(`/customers/${customer.id}?tab=customer&from=customers`)}
+            >
+              {activeView.columns.map((columnKey: CustomerListColumnKey) => {
+                const column = listColumns.find((c) => c.key === columnKey);
+                return (
+                  <ListCell
+                    key={columnKey}
+                    width={column?.width}
+                    align={column?.align}
+                    className={cellClassName(columnKey, row)}
+                  >
+                    {formatCustomerListCell(columnKey, row)}
+                  </ListCell>
+                );
+              })}
+            </ListRow>
+          );
+        })}
       </ListTable>
     </IndexPageFrame>
   );
