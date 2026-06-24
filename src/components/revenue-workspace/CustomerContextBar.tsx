@@ -60,10 +60,8 @@ import {
 import {
   getPinnedCollectionComments,
 } from "@/data/collections-comments";
-import { usePaymentCollectionsChrome } from "./payment/PaymentCollectionsChromeContext";
 import { useCommentsChrome } from "./payment/CommentsChromeContext";
 import { PinnedCommentsBar } from "./payment/PinnedCommentsBar";
-import { PaymentDockedTabButton } from "./payment/PaymentDockedTabButton";
 
 /** Hysteresis thresholds to prevent flickering during slow scrolling */
 const SCROLL_THRESHOLD_COLLAPSE = 50;
@@ -255,8 +253,6 @@ function tabMinWidthPx(tab: WorkspaceTab): number {
 const MEASURE_RETRY_MAX = 16;
 const TAB_FLIP_EASING = "cubic-bezier(0.25, 0.1, 0.25, 1)";
 const TAB_FLIP_MS = 280;
-const COLLECTIONS_DOCK_MS = 520;
-const COLLECTIONS_DOCK_STAGGER_MS = 36;
 
 const stageDisplay: Record<Stage, { tab: string; crumb: string }> = {
   customer: { tab: "Overview", crumb: "Overview" },
@@ -1291,14 +1287,11 @@ export function CustomerContextBar({
   const moreButtonRef = useRef<HTMLDivElement>(null);
 
   const activeStage = activeTab.kind === "parent" ? activeTab.stage : activeTab.stage;
-  const paymentChrome = usePaymentCollectionsChrome();
   const commentsChrome = useCommentsChrome();
   const pinnedComments = useMemo(
     () => getPinnedCollectionComments(customer.id),
     [customer.id, commentsChrome?.commentsRevision],
   );
-  const collectionsSubTabsDocked =
-    activeStage === "payment" && (paymentChrome?.subTabsDocked ?? false);
   const disabled = disabledStages ?? EMPTY_DISABLED_STAGES;
   const activeTabKey = tabKey(activeTab);
 
@@ -1679,19 +1672,6 @@ export function CustomerContextBar({
     return Math.max(1, lastZ - 1);
   })();
 
-  const showPaymentDockChrome = activeStage === "payment" && !!paymentChrome;
-  const paymentTabIndex = visibleTabs.findIndex(
-    (tab) => tab.kind === "parent" && tab.stage === "payment",
-  );
-  const paymentTabOrigin =
-    paymentTabIndex >= 0 && visibleTabs.length > 0
-      ? `${((paymentTabIndex + 0.5) / visibleTabs.length) * 100}%`
-      : "18%";
-  const dockEnterDelayMs =
-    paymentTabIndex >= 0 ? paymentTabIndex * COLLECTIONS_DOCK_STAGGER_MS + 90 : 90;
-  const dockExitDelayMs = 0;
-  const tabRestoreBaseDelayMs = 110;
-
   return (
     <div data-insight-rail-anchor="" className="sticky top-0 z-20 bg-transparent">
       <div
@@ -1818,144 +1798,68 @@ export function CustomerContextBar({
 
         <div
           ref={visibleStripRef}
-          className="relative flex w-full min-w-0 items-end overflow-x-clip overflow-y-visible pb-1 pr-6"
+          className="relative flex w-full min-w-0 items-end justify-center overflow-x-clip overflow-y-visible px-4"
         >
-          <div
-            className={cn(
-              "flex w-full min-w-0 flex-1 items-end",
-              collectionsSubTabsDocked && showPaymentDockChrome && "pointer-events-none",
-            )}
-          >
-            {visibleTabs.map((tab, idx) => {
-              const key = tabKey(tab);
-              const isActive = tabsEqual(activeTab, tab);
-              const label = tabLabel(tab, stageDisplay);
-              const closable = isTabClosable(tab);
-              const summary = resolveWorkspaceTabSummary(
-                tab,
-                enrichedParentTabSummaries,
-                recordTabSummaries,
-              );
-              const isCollapsing = collectionsSubTabsDocked && showPaymentDockChrome;
-              const collapseDelayMs = isCollapsing
-                ? idx * COLLECTIONS_DOCK_STAGGER_MS
-                : (visibleTabs.length - 1 - idx) * COLLECTIONS_DOCK_STAGGER_MS +
-                  tabRestoreBaseDelayMs;
-              const tabZIndex = isActive ? 50 : 10 - idx;
+        {visibleTabs.map((tab, idx) => {
+          const key = tabKey(tab);
+          const isActive = tabsEqual(activeTab, tab);
+          const label = tabLabel(tab, stageDisplay);
+          const closable = isTabClosable(tab);
+          const summary = resolveWorkspaceTabSummary(
+            tab,
+            enrichedParentTabSummaries,
+            recordTabSummaries,
+          );
+          return (
+            <WorkspaceTabButton
+              key={key}
+              dataTabKey={key}
+              label={label}
+              subtitle={summary?.subtitle}
+              subtitleSeverity={summary?.severity}
+              stage={tab.stage}
+              isRecord={tab.kind === "record"}
+              recordId={tab.kind === "record" ? tab.recordId : undefined}
+              active={isActive}
+              closable={closable}
+              first={idx === 0}
+              zIndex={isActive ? 50 : 10 - idx}
+              tabsCompact={isCollapsed}
+              fillWidth={tabsFillWidth}
+              onClick={() => selectTab(tab)}
+              onClose={
+                tab.kind === "parent"
+                  ? () => onParentClose(tab.stage)
+                  : () => onRecordClose(tab.stage, tab.recordId)
+              }
+            />
+          );
+        })}
 
-              return (
-                <div
-                  key={key}
-                  className={cn(
-                    "relative min-w-0 transition-[opacity,transform,max-width,margin] ease-[cubic-bezier(0.32,0.72,0,1)]",
-                    isCollapsing && "max-w-0 overflow-hidden opacity-0",
-                    isCollapsing && idx > 0 && "!ml-0",
-                    isCollapsing && "-translate-x-2 scale-[0.96]",
-                  )}
-                  style={{
-                    transitionDuration: `${COLLECTIONS_DOCK_MS}ms`,
-                    transitionDelay: `${collapseDelayMs}ms`,
-                    zIndex: tabZIndex,
-                  }}
-                >
-                  <WorkspaceTabButton
-                    dataTabKey={key}
-                    label={label}
-                    subtitle={summary?.subtitle}
-                    subtitleSeverity={summary?.severity}
-                    stage={tab.stage}
-                    isRecord={tab.kind === "record"}
-                    recordId={tab.kind === "record" ? tab.recordId : undefined}
-                    active={isActive}
-                    closable={closable}
-                    first={idx === 0}
-                    zIndex={tabZIndex}
-                    tabsCompact={isCollapsed}
-                    fillWidth={tabsFillWidth}
-                    onClick={() => selectTab(tab)}
-                    onClose={
-                      tab.kind === "parent"
-                        ? () => onParentClose(tab.stage)
-                        : () => onRecordClose(tab.stage, tab.recordId)
-                    }
-                  />
-                </div>
-              );
-            })}
-
-            {showMoreButton && (
-              <div
-                className={cn(
-                  "relative min-w-0 transition-[opacity,transform,max-width] ease-[cubic-bezier(0.32,0.72,0,1)]",
-                  collectionsSubTabsDocked &&
-                    showPaymentDockChrome &&
-                    "max-w-0 overflow-hidden opacity-0 scale-95",
-                )}
-                style={{
-                  transitionDuration: `${COLLECTIONS_DOCK_MS}ms`,
-                  transitionDelay: collectionsSubTabsDocked
-                    ? `${visibleTabs.length * COLLECTIONS_DOCK_STAGGER_MS}ms`
-                    : `${tabRestoreBaseDelayMs}ms`,
-                  zIndex: moreZIndex,
-                }}
-              >
-                <MoreMenu
-                  ref={moreButtonRef}
-                  menuPanelRef={moreMenuPanelRef}
-                  zIndex={moreZIndex}
-                  tabsCompact={isCollapsed}
-                  showSubtitleSlot={anyVisibleTabHasSubtitle}
-                  isOpen={showMoreDropdown}
-                  onToggle={() => setShowMoreDropdown((v) => !v)}
-                  overflowTabs={overflowTabs}
-                  hiddenParents={hiddenParents}
-                  disabledParents={disabledParents}
-                  activeTab={activeTab}
-                  stageDisplay={stageDisplay}
-                  onTabSelect={(tab) => {
-                    selectTab(tab);
-                    setShowMoreDropdown(false);
-                  }}
-                  onRestoreParent={(stage) => {
-                    onRestoreParent(stage);
-                    setShowMoreDropdown(false);
-                  }}
-                />
-              </div>
-            )}
-          </div>
-
-          {showPaymentDockChrome && (
-            <div
-              className={cn(
-                "absolute bottom-0 left-0 right-6 flex min-w-0 items-end transition-[opacity,transform] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-[opacity,transform]",
-                collectionsSubTabsDocked
-                  ? "pointer-events-auto translate-y-0 scale-x-100 scale-y-100 opacity-100"
-                  : "pointer-events-none translate-y-2 scale-x-[0.14] scale-y-[0.9] opacity-0",
-              )}
-              style={{
-                transformOrigin: `${paymentTabOrigin} bottom`,
-                transitionDuration: `${COLLECTIONS_DOCK_MS}ms`,
-                transitionDelay: collectionsSubTabsDocked
-                  ? `${dockEnterDelayMs}ms`
-                  : `${dockExitDelayMs}ms`,
-              }}
-            >
-              <PaymentDockedTabButton
-                active
-                collectionsTab={paymentChrome!.collectionsTab}
-                promiseToPayCount={paymentChrome!.promiseToPayCount}
-                addTabOpen={paymentChrome!.addPromiseTabOpen}
-                editTabOpen={paymentChrome!.editPromiseTarget != null}
-                subTabsVisible={collectionsSubTabsDocked}
-                onSelectCollections={() => {
-                  paymentChrome!.expandAllTabs();
-                  onTabSelect({ kind: "parent", stage: "payment" });
-                }}
-                onSubTabChange={paymentChrome!.setCollectionsTab}
-              />
-            </div>
-          )}
+        {showMoreButton && (
+          <MoreMenu
+            ref={moreButtonRef}
+            menuPanelRef={moreMenuPanelRef}
+            zIndex={moreZIndex}
+            tabsCompact={isCollapsed}
+            showSubtitleSlot={anyVisibleTabHasSubtitle}
+            isOpen={showMoreDropdown}
+            onToggle={() => setShowMoreDropdown((v) => !v)}
+            overflowTabs={overflowTabs}
+            hiddenParents={hiddenParents}
+            disabledParents={disabledParents}
+            activeTab={activeTab}
+            stageDisplay={stageDisplay}
+            onTabSelect={(tab) => {
+              selectTab(tab);
+              setShowMoreDropdown(false);
+            }}
+            onRestoreParent={(stage) => {
+              onRestoreParent(stage);
+              setShowMoreDropdown(false);
+            }}
+          />
+        )}
         </div>
       </div>
 

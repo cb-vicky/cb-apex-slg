@@ -30,8 +30,8 @@ export function PageHeader({
   const navigate = useNavigate();
 
   return (
-    <div className="flex h-[48px] items-center justify-between gap-4">
-      <div className="flex min-w-0 items-center gap-3">
+    <div className="relative flex h-[48px] items-center justify-between gap-4">
+      <div className="relative z-10 flex min-w-0 items-center gap-3">
         {backLabel && backPath && (
           <button
             onClick={() => navigate(backPath)}
@@ -47,9 +47,13 @@ export function PageHeader({
             {filterLabel}
           </span>
         )}
-        {viewToggle}
       </div>
-      <div className="flex shrink-0 items-center gap-2">
+      {viewToggle ? (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div className="pointer-events-auto">{viewToggle}</div>
+        </div>
+      ) : null}
+      <div className="relative z-10 flex shrink-0 items-center gap-2">
         {secondaryActions}
         {createLabel ? (
           <button

@@ -24,6 +24,7 @@ import { AutomationRemindersProvider } from "@/context/AutomationRemindersContex
 import { AutomationIndex } from "@/pages/AutomationIndex";
 import { ReminderSequenceDetailPage } from "@/pages/ReminderSequenceDetailPage";
 import { ModuleStubPage } from "@/pages/ModuleStubPage";
+import { CollectionsIndex } from "@/pages/CollectionsIndex";
 import { EntityDrawer } from "@/components/common/EntityDrawer";
 import { RootErrorBoundary } from "@/components/common/RootErrorBoundary";
 import { NewDealCustomerLinkGateHost } from "@/components/workbench/NewDealCustomerLinkGateHost";
@@ -54,7 +55,7 @@ export default function App() {
             <Route path="/quotes" element={<QuotesIndex />} />
             <Route path="/contracts" element={<ContractsIndex />} />
             <Route path="/invoices" element={<InvoicesIndex />} />
-            <Route path="/collections" element={<ModuleStubPage title="Collections" />} />
+            <Route path="/collections" element={<CollectionsIndex />} />
             <Route path="/automation" element={<AutomationIndex />} />
             <Route path="/automation/reminders/new" element={<ReminderSequenceDetailPage />} />
             <Route path="/automation/reminders/:sequenceId" element={<ReminderSequenceDetailPage />} />

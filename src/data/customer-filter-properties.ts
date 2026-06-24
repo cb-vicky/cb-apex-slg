@@ -1,13 +1,11 @@
 import type { Customer } from "@/data/mock-data";
 import type { CustomerListRowData } from "@/data/customer-list-columns";
+import {
+  operatorRequiresValue,
+  type FilterPropertyDef,
+} from "@/data/filter-properties";
 
-export interface CustomerFilterPropertyDef {
-  name: string;
-  sampleValues: string;
-  operators: readonly string[];
-  /** Discrete values shown in the add-filter picker when applicable */
-  valueOptions?: readonly string[];
-}
+export type CustomerFilterPropertyDef = FilterPropertyDef;
 
 export const CUSTOMER_FILTER_PROPERTIES: CustomerFilterPropertyDef[] = [
   {
@@ -152,11 +150,7 @@ export function operatorsForCustomerProperty(name: string): readonly string[] {
   return getCustomerFilterProperty(name)?.operators ?? [];
 }
 
-const NO_VALUE_OPERATORS = new Set(["is empty", "is not empty"]);
-
-export function operatorRequiresValue(operator: string): boolean {
-  return !NO_VALUE_OPERATORS.has(operator);
-}
+export { operatorRequiresValue };
 
 function parseAmount(value: string): number | null {
   const n = Number.parseFloat(value.replace(/[^0-9.-]/g, ""));

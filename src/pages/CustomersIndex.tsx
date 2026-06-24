@@ -1,59 +1,65 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useScrolled } from "@/hooks/useScrolled";
-import { customers, invoices as seedInvoices } from "@/data/mock-data";
+import { customers, quotes } from "@/data/mock-data";
 import type { Customer } from "@/data/mock-data";
 import { useIngestContext } from "@/context/IngestContext";
-import {
-  columnsForView,
-  formatCustomerListCell,
-  cellClassName,
-  type CustomerListColumnKey,
-  type CustomerListRowData,
-} from "@/data/customer-list-columns";
-import { ListTable, ListCreateRow, ListRow, ListCell } from "@/components/index-page/ListTable";
-import { FilterBar, type FilterTag } from "@/components/index-page/FilterBar";
-import {
-  CUSTOMER_FILTER_PROPERTIES,
-  matchesCustomerPropertyFilter,
-} from "@/data/customer-filter-properties";
-import { CustomerViewSelector } from "@/components/index-page/CustomerViewSelector";
+import { currency, shortDate } from "@/lib/utils";
+import { StatusBadge } from "@/components/ui/primitives";
+import { MetricStrip, type MetricCard } from "@/components/index-page/MetricStrip";
+import { ListTable, ListCreateRow, ListRow, ListCell, type Column } from "@/components/index-page/ListTable";
+import { FilterBar, type FilterTag, type FilterOption } from "@/components/index-page/FilterBar";
 import { PageHeader } from "@/components/index-page/PageHeader";
 import { IndexPageFrame } from "@/components/index-page/IndexPageFrame";
-import {
-  DEFAULT_CUSTOMER_LIST_VIEW_ID,
-  buildCustomerListRowDataMap,
-  countCustomersByView,
-  defaultFilterTagsForView,
-  filterCustomersByView,
-  getCustomerListView,
-  type CustomerListViewId,
-} from "@/data/customer-list-views";
 
-function matchesTagFilters(
-  customer: Customer,
-  filters: FilterTag[],
-  row: CustomerListRowData,
-): boolean {
-  return filters.every((filter) => matchesCustomerPropertyFilter(customer, filter, row));
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function countRenewalsIn30Days(customerList: Customer[]) {
+  let count = 0;
+  for (const c of customerList) {
+    if (c.nextRenewalDate) {
+      const days = Math.round((new Date(c.nextRenewalDate).getTime() - Date.now()) / 86400000);
+      if (days <= 30 && days > 0) count++;
+    }
+  }
+  return count;
 }
+
+function countPendingQuotes(customerList: Customer[]) {
+  let count = 0;
+  for (const c of customerList) {
+    count += quotes.filter((q) => q.customerId === c.id && q.approval.status === "pending").length;
+  }
+  return count;
+}
+
+const listColumns: Column[] = [
+  { key: "customer", label: "Customer", width: "180px", sortable: true },
+  { key: "arr", label: "ARR", width: "100px", align: "right" },
+  { key: "openAr", label: "Open AR", width: "100px", align: "right" },
+  { key: "contracts", label: "Contracts", width: "80px", align: "right" },
+  { key: "quotes", label: "Quotes", width: "80px", align: "right" },
+  { key: "renewal", label: "Renewal", width: "110px", sortable: true },
+  { key: "risk", label: "Risk", width: "120px" },
+  { key: "owner", label: "Owner", width: "120px" },
+];
+
+const filterOptions: FilterOption[] = [
+  { field: "Risk", label: "Risk", values: ["Healthy", "At Risk", "High Risk"] },
+  { field: "Owner", label: "Owner", values: ["Sarah Chen", "Mike Ross", "Alex Kim"] },
+  { field: "Renewal", label: "Renewal", values: ["< 30 days", "30-60 days", "60+ days"] },
+];
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 export function CustomersIndex() {
   const navigate = useNavigate();
-  const { sessionCustomers, sessionInvoices, invoiceStatusOverrides } = useIngestContext();
-  const [activeViewId, setActiveViewId] = useState<CustomerListViewId>(
-    DEFAULT_CUSTOMER_LIST_VIEW_ID,
-  );
-  const [filters, setFilters] = useState<FilterTag[]>(() =>
-    defaultFilterTagsForView(DEFAULT_CUSTOMER_LIST_VIEW_ID),
-  );
-
-  const activeView = useMemo(() => getCustomerListView(activeViewId), [activeViewId]);
-  const listColumns = useMemo(() => columnsForView(activeView.columns), [activeView.columns]);
-
-  useEffect(() => {
-    setFilters(defaultFilterTagsForView(activeViewId));
-  }, [activeViewId]);
+  const { sessionCustomers } = useIngestContext();
+  const [filters, setFilters] = useState<FilterTag[]>([]);
 
   const customersMerged = useMemo(() => {
     const byId = new Map(customers.map((c) => [c.id, c]));
@@ -63,54 +69,32 @@ export function CustomersIndex() {
     return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
   }, [sessionCustomers]);
 
-  const invoicesMerged = useMemo(() => {
-    const byId = new Map(seedInvoices.map((i) => [i.id, i]));
-    for (const inv of sessionInvoices) {
-      byId.set(inv.id, inv);
-    }
-    return [...byId.values()];
-  }, [sessionInvoices]);
-
-  const rowDataMap = useMemo(
-    () => buildCustomerListRowDataMap(customersMerged, invoicesMerged, invoiceStatusOverrides),
-    [customersMerged, invoicesMerged, invoiceStatusOverrides],
-  );
-
-  const viewCounts = useMemo(
-    () => countCustomersByView(customersMerged, rowDataMap),
-    [customersMerged, rowDataMap],
-  );
-
-  const customersFiltered = useMemo(() => {
-    const byView = filterCustomersByView(customersMerged, activeViewId, rowDataMap);
-    return byView.filter((c) => {
-      const row = rowDataMap.get(c.id);
-      if (!row) return false;
-      return matchesTagFilters(c, filters, row);
-    });
-  }, [customersMerged, activeViewId, rowDataMap, filters]);
-
   const { ref: scrollRef, isScrolled } = useScrolled();
+
+  const renewalsIn30Days = useMemo(() => countRenewalsIn30Days(customersMerged), [customersMerged]);
+  const pendingQuotesCount = useMemo(() => countPendingQuotes(customersMerged), [customersMerged]);
+
+  const metrics: MetricCard[] = [
+    { label: "Active customers", value: customersMerged.length },
+    { label: "Renewals in 30 days", value: renewalsIn30Days, variant: renewalsIn30Days > 0 ? "warning" : "default" },
+    { label: "Open AR total", value: currency(customersMerged.reduce((s, c) => s + c.openAr, 0)), variant: "danger" },
+    { label: "Quotes pending", value: pendingQuotesCount, variant: pendingQuotesCount > 0 ? "warning" : "default" },
+    { label: "At-risk customers", value: customersMerged.filter((c) => c.riskBadges.length > 0).length, variant: "danger" },
+  ];
 
   return (
     <IndexPageFrame
       headerRef={scrollRef}
       headerScrolled={isScrolled}
       header={<PageHeader title="Customers" />}
+      metrics={<MetricStrip metrics={metrics} />}
       filterBar={
         <FilterBar
           filters={filters}
           onFiltersChange={setFilters}
-          filterProperties={CUSTOMER_FILTER_PROPERTIES}
-          resultCount={customersFiltered.length}
+          filterOptions={filterOptions}
+          resultCount={customersMerged.length}
           resultLabel="customers"
-          leadingContent={
-            <CustomerViewSelector
-              activeViewId={activeViewId}
-              viewCounts={viewCounts}
-              onViewChange={setActiveViewId}
-            />
-          }
         />
       }
     >
@@ -118,33 +102,30 @@ export function CustomersIndex() {
         <ListCreateRow
           label="New customer"
           columnCount={listColumns.length}
-          firstColumnWidth={listColumns[0]?.width}
+          firstColumnWidth={listColumns[0].width}
         />
-        {customersFiltered.map((customer) => {
-          const row = rowDataMap.get(customer.id);
-          if (!row) return null;
-
-          return (
-            <ListRow
-              key={customer.id}
-              onClick={() => navigate(`/customers/${customer.id}?tab=customer&from=customers`)}
-            >
-              {activeView.columns.map((columnKey: CustomerListColumnKey) => {
-                const column = listColumns.find((c) => c.key === columnKey);
-                return (
-                  <ListCell
-                    key={columnKey}
-                    width={column?.width}
-                    align={column?.align}
-                    className={cellClassName(columnKey, row)}
-                  >
-                    {formatCustomerListCell(columnKey, row)}
-                  </ListCell>
-                );
-              })}
-            </ListRow>
-          );
-        })}
+        {customersMerged.map((c) => (
+          <ListRow key={c.id} onClick={() => navigate(`/customers/${c.id}?tab=customer&from=customers`)}>
+            <ListCell width="180px" className="font-medium text-text-primary">{c.name}</ListCell>
+            <ListCell width="100px" align="right">
+              {currency(c.arr)}
+            </ListCell>
+            <ListCell width="100px" align="right" className={c.openAr > 0 ? "text-red-600 font-medium" : ""}>
+              {currency(c.openAr)}
+            </ListCell>
+            <ListCell width="80px" align="right">
+              {c.activeContractCount}
+            </ListCell>
+            <ListCell width="80px" align="right">
+              {c.openQuoteCount}
+            </ListCell>
+            <ListCell width="110px">{c.nextRenewalDate ? shortDate(c.nextRenewalDate) : "—"}</ListCell>
+            <ListCell width="120px">
+              {c.riskBadges.length > 0 ? <StatusBadge status={`${c.riskBadges.length} flags`} /> : <span className="text-emerald-600 text-[12px]">Healthy</span>}
+            </ListCell>
+            <ListCell width="120px">{c.billingOwner}</ListCell>
+          </ListRow>
+        ))}
       </ListTable>
     </IndexPageFrame>
   );

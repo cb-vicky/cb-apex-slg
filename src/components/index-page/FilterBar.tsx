@@ -1,10 +1,9 @@
 import { useState, type ReactNode } from "react";
 import { X, Plus, Filter, ChevronDown } from "lucide-react";
 import {
-  getCustomerFilterProperty,
   operatorRequiresValue,
-  type CustomerFilterPropertyDef,
-} from "@/data/customer-filter-properties";
+  type FilterPropertyDef,
+} from "@/data/filter-properties";
 import { cn } from "@/lib/utils";
 
 export interface FilterTag {
@@ -26,7 +25,7 @@ interface FilterBarProps {
   filters: FilterTag[];
   onFiltersChange: (filters: FilterTag[]) => void;
   filterOptions?: FilterOption[];
-  filterProperties?: CustomerFilterPropertyDef[];
+  filterProperties?: FilterPropertyDef[];
   resultCount?: number;
   resultLabel?: string;
   leadingContent?: ReactNode;
@@ -80,22 +79,20 @@ export function FilterBar({
   }
 
   const activeOption = filterOptions.find((o) => o.field === activeField);
-  const propertyDef = activeProperty ? getCustomerFilterProperty(activeProperty) : undefined;
+  const propertyDef = activeProperty
+    ? filterProperties?.find((p) => p.name === activeProperty)
+    : undefined;
 
   const menuWide = richMode && (addStep === "operator" || addStep === "value");
 
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        {leadingContent ? <div className="w-full min-w-0">{leadingContent}</div> : null}
-
-        <div className="flex flex-wrap items-center gap-2">
-          {filters.length > 0 &&
-            filters.map((filter) => (
-              <span
-                key={filter.id}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border-default bg-white py-1 pl-3 pr-1.5 text-[12px] font-medium text-text-primary"
-              >
+  const filterControls = (
+    <div className="flex flex-wrap items-center gap-2">
+      {filters.length > 0 &&
+        filters.map((filter) => (
+          <span
+            key={filter.id}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border-default bg-white/50 py-1 pl-3 pr-1.5 text-[12px] font-medium text-text-primary"
+          >
                 <span className="text-text-muted">{filter.field}</span>
                 {filter.operator ? (
                   <>
@@ -345,8 +342,24 @@ export function FilterBar({
 
             {addMenuOpen && <div className="fixed inset-0 z-10" onClick={closeMenu} />}
           </div>
+    </div>
+  );
+
+  return (
+    <div
+      className={cn(
+        "flex justify-between gap-4",
+        leadingContent ? "items-start" : "items-center",
+      )}
+    >
+      {leadingContent ? (
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <div className="w-full min-w-0">{leadingContent}</div>
+          {filterControls}
         </div>
-      </div>
+      ) : (
+        <div className="flex min-w-0 flex-1">{filterControls}</div>
+      )}
 
       {resultCount !== undefined && (
         <span className="shrink-0 text-[13px] tabular-nums text-text-muted">
@@ -357,7 +370,7 @@ export function FilterBar({
   );
 }
 
-function FilterPropertyHint({ propertyDef }: { propertyDef: CustomerFilterPropertyDef }) {
+function FilterPropertyHint({ propertyDef }: { propertyDef: FilterPropertyDef }) {
   return (
     <div className="border-b border-border-subtle bg-gray-50/80 px-3 py-2">
       <p className="text-[11px] leading-snug text-text-muted">
